@@ -9,7 +9,7 @@ import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
-import { isGridProgram, isValidProgram, GRID_PROGRAMS } from "../config/programs.js";
+import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -141,7 +141,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const args = CreateTaskSchema.parse(rawArgs);
 
   // Phase 2: Validate target is a known program or group
-  if (args.target !== "all" && !isValidProgram(args.target) && !isGridProgram(args.target)) {
+  if (args.target !== "all" && !isValidProgram(args.target) && !isGridProgram(args.target) && !isGroupTarget(args.target)) {
     return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid program ID or "all" for broadcast.` });
   }
 

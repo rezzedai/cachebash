@@ -28,3 +28,24 @@ export type ValidProgramId = GridProgramId | SpecialProgramId;
 export function isValidProgram(id: string): id is ValidProgramId {
   return isGridProgram(id) || (SPECIAL_PROGRAMS as readonly string[]).includes(id);
 }
+
+/** Named groups for multicast routing */
+export const PROGRAM_GROUPS: Record<string, readonly GridProgramId[]> = {
+  council: ['iso', 'alan', 'quorra', 'sark', 'casp', 'radia'],
+  builders: ['basher', 'able', 'beck'],
+  intelligence: ['clu', 'beck', 'scribe'],
+  all: [...GRID_PROGRAMS].filter(p => p !== 'council'), // All individual programs except the 'council' meta-entry
+};
+
+/** Check if a target is a group name */
+export function isGroupTarget(target: string): target is keyof typeof PROGRAM_GROUPS {
+  return target in PROGRAM_GROUPS;
+}
+
+/** Resolve a target to an array of individual program IDs */
+export function resolveTargets(target: string): string[] {
+  if (isGroupTarget(target)) {
+    return [...PROGRAM_GROUPS[target]];
+  }
+  return [target];
+}
