@@ -286,12 +286,53 @@ async function handleSprintStoryCascade(
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // If all stories complete, mark sprint as completing
+    // Handle story failure — block parent sprint
+    if (storyData.status === "failed") {
+      update.status = "blocked";
+      update["sprint.blockedReason"] = `Story "${storyData.title}" failed`;
+      // Send push notification
+      await sendSprintBlockedNotification(userId, parentId, storyData);
+    }
+
+    // If all stories complete, mark sprint as done
     if (completedStories.length === stories.length) {
-      update.status = "completing";
+      update.status = "done";
+      update.completedAt = admin.firestore.FieldValue.serverTimestamp();
+      // Send sprint complete notification
+      await sendSprintCompleteNotification(userId, parentId, stories);
     }
 
     await db.doc(`users/${userId}/tasks/${parentId}`).update(update);
+
+    // Check for wave unblocking
+    const completedWave = storyData.sprint?.wave;
+    if (completedWave && ["done", "failed", "derezzed"].includes(storyData.status)) {
+      // Get all stories in the same wave
+      const waveStories = stories.filter((s) => s.sprint?.wave === completedWave);
+      const allWaveComplete = waveStories.every((s) =>
+        ["done", "failed", "derezzed"].includes(s.status)
+      );
+
+      if (allWaveComplete) {
+        // Find stories blocked by this wave
+        const nextWaveStories = storiesSnapshot.docs.filter((doc) => {
+          const d = doc.data();
+          return d.sprint?.blockedByWave === completedWave && d.status === "blocked";
+        });
+
+        // Unblock them
+        const unblockBatch = db.batch();
+        for (const doc of nextWaveStories) {
+          unblockBatch.update(doc.ref, { status: "created" });
+        }
+        if (nextWaveStories.length > 0) {
+          await unblockBatch.commit();
+          functions.logger.info(
+            `Sprint ${parentId}: Wave ${completedWave} complete, unblocked ${nextWaveStories.length} stories in wave ${completedWave + 1}`
+          );
+        }
+      }
+    }
 
     functions.logger.info(
       `Sprint ${parentId} cascade: ${sprintStatus} (${sprintProgress}%)`
@@ -299,6 +340,121 @@ async function handleSprintStoryCascade(
   } catch (error) {
     // Non-fatal — log but don't throw
     functions.logger.error(`Failed sprint cascade for story ${storyId}`, error);
+  }
+}
+
+/**
+ * Send sprint blocked notification when a story fails.
+ */
+async function sendSprintBlockedNotification(
+  userId: string,
+  sprintId: string,
+  storyData: FirebaseFirestore.DocumentData
+): Promise<void> {
+  try {
+    const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+    if (devicesSnapshot.empty) return;
+
+    const tokens: string[] = [];
+    devicesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.fcmToken) tokens.push(data.fcmToken);
+    });
+    if (tokens.length === 0) return;
+
+    const title = "Sprint Blocked";
+    const body = `Story "${storyData.title}" failed in ${storyData.sprint?.projectName || "sprint"}`;
+
+    const notification: admin.messaging.Notification = { title, body };
+
+    const response = await messaging.sendEachForMulticast({
+      tokens,
+      notification,
+      android: {
+        priority: "high",
+        notification: { channelId: "sprints", priority: "high" },
+      },
+      apns: {
+        payload: { aps: { alert: notification, sound: "default" } },
+        headers: { "apns-priority": "10" },
+      },
+      data: {
+        type: "sprint_blocked",
+        sprintId,
+        storyTitle: storyData.title,
+        projectName: storyData.sprint?.projectName || "",
+      },
+    });
+
+    functions.logger.info(
+      `Sprint ${sprintId} blocked: ${response.successCount} sent, ${response.failureCount} failed`
+    );
+
+    await cleanupInvalidTokens(db, userId, devicesSnapshot, tokens, response);
+  } catch (error) {
+    functions.logger.error(`Failed sprint blocked notification for ${sprintId}`, error);
+  }
+}
+
+/**
+ * Send sprint complete notification when all stories are done.
+ */
+async function sendSprintCompleteNotification(
+  userId: string,
+  sprintId: string,
+  stories: FirebaseFirestore.DocumentData[]
+): Promise<void> {
+  try {
+    const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+    if (devicesSnapshot.empty) return;
+
+    const tokens: string[] = [];
+    devicesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.fcmToken) tokens.push(data.fcmToken);
+    });
+    if (tokens.length === 0) return;
+
+    const completedCount = stories.filter((s) => s.status === "done").length;
+    const failedCount = stories.filter((s) => s.status === "failed").length;
+    const skippedCount = stories.filter((s) => s.status === "derezzed").length;
+    const projectName = stories[0]?.sprint?.projectName || "Sprint";
+
+    const title = "Sprint Complete";
+    let body = `${projectName}: ${completedCount} completed`;
+    if (failedCount > 0) body += `, ${failedCount} failed`;
+    if (skippedCount > 0) body += `, ${skippedCount} skipped`;
+
+    const notification: admin.messaging.Notification = { title, body };
+
+    const response = await messaging.sendEachForMulticast({
+      tokens,
+      notification,
+      android: {
+        priority: "high",
+        notification: { channelId: "sprints", priority: "default" },
+      },
+      apns: {
+        payload: { aps: { alert: notification, sound: "default" } },
+        headers: { "apns-priority": "5" },
+      },
+      data: {
+        type: "sprint_complete",
+        sprintId,
+        projectName,
+        completed: String(completedCount),
+        failed: String(failedCount),
+        skipped: String(skippedCount),
+      },
+    });
+
+    functions.logger.info(
+      `Sprint ${sprintId} complete: ${response.successCount} sent, ${response.failureCount} failed`
+    );
+
+    await cleanupInvalidTokens(db, userId, devicesSnapshot, tokens, response);
+  } catch (error) {
+    functions.logger.error(`Failed sprint complete notification for ${sprintId}`, error);
   }
 }
 

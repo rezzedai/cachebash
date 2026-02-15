@@ -21,6 +21,7 @@ const CreateSprintSchema = z.object({
   projectName: z.string().max(100),
   branch: z.string().max(100),
   stories: z.array(StorySchema),
+  target: z.string().max(100).optional(),
   sessionId: z.string().optional(),
   config: z.object({
     orchestratorModel: z.string().optional(),
@@ -106,22 +107,27 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   const batch = db.batch();
   for (const story of args.stories) {
     const storyRef = db.collection(`users/${auth.userId}/tasks`).doc();
+    const wave = story.wave || 1;
+    const isFirstWave = wave === 1;
+
     batch.set(storyRef, {
       type: "sprint-story",
       title: story.title,
       instructions: "",
       source: "orchestrator",
-      target: null,
+      target: args.target || null,
       priority: "normal",
       action: "sprint",
-      status: "created",
+      status: isFirstWave ? "created" : "blocked",
       sprint: {
         parentId: sprintId,
+        storyId: story.id,
         projectName: args.projectName,
         branch: args.branch,
-        wave: story.wave || 1,
+        wave,
         dependencies: story.dependencies || [],
         complexity: story.complexity || "normal",
+        blockedByWave: isFirstWave ? null : wave - 1,
       },
       createdAt: now,
       encrypted: false,
@@ -168,7 +174,7 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
       updateData.completedAt = serverTimestamp();
     }
   }
-  if (args.progress !== undefined) updateData["sprint.currentAction"] = args.currentAction || null;
+  if (args.progress !== undefined) updateData["sprint.progress"] = args.progress;
   if (args.currentAction) updateData["sprint.currentAction"] = args.currentAction;
   if (args.model) updateData.model = args.model;
 

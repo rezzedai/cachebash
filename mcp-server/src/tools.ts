@@ -323,6 +323,7 @@ export const TOOL_DEFINITIONS = [
             required: ["id", "title"],
           },
         },
+        target: { type: "string", maxLength: 100 },
         sessionId: { type: "string" },
         config: {
           type: "object",
