@@ -1,6 +1,6 @@
 /**
  * Tool Registry — Maps tool names to handlers + JSON schema definitions.
- * 17 tools across 6 modules. New names, no backward compat.
+ * 23 tools across 8 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit).
  */
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
