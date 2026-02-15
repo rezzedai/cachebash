@@ -105,6 +105,13 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         source: data.source,
         target: data.target,
         projectId: data.projectId || null,
+        // Envelope v2.1
+        ttl: data.ttl || null,
+        replyTo: data.replyTo || null,
+        threadId: data.threadId || null,
+        provenance: data.provenance || null,
+        fallback: data.fallback || null,
+        expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       };
     });
