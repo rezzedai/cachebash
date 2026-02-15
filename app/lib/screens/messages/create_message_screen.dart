@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../models/message_model.dart';
+import '../../models/task_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/messages_provider.dart';
+import '../../providers/tasks_provider.dart';
 import '../../services/haptic_service.dart';
 
 class CreateMessageScreen extends ConsumerStatefulWidget {
@@ -16,7 +16,7 @@ class CreateMessageScreen extends ConsumerStatefulWidget {
 
 class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
   final _instructionsController = TextEditingController();
-  MessageAction _action = MessageAction.queue;
+  TaskAction _action = TaskAction.queue;
   String? _selectedTarget;
   bool _isSubmitting = false;
 
@@ -30,15 +30,17 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
     super.dispose();
   }
 
-  IconData _getIconForAction(MessageAction action) {
+  IconData _getIconForAction(TaskAction action) {
     switch (action) {
-      case MessageAction.interrupt:
+      case TaskAction.interrupt:
         return Icons.bolt;
-      case MessageAction.parallel:
+      case TaskAction.sprint:
+        return Icons.flash_on;
+      case TaskAction.parallel:
         return Icons.call_split;
-      case MessageAction.queue:
+      case TaskAction.queue:
         return Icons.playlist_play;
-      case MessageAction.backlog:
+      case TaskAction.backlog:
         return Icons.inventory_2_outlined;
     }
   }
@@ -67,7 +69,7 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
     HapticService.medium();
 
     try {
-      await ref.read(messagesServiceProvider).createTask(
+      await ref.read(tasksServiceProvider).createTask(
             userId: user.uid,
             title: title,
             instructions: instructions,
@@ -136,8 +138,8 @@ class _CreateMessageScreenState extends ConsumerState<CreateMessageScreen> {
             // Action flags at top
             SizedBox(
               width: double.infinity,
-              child: SegmentedButton<MessageAction>(
-                segments: MessageAction.values.map((action) {
+              child: SegmentedButton<TaskAction>(
+                segments: TaskAction.values.map((action) {
                   return ButtonSegment(
                     value: action,
                     icon: Icon(_getIconForAction(action)),
