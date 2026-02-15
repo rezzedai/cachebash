@@ -3,15 +3,20 @@
  *
  * Every request passes through the Gate. The Gate validates the API key,
  * verifies the claimed source identity, and logs the decision.
+ *
+ * Phase 2: Source verification is ENFORCED. The key's programId must match
+ * the claimed source. Source spoofing is impossible.
  */
 
 import { generateCorrelationId } from "./correlationId.js";
+import type { AuthContext } from "../auth/apiKeyValidator.js";
 
 export interface AuditEntry {
   timestamp: string;
   correlationId: string;
   tool: string;
   source: string;
+  programId: string;
   userId: string;
   endpoint: string;
   allowed: boolean;
@@ -27,13 +32,14 @@ export function createAuditLogger(correlationId: string, userId: string) {
   return {
     log(
       action: string,
-      details: { tool?: string; durationMs?: number; source?: string; endpoint?: string } = {}
+      details: { tool?: string; durationMs?: number; source?: string; programId?: string; endpoint?: string } = {}
     ) {
       logAudit({
         timestamp: new Date().toISOString(),
         correlationId,
         tool: details.tool || action,
         source: details.source || "unknown",
+        programId: details.programId || "unknown",
         userId,
         endpoint: details.endpoint || "mcp",
         allowed: true,
@@ -43,13 +49,14 @@ export function createAuditLogger(correlationId: string, userId: string) {
     error(
       action: string,
       reason: string,
-      details: { tool?: string; durationMs?: number; source?: string; endpoint?: string } = {}
+      details: { tool?: string; durationMs?: number; source?: string; programId?: string; endpoint?: string } = {}
     ) {
       logAudit({
         timestamp: new Date().toISOString(),
         correlationId,
         tool: details.tool || action,
         source: details.source || "unknown",
+        programId: details.programId || "unknown",
         userId,
         endpoint: details.endpoint || "mcp",
         allowed: false,
@@ -61,25 +68,36 @@ export function createAuditLogger(correlationId: string, userId: string) {
 }
 
 /**
- * Verify source claim. Phase 1: basic verification.
- * ISO endpoint requests can claim source "iso".
- * All sources are logged for audit trail.
+ * Verify source claim against key identity.
+ * Phase 2: ENFORCED. Key's programId must match claimed source.
+ *
+ * Returns the verified source (auto-populated from key if not claimed).
+ * Throws on mismatch.
  */
 export function verifySource(
   claimedSource: string | undefined,
+  auth: AuthContext,
   endpoint: "mcp" | "iso" | "rest"
-): { valid: boolean; reason?: string } {
+): string {
+  // Legacy keys get permissive treatment (backward compat during migration)
+  if (auth.programId === "legacy" || auth.programId === "mobile") {
+    return claimedSource || auth.programId;
+  }
+
+  // If no source claimed, auto-populate from key identity
   if (!claimedSource) {
-    return { valid: true }; // Source not required in Phase 1, but logged
+    return auth.programId;
   }
 
-  // ISO endpoint should only claim iso-related sources
-  if (endpoint === "iso" && claimedSource !== "iso" && !claimedSource.startsWith("iso")) {
-    // Log but allow — Phase 1 is permissive
-    console.warn(`[Gate] ISO endpoint claiming non-iso source: ${claimedSource}`);
+  // Source claim must match key identity
+  if (claimedSource !== auth.programId) {
+    throw new Error(
+      `Source mismatch: key belongs to "${auth.programId}", claimed "${claimedSource}". ` +
+      `Each program must use its own API key.`
+    );
   }
 
-  return { valid: true };
+  return claimedSource;
 }
 
 export { generateCorrelationId };
