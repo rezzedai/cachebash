@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/message_model.dart';
+import '../models/task_model.dart';
 import '../providers/auth_provider.dart';
-import '../providers/messages_provider.dart';
+import '../providers/tasks_provider.dart';
 import '../services/haptic_service.dart';
 
 /// Bottom sheet for creating a reply to an existing message
@@ -36,7 +37,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
   final _titleController = TextEditingController();
   final _instructionsController = TextEditingController();
   bool _isSubmitting = false;
-  MessageAction _selectedAction = MessageAction.queue;
+  TaskAction _selectedAction = TaskAction.queue;
   String _selectedPriority = 'normal';
 
   @override
@@ -64,7 +65,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
       // Determine threadId - use parent's threadId if it exists, otherwise parent's id
       final threadId = widget.parentMessage.threadId ?? widget.parentMessage.id;
 
-      await ref.read(messagesServiceProvider).createTask(
+      await ref.read(tasksServiceProvider).createTask(
             userId: user.uid,
             title: _titleController.text.trim().isEmpty
                 ? 'Reply'
@@ -181,7 +182,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: MessageAction.values.map((action) {
+              children: TaskAction.values.map((action) {
                 final isSelected = _selectedAction == action;
                 return ChoiceChip(
                   label: Text(action.displayName),

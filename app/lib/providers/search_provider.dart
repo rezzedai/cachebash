@@ -276,7 +276,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
           type: 'task',
           title: task.title,
           subtitle: task.instructions,
-          status: task.status,
+          status: task.status.value,
           timestamp: task.createdAt,
           originalItem: task,
         ));

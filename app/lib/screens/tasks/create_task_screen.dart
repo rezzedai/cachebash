@@ -34,6 +34,8 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     switch (action) {
       case TaskAction.interrupt:
         return Icons.bolt;
+      case TaskAction.sprint:
+        return Icons.rocket_launch;
       case TaskAction.parallel:
         return Icons.call_split;
       case TaskAction.queue:
