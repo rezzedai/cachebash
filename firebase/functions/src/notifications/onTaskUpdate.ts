@@ -94,10 +94,20 @@ async function sendBudgetWarning(
       notification,
       android: {
         priority: "high",
-        notification: { channelId: "dreams", priority: "high" },
+        notification: {
+          channelId: "dreams",
+          priority: "high",
+          tag: `dream_budget_${taskId}`,  // Group by dream + budget
+        },
       },
       apns: {
-        payload: { aps: { alert: notification, sound: "default" } },
+        payload: {
+          aps: {
+            alert: notification,
+            sound: "default",
+            "thread-id": "cachebash_dreams",  // iOS grouping
+          },
+        },
         headers: { "apns-priority": "10" },
       },
       data: {
@@ -195,10 +205,20 @@ async function handleDreamTransition(
       notification,
       android: {
         priority: "high",
-        notification: { channelId: "dreams", priority: "high" },
+        notification: {
+          channelId: "dreams",
+          priority: "high",
+          tag: `dream_${taskId}`,  // Group by dream
+        },
       },
       apns: {
-        payload: { aps: { alert: notification, sound: "default" } },
+        payload: {
+          aps: {
+            alert: notification,
+            sound: "default",
+            "thread-id": "cachebash_dreams",  // iOS grouping
+          },
+        },
         headers: { "apns-priority": "10" },
       },
       data: {
@@ -372,10 +392,20 @@ async function sendSprintBlockedNotification(
       notification,
       android: {
         priority: "high",
-        notification: { channelId: "sprints", priority: "high" },
+        notification: {
+          channelId: "sprints",
+          priority: "high",
+          tag: `sprint_${sprintId}`,  // Group by sprint
+        },
       },
       apns: {
-        payload: { aps: { alert: notification, sound: "default" } },
+        payload: {
+          aps: {
+            alert: notification,
+            sound: "default",
+            "thread-id": "cachebash_sprints",  // iOS grouping
+          },
+        },
         headers: { "apns-priority": "10" },
       },
       data: {
@@ -432,10 +462,20 @@ async function sendSprintCompleteNotification(
       notification,
       android: {
         priority: "high",
-        notification: { channelId: "sprints", priority: "default" },
+        notification: {
+          channelId: "sprints",
+          priority: "default",
+          tag: `sprint_${sprintId}`,  // Group by sprint
+        },
       },
       apns: {
-        payload: { aps: { alert: notification, sound: "default" } },
+        payload: {
+          aps: {
+            alert: notification,
+            sound: "default",
+            "thread-id": "cachebash_sprints",  // iOS grouping
+          },
+        },
         headers: { "apns-priority": "5" },
       },
       data: {

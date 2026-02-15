@@ -177,12 +177,46 @@ class FcmService with WidgetsBindingObserver {
       return;
     }
 
-    final messageId = message.data['messageId'] ?? message.data['questionId'];
-    if (messageId?.isNotEmpty ?? false) {
-      Log.d(_tag, '_handleNotificationTap: Navigating to message $messageId');
-      _router!.go('/questions/$messageId');
-    } else {
-      Log.w(_tag, '_handleNotificationTap: No messageId in notification data');
+    final type = message.data['type'] ?? '';
+    final taskId = message.data['taskId'] ?? '';
+
+    switch (type) {
+      case 'question':
+      case 'question_asked':
+        final messageId = message.data['messageId'] ?? message.data['questionId'] ?? taskId;
+        if (messageId.isNotEmpty) {
+          Log.d(_tag, '_handleNotificationTap: Navigating to question $messageId');
+          _router!.go('/questions/$messageId');
+        }
+        break;
+      case 'dream_update':
+      case 'dream_morning_report':
+      case 'dream_budget_warning':
+        if (taskId.isNotEmpty) {
+          Log.d(_tag, '_handleNotificationTap: Navigating to dream $taskId');
+          _router!.go('/dreams/$taskId');
+        }
+        break;
+      case 'sprint_complete':
+      case 'sprint_blocked':
+      case 'sprint_wave_complete':
+        final sprintId = message.data['sprintId'] ?? taskId;
+        if (sprintId.isNotEmpty) {
+          Log.d(_tag, '_handleNotificationTap: Navigating to sprint $sprintId');
+          _router!.go('/sprints/$sprintId');
+        }
+        break;
+      default:
+        // Fallback: try messageId/questionId, then taskId, then home
+        final messageId = message.data['messageId'] ?? message.data['questionId'];
+        if (messageId?.isNotEmpty ?? false) {
+          _router!.go('/questions/$messageId');
+        } else if (taskId.isNotEmpty) {
+          _router!.go('/tasks');
+        } else {
+          Log.w(_tag, '_handleNotificationTap: No route found, going home');
+          _router!.go('/home');
+        }
     }
   }
 

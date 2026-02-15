@@ -100,6 +100,7 @@ export const onTaskCreate = functions.firestore
         notification: {
           channelId,
           priority: isHighPriority ? "max" : "default",
+          tag: `cachebash_${taskType}`,  // Group by type
         },
       };
 
@@ -117,6 +118,7 @@ export const onTaskCreate = functions.firestore
             alert: notification,
             sound: "default",
             badge: pendingCount.data().count,
+            "thread-id": `cachebash_${taskType}`,  // iOS grouping
           },
         },
         headers: {

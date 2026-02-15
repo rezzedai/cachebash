@@ -54,19 +54,25 @@ class NotificationPreferencesService {
     String userId, {
     bool? newQuestions,
     bool? sessionUpdates,
+    bool? dreamCompletions,
+    bool? dreamBudgetWarnings,
+    bool? sprintUpdates,
     bool? highPriorityOnly,
+    bool? quietHoursEnabled,
+    int? quietHoursStart,
+    int? quietHoursEnd,
   }) async {
     final updates = <String, dynamic>{};
 
-    if (newQuestions != null) {
-      updates['notificationPreferences.newQuestions'] = newQuestions;
-    }
-    if (sessionUpdates != null) {
-      updates['notificationPreferences.sessionUpdates'] = sessionUpdates;
-    }
-    if (highPriorityOnly != null) {
-      updates['notificationPreferences.highPriorityOnly'] = highPriorityOnly;
-    }
+    if (newQuestions != null) updates['notificationPreferences.newQuestions'] = newQuestions;
+    if (sessionUpdates != null) updates['notificationPreferences.sessionUpdates'] = sessionUpdates;
+    if (dreamCompletions != null) updates['notificationPreferences.dreamCompletions'] = dreamCompletions;
+    if (dreamBudgetWarnings != null) updates['notificationPreferences.dreamBudgetWarnings'] = dreamBudgetWarnings;
+    if (sprintUpdates != null) updates['notificationPreferences.sprintUpdates'] = sprintUpdates;
+    if (highPriorityOnly != null) updates['notificationPreferences.highPriorityOnly'] = highPriorityOnly;
+    if (quietHoursEnabled != null) updates['notificationPreferences.quietHoursEnabled'] = quietHoursEnabled;
+    if (quietHoursStart != null) updates['notificationPreferences.quietHoursStart'] = quietHoursStart;
+    if (quietHoursEnd != null) updates['notificationPreferences.quietHoursEnd'] = quietHoursEnd;
 
     if (updates.isEmpty) return;
 
