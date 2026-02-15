@@ -54,7 +54,7 @@ export const ISO_TOOL_DEFINITIONS = [
       properties: {
         message: { type: "string", maxLength: 2000 },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"] },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
@@ -76,10 +76,10 @@ export const ISO_TOOL_DEFINITIONS = [
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
       },
-      required: ["title"],
+      required: ["title", "target"],
     },
   },
   {

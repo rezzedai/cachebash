@@ -9,6 +9,7 @@ import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
+import { isGridProgram, isValidProgram, GRID_PROGRAMS } from "../config/programs.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -24,7 +25,7 @@ const CreateTaskSchema = z.object({
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
   source: z.string().max(100).optional(),
-  target: z.string().max(100).optional(),
+  target: z.string().max(100),
   projectId: z.string().optional(),
   ttl: z.number().positive().optional(),
   replyTo: z.string().optional(),
@@ -83,13 +84,24 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     query = query.where("type", "==", args.type);
   }
 
+  // Phase 2: Target enforcement — programs only see their own tasks
+  if (auth.programId !== "legacy" && auth.programId !== "mobile") {
+    // Program keys: only see tasks targeted at this program OR broadcast
+    query = query.where("target", "in", [auth.programId, "all"]);
+  }
+  // Legacy/mobile keys: see everything (Flynn/mobile app)
+  // If caller also provided a target filter param, apply it client-side after
+
   const snapshot = await query.orderBy("createdAt", "desc").limit(args.limit).get();
 
   const tasks = snapshot.docs
     .filter((doc) => {
-      if (!args.target) return true;
-      const target = doc.data().target;
-      return !target || target === args.target;
+      // Additional client-side filter if caller specified target param (for legacy keys)
+      if (args.target && auth.programId === "legacy") {
+        const target = doc.data().target;
+        return !target || target === args.target;
+      }
+      return true;
     })
     .map((doc) => {
       const data = doc.data();
@@ -127,6 +139,12 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
 export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateTaskSchema.parse(rawArgs);
+
+  // Phase 2: Validate target is a known program or group
+  if (args.target !== "all" && !isValidProgram(args.target) && !isGridProgram(args.target)) {
+    return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid program ID or "all" for broadcast.` });
+  }
+
   const db = getFirestore();
 
   const preview = args.title.length > 50 ? args.title.substring(0, 47) + "..." : args.title;
@@ -138,7 +156,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     instructions: args.instructions || "",
     preview,
     source: args.source || "unknown",
-    target: args.target || null,
+    target: args.target,
     priority: args.priority,
     action: args.action,
     status: "created",
