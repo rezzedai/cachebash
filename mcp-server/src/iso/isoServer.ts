@@ -14,11 +14,13 @@ import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandl
 import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler } from "../modules/relay.js";
 import { updateSessionHandler } from "../modules/pulse.js";
 import { sendAlertHandler } from "../modules/signal.js";
+import { createDreamHandler, killDreamHandler } from "../modules/dream.js";
 import { listKeysHandler } from "../modules/keys.js";
 import { getAuditHandler } from "../modules/audit.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
-import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
+import { generateCorrelationId, createAuditLogger, checkDreamBudget } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
+import { getFirestore } from "../firebase/client.js";
 import { ISO_TOOL_DEFINITIONS } from "./toolDefinitions.js";
 
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
@@ -31,6 +33,8 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   claim_task: claimTaskHandler,
   complete_task: completeTaskHandler,
   send_alert: sendAlertHandler,
+  create_dream: createDreamHandler,
+  kill_dream: killDreamHandler,
   list_keys: listKeysHandler,
   get_audit: getAuditHandler,
 };
@@ -83,6 +87,12 @@ export async function createIsoServer(): Promise<{
       };
     }
 
+    // Check dream budget and kill switch
+    const dreamError = await checkDreamBudget(authContext.userId, sessionId, name);
+    if (dreamError) {
+      return { content: [{ type: "text", text: dreamError }], isError: true };
+    }
+
     const handler = ISO_TOOL_HANDLERS[name];
     if (!handler) {
       return {
@@ -91,15 +101,23 @@ export async function createIsoServer(): Promise<{
       };
     }
 
+    // Extract dreamId from session if present (for budget tracking)
+    let dreamId: string | undefined;
+    if (sessionId) {
+      const db = getFirestore();
+      const sessionDoc = await db.doc(`users/${authContext.userId}/sessions/${sessionId}`).get();
+      dreamId = sessionDoc.exists ? sessionDoc.data()?.dreamId : undefined;
+    }
+
     try {
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true);
+      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true, undefined, dreamId);
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
       logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, false,
-        error instanceof Error ? error.message : String(error));
+        error instanceof Error ? error.message : String(error), dreamId);
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,

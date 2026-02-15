@@ -8,7 +8,7 @@ import { validateApiKey, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { generateCorrelationId } from "../middleware/gate.js";
-import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
+import { dreamPeekHandler, dreamActivateHandler, createDreamHandler, killDreamHandler } from "../modules/dream.js";
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -183,8 +183,20 @@ const routes: Route[] = [
     const text = result?.content?.[0]?.text;
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
+  route("POST", "/v1/dreams", async (auth, req, res) => {
+    const body = await readBody(req);
+    const result = await createDreamHandler(auth, body);
+    const text = result?.content?.[0]?.text;
+    restResponse(res, true, text ? JSON.parse(text) : result, 201);
+  }),
   route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
     const result = await dreamActivateHandler(auth, { dreamId: p.id });
+    const text = result?.content?.[0]?.text;
+    restResponse(res, true, text ? JSON.parse(text) : result);
+  }),
+  route("POST", "/v1/dreams/:id/kill", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const result = await killDreamHandler(auth, { dreamId: p.id, ...body });
     const text = result?.content?.[0]?.text;
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),

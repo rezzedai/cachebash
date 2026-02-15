@@ -19,6 +19,11 @@ export const onTaskUpdate = functions.firestore
     const after = change.after.data();
     const taskType: string = after.type || "task";
 
+    // Handle budget warnings for active dreams (even without status change)
+    if (taskType === "dream" && after.status === "active") {
+      await handleDreamBudgetWarning(userId, taskId, before, after);
+    }
+
     // Skip if no status change
     if (before.status === after.status) return;
 
@@ -30,7 +35,92 @@ export const onTaskUpdate = functions.firestore
   });
 
 /**
- * Dream terminal transitions → push notification.
+ * Dream budget warning check for active dreams.
+ */
+async function handleDreamBudgetWarning(
+  userId: string,
+  taskId: string,
+  before: FirebaseFirestore.DocumentData,
+  after: FirebaseFirestore.DocumentData
+): Promise<void> {
+  const budgetCap = after.dream?.budget_cap_usd;
+  const budgetConsumed = after.dream?.budget_consumed_usd || 0;
+  const prevConsumed = before.dream?.budget_consumed_usd || 0;
+
+  if (!budgetCap || budgetCap <= 0) return;
+
+  const pct = (budgetConsumed / budgetCap) * 100;
+  const prevPct = (prevConsumed / budgetCap) * 100;
+
+  const thresholds = [50, 80, 95];
+  for (const threshold of thresholds) {
+    if (pct >= threshold && prevPct < threshold) {
+      await sendBudgetWarning(userId, taskId, after, threshold, budgetConsumed, budgetCap);
+      break;
+    }
+  }
+}
+
+/**
+ * Send budget warning push notification.
+ */
+async function sendBudgetWarning(
+  userId: string,
+  taskId: string,
+  dreamData: FirebaseFirestore.DocumentData,
+  threshold: number,
+  budgetConsumed: number,
+  budgetCap: number
+): Promise<void> {
+  try {
+    const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+    if (devicesSnapshot.empty) return;
+
+    const tokens: string[] = [];
+    devicesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.fcmToken) tokens.push(data.fcmToken);
+    });
+    if (tokens.length === 0) return;
+
+    const agent = dreamData.dream?.agent || dreamData.source || "Agent";
+    const title = `Dream Budget: ${threshold}% Used`;
+    const body = `${agent} has consumed $${budgetConsumed.toFixed(2)} of $${budgetCap.toFixed(2)} budget (${Math.round((budgetConsumed / budgetCap) * 100)}%)`;
+
+    const notification: admin.messaging.Notification = { title, body };
+
+    const response = await messaging.sendEachForMulticast({
+      tokens,
+      notification,
+      android: {
+        priority: "high",
+        notification: { channelId: "dreams", priority: "high" },
+      },
+      apns: {
+        payload: { aps: { alert: notification, sound: "default" } },
+        headers: { "apns-priority": "10" },
+      },
+      data: {
+        type: "dream_budget_warning",
+        taskId,
+        threshold: String(threshold),
+        budgetConsumed: String(budgetConsumed),
+        budgetCap: String(budgetCap),
+      },
+    });
+
+    functions.logger.info(
+      `Dream ${taskId} budget warning (${threshold}%): ${response.successCount} sent, ${response.failureCount} failed`
+    );
+
+    await cleanupInvalidTokens(db, userId, devicesSnapshot, tokens, response);
+  } catch (error) {
+    functions.logger.error(`Failed budget warning for ${taskId}`, error);
+  }
+}
+
+/**
+ * Dream terminal transitions → push notification with full morning report.
  */
 async function handleDreamTransition(
   userId: string,
@@ -53,27 +143,47 @@ async function handleDreamTransition(
     if (tokens.length === 0) return;
 
     const agent = after.dream?.agent || after.source || "Agent";
+    const budgetConsumed = after.dream?.budget_consumed_usd || 0;
+    const budgetCap = after.dream?.budget_cap_usd || 0;
+    const startedAt = after.startedAt?.toDate?.();
+    const completedAt = after.completedAt?.toDate?.();
+    const duration = startedAt && completedAt
+      ? Math.round((completedAt.getTime() - startedAt.getTime()) / 1000 / 60)
+      : null;
+
     let title: string;
     let body: string;
 
     switch (after.status) {
       case "done": {
         title = "Dream Complete";
-        const report = after.dream?.morningReport;
-        const preview = report
-          ? report.substring(0, 100).replace(/[\r\n]+/g, " ")
-          : "Check the morning report for details.";
-        body = `${agent}: ${preview}`;
+        const outcome = after.dream?.outcome || "Check the morning report for details.";
+        const prUrl = after.dream?.pr_url;
+        const budgetInfo = budgetCap > 0
+          ? `Budget: $${budgetConsumed.toFixed(2)} / $${budgetCap.toFixed(2)}`
+          : `Cost: $${budgetConsumed.toFixed(2)}`;
+        const durationInfo = duration ? ` • ${duration} min` : "";
+        const prInfo = prUrl ? ` • PR ready` : "";
+        body = `${agent}: ${outcome}\n${budgetInfo}${durationInfo}${prInfo}`;
         break;
       }
-      case "failed":
+      case "failed": {
         title = "Dream Failed";
-        body = `${agent} encountered an error. ${after.dream?.outcome || "Check logs."}`;
+        const errorMsg = after.dream?.outcome || "Check logs for details.";
+        const budgetInfo = budgetCap > 0
+          ? ` Budget: $${budgetConsumed.toFixed(2)} / $${budgetCap.toFixed(2)}`
+          : ` Cost: $${budgetConsumed.toFixed(2)}`;
+        body = `${agent}: ${errorMsg}\n${budgetInfo}`;
         break;
-      case "derezzed":
+      }
+      case "derezzed": {
         title = "Dream Stopped";
-        body = `${agent} was stopped.`;
+        const budgetInfo = budgetCap > 0
+          ? ` Budget: $${budgetConsumed.toFixed(2)} / $${budgetCap.toFixed(2)}`
+          : ` Cost: $${budgetConsumed.toFixed(2)}`;
+        body = `${agent} was stopped.${budgetInfo}`;
         break;
+      }
       default:
         return;
     }
@@ -91,7 +201,16 @@ async function handleDreamTransition(
         payload: { aps: { alert: notification, sound: "default" } },
         headers: { "apns-priority": "10" },
       },
-      data: { type: "dream_update", taskId, status: after.status, agent },
+      data: {
+        type: "dream_update",
+        taskId,
+        status: after.status,
+        agent,
+        budgetConsumed: String(budgetConsumed),
+        budgetCap: String(budgetCap),
+        duration: duration ? String(duration) : "",
+        prUrl: after.dream?.pr_url || "",
+      },
     });
 
     functions.logger.info(

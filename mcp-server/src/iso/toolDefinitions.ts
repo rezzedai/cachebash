@@ -152,4 +152,33 @@ export const ISO_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: "create_dream",
+    description: "Create a new dream session (Dream Mode). Sets budget cap, timeout, and target program.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        agent: { type: "string", maxLength: 100, description: "Target program to run the dream (e.g., 'basher')" },
+        title: { type: "string", maxLength: 200, description: "What to dream about" },
+        instructions: { type: "string", maxLength: 4000, description: "Detailed instructions for the dream" },
+        branch: { type: "string", maxLength: 100, description: "Git branch for the work" },
+        budget_cap_usd: { type: "number", description: "Maximum budget in USD (default: 5, max: 100)" },
+        timeout_hours: { type: "number", description: "Maximum duration in hours (default: 8, max: 24)" },
+        target: { type: "string", maxLength: 100, description: "Target program ID (defaults to agent)" },
+      },
+      required: ["agent", "title"],
+    },
+  },
+  {
+    name: "kill_dream",
+    description: "Kill a running dream session immediately. Emergency stop.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        dreamId: { type: "string", description: "ID of the dream task to kill" },
+        reason: { type: "string", maxLength: 500, description: "Reason for killing the dream" },
+      },
+      required: ["dreamId"],
+    },
+  },
 ];

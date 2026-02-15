@@ -110,4 +110,48 @@ export function verifySource(
   return claimedSource;
 }
 
+/**
+ * Check dream budget and kill switch for a tool call.
+ * Returns null if OK, or an error message if blocked.
+ */
+export async function checkDreamBudget(
+  userId: string,
+  sessionId: string | undefined,
+  toolName: string,
+): Promise<string | null> {
+  if (!sessionId) return null;
+
+  const db = getFirestore();
+
+  // Find the session to check if it's linked to a dream
+  const sessionDoc = await db.doc(`users/${userId}/sessions/${sessionId}`).get();
+  if (!sessionDoc.exists) return null;
+
+  const sessionData = sessionDoc.data()!;
+  const dreamId = sessionData.dreamId;
+  if (!dreamId) return null;
+
+  // Get the dream task
+  const dreamDoc = await db.doc(`users/${userId}/tasks/${dreamId}`).get();
+  if (!dreamDoc.exists) return null;
+
+  const dream = dreamDoc.data()!;
+
+  // Kill switch: if dream was killed (status == "failed"), reject immediately
+  if (dream.status === "failed" || dream.status === "derezzed") {
+    return `DREAM_KILLED: Dream session has been terminated. Reason: ${dream.dream?.killReason || "Killed by user"}`;
+  }
+
+  // Budget check
+  const budgetCap = dream.dream?.budget_cap_usd;
+  if (budgetCap && budgetCap > 0) {
+    const budgetConsumed = dream.dream?.budget_consumed_usd || 0;
+    if (budgetConsumed >= budgetCap) {
+      return `BUDGET_EXCEEDED: Dream budget exhausted. Consumed: $${budgetConsumed.toFixed(4)}, Cap: $${budgetCap.toFixed(2)}`;
+    }
+  }
+
+  return null;
+}
+
 export { generateCorrelationId };

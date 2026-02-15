@@ -8,7 +8,7 @@ import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandl
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
-import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
+import { dreamPeekHandler, dreamActivateHandler, createDreamHandler, killDreamHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
@@ -36,6 +36,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Dream
   dream_peek: dreamPeekHandler,
   dream_activate: dreamActivateHandler,
+  create_dream: createDreamHandler,
+  kill_dream: killDreamHandler,
   // Sprint
   create_sprint: createSprintHandler,
   update_sprint_story: updateStoryHandler,
@@ -265,6 +267,35 @@ export const TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         dreamId: { type: "string" },
+      },
+      required: ["dreamId"],
+    },
+  },
+  {
+    name: "create_dream",
+    description: "Create a new dream session (Dream Mode). Sets budget cap, timeout, and target program.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        agent: { type: "string", maxLength: 100, description: "Target program to run the dream (e.g., 'basher')" },
+        title: { type: "string", maxLength: 200, description: "What to dream about" },
+        instructions: { type: "string", maxLength: 4000, description: "Detailed instructions for the dream" },
+        branch: { type: "string", maxLength: 100, description: "Git branch for the work" },
+        budget_cap_usd: { type: "number", description: "Maximum budget in USD (default: 5, max: 100)" },
+        timeout_hours: { type: "number", description: "Maximum duration in hours (default: 8, max: 24)" },
+        target: { type: "string", maxLength: 100, description: "Target program ID (defaults to agent)" },
+      },
+      required: ["agent", "title"],
+    },
+  },
+  {
+    name: "kill_dream",
+    description: "Kill a running dream session immediately. Emergency stop.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        dreamId: { type: "string", description: "ID of the dream task to kill" },
+        reason: { type: "string", maxLength: 500, description: "Reason for killing the dream" },
       },
       required: ["dreamId"],
     },
