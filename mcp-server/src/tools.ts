@@ -5,7 +5,7 @@
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
-import { sendMessageHandler, getMessagesHandler } from "./modules/relay.js";
+import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
@@ -23,6 +23,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Relay
   send_message: sendMessageHandler,
   get_messages: getMessagesHandler,
+  get_dead_letters: getDeadLettersHandler,
   // Pulse
   create_session: createSessionHandler,
   update_session: updateSessionHandler,
@@ -140,6 +141,16 @@ export const TOOL_DEFINITIONS = [
         markAsRead: { type: "boolean", default: true },
       },
       required: ["sessionId"],
+    },
+  },
+  {
+    name: "get_dead_letters",
+    description: "View messages that failed delivery. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max results to return" },
+      },
     },
   },
   // === Pulse ===

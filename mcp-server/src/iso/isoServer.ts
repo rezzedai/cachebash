@@ -11,7 +11,7 @@ import {
 import { CustomHTTPTransport } from "../transport/CustomHTTPTransport.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "../modules/dispatch.js";
-import { getMessagesHandler, sendMessageHandler } from "../modules/relay.js";
+import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler } from "../modules/relay.js";
 import { updateSessionHandler } from "../modules/pulse.js";
 import { sendAlertHandler } from "../modules/signal.js";
 import { listKeysHandler } from "../modules/keys.js";
@@ -23,6 +23,7 @@ import { ISO_TOOL_DEFINITIONS } from "./toolDefinitions.js";
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
   get_tasks: getTasksHandler,
   get_messages: getMessagesHandler,
+  get_dead_letters: getDeadLettersHandler,
   update_session: updateSessionHandler,
   send_message: sendMessageHandler,
   create_task: createTaskHandler,
