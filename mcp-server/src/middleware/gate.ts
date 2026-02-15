@@ -4,11 +4,11 @@
  * Every request passes through the Gate. The Gate validates the API key,
  * verifies the claimed source identity, and logs the decision.
  *
- * Phase 2: Source verification is ENFORCED. The key's programId must match
- * the claimed source. Source spoofing is impossible.
+ * Phase 2: Source verification is ENFORCED. Audit entries persisted to Firestore.
  */
 
 import { generateCorrelationId } from "./correlationId.js";
+import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import type { AuthContext } from "../auth/apiKeyValidator.js";
 
 export interface AuditEntry {
@@ -16,6 +16,7 @@ export interface AuditEntry {
   correlationId: string;
   tool: string;
   source: string;
+  claimedSource?: string;
   programId: string;
   userId: string;
   endpoint: string;
@@ -24,21 +25,35 @@ export interface AuditEntry {
   durationMs?: number;
 }
 
+/** Log audit entry to console AND persist to Firestore */
 export function logAudit(entry: AuditEntry): void {
+  // Always log to console for Cloud Run visibility
   console.log(JSON.stringify(entry));
+
+  // Persist to Firestore (fire-and-forget)
+  if (entry.userId) {
+    const db = getFirestore();
+    db.collection(`users/${entry.userId}/audit`).add({
+      ...entry,
+      timestamp: serverTimestamp(),
+    }).catch((err) => {
+      console.error("[Audit] Failed to persist audit entry:", err);
+    });
+  }
 }
 
 export function createAuditLogger(correlationId: string, userId: string) {
   return {
     log(
       action: string,
-      details: { tool?: string; durationMs?: number; source?: string; programId?: string; endpoint?: string } = {}
+      details: { tool?: string; durationMs?: number; source?: string; claimedSource?: string; programId?: string; endpoint?: string } = {}
     ) {
       logAudit({
         timestamp: new Date().toISOString(),
         correlationId,
         tool: details.tool || action,
         source: details.source || "unknown",
+        claimedSource: details.claimedSource,
         programId: details.programId || "unknown",
         userId,
         endpoint: details.endpoint || "mcp",
@@ -49,13 +64,14 @@ export function createAuditLogger(correlationId: string, userId: string) {
     error(
       action: string,
       reason: string,
-      details: { tool?: string; durationMs?: number; source?: string; programId?: string; endpoint?: string } = {}
+      details: { tool?: string; durationMs?: number; source?: string; claimedSource?: string; programId?: string; endpoint?: string } = {}
     ) {
       logAudit({
         timestamp: new Date().toISOString(),
         correlationId,
         tool: details.tool || action,
         source: details.source || "unknown",
+        claimedSource: details.claimedSource,
         programId: details.programId || "unknown",
         userId,
         endpoint: details.endpoint || "mcp",
@@ -70,26 +86,20 @@ export function createAuditLogger(correlationId: string, userId: string) {
 /**
  * Verify source claim against key identity.
  * Phase 2: ENFORCED. Key's programId must match claimed source.
- *
- * Returns the verified source (auto-populated from key if not claimed).
- * Throws on mismatch.
  */
 export function verifySource(
   claimedSource: string | undefined,
   auth: AuthContext,
   endpoint: "mcp" | "iso" | "rest"
 ): string {
-  // Legacy keys get permissive treatment (backward compat during migration)
   if (auth.programId === "legacy" || auth.programId === "mobile") {
     return claimedSource || auth.programId;
   }
 
-  // If no source claimed, auto-populate from key identity
   if (!claimedSource) {
     return auth.programId;
   }
 
-  // Source claim must match key identity
   if (claimedSource !== auth.programId) {
     throw new Error(
       `Source mismatch: key belongs to "${auth.programId}", claimed "${claimedSource}". ` +

@@ -80,10 +80,10 @@ async function main() {
 
     try {
       const result = await handler(auth, args);
-      logToolCall(auth.userId, name, (args as any)?.source || "unknown", sessionId, Date.now() - startTime, true);
+      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
       return result;
     } catch (err) {
-      logToolCall(auth.userId, name, (args as any)?.source || "unknown", sessionId, Date.now() - startTime, false,
+      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
         err instanceof Error ? err.message : String(err));
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
