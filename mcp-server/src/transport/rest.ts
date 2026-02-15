@@ -183,6 +183,22 @@ const routes: Route[] = [
     const text = result?.content?.[0]?.text;
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
+
+  // Keys
+  route("POST", "/v1/keys", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, "create_key", body);
+    restResponse(res, true, data, 201);
+  }),
+  route("DELETE", "/v1/keys/:hash", async (auth, req, res, p) => {
+    const data = await callTool(auth, "revoke_key", { keyHash: p.hash });
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/keys", async (auth, req, res) => {
+    const query = parseQuery(req.url || "");
+    const data = await callTool(auth, "list_keys", query);
+    restResponse(res, true, data);
+  }),
   // Legacy redirects
   route("GET", "/v1/interrupts/peek", async (auth, req, res) => {
     const query = parseQuery(req.url || "");

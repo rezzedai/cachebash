@@ -120,4 +120,14 @@ export const ISO_TOOL_DEFINITIONS = [
       required: ["message"],
     },
   },
+  {
+    name: "list_keys",
+    description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        includeRevoked: { type: "boolean", default: false, description: "Include revoked keys in results" },
+      },
+    },
+  },
 ];
