@@ -107,6 +107,8 @@ class TasksService {
     bool encrypt = false,
     String? target,
     String? source,
+    String? threadId,
+    String? inReplyTo,
   }) async {
     _log('Creating task: $title (action: ${action.value})');
 
@@ -144,6 +146,8 @@ class TasksService {
       'encrypted': isEncrypted,
       'target': target,
       'source': source ?? 'flynn',
+      'threadId': threadId,
+      'replyTo': inReplyTo,
       'archived': false,
     });
 
