@@ -41,3 +41,8 @@ export {
   transition,
   TRANSITIONS,
 } from "../lifecycle/engine.js";
+
+// API Key types
+export type { ApiKeyDoc } from "./apiKey.js";
+export { GRID_PROGRAMS, isGridProgram, isValidProgram, SPECIAL_PROGRAMS } from "../config/programs.js";
+export type { GridProgramId, SpecialProgramId, ValidProgramId } from "../config/programs.js";

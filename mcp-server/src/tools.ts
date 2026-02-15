@@ -10,6 +10,7 @@ import { createSessionHandler, updateSessionHandler, listSessionsHandler } from 
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
+import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -38,6 +39,11 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   update_sprint_story: updateStoryHandler,
   add_story_to_sprint: addStoryHandler,
   complete_sprint: completeSprintHandler,
+
+  // Keys
+  create_key: createKeyHandler,
+  revoke_key: revokeKeyHandler,
+  list_keys: listKeysHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -340,6 +346,40 @@ export const TOOL_DEFINITIONS = [
         },
       },
       required: ["sprintId"],
+    },
+  },
+  // === Keys ===
+  {
+    name: "create_key",
+    description: "Create a new per-program API key. Returns the raw key (only shown once).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program this key authenticates as", maxLength: 50 },
+        label: { type: "string", description: "Human-readable label for key management", maxLength: 200 },
+      },
+      required: ["programId", "label"],
+    },
+  },
+  {
+    name: "revoke_key",
+    description: "Revoke an API key by its hash. Soft revoke — key stays in DB for audit.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        keyHash: { type: "string", description: "SHA-256 hash of the key to revoke" },
+      },
+      required: ["keyHash"],
+    },
+  },
+  {
+    name: "list_keys",
+    description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        includeRevoked: { type: "boolean", default: false, description: "Include revoked keys in results" },
+      },
     },
   },
 ];

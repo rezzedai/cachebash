@@ -14,6 +14,7 @@ import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandl
 import { getMessagesHandler, sendMessageHandler } from "../modules/relay.js";
 import { updateSessionHandler } from "../modules/pulse.js";
 import { sendAlertHandler } from "../modules/signal.js";
+import { listKeysHandler } from "../modules/keys.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
@@ -28,6 +29,7 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   claim_task: claimTaskHandler,
   complete_task: completeTaskHandler,
   send_alert: sendAlertHandler,
+  list_keys: listKeysHandler,
 };
 
 const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
