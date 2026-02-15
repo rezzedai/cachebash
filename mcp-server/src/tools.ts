@@ -11,6 +11,7 @@ import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modu
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
+import { getAuditHandler } from "./modules/audit.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -45,6 +46,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   create_key: createKeyHandler,
   revoke_key: revokeKeyHandler,
   list_keys: listKeysHandler,
+
+  // Audit
+  get_audit: getAuditHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -390,6 +394,19 @@ export const TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         includeRevoked: { type: "boolean", default: false, description: "Include revoked keys in results" },
+      },
+    },
+  },
+  // === Audit ===
+  {
+    name: "get_audit",
+    description: "Query the Gate audit log. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50, description: "Max results" },
+        allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
       },
     },
   },

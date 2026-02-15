@@ -15,6 +15,7 @@ import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler } from ".
 import { updateSessionHandler } from "../modules/pulse.js";
 import { sendAlertHandler } from "../modules/signal.js";
 import { listKeysHandler } from "../modules/keys.js";
+import { getAuditHandler } from "../modules/audit.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
@@ -31,6 +32,7 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   complete_task: completeTaskHandler,
   send_alert: sendAlertHandler,
   list_keys: listKeysHandler,
+  get_audit: getAuditHandler,
 };
 
 const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
@@ -92,11 +94,11 @@ export async function createIsoServer(): Promise<{
     try {
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, "iso", sessionId, durationMs, true);
+      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true);
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, "iso", sessionId, durationMs, false,
+      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, false,
         error instanceof Error ? error.message : String(error));
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
