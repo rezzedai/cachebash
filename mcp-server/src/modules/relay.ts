@@ -7,6 +7,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
+import { resolveTargets, isGroupTarget } from "../config/programs.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -46,9 +47,13 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
 
-  const relayData: Record<string, unknown> = {
+  // Resolve target — may be a group (fan-out) or single program
+  const targets = resolveTargets(args.target);
+  const isMulticast = targets.length > 1;
+  const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
+
+  const baseData: Record<string, unknown> = {
     source: args.source,
-    target: args.target,
     message_type: args.message_type,
     payload: args.message,
     priority: args.priority,
@@ -66,7 +71,59 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     createdAt: serverTimestamp(),
   };
 
-  // Write to relay (data plane)
+  if (isMulticast) {
+    // Fan out: one relay doc per target
+    const batch = db.batch();
+    const refs: string[] = [];
+
+    for (const target of targets) {
+      const ref = db.collection(`users/${auth.userId}/relay`).doc();
+      batch.set(ref, {
+        ...baseData,
+        target,
+        multicastId,
+        multicastSource: args.target,
+      });
+      refs.push(ref.id);
+    }
+
+    // Single task doc for mobile visibility (summary, not fan-out)
+    const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
+    const taskRef = db.collection(`users/${auth.userId}/tasks`).doc();
+    batch.set(taskRef, {
+      type: "task",
+      title: `[${args.source}→${args.target}] ${args.message_type}`,
+      instructions: args.message,
+      preview,
+      source: args.source,
+      target: args.target,
+      priority: args.priority,
+      action: args.action,
+      status: "created",
+      createdAt: serverTimestamp(),
+      encrypted: false,
+      archived: false,
+    });
+
+    await batch.commit();
+
+    return jsonResult({
+      success: true,
+      multicastId,
+      recipients: targets.length,
+      targets,
+      action: args.action,
+      relay: true,
+      message: `Multicast sent to ${targets.length} recipients (${args.target}). ID: "${multicastId}"`,
+    });
+  }
+
+  // Single target — original behavior
+  const relayData = {
+    ...baseData,
+    target: args.target,
+  };
+
   const relayRef = await db.collection(`users/${auth.userId}/relay`).add(relayData);
 
   // Also write to tasks collection for mobile app visibility
@@ -137,6 +194,8 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         threadId: data.threadId || null,
         ttl: data.ttl || null,
         provenance: data.provenance || null,
+        multicastId: data.multicastId || null,
+        multicastSource: data.multicastSource || null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       };
     });
@@ -180,6 +239,8 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
           threadId: data.threadId || null,
           ttl: data.ttl || null,
           provenance: data.provenance || null,
+          multicastId: data.multicastId || null,
+          multicastSource: data.multicastSource || null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
         });
       }
