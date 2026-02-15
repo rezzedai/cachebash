@@ -60,6 +60,8 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     status: "pending",
     ttl,
     expiresAt,
+    deliveryAttempts: 0,
+    maxDeliveryAttempts: 3,
     provenance: args.provenance || null,
     createdAt: serverTimestamp(),
   };
@@ -163,6 +165,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         tx.update(ref, {
           status: "delivered",
           deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
+          deliveryAttempts: admin.firestore.FieldValue.increment(1),
         });
 
         claimed.push({
@@ -195,4 +198,55 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
       error: `Failed to claim messages: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
+}
+
+const GetDeadLettersSchema = z.object({
+  limit: z.number().min(1).max(50).default(20),
+});
+
+export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  // Only accessible by ISO and Flynn (legacy/mobile keys)
+  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "iso") {
+    return jsonResult({
+      success: false,
+      error: "Dead letter queue is only accessible by ISO and Flynn.",
+    });
+  }
+
+  const args = GetDeadLettersSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  const snapshot = await db
+    .collection(`users/${auth.userId}/dead_letters`)
+    .orderBy("deadLetteredAt", "desc")
+    .limit(args.limit)
+    .get();
+
+  const deadLetters = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      source: data.source,
+      target: data.target,
+      message_type: data.message_type,
+      payload: data.payload,
+      priority: data.priority,
+      action: data.action,
+      context: data.context || null,
+      deliveryAttempts: data.deliveryAttempts || 0,
+      maxDeliveryAttempts: data.maxDeliveryAttempts || 3,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+      deadLetteredAt: data.deadLetteredAt?.toDate?.()?.toISOString() || null,
+      expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  return jsonResult({
+    success: true,
+    count: deadLetters.length,
+    deadLetters,
+    message: deadLetters.length > 0
+      ? `Found ${deadLetters.length} dead letter(s)`
+      : "No dead letters found",
+  });
 }

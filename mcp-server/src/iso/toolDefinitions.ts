@@ -31,6 +31,16 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_dead_letters",
+    description: "View messages that failed delivery. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max results to return" },
+      },
+    },
+  },
+  {
     name: "update_session",
     description: "Update working status visible in the app",
     inputSchema: {
