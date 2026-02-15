@@ -49,3 +49,43 @@ export function resolveTargets(target: string): string[] {
   }
   return [target];
 }
+
+/** Program capabilities for capability-based routing */
+export const PROGRAM_CAPABILITIES: Partial<Record<GridProgramId, string[]>> = {
+  basher: ['build', 'deploy', 'test', 'infrastructure', 'backend', 'frontend'],
+  alan: ['architecture', 'tech-eval', 'schema-design', 'adr', 'review'],
+  sark: ['security-review', 'qa', 'testing', 'chaos-engineering'],
+  iso: ['orchestration', 'delegation', 'council', 'planning'],
+  clu: ['analysis', 'opportunity-scoring', 'synthesis', 'gap-analysis'],
+  quorra: ['design', 'ux', 'wireframes', 'prototyping'],
+  radia: ['vision', 'ideation', 'possibility-mapping', 'strategy'],
+  gem: ['frontend', 'react', 'nextjs', 'ui-engineering'],
+  rinzler: ['backend', 'api', 'database', 'services'],
+  scribe: ['transcription', 'media-analysis', 'summarization'],
+  castor: ['content', 'copywriting', 'blog', 'marketing'],
+  beck: ['research', 'web-search', 'data-gathering'],
+  casp: ['evaluation', 'scoring', 'criteria-assessment'],
+};
+
+/** Resolve a capability target to a program ID */
+export function resolveCapability(capability: string): string | null {
+  for (const [programId, caps] of Object.entries(PROGRAM_CAPABILITIES)) {
+    if (caps && caps.includes(capability)) {
+      return programId;
+    }
+  }
+  return null;
+}
+
+/** Get all capabilities for a program */
+export function getProgramCapabilities(programId: string): string[] {
+  return (PROGRAM_CAPABILITIES as Record<string, string[]>)[programId] || [];
+}
+
+/** Get the full program registry with capabilities */
+export function getProgramRegistry(): Array<{ id: string; capabilities: string[] }> {
+  return GRID_PROGRAMS.map(id => ({
+    id,
+    capabilities: getProgramCapabilities(id),
+  }));
+}

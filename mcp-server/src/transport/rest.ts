@@ -224,6 +224,13 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
 
+  // Programs
+  route("GET", "/v1/programs", async (auth, req, res) => {
+    const { getProgramRegistry } = await import("../config/programs.js");
+    const programs = getProgramRegistry();
+    restResponse(res, true, { programs, count: programs.length });
+  }),
+
   // Legacy redirects
   route("GET", "/v1/interrupts/peek", async (auth, req, res) => {
     const query = parseQuery(req.url || "");

@@ -9,7 +9,7 @@ import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
-import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
+import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget, resolveCapability } from "../config/programs.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -139,6 +139,19 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
 export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateTaskSchema.parse(rawArgs);
+
+  // Capability-based routing: resolve "cap:xxx" targets to program IDs
+  if (args.target.startsWith('cap:')) {
+    const capability = args.target.slice(4);
+    const resolved = resolveCapability(capability);
+    if (!resolved) {
+      return jsonResult({
+        success: false,
+        error: `No program has capability: "${capability}". Use GET /v1/programs to see available capabilities.`,
+      });
+    }
+    args.target = resolved;
+  }
 
   // Phase 2: Validate target is a known program or group
   if (args.target !== "all" && !isValidProgram(args.target) && !isGridProgram(args.target) && !isGroupTarget(args.target)) {

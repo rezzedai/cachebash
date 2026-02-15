@@ -1,6 +1,6 @@
 /**
  * Tool Registry — Maps tool names to handlers + JSON schema definitions.
- * 23 tools across 8 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit).
+ * 24 tools across 9 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit, programs).
  */
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
@@ -12,6 +12,7 @@ import { dreamPeekHandler, dreamActivateHandler, createDreamHandler, killDreamHa
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
+import { getProgramRegistry } from "./config/programs.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -51,6 +52,12 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Audit
   get_audit: getAuditHandler,
+
+  // Programs
+  list_programs: async (_auth: AuthContext, _args: unknown) => {
+    const programs = getProgramRegistry();
+    return { content: [{ type: "text", text: JSON.stringify({ success: true, programs, count: programs.length }) }] };
+  },
 };
 
 export const TOOL_DEFINITIONS = [
@@ -440,6 +447,15 @@ export const TOOL_DEFINITIONS = [
         allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
         programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
       },
+    },
+  },
+  // === Programs ===
+  {
+    name: "list_programs",
+    description: "List all Grid programs with their capabilities. Use for capability-based routing discovery.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
     },
   },
 ];
