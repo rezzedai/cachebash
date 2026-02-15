@@ -329,7 +329,7 @@ class TasksScreen extends ConsumerWidget {
                     final inProgressTasks =
                         tasks.where((t) => t.isInProgress).toList();
                     final completedTasks = tasks.where((t) => t.isComplete).toList();
-                    final cancelledTasks = tasks.where((t) => t.isCancelled).toList();
+                    final cancelledTasks = tasks.where((t) => t.isFailed).toList();
 
                     int animationIndex = 0;
                     return ListView(
@@ -754,30 +754,34 @@ class TasksScreen extends ConsumerWidget {
     IconData icon;
 
     switch (task.status) {
-      case 'pending':
+      case LifecycleStatus.created:
         color = Colors.orange;
         label = 'Pending';
         icon = Icons.hourglass_empty;
-        break;
-      case 'in_progress':
+      case LifecycleStatus.active:
         color = Colors.blue;
         label = 'In Progress';
         icon = Icons.play_circle;
-        break;
-      case 'complete':
+      case LifecycleStatus.done:
         color = Colors.green;
         label = 'Complete';
         icon = Icons.check_circle;
-        break;
-      case 'cancelled':
+      case LifecycleStatus.failed:
+        color = Colors.red;
+        label = 'Failed';
+        icon = Icons.error;
+      case LifecycleStatus.blocked:
+        color = Colors.amber;
+        label = 'Blocked';
+        icon = Icons.block;
+      case LifecycleStatus.completing:
+        color = Colors.teal;
+        label = 'Completing';
+        icon = Icons.hourglass_top;
+      case LifecycleStatus.derezzed:
         color = Colors.grey;
-        label = 'Cancelled';
+        label = 'Derezzed';
         icon = Icons.cancel;
-        break;
-      default:
-        color = Colors.grey;
-        label = task.status;
-        icon = Icons.circle;
     }
 
     return Container(
