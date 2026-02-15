@@ -7,12 +7,15 @@ import '../../providers/messages_provider.dart';
 import '../../providers/questions_provider.dart';
 import '../../providers/dream_sessions_provider.dart';
 import '../../providers/sessions_provider.dart';
+import '../../providers/pulse_provider.dart';
 import '../../models/dream_session_model.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/animated_list_item.dart';
 import '../../widgets/question_card.dart';
 import '../../widgets/session_card.dart';
 import '../../widgets/shimmer_card.dart';
+import '../../widgets/program_pulse_row.dart';
+import '../../widgets/task_queue_chips.dart';
 
 void _log(String message) {
   debugPrint('[HomeScreen] $message');
@@ -104,10 +107,12 @@ class HomeScreen extends ConsumerWidget {
     final activeDreams = ref.watch(activeDreamSessionsProvider);
     final activeSessions = ref.watch(activeSessionsProvider);
     final inactiveSessions = ref.watch(inactiveSessionsProvider);
+    final allSessions = ref.watch(allActiveSessionsProvider);
+    final pendingTaskQueue = ref.watch(pendingTaskQueueProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CacheBash'),
+        title: const Text('Grid Pulse'),
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -133,10 +138,50 @@ class HomeScreen extends ConsumerWidget {
           ref.invalidate(activeDreamSessionsProvider);
           ref.invalidate(activeSessionsProvider);
           ref.invalidate(inactiveSessionsProvider);
+          ref.invalidate(allActiveSessionsProvider);
+          ref.invalidate(pendingTaskQueueProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Grid Pulse Section
+            _buildSectionHeader(context, 'Grid Pulse', Icons.grid_view_rounded),
+            const SizedBox(height: 12),
+            allSessions.when(
+              loading: () => const SizedBox(height: 48, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+              error: (error, stack) => const SizedBox.shrink(),
+              data: (sessions) => ProgramPulseRow(sessions: sessions),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Task Queue Section
+            _buildSectionHeader(
+              context,
+              'Task Queue',
+              Icons.queue,
+              onViewAll: () => context.go('/tasks'),
+            ),
+            const SizedBox(height: 8),
+            pendingTaskQueue.when(
+              loading: () => const SizedBox(height: 32, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+              error: (error, stack) => const SizedBox.shrink(),
+              data: (tasks) => TaskQueueChips(
+                pendingTasks: tasks,
+                onTapTarget: (target) {
+                  HapticService.light();
+                  context.go('/tasks');
+                },
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Quick Actions
+            _buildQuickActions(context, ref),
+
+            const SizedBox(height: 24),
+
             // Pending Questions Section
             _buildSectionHeader(
               context,
@@ -290,6 +335,57 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context, WidgetRef ref) {
+    final activeDreams = ref.watch(activeDreamSessionsProvider);
+    final hasActiveDream = activeDreams.whenOrNull(data: (d) => d.isNotEmpty) ?? false;
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () {
+              HapticService.light();
+              context.push('/tasks/new');
+            },
+            icon: const Icon(Icons.add_task, size: 18),
+            label: const Text('New Task'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () {
+              HapticService.light();
+              context.push('/dreams/new');
+            },
+            icon: const Icon(Icons.nightlight_round, size: 18),
+            label: const Text('New Dream'),
+          ),
+        ),
+        if (hasActiveDream) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () {
+                HapticService.medium();
+                // Navigate to first active dream for kill action
+                final dreams = activeDreams.value ?? [];
+                if (dreams.isNotEmpty) {
+                  context.push('/dreams/${dreams.first.id}');
+                }
+              },
+              icon: Icon(Icons.dangerous, size: 18, color: Theme.of(context).colorScheme.error),
+              label: Text('Kill', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5)),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

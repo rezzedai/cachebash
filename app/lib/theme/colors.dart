@@ -50,4 +50,26 @@ class AppColors {
     end: Alignment.bottomCenter,
     colors: [surfaceDark, backgroundDark],
   );
+
+  // Grid program identity colors (from RADIA's disc palette)
+  static const Map<String, Color> programColors = {
+    'basher': Color(0xFFFF6C00),  // Orange
+    'iso': Color(0xFF4ECDC4),     // Cyan (use existing AppColors.cyan)
+    'alan': Color(0xFF7B68EE),    // Purple (use existing AppColors.purple)
+    'sark': Color(0xFFEF4444),    // Red
+    'radia': Color(0xFFFBBF24),   // Gold
+    'clu': Color(0xFF38BDF8),     // Blue
+    'quorra': Color(0xFFEC4899),  // Pink
+    'gem': Color(0xFF4ADE80),     // Green
+    'rinzler': Color(0xFF8B5CF6), // Violet
+    'scribe': Color(0xFFA78BFA),  // Lavender
+    'castor': Color(0xFFF97316),  // Deep orange
+    'beck': Color(0xFF06B6D4),    // Teal
+  };
+
+  /// Get program color with fallback
+  static Color getProgramColor(String? programId) {
+    if (programId == null) return textMuted;
+    return programColors[programId.toLowerCase()] ?? textMuted;
+  }
 }
