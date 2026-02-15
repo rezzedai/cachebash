@@ -120,6 +120,11 @@ const routes: Route[] = [
     const data = await callTool(auth, "send_message", body);
     restResponse(res, true, data, 201);
   }),
+  route("GET", "/v1/dead-letters", async (auth, req, res) => {
+    const query = parseQuery(req.url || "");
+    const data = await callTool(auth, "get_dead_letters", query);
+    restResponse(res, true, data);
+  }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
     const query = parseQuery(req.url || "");
