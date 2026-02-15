@@ -77,12 +77,12 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
   const start = Date.now();
   try {
     const result = await handler(auth, args);
-    logToolCall(auth.userId, toolName, "rest", undefined, Date.now() - start, true);
+    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, true);
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
     return text ? JSON.parse(text) : result;
   } catch (err) {
-    logToolCall(auth.userId, toolName, "rest", undefined, Date.now() - start, false,
+    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
     throw err;
   }
@@ -119,6 +119,11 @@ const routes: Route[] = [
     const body = await readBody(req);
     const data = await callTool(auth, "send_message", body);
     restResponse(res, true, data, 201);
+  }),
+  route("GET", "/v1/dead-letters", async (auth, req, res) => {
+    const query = parseQuery(req.url || "");
+    const data = await callTool(auth, "get_dead_letters", query);
+    restResponse(res, true, data);
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
@@ -183,6 +188,30 @@ const routes: Route[] = [
     const text = result?.content?.[0]?.text;
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
+
+  // Keys
+  route("POST", "/v1/keys", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, "create_key", body);
+    restResponse(res, true, data, 201);
+  }),
+  route("DELETE", "/v1/keys/:hash", async (auth, req, res, p) => {
+    const data = await callTool(auth, "revoke_key", { keyHash: p.hash });
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/keys", async (auth, req, res) => {
+    const query = parseQuery(req.url || "");
+    const data = await callTool(auth, "list_keys", query);
+    restResponse(res, true, data);
+  }),
+
+  // Audit
+  route("GET", "/v1/audit", async (auth, req, res) => {
+    const query = parseQuery(req.url || "");
+    const data = await callTool(auth, "get_audit", query);
+    restResponse(res, true, data);
+  }),
+
   // Legacy redirects
   route("GET", "/v1/interrupts/peek", async (auth, req, res) => {
     const query = parseQuery(req.url || "");

@@ -20,7 +20,7 @@ export type RelayMessageType =
   | "RESULT";
 
 /** Relay delivery status */
-export type RelayStatus = "pending" | "delivered" | "expired";
+export type RelayStatus = "pending" | "delivered" | "expired" | "dead_letter";
 
 /** The RelayMessage document — lives in users/{uid}/relay/{id} */
 export interface RelayMessage extends Omit<Envelope, "action"> {
@@ -38,6 +38,15 @@ export interface RelayMessage extends Omit<Envelope, "action"> {
   ttl: number;
   expiresAt: FirestoreTimestamp;
 
+  // Delivery tracking
+  deliveryAttempts: number;
+  maxDeliveryAttempts: number;
+  deadLetteredAt?: FirestoreTimestamp;
+
+  // Multicast
+  multicastId?: string;
+  multicastSource?: string;
+
   // Timestamps
   createdAt: FirestoreTimestamp;
   deliveredAt?: FirestoreTimestamp;
@@ -45,3 +54,6 @@ export interface RelayMessage extends Omit<Envelope, "action"> {
 
 /** Default TTL for relay messages: 24 hours */
 export const RELAY_DEFAULT_TTL_SECONDS = 86400;
+
+/** Default max delivery attempts before dead-lettering */
+export const RELAY_MAX_DELIVERY_ATTEMPTS = 3;
