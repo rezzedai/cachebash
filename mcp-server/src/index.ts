@@ -11,8 +11,9 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase } from "./firebase/client.js";
 import { validateApiKey, type AuthContext } from "./auth/apiKeyValidator.js";
-import { generateCorrelationId, createAuditLogger, checkDreamBudget } from "./middleware/gate.js";
+import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, cleanupRateLimits } from "./middleware/rateLimiter.js";
+import { checkDreamBudget } from "./middleware/budgetGuard.js";
 import { logToolCall } from "./modules/ledger.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
@@ -73,10 +74,11 @@ async function main() {
       return { content: [{ type: "text", text: `Rate limit exceeded for ${name}.` }], isError: true };
     }
 
-    // Check dream budget and kill switch
-    const dreamError = await checkDreamBudget(auth.userId, sessionId, name);
-    if (dreamError) {
-      return { content: [{ type: "text", text: dreamError }], isError: true };
+    // Budget enforcement — reject if dream budget exceeded
+    const budgetCheck = await checkDreamBudget(auth);
+    if (!budgetCheck.allowed) {
+      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false, budgetCheck.reason);
+      return { content: [{ type: "text", text: `Budget exceeded: ${budgetCheck.reason}` }], isError: true };
     }
 
     const handler = TOOL_HANDLERS[name];
@@ -84,21 +86,13 @@ async function main() {
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
     }
 
-    // Extract dreamId from session if present (for budget tracking)
-    let dreamId: string | undefined;
-    if (sessionId) {
-      const db = (await import("./firebase/client.js")).getFirestore();
-      const sessionDoc = await db.doc(`users/${auth.userId}/sessions/${sessionId}`).get();
-      dreamId = sessionDoc.exists ? sessionDoc.data()?.dreamId : undefined;
-    }
-
     try {
       const result = await handler(auth, args);
-      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true, undefined, dreamId);
+      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true, undefined, budgetCheck.dreamId);
       return result;
     } catch (err) {
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
-        err instanceof Error ? err.message : String(err), dreamId);
+        err instanceof Error ? err.message : String(err), budgetCheck.dreamId);
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   });

@@ -19,8 +19,23 @@ export const onTaskUpdate = functions.firestore
     const after = change.after.data();
     const taskType: string = after.type || "task";
 
-    // Handle budget warnings for active dreams (even without status change)
+    // Kill Mechanism 2: Budget enforcement safety net
+    // Runs on ANY update to active dreams (not just status changes)
     if (taskType === "dream" && after.status === "active") {
+      const consumed = after.dream?.budget_consumed_usd || 0;
+      const cap = after.dream?.budget_cap_usd || 0;
+      if (cap > 0 && consumed >= cap) {
+        functions.logger.warn(
+          `[BudgetEnforcement] Dream ${taskId} budget exceeded: $${consumed.toFixed(4)} >= $${cap.toFixed(2)} cap. Killing.`
+        );
+        await change.after.ref.update({
+          status: "failed",
+          "dream.outcome": `Budget exceeded: $${consumed.toFixed(4)} of $${cap.toFixed(2)} cap consumed`,
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return; // Status change will re-trigger this function for notification
+      }
+      // Budget warnings (50%, 80%, 95%)
       await handleDreamBudgetWarning(userId, taskId, before, after);
     }
 
