@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ─────────────────────────────────
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Dream field immutability: budget_cap_usd, timeout_hours, created_by
+    // cannot be changed after creation. Only applies to dream-type tasks.
+    function dreamFieldsImmutable() {
+      return !('dream' in resource.data)
+        || (
+          'dream' in request.resource.data
+          && request.resource.data.dream.budget_cap_usd == resource.data.dream.budget_cap_usd
+          && request.resource.data.dream.timeout_hours == resource.data.dream.timeout_hours
+          && request.resource.data.dream.created_by == resource.data.dream.created_by
+        );
+    }
+
+    // ── Per-User Collection Isolation ─────────────────────
+    // Users can only access their own subcollections.
+    // Admin SDK (MCP server, Cloud Functions) bypasses all rules.
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      // Tasks — read/create/update own, with dream field protections
+      match /tasks/{taskId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update: if isOwner(uid) && dreamFieldsImmutable();
+        allow delete: if false;
+      }
+
+      // Relay — read own, create own, immutable after creation
+      match /relay/{messageId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update, delete: if false;
+      }
+
+      // Sessions — read/write own
+      match /sessions/{sessionId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid);
+        allow delete: if false;
+      }
+
+      // Ledger — read only (Cloud Functions / Admin SDK writes)
+      match /ledger/{entryId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // Audit — read only (Cloud Functions / Admin SDK writes)
+      match /audit/{entryId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // Devices — full access for own devices (FCM token management)
+      match /devices/{deviceId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ── API Keys — Admin SDK Only ────────────────────────
+    match /apiKeys/{keyHash} {
+      allow read, write: if false;
+    }
+
+    // ── Default Deny ─────────────────────────────────────
+    // Any collection not explicitly matched is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
