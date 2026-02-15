@@ -31,6 +31,16 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_dead_letters",
+    description: "View messages that failed delivery. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max results to return" },
+      },
+    },
+  },
+  {
     name: "update_session",
     description: "Update working status visible in the app",
     inputSchema: {
@@ -54,7 +64,7 @@ export const ISO_TOOL_DEFINITIONS = [
       properties: {
         message: { type: "string", maxLength: 2000 },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"] },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
@@ -76,10 +86,10 @@ export const ISO_TOOL_DEFINITIONS = [
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
       },
-      required: ["title"],
+      required: ["title", "target"],
     },
   },
   {
@@ -118,6 +128,28 @@ export const ISO_TOOL_DEFINITIONS = [
         sessionId: { type: "string" },
       },
       required: ["message"],
+    },
+  },
+  {
+    name: "list_keys",
+    description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        includeRevoked: { type: "boolean", default: false, description: "Include revoked keys in results" },
+      },
+    },
+  },
+  {
+    name: "get_audit",
+    description: "Query the Gate audit log. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50, description: "Max results" },
+        allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
+      },
     },
   },
 ];

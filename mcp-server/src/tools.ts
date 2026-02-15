@@ -1,15 +1,17 @@
 /**
  * Tool Registry — Maps tool names to handlers + JSON schema definitions.
- * 17 tools across 6 modules. New names, no backward compat.
+ * 23 tools across 8 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit).
  */
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
-import { sendMessageHandler, getMessagesHandler } from "./modules/relay.js";
+import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
+import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
+import { getAuditHandler } from "./modules/audit.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -22,6 +24,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Relay
   send_message: sendMessageHandler,
   get_messages: getMessagesHandler,
+  get_dead_letters: getDeadLettersHandler,
   // Pulse
   create_session: createSessionHandler,
   update_session: updateSessionHandler,
@@ -38,6 +41,14 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   update_sprint_story: updateStoryHandler,
   add_story_to_sprint: addStoryHandler,
   complete_sprint: completeSprintHandler,
+
+  // Keys
+  create_key: createKeyHandler,
+  revoke_key: revokeKeyHandler,
+  list_keys: listKeysHandler,
+
+  // Audit
+  get_audit: getAuditHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -67,7 +78,7 @@ export const TOOL_DEFINITIONS = [
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
         ttl: { type: "number", description: "Seconds until expiry" },
         replyTo: { type: "string", description: "Task ID this responds to" },
@@ -75,7 +86,7 @@ export const TOOL_DEFINITIONS = [
         provenance: { type: "object", properties: { model: { type: "string" }, cost_tokens: { type: "number" }, confidence: { type: "number" } } },
         fallback: { type: "array", items: { type: "string" }, description: "Fallback targets" },
       },
-      required: ["title"],
+      required: ["title", "target"],
     },
   },
   {
@@ -110,7 +121,7 @@ export const TOOL_DEFINITIONS = [
       properties: {
         message: { type: "string", maxLength: 2000 },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100 },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"] },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
@@ -134,6 +145,16 @@ export const TOOL_DEFINITIONS = [
         markAsRead: { type: "boolean", default: true },
       },
       required: ["sessionId"],
+    },
+  },
+  {
+    name: "get_dead_letters",
+    description: "View messages that failed delivery. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max results to return" },
+      },
     },
   },
   // === Pulse ===
@@ -340,6 +361,53 @@ export const TOOL_DEFINITIONS = [
         },
       },
       required: ["sprintId"],
+    },
+  },
+  // === Keys ===
+  {
+    name: "create_key",
+    description: "Create a new per-program API key. Returns the raw key (only shown once).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program this key authenticates as", maxLength: 50 },
+        label: { type: "string", description: "Human-readable label for key management", maxLength: 200 },
+      },
+      required: ["programId", "label"],
+    },
+  },
+  {
+    name: "revoke_key",
+    description: "Revoke an API key by its hash. Soft revoke — key stays in DB for audit.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        keyHash: { type: "string", description: "SHA-256 hash of the key to revoke" },
+      },
+      required: ["keyHash"],
+    },
+  },
+  {
+    name: "list_keys",
+    description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        includeRevoked: { type: "boolean", default: false, description: "Include revoked keys in results" },
+      },
+    },
+  },
+  // === Audit ===
+  {
+    name: "get_audit",
+    description: "Query the Gate audit log. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50, description: "Max results" },
+        allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
+      },
     },
   },
 ];
