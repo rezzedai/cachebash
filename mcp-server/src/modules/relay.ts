@@ -130,6 +130,11 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         message_type: data.message_type,
         action: data.action,
         priority: data.priority,
+        context: data.context || null,
+        reply_to: data.reply_to || null,
+        threadId: data.threadId || null,
+        ttl: data.ttl || null,
+        provenance: data.provenance || null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       };
     });
@@ -167,6 +172,11 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
           message_type: data.message_type,
           action: data.action,
           priority: data.priority,
+          context: data.context || null,
+          reply_to: data.reply_to || null,
+          threadId: data.threadId || null,
+          ttl: data.ttl || null,
+          provenance: data.provenance || null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
         });
       }
