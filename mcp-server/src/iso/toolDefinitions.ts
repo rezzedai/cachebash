@@ -140,4 +140,16 @@ export const ISO_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: "get_audit",
+    description: "Query the Gate audit log. ISO and Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50, description: "Max results" },
+        allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
+      },
+    },
+  },
 ];
