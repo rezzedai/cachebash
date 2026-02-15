@@ -43,6 +43,10 @@ export interface RelayMessage extends Omit<Envelope, "action"> {
   maxDeliveryAttempts: number;
   deadLetteredAt?: FirestoreTimestamp;
 
+  // Multicast
+  multicastId?: string;
+  multicastSource?: string;
+
   // Timestamps
   createdAt: FirestoreTimestamp;
   deliveredAt?: FirestoreTimestamp;
