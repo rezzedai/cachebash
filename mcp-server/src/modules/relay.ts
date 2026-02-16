@@ -4,6 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import { verifySource } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
@@ -42,6 +43,9 @@ function jsonResult(data: unknown): ToolResult {
 
 export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = SendMessageSchema.parse(rawArgs);
+
+  // Phase 2: Enforce source identity
+  const verifiedSource = verifySource(args.source, auth, "mcp");
   const db = getFirestore();
 
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
@@ -53,7 +57,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
 
   const baseData: Record<string, unknown> = {
-    source: args.source,
+    source: verifiedSource,
     message_type: args.message_type,
     payload: args.message,
     priority: args.priority,
@@ -92,10 +96,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     const taskRef = db.collection(`users/${auth.userId}/tasks`).doc();
     batch.set(taskRef, {
       type: "task",
-      title: `[${args.source}→${args.target}] ${args.message_type}`,
+      title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
       instructions: args.message,
       preview,
-      source: args.source,
+      source: verifiedSource,
       target: args.target,
       priority: args.priority,
       action: args.action,
@@ -130,10 +134,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
   await db.collection(`users/${auth.userId}/tasks`).doc(relayRef.id).set({
     type: "task",
-    title: `[${args.source}→${args.target}] ${args.message_type}`,
+    title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
     instructions: args.message,
     preview,
-    source: args.source,
+    source: verifiedSource,
     target: args.target,
     priority: args.priority,
     action: args.action,
@@ -163,11 +167,16 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
 
   const snapshot = await query.get();
 
-  // Filter by target: return messages for this session or with no target
-  const target = args.target || args.sessionId;
+  // Phase 2: Target enforcement — programs only see their own messages
+  const requestedTarget = args.target || args.sessionId;
   const filtered = snapshot.docs.filter((doc) => {
     const t = doc.data().target;
-    return !t || t === target || t === "all";
+    if (auth.programId !== "legacy" && auth.programId !== "mobile") {
+      // Program keys: only see messages targeted at this program or broadcast
+      return t === auth.programId || t === "all";
+    }
+    // Legacy/mobile keys: original behavior (filter by requested target)
+    return !t || t === requestedTarget || t === "all";
   });
 
   if (filtered.length === 0) {

@@ -42,6 +42,26 @@ function parseQuery(url: string): Record<string, string> {
   return params;
 }
 
+/** Numeric and boolean fields that arrive as strings from query params */
+const NUMERIC_FIELDS = new Set(['limit', 'progress', 'ttl', 'budget_cap_usd', 'timeout_hours', 'wave', 'maxConcurrent', 'completed', 'failed', 'skipped', 'duration', 'cost_tokens', 'confidence']);
+const BOOLEAN_FIELDS = new Set(['markAsRead', 'includeArchived', 'includeRevoked', 'allowed', 'encrypt', 'lastHeartbeat']);
+
+/** Coerce string query params to proper types before Zod validation */
+function coerceQueryParams(params: Record<string, string>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (NUMERIC_FIELDS.has(key)) {
+      const n = Number(value);
+      result[key] = Number.isNaN(n) ? value : n;
+    } else if (BOOLEAN_FIELDS.has(key)) {
+      result[key] = value === 'true' || value === '1';
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 function restResponse(res: http.ServerResponse, success: boolean, data: unknown, status = 200): void {
   sendJson(res, status, {
     success,
@@ -91,7 +111,7 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
 const routes: Route[] = [
   // Dispatch
   route("GET", "/v1/tasks", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "get_tasks", query);
     restResponse(res, true, data);
   }),
@@ -111,7 +131,7 @@ const routes: Route[] = [
   }),
   // Relay
   route("GET", "/v1/messages", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "get_messages", { sessionId: query.sessionId || "rest", ...query });
     restResponse(res, true, data);
   }),
@@ -121,13 +141,13 @@ const routes: Route[] = [
     restResponse(res, true, data, 201);
   }),
   route("GET", "/v1/dead-letters", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "get_dead_letters", query);
     restResponse(res, true, data);
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "list_sessions", query);
     restResponse(res, true, data);
   }),
@@ -200,21 +220,21 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/keys", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "list_keys", query);
     restResponse(res, true, data);
   }),
 
   // Audit
   route("GET", "/v1/audit", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "get_audit", query);
     restResponse(res, true, data);
   }),
 
   // Legacy redirects
   route("GET", "/v1/interrupts/peek", async (auth, req, res) => {
-    const query = parseQuery(req.url || "");
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, "get_messages", { sessionId: query.sessionId || "peek", markAsRead: false });
     restResponse(res, true, data);
   }),

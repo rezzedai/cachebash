@@ -5,6 +5,7 @@
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
+import { verifySource } from "../middleware/gate.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
@@ -140,6 +141,9 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateTaskSchema.parse(rawArgs);
 
+  // Phase 2: Enforce source identity
+  const verifiedSource = verifySource(args.source, auth, "mcp");
+
   // Phase 2: Validate target is a known program or group
   if (args.target !== "all" && !isValidProgram(args.target) && !isGridProgram(args.target) && !isGroupTarget(args.target)) {
     return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid program ID or "all" for broadcast.` });
@@ -155,7 +159,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     title: args.title,
     instructions: args.instructions || "",
     preview,
-    source: args.source || "unknown",
+    source: verifiedSource,
     target: args.target,
     priority: args.priority,
     action: args.action,
