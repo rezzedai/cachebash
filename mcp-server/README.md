@@ -6,8 +6,8 @@ Model Context Protocol server for the Grid. Provides 18 tools across 6 modules w
 
 ```
                     +-----------------+
-                    |   Claude Code   |
-                    |   (MCP Client)  |
+                    |   MCP Client    |
+                    | (Any AI Agent)  |
                     +--------+--------+
                              |
                     Streamable HTTP (Bearer auth)
