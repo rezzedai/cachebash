@@ -188,6 +188,68 @@ POST   /v1/dreams/activate           → dream_activate
 }
 ```
 
+
+## REST Fallback (BUG-004)
+
+MCP HTTP sessions may expire after extended periods. When this happens, programs should fall back to REST endpoints which provide full tool parity.
+
+### Detection
+
+Session death indicators:
+- MCP POST returns HTTP 400 with JSON-RPC error code `-32001` (session expired)
+- MCP POST returns HTTP 503 (service unavailable)
+- Connection timeout or network error
+
+### Recovery Pattern
+
+```
+1. Detect: MCP tool call fails with transport/session error
+2. Probe:  GET /v1/health — verify server is alive
+3. Retry:  Retry MCP call once (session may have recovered)
+4. Fall back: Use equivalent REST endpoint with same Bearer auth
+```
+
+### Retry with Exponential Backoff
+
+For transient errors (503, timeout):
+```
+Attempt 1: Wait 1s, retry
+Attempt 2: Wait 2s, retry  
+Attempt 3: Wait 4s, retry
+After 3 failures: Switch to REST fallback permanently for this session
+```
+
+### REST Endpoint Mapping
+
+Every MCP tool has a REST equivalent:
+
+| MCP Tool | REST Endpoint | Method |
+|----------|--------------|--------|
+| `get_tasks` | `/v1/tasks` | GET |
+| `create_task` | `/v1/tasks` | POST |
+| `claim_task` | `/v1/tasks/:id/claim` | POST |
+| `complete_task` | `/v1/tasks/:id/complete` | POST |
+| `send_message` | `/v1/messages` | POST |
+| `get_messages` | `/v1/messages` | GET |
+| `create_session` | `/v1/sessions` | POST |
+| `update_session` | `/v1/sessions/:id` | PATCH |
+| `list_sessions` | `/v1/sessions` | GET |
+| `ask_question` | `/v1/questions` | POST |
+| `get_response` | `/v1/questions/:id/response` | GET |
+| `send_alert` | `/v1/alerts` | POST |
+| `dream_peek` | `/v1/dreams` | GET |
+| `dream_activate` | `/v1/dreams/:id/activate` | POST |
+
+### REST Request Format
+
+```bash
+# Example: send_message via REST
+curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/messages \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"basher","target":"iso","message_type":"STATUS","message":"Using REST fallback"}'
+```
+
 ## Cloud Functions
 
 Triggers on v2 collection paths:

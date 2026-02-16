@@ -114,7 +114,7 @@ export class CustomHTTPTransport implements Transport {
       }
       const validation = await this.sessionManager.validateSession(parsed.sessionId, authContext.userId);
       if (!validation.valid) {
-        return this.toResponse(jsonRpcError(-32001, `Session error: ${validation.error}`, null));
+        return this.toResponse(jsonRpcError(-32001, `Session expired or invalid: ${validation.error}. Use REST API fallback: POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/{tool_name} with Bearer auth. See /v1/health for status.`, null));
       }
       session = validation.session!;
       this.sessionId = session.sessionId;
