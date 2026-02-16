@@ -7,6 +7,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
+import { PROGRAM_REGISTRY } from "../config/programs.js";
 
 const CreateSessionSchema = z.object({
   name: z.string().max(200),
@@ -20,7 +21,7 @@ const CreateSessionSchema = z.object({
 
 const UpdateSessionSchema = z.object({
   status: z.string().max(200),
-  sessionId: z.string().optional(),
+  sessionId: z.string().max(100).optional(),
   state: z.enum(["working", "blocked", "complete", "pinned"]).optional(),
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
@@ -83,6 +84,23 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     createdAt: now,
   });
 
+  // Piggyback program registry write
+  if (programId && programId !== "legacy" && programId !== "mobile") {
+    const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
+    const programData: Record<string, unknown> = {
+      programId,
+      lastHeartbeat: now,
+      currentState: args.state || "working",
+      currentSessionId: sessionId,
+    };
+    if (meta) {
+      programData.displayName = meta.displayName;
+      programData.color = meta.color;
+      programData.role = meta.role;
+    }
+    await db.doc(`users/${auth.userId}/programs/${programId}`).set(programData, { merge: true });
+  }
+
   return jsonResult({ success: true, sessionId, message: `Session created: "${args.name}"` });
 }
 
@@ -115,6 +133,24 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     progress: args.progress ?? null,
     createdAt: now,
   });
+
+  // Piggyback program registry write
+  const programId = auth.programId;
+  if (programId && programId !== "legacy" && programId !== "mobile") {
+    const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
+    const programData: Record<string, unknown> = {
+      programId,
+      lastHeartbeat: now,
+      currentState: args.state || "working",
+      currentSessionId: sessionId,
+    };
+    if (meta) {
+      programData.displayName = meta.displayName;
+      programData.color = meta.color;
+      programData.role = meta.role;
+    }
+    await db.doc(`users/${auth.userId}/programs/${programId}`).set(programData, { merge: true });
+  }
 
   return jsonResult({ success: true, sessionId, message: `Status updated: "${args.status}"` });
 }
