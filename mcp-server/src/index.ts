@@ -113,7 +113,21 @@ async function main() {
 
     // Health check
     if (url === "/v1/health" && req.method === "GET") {
-      return sendJson(res, 200, { status: "ok", version: "2.0.0", timestamp: new Date().toISOString() });
+      return sendJson(res, 200, {
+        status: "ok",
+        version: "2.0.0",
+        timestamp: new Date().toISOString(),
+        endpoints: {
+          mcp: "/v1/mcp",
+          rest: "/v1/{resource}",
+          health: "/v1/health",
+        },
+        restFallback: {
+          description: "If MCP session dies, use REST endpoints with the same Bearer auth",
+          baseUrl: `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "cachebash-mcp-922749444863.us-central1.run.app"}`,
+          docs: "See README for full REST API reference",
+        },
+      });
     }
 
     // REST API
