@@ -7,7 +7,7 @@ import http from "http";
 import { validateApiKey, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
-import { generateCorrelationId } from "../middleware/gate.js";
+import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
@@ -95,15 +95,19 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
+  const correlationId = generateCorrelationId();
+  const audit = createAuditLogger(correlationId, auth.userId);
   try {
     const result = await handler(auth, args);
     logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, true);
+    audit.log(toolName, { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
     return text ? JSON.parse(text) : result;
   } catch (err) {
     logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
+    audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     throw err;
   }
 }

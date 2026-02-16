@@ -62,6 +62,7 @@ export async function createIsoServer(): Promise<{
     const sessionId = extra?.sessionId;
     const authContext = sessionId ? isoSessionAuth.get(sessionId) : null;
     const correlationId = generateCorrelationId();
+    const audit = createAuditLogger(correlationId, authContext?.userId || "unknown");
     const startTime = Date.now();
 
     if (!authContext) {
@@ -95,11 +96,13 @@ export async function createIsoServer(): Promise<{
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
       logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true);
+      audit.log(name, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
       logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, false,
         error instanceof Error ? error.message : String(error));
+      audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
