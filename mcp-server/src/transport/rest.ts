@@ -209,6 +209,18 @@ const routes: Route[] = [
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
 
+
+  // Program State
+  route("GET", "/v1/program-state/:programId", async (auth, req, res, p) => {
+    const data = await callTool(auth, "get_program_state", { programId: p.programId });
+    restResponse(res, true, data);
+  }),
+  route("PATCH", "/v1/program-state/:programId", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, "update_program_state", { programId: p.programId, ...body });
+    restResponse(res, true, data);
+  }),
+
   // Keys
   route("POST", "/v1/keys", async (auth, req, res) => {
     const body = await readBody(req);

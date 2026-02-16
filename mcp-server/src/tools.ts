@@ -1,6 +1,6 @@
 /**
  * Tool Registry — Maps tool names to handlers + JSON schema definitions.
- * 23 tools across 8 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit).
+ * 25 tools across 9 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit, programState).
  */
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
@@ -12,6 +12,7 @@ import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
+import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -49,6 +50,10 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Audit
   get_audit: getAuditHandler,
+
+  // Program State
+  get_program_state: getProgramStateHandler,
+  update_program_state: updateProgramStateHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -408,6 +413,98 @@ export const TOOL_DEFINITIONS = [
         allowed: { type: "boolean", description: "Filter by allowed (true) or denied (false)" },
         programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
       },
+    },
+  },
+  // === Program State ===
+  {
+    name: "get_program_state",
+    description: "Read a program's persistent operational state. Programs can read their own state; SARK/ISO can read any.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to read state for", maxLength: 100 },
+      },
+      required: ["programId"],
+    },
+  },
+  {
+    name: "update_program_state",
+    description: "Write a program's persistent operational state. Programs can only write their own state. Partial updates merge with existing.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to update state for", maxLength: 100 },
+        sessionId: { type: "string", description: "CacheBash session ID writing this state", maxLength: 100 },
+        contextSummary: {
+          type: "object",
+          description: "What the program was doing — written on derez, read on boot",
+          properties: {
+            lastTask: {
+              type: "object",
+              nullable: true,
+              properties: {
+                taskId: { type: "string" },
+                title: { type: "string", maxLength: 200 },
+                outcome: { type: "string", enum: ["completed", "in_progress", "blocked", "deferred"] },
+                notes: { type: "string", maxLength: 2000 },
+              },
+              required: ["taskId", "title", "outcome", "notes"],
+            },
+            activeWorkItems: { type: "array", items: { type: "string", maxLength: 200 }, maxItems: 20 },
+            handoffNotes: { type: "string", maxLength: 2000 },
+            openQuestions: { type: "array", items: { type: "string", maxLength: 500 }, maxItems: 10 },
+          },
+        },
+        learnedPatterns: {
+          type: "array",
+          description: "Patterns discovered this session — staging area for RAM",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              domain: { type: "string", maxLength: 100 },
+              pattern: { type: "string", maxLength: 500 },
+              confidence: { type: "number", minimum: 0, maximum: 1 },
+              evidence: { type: "string", maxLength: 500 },
+              discoveredAt: { type: "string" },
+              lastReinforced: { type: "string" },
+              promotedToStore: { type: "boolean" },
+              stale: { type: "boolean" },
+            },
+            required: ["id", "domain", "pattern", "confidence", "evidence", "discoveredAt", "lastReinforced"],
+          },
+        },
+        config: {
+          type: "object",
+          description: "Runtime preferences (not the spec — those are in git)",
+          properties: {
+            preferredOutputFormat: { type: "string", maxLength: 100, nullable: true },
+            toolPreferences: { type: "object", description: "Key-value tool preferences" },
+            knownQuirks: { type: "array", items: { type: "string", maxLength: 200 }, maxItems: 20 },
+            customSettings: { type: "object", description: "Program-specific key-value pairs" },
+          },
+        },
+        baselines: {
+          type: "object",
+          description: "Performance baselines for self-assessment",
+          properties: {
+            avgTaskDurationMinutes: { type: "number", nullable: true },
+            commonFailureModes: { type: "array", items: { type: "string", maxLength: 200 }, maxItems: 10 },
+            sessionsCompleted: { type: "number", minimum: 0 },
+            lastSessionDurationMinutes: { type: "number", nullable: true },
+          },
+        },
+        decay: {
+          type: "object",
+          description: "Decay configuration (SARK 15c)",
+          properties: {
+            contextSummaryTTLDays: { type: "number", minimum: 1, maximum: 90 },
+            learnedPatternMaxAge: { type: "number", minimum: 1, maximum: 365 },
+            maxUnpromotedPatterns: { type: "number", minimum: 5, maximum: 200 },
+          },
+        },
+      },
+      required: ["programId"],
     },
   },
 ];
