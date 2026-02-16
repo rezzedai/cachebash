@@ -33,12 +33,28 @@ const GetMessagesSchema = z.object({
   sessionId: z.string(),
   target: z.string().max(100).optional(),
   markAsRead: z.boolean().default(true),
+  message_type: z.enum(["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"]).optional(),
+  priority: z.enum(["low", "normal", "high"]).optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
+}
+
+const PRIORITY_WEIGHT: Record<string, number> = { high: 0, normal: 1, low: 2 };
+
+function sortByPriorityThenDate(messages: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return messages.sort((a, b) => {
+    const pa = PRIORITY_WEIGHT[a.priority as string] ?? 1;
+    const pb = PRIORITY_WEIGHT[b.priority as string] ?? 1;
+    if (pa !== pb) return pa - pb;
+    // Newest first within same priority
+    const da = a.createdAt as string || "";
+    const db_date = b.createdAt as string || "";
+    return db_date.localeCompare(da);
+  });
 }
 
 export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -160,10 +176,18 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   const args = GetMessagesSchema.parse(rawArgs);
   const db = getFirestore();
 
-  const query = db
+  let query: admin.firestore.Query = db
     .collection(`users/${auth.userId}/relay`)
-    .where("status", "==", "pending")
-    .orderBy("createdAt", "asc");
+    .where("status", "==", "pending");
+
+  if (args.message_type) {
+    query = query.where("message_type", "==", args.message_type);
+  }
+  if (args.priority) {
+    query = query.where("priority", "==", args.priority);
+  }
+
+  query = query.orderBy("createdAt", "asc");
 
   const snapshot = await query.get();
 
@@ -208,6 +232,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       };
     });
+    sortByPriorityThenDate(messages);
     return jsonResult({
       success: true,
       hasInterrupts: true,
@@ -259,7 +284,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
     return jsonResult({
       success: true,
       hasInterrupts: result.length > 0,
-      interrupts: result,
+      interrupts: sortByPriorityThenDate(result),
       message: result.length > 0 ? `${result.length} interrupt(s) from user` : "No pending interrupts",
     });
   } catch (error) {
