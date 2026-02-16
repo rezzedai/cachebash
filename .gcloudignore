@@ -1,0 +1,10 @@
+# Ignore everything except the MCP server
+app/
+firebase/
+.git/
+node_modules/
+*.log
+.DS_Store
+.env
+.env.*
+.mcp.json

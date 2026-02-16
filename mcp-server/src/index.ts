@@ -63,6 +63,7 @@ async function main() {
     const sessionId = extra?.sessionId;
     const auth = sessionId ? sessions.get(sessionId)?.authContext : null;
     const correlationId = generateCorrelationId();
+    const audit = createAuditLogger(correlationId, auth?.userId || "unknown");
     const startTime = Date.now();
 
     if (!auth) {
@@ -81,10 +82,12 @@ async function main() {
     try {
       const result = await handler(auth, args);
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
+      audit.log(name, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return result;
     } catch (err) {
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
         err instanceof Error ? err.message : String(err));
+      audit.error(name, err instanceof Error ? err.message : String(err), { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   });
