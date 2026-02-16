@@ -201,6 +201,14 @@ const routes: Route[] = [
     const data = await callTool(auth, "complete_sprint", { sprintId: p.id, ...body });
     restResponse(res, true, data);
   }),
+  // Budget
+  route("GET", "/v1/budget/summary", async (auth, req, res) => {
+    const { budgetSummaryHandler } = await import("../modules/budget.js");
+    const result = await budgetSummaryHandler(auth, {});
+    const text = result?.content?.[0]?.text;
+    restResponse(res, true, text ? JSON.parse(text) : result);
+  }),
+
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
     const result = await dreamPeekHandler(auth, {});
