@@ -31,10 +31,14 @@ export function logAudit(entry: AuditEntry): void {
   console.log(JSON.stringify(entry));
 
   // Persist to Firestore (fire-and-forget)
+  // Filter undefined values — Firestore rejects them
   if (entry.userId) {
     const db = getFirestore();
+    const clean = Object.fromEntries(
+      Object.entries(entry).filter(([_, v]) => v !== undefined)
+    );
     db.collection(`users/${entry.userId}/audit`).add({
-      ...entry,
+      ...clean,
       timestamp: serverTimestamp(),
     }).catch((err) => {
       console.error("[Audit] Failed to persist audit entry:", err);
