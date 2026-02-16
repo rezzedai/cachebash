@@ -1,7 +1,7 @@
 name: cachebash
 description: Mobile companion app for Claude Code
 publish_to: 'none'
-version: 1.0.0+22
+version: 1.0.0+23
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
