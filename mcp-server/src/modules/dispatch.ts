@@ -46,6 +46,9 @@ const ClaimTaskSchema = z.object({
 
 const CompleteTaskSchema = z.object({
   taskId: z.string(),
+  tokens_in: z.number().nonnegative().optional(),
+  tokens_out: z.number().nonnegative().optional(),
+  cost_usd: z.number().nonnegative().optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -263,11 +266,15 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       // Validate transition — active → done
       transition("task", current, "done");
 
-      tx.update(taskRef, {
+      const updateFields: Record<string, unknown> = {
         status: "done",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastHeartbeat: null,
-      });
+      };
+      if (args.tokens_in !== undefined) updateFields.tokens_in = args.tokens_in;
+      if (args.tokens_out !== undefined) updateFields.tokens_out = args.tokens_out;
+      if (args.cost_usd !== undefined) updateFields.cost_usd = args.cost_usd;
+      tx.update(taskRef, updateFields);
     });
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });

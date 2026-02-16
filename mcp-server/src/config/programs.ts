@@ -49,3 +49,21 @@ export function resolveTargets(target: string): string[] {
   }
   return [target];
 }
+
+/** Program display metadata for Grid Portal */
+export interface ProgramMeta {
+  displayName: string;
+  color: string;
+  role: string;
+}
+
+export const PROGRAM_REGISTRY: Partial<Record<GridProgramId, ProgramMeta>> = {
+  iso:    { displayName: "ISO",    color: "#6FC3DF", role: "Orchestrator" },
+  basher: { displayName: "BASHER", color: "#E87040", role: "Execution Engine" },
+  alan:   { displayName: "ALAN",   color: "#4A8ED4", role: "Architecture" },
+  quorra: { displayName: "QUORRA", color: "#9B6FC0", role: "Design" },
+  sark:   { displayName: "SARK",   color: "#C44040", role: "Audit" },
+  able:   { displayName: "ABLE",   color: "#4DB870", role: "Growth" },
+  beck:   { displayName: "BECK",   color: "#40A8A0", role: "Operations" },
+  radia:  { displayName: "RADIA",  color: "#E8E0D0", role: "Vision" },
+};
