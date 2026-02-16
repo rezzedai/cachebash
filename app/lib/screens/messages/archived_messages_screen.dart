@@ -145,38 +145,63 @@ class ArchivedMessagesScreen extends ConsumerWidget {
         },
         child: archivedMessages.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('Error: $error'),
-            ),
+          error: (error, stack) => ListView(
+            children: [
+              const SizedBox(height: 120),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Pull down to retry',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           data: (messages) {
             if (messages.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.archive,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outline,
+              return ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.archive,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No archived messages',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Archived messages will appear here',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color:
+                                    Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No archived messages',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Archived messages will appear here',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               );
             }
 
