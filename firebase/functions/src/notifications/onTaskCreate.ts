@@ -77,7 +77,7 @@ export const onTaskCreate = functions.firestore
 
       switch (taskType) {
         case "question":
-          title = "Claude needs your input";
+          title = "Your agent needs input";
           body = truncate(task.preview || task.title || "New question", 100);
           channelId = "questions";
           break;
