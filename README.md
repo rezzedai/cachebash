@@ -1,6 +1,6 @@
 # CacheBash v2
 
-MCP server + mobile app for the Grid. Bridges Claude Code sessions with a Flutter mobile interface for real-time monitoring, question answering, and task management.
+MCP server + mobile app for AI agent orchestration. Bridges MCP-compatible clients with a Flutter mobile interface for real-time monitoring, question answering, and task management.
 
 ## Structure
 
