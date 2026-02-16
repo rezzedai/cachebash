@@ -113,6 +113,9 @@ export const TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         taskId: { type: "string" },
+        tokens_in: { type: "number", description: "Input tokens consumed" },
+        tokens_out: { type: "number", description: "Output tokens consumed" },
+        cost_usd: { type: "number", description: "Estimated cost in USD" },
       },
       required: ["taskId"],
     },
