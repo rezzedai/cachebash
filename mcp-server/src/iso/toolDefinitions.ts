@@ -154,4 +154,16 @@ export const ISO_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    name: "get_cost_summary",
+    description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+        groupBy: { type: "string", enum: ["program", "type", "none"], default: "none", description: "Group results by program (source) or task type" },
+        programFilter: { type: "string", maxLength: 100, description: "Filter to a specific program (source field)" },
+      },
+    },
+  },
 ];
