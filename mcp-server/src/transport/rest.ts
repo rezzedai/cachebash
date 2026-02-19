@@ -209,6 +209,13 @@ const routes: Route[] = [
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
 
+  // Metrics
+  route("GET", "/v1/metrics/cost-summary", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "get_cost_summary", query);
+    restResponse(res, true, data);
+  }),
+
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
     const result = await dreamPeekHandler(auth, {});
