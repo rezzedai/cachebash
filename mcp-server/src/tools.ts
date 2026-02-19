@@ -13,6 +13,7 @@ import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprin
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
+import { getCostSummaryHandler } from "./modules/metrics.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -54,6 +55,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Program State
   get_program_state: getProgramStateHandler,
   update_program_state: updateProgramStateHandler,
+
+  // Metrics
+  get_cost_summary: getCostSummaryHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -510,6 +514,19 @@ export const TOOL_DEFINITIONS = [
         },
       },
       required: ["programId"],
+    },
+  },
+  // === Metrics ===
+  {
+    name: "get_cost_summary",
+    description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+        groupBy: { type: "string", enum: ["program", "type", "none"], default: "none", description: "Group results by program (source) or task type" },
+        programFilter: { type: "string", maxLength: 100, description: "Filter to a specific program (source field)" },
+      },
     },
   },
 ];
