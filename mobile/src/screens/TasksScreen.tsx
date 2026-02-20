@@ -13,7 +13,7 @@ type FilterType = 'all' | 'created' | 'active' | 'done';
 
 export default function TasksScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<FilterType>('all');
-  const { tasks, isLoading, refetch, error } = useTasks();
+  const { tasks, isLoading, refetch, error, isCached } = useTasks();
 
   const filteredTasks = useMemo(() => {
     if (filter === 'all') return tasks;
@@ -125,7 +125,14 @@ export default function TasksScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tasks</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Tasks</Text>
+          {isCached && (
+            <View style={styles.cachedBadge}>
+              <Text style={styles.cachedBadgeText}>CACHED</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <ScrollView
@@ -171,10 +178,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   headerTitle: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
     color: theme.colors.text,
+  },
+  cachedBadge: {
+    backgroundColor: theme.colors.surfaceElevated,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+  },
+  cachedBadgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+    letterSpacing: 0.5,
   },
   filterContainer: {
     flexGrow: 0,

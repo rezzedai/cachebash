@@ -25,7 +25,7 @@ type Props = {
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { sessions, programs, isLoading, refetch, error } = useSessions();
+  const { sessions, programs, isLoading, refetch, error, isCached } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
   const { isConnected, isInternetReachable } = useConnectivity();
@@ -91,7 +91,7 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
           </View>
           <Text style={styles.lastUpdate}>
-            {(isConnected && isInternetReachable !== false) ? 'Connected' : 'Offline'} • Updated {lastUpdateStr}
+            {(isConnected && isInternetReachable !== false) ? 'Connected' : 'Offline'} • Updated {lastUpdateStr}{isCached ? ' • Cached' : ''}
           </Text>
         </View>
 
