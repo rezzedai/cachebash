@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
 import { useNotifications } from '../contexts/NotificationContext';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
+  const navigation = useNavigation<any>();
   const { signOut, user } = useAuth();
   const { error: sessionsError } = useSessions();
   const { permissionStatus, preferences, updatePreferences, requestPermissions } = useNotifications();
@@ -148,6 +150,17 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
         <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate('Usage')}
+            activeOpacity={0.7}
+            accessibilityLabel="View usage and cost metrics"
+            accessibilityRole="button"
+          >
+            <Text style={styles.rowLabel}>Usage & Costs</Text>
+            <Text style={[styles.rowValue, { color: theme.colors.primary }]}>→</Text>
+          </TouchableOpacity>
+          <View style={styles.divider} />
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Grid Status</Text>
             <View style={styles.statusRow}>
