@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
+import { useSprints } from '../hooks/useSprints';
 import { useConnectivity } from '../contexts/ConnectivityContext';
 import { theme } from '../theme';
 import type { Program } from '../types';
@@ -28,6 +29,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { sessions, programs, isLoading, refetch, error, isCached } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
+  const { sprints } = useSprints();
   const { isConnected, isInternetReachable } = useConnectivity();
 
   const [refreshing, setRefreshing] = React.useState(false);
@@ -57,6 +59,12 @@ export default function HomeScreen({ navigation }: Props) {
   const pendingQuestions = useMemo(
     () => tasks.filter((t) => t.type === 'question' && t.status === 'created'),
     [tasks]
+  );
+
+  // Filter active sprints (status not 'complete')
+  const activeSprints = useMemo(
+    () => sprints.filter((s) => s.status !== 'complete'),
+    [sprints]
   );
 
   const handleProgramPress = (program: Program) => {
@@ -152,6 +160,49 @@ export default function HomeScreen({ navigation }: Props) {
             />
           </View>
         </View>
+
+        {/* Active Sprints */}
+        {activeSprints.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeader}>Active Sprints</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{activeSprints.length}</Text>
+              </View>
+            </View>
+            {activeSprints.map((sprint) => {
+              const totalCount = sprint.stories.length;
+              const completedCount = sprint.stories.filter((s) => s.status === 'complete').length;
+              const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+              return (
+                <TouchableOpacity
+                  key={sprint.id}
+                  style={styles.questionCard}
+                  onPress={() => {
+                    haptic.light();
+                    navigation.navigate('SprintDetail', { sprintId: sprint.id, sprint });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sprint ${sprint.projectName}, ${completedCount} of ${totalCount} stories complete`}
+                >
+                  <Text style={styles.questionTitle}>{sprint.projectName}</Text>
+                  <Text style={styles.questionTime}>
+                    {completedCount}/{totalCount} stories • {sprint.branch}
+                  </Text>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${pct}%`, backgroundColor: theme.colors.primary },
+                      ]}
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Program Grid */}
         <View style={styles.section}>
