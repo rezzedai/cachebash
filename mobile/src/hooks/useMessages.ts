@@ -54,6 +54,7 @@ export function useMessages() {
     },
     interval: 15000,
     enabled: !!api,
+    cacheKey: 'messages',
   });
 
   const messages = result.data || [];

@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+import { ConnectivityProvider } from './src/contexts/ConnectivityContext';
+import ConnectionBanner from './src/components/ConnectionBanner';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
@@ -21,6 +23,7 @@ function AppContent() {
 
   return (
     <NotificationProvider>
+      <ConnectionBanner />
       <AppNavigation />
     </NotificationProvider>
   );
@@ -29,12 +32,14 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ErrorBoundary>
-          <StatusBar style="light" />
-          <AppContent />
-        </ErrorBoundary>
-      </AuthProvider>
+      <ConnectivityProvider>
+        <AuthProvider>
+          <ErrorBoundary>
+            <StatusBar style="light" />
+            <AppContent />
+          </ErrorBoundary>
+        </AuthProvider>
+      </ConnectivityProvider>
     </SafeAreaProvider>
   );
 }
