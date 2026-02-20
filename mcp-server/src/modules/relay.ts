@@ -10,6 +10,7 @@ import { AuthContext } from "../auth/apiKeyValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
 import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
 import { validatePayload } from "../types/relay-schemas.js";
+import { emitEvent } from "./events.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -143,6 +144,16 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
     await batch.commit();
 
+    // Emit telemetry event for multicast delivery
+    emitEvent(auth.userId, {
+      event_type: "RELAY_DELIVERED",
+      program_id: verifiedSource,
+      task_id: multicastId,
+      target: args.target,
+      message_type: args.message_type,
+      is_multicast: true,
+    });
+
     return jsonResult({
       success: true,
       multicastId,
@@ -161,6 +172,16 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   };
 
   const relayRef = await db.collection(`users/${auth.userId}/relay`).add(relayData);
+
+  // Emit telemetry event for message delivery
+  emitEvent(auth.userId, {
+    event_type: "RELAY_DELIVERED",
+    program_id: verifiedSource,
+    task_id: relayRef.id,
+    target: args.target,
+    message_type: args.message_type,
+    is_multicast: false,
+  });
 
   // Also write to tasks collection for mobile app visibility
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
@@ -402,6 +423,8 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
       context: data.context || null,
       deliveryAttempts: data.deliveryAttempts || 0,
       maxDeliveryAttempts: data.maxDeliveryAttempts || 3,
+      dead_letter_reason: data.dead_letter_reason || "EXPIRED_TTL",
+      dead_letter_class: data.dead_letter_class || "EXPIRED_TTL",
       createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       deadLetteredAt: data.deadLetteredAt?.toDate?.()?.toISOString() || null,
       expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
@@ -512,6 +535,23 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   });
 }
 
+/**
+ * Classify dead letter reason based on message data.
+ * Used for structured dead letter analytics.
+ */
+function classifyDeadLetter(data: Record<string, unknown>): string {
+  // If delivery was attempted but failed
+  const attempts = (data.deliveryAttempts as number) || 0;
+  const maxAttempts = (data.maxDeliveryAttempts as number) || 3;
+  
+  if (attempts >= maxAttempts) {
+    return "MAX_ATTEMPTS_EXCEEDED";
+  }
+  
+  // Default for TTL cleanup is EXPIRED_TTL
+  return "EXPIRED_TTL";
+}
+
 export async function cleanupExpiredRelayMessages(userId: string): Promise<number> {
   const db = getFirestore();
   const now = admin.firestore.Timestamp.now();
@@ -534,7 +574,9 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<numbe
     const deadLetterRef = db.collection(`users/${userId}/dead_letters`).doc(doc.id);
     batch.set(deadLetterRef, {
       ...data,
-      reason: "TTL expired",
+      reason: "TTL expired",           // keep for backwards compat
+      dead_letter_reason: "EXPIRED_TTL" as const,  // new structured field
+      dead_letter_class: classifyDeadLetter(data),  // add classification
       deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     // Delete from relay
@@ -543,6 +585,14 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<numbe
   }
 
   await batch.commit();
+  
+  // Emit telemetry event for dead lettering
+  emitEvent(userId, {
+    event_type: "RELAY_DEAD_LETTERED",
+    dead_letter_count: count,
+    dead_letter_reason: "EXPIRED_TTL",
+  });
+  
   return count;
 }
 
