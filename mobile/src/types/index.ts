@@ -10,7 +10,7 @@ export type Action = 'interrupt' | 'sprint' | 'parallel' | 'queue' | 'backlog';
 export type TaskType = 'task' | 'question' | 'dream' | 'sprint' | 'sprint-story';
 export type TaskStatus = 'created' | 'active' | 'done' | 'failed' | 'expired';
 export type RelayMessageType = 'PING' | 'PONG' | 'HANDSHAKE' | 'DIRECTIVE' | 'STATUS' | 'ACK' | 'QUERY' | 'RESULT';
-export type SessionState = 'working' | 'blocked' | 'complete' | 'pinned';
+export type SessionState = 'working' | 'blocked' | 'complete' | 'pinned' | 'done' | 'active';
 export type SprintStoryStatus = 'queued' | 'active' | 'complete' | 'failed' | 'skipped';
 
 // Core entities
@@ -97,4 +97,5 @@ export interface Program {
   progress?: number;
   lastHeartbeat?: string;
   sessionId?: string;
+  projectName?: string;
 }

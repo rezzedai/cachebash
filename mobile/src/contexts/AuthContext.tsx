@@ -42,6 +42,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Load saved API key on mount
   useEffect(() => {
     const loadApiKey = async () => {
+      // Dev mode auto-login bypass
+      if (__DEV__) {
+        const devKey = 'cb_7302ac94ee5c64c84903206d582c80ed0a8aa19b66b2cedd6ed30ffb9832637b';
+        const api = new CacheBashAPI(devKey);
+        setState({
+          apiKey: devKey,
+          api,
+          isLoading: false,
+          isAuthenticated: true,
+        });
+        return;
+      }
+
       try {
         const savedKey = await SecureStore.getItemAsync(STORAGE_KEY);
         if (savedKey) {

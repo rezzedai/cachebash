@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, apiKey } = useAuth();
   const [operationalNotifs, setOperationalNotifs] = useState(true);
   const [informationalNotifs, setInformationalNotifs] = useState(false);
 
@@ -35,7 +35,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>API Key</Text>
-            <Text style={styles.rowValue}>••••••••abcd</Text>
+            <Text style={styles.rowValue}>••••{apiKey?.slice(-4) || '????'}</Text>
           </View>
           <View style={styles.divider} />
           <TouchableOpacity
