@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface UsePollingOptions<T> {
   fetcher: (signal?: AbortSignal) => Promise<T>;
   interval?: number; // ms, default 10000 (10 seconds)
   enabled?: boolean; // default true
+  cacheKey?: string; // AsyncStorage key for offline caching
 }
 
 interface UsePollingResult<T> {
@@ -14,6 +16,7 @@ interface UsePollingResult<T> {
   isInitialLoad: boolean;
   isRefreshing: boolean;
   isStale: boolean;
+  isCached: boolean; // true if data came from cache (not fresh fetch)
   refetch: () => Promise<void>;
   lastUpdated: Date | null;
 }
@@ -22,12 +25,14 @@ export function usePolling<T>({
   fetcher,
   interval = 10000,
   enabled = true,
+  cacheKey,
 }: UsePollingOptions<T>): UsePollingResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isCached, setIsCached] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -63,6 +68,16 @@ export function usePolling<T>({
         setData(result);
         setError(null);
         setLastUpdated(new Date());
+        setIsCached(false);
+
+        // Write to cache asynchronously (don't await)
+        if (cacheKey) {
+          AsyncStorage.setItem(
+            `polling_cache_${cacheKey}`,
+            JSON.stringify({ data: result, timestamp: Date.now() })
+          ).catch(() => {}); // Swallow cache write errors
+        }
+
         setIsLoading(false);
         setIsInitialLoad(false);
         setIsRefreshing(false);
@@ -103,6 +118,33 @@ export function usePolling<T>({
   const refetch = useCallback(async () => {
     await doFetch(true);
   }, [doFetch]);
+
+  // Load cached data on mount (before first fetch)
+  useEffect(() => {
+    if (!cacheKey) return;
+
+    const loadCache = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(`polling_cache_${cacheKey}`);
+        if (cached && isMountedRef.current) {
+          const { data: cachedData, timestamp } = JSON.parse(cached);
+          // Only use cache if less than 5 minutes old
+          if (Date.now() - timestamp < 300000) {
+            setData(cachedData);
+            setLastUpdated(new Date(timestamp));
+            setIsCached(true);
+            // Don't set isLoading=false here — let the real fetch do that
+            // But do clear isInitialLoad so the UI shows cached data
+            setIsInitialLoad(false);
+          }
+        }
+      } catch (e) {
+        // Cache read failure is non-fatal
+      }
+    };
+
+    loadCache();
+  }, [cacheKey]);
 
   // Initial fetch + polling interval
   useEffect(() => {
@@ -181,6 +223,7 @@ export function usePolling<T>({
     isInitialLoad,
     isRefreshing,
     isStale,
+    isCached,
     refetch,
     lastUpdated,
   };

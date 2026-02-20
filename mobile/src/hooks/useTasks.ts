@@ -56,6 +56,7 @@ export function useTasks(filter?: UseTasksOptions) {
     },
     interval: 10000,
     enabled: !!api,
+    cacheKey: 'tasks',
   });
 
   const tasks = result.data || [];

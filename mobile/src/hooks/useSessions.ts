@@ -76,6 +76,7 @@ export function useSessions() {
     },
     interval: 15000,
     enabled: !!api,
+    cacheKey: 'sessions',
   });
 
   return {
