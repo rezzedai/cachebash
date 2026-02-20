@@ -33,6 +33,28 @@ export async function requestNotificationPermissions(): Promise<boolean> {
       importance: Notifications.AndroidImportance.DEFAULT,
       sound: null,
     });
+    // Cloud Functions use these channel IDs for FCM pushes
+    await Notifications.setNotificationChannelAsync('questions', {
+      name: 'Questions',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+    });
+    await Notifications.setNotificationChannelAsync('dreams', {
+      name: 'Dream Sessions',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+    });
+    await Notifications.setNotificationChannelAsync('tasks', {
+      name: 'Tasks',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+    });
+    await Notifications.setNotificationChannelAsync('sessions', {
+      name: 'Session Updates',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      sound: null,
+    });
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -50,6 +72,21 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export async function getNotificationPermissionStatus(): Promise<string> {
   const { status } = await Notifications.getPermissionsAsync();
   return status;
+}
+
+/**
+ * Get the native device push token (FCM/APNs).
+ * Returns null in Expo Go (native tokens not available).
+ */
+export async function getDevicePushToken(): Promise<string | null> {
+  try {
+    const token = await Notifications.getDevicePushTokenAsync();
+    return token.data as string;
+  } catch (error) {
+    // Expected in Expo Go — native push tokens aren't available
+    console.log('Native push token not available (expected in Expo Go):', (error as Error).message);
+    return null;
+  }
 }
 
 // Schedule a local notification

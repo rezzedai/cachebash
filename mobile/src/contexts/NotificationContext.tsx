@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
 import {
   requestNotificationPermissions,
   getNotificationPermissionStatus,
@@ -10,6 +12,7 @@ import {
   shouldNotify,
   setBadgeCount,
   dismissAllNotifications,
+  getDevicePushToken,
 } from '../services/notifications';
 import { navigate } from '../utils/navigationRef';
 import { NotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES, NotificationTier } from '../types';
@@ -88,6 +91,82 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       } else if (data.type === 'message' && data.programId) {
         // Navigate to channel detail
         navigate('Messages', { screen: 'ChannelDetail', params: { programId: data.programId } });
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  // Register device push token for FCM push notifications
+  useEffect(() => {
+    if (permissionStatus !== 'granted') return;
+
+    let tokenSubscription: Notifications.Subscription | null = null;
+
+    const registerToken = async (tokenData: string) => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
+      try {
+        // Use a stable device ID based on platform
+        const deviceId = `${Platform.OS}-${tokenData.slice(-12)}`;
+        await setDoc(doc(db, `users/${uid}/devices/${deviceId}`), {
+          fcmToken: tokenData,
+          platform: Platform.OS,
+          lastUpdated: serverTimestamp(),
+        });
+        console.log('Push token registered successfully');
+      } catch (error) {
+        console.warn('Failed to register push token:', error);
+      }
+    };
+
+    const setupPushToken = async () => {
+      // Get initial token
+      const token = await getDevicePushToken();
+      if (token) {
+        await registerToken(token);
+      }
+
+      // Listen for token refreshes
+      tokenSubscription = Notifications.addPushTokenListener((event) => {
+        if (event.data) {
+          registerToken(event.data as string);
+        }
+      });
+    };
+
+    setupPushToken();
+
+    return () => {
+      tokenSubscription?.remove();
+    };
+  }, [permissionStatus]);
+
+  // Handle incoming push notifications when app is in foreground
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      // Push notifications from FCM have a remote trigger
+      const trigger = notification.request.trigger;
+      const isPush = trigger && 'type' in trigger && trigger.type === 'push';
+      
+      if (isPush) {
+        // For push notifications in foreground, check tier and display if appropriate
+        const data = notification.request.content.data || {};
+        const tier = classifyNotificationTier({
+          type: data.type as string,
+          priority: data.priority as string,
+        });
+        
+        if (tier === 'critical') {
+          // Re-schedule as local notification so it appears
+          scheduleLocalNotification(
+            notification.request.content.title || 'CacheBash',
+            notification.request.content.body || '',
+            data as Record<string, unknown>,
+            'critical'
+          );
+        }
       }
     });
 
