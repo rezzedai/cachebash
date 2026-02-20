@@ -97,6 +97,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
       <Text style={styles.title} ellipsizeMode="tail">{task.title}</Text>
 
+      {task.question && (
+        <View style={styles.questionCard}>
+          <Text style={styles.questionText}>{task.question}</Text>
+        </View>
+      )}
+
       <View style={styles.metadataRow}>
         <View style={styles.metaBadge}>
           <Text style={styles.metaBadgeLabel}>Type</Text>
@@ -182,9 +188,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {isAnswered && (
             <Text style={styles.answeredText}>✓ Answer sent</Text>
           )}
+          {task.response && (
+            <Text style={styles.previouslyAnsweredText}>Previously answered</Text>
+          )}
           {task.options.map((option, index) => {
             const isSelected = selectedOption === option;
-            const isDisabled = isAnswering || isAnswered;
+            const isDisabled = isAnswering || isAnswered || !!task.response;
             return (
               <TouchableOpacity
                 key={index}
@@ -210,6 +219,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             );
           })}
+        </View>
+      )}
+
+      {task.response && (
+        <View style={styles.responseCard}>
+          <Text style={styles.sectionTitle}>Your Response</Text>
+          <Text style={styles.responseText}>{task.response}</Text>
         </View>
       )}
     </ScrollView>
@@ -384,6 +400,39 @@ const styles = StyleSheet.create({
   showMoreText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  questionCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  questionText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.text,
+    lineHeight: theme.fontSize.md * 1.5,
+  },
+  previouslyAnsweredText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    fontWeight: '500',
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  responseCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  responseText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.text,
     fontWeight: '600',
   },
 });

@@ -35,6 +35,9 @@ export function useTasks(filter?: UseTasksOptions) {
         createdAt: t.createdAt,
         startedAt: t.startedAt,
         completedAt: t.completedAt,
+        options: t.options,
+        question: t.question,
+        response: t.response,
       }));
 
       // Sort by createdAt descending (newest first)
