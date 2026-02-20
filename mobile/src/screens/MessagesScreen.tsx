@@ -29,6 +29,9 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         ? message.target
         : message.source;
 
+      // Skip empty programId
+      if (!programId) return;
+
       if (!channelMap.has(programId)) {
         channelMap.set(programId, {
           programId,
@@ -72,8 +75,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         <View style={styles.channelLeft}>
           <View style={[styles.programDot, { backgroundColor: typeColor }]} />
           <View style={styles.channelContent}>
-            <Text style={styles.programName}>{item.programId.toUpperCase()}</Text>
-            <Text style={styles.messagePreview} numberOfLines={1}>
+            <Text style={styles.programName}>{(item.programId || 'Unknown').toUpperCase()}</Text>
+            <Text style={styles.messagePreview} numberOfLines={1} ellipsizeMode="tail">
               {(item.lastMessage.source === 'iso' || item.lastMessage.source === 'flynn') ? 'You: ' : ''}{item.lastMessage.message}
             </Text>
           </View>

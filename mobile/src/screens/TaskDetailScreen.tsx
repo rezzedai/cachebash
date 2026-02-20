@@ -34,6 +34,10 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   const { api } = useAuth();
   const [selectedOption, setSelectedOption] = React.useState<string | null>(null);
   const [isAnswering, setIsAnswering] = React.useState(false);
+  const [isAnswered, setIsAnswered] = React.useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const answeringRef = React.useRef(false);
+  const cooldownRef = React.useRef(false);
 
   if (!task) {
     return (
@@ -44,9 +48,13 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
   }
 
   const handleAnswer = async (option: string) => {
-    if (!api || !task.id || isAnswering) return;
+    // Prevent double-submit via ref (synchronous check)
+    if (answeringRef.current || cooldownRef.current || !api || !task.id) return;
+    answeringRef.current = true;
+
     setSelectedOption(option);
     setIsAnswering(true);
+
     try {
       await api.sendMessage({
         source: 'flynn',
@@ -56,12 +64,22 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         priority: task.priority || 'normal',
         reply_to: task.id,
       });
-      Alert.alert('Sent', `Response "${option}" sent to ${task.source || 'iso'}`);
+
+      // Mark as answered with persistent UI feedback
+      setIsAnswered(true);
+
+      // 2-second cooldown
+      cooldownRef.current = true;
+      setTimeout(() => {
+        cooldownRef.current = false;
+      }, 2000);
     } catch (err) {
       Alert.alert('Error', 'Failed to send response');
       setSelectedOption(null);
+      setIsAnswered(false);
     } finally {
       setIsAnswering(false);
+      answeringRef.current = false;
     }
   };
 
@@ -73,7 +91,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         </Text>
       </View>
 
-      <Text style={styles.title}>{task.title}</Text>
+      <Text style={styles.title} ellipsizeMode="tail">{task.title}</Text>
 
       <View style={styles.metadataRow}>
         <View style={styles.metaBadge}>
@@ -95,12 +113,12 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Source</Text>
-          <Text style={styles.infoValue}>{task.source}</Text>
+          <Text style={styles.infoValue}>{task.source || 'Unknown'}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Target</Text>
-          <Text style={styles.infoValue}>{task.target}</Text>
+          <Text style={styles.infoValue}>{task.target || 'Unknown'}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
@@ -121,30 +139,59 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       {task.instructions && (
         <View style={styles.instructionsCard}>
           <Text style={styles.sectionTitle}>Instructions</Text>
-          <Text style={styles.instructionsText}>{task.instructions}</Text>
+          <Text style={styles.instructionsText}>
+            {isExpanded || task.instructions.length <= 500
+              ? task.instructions
+              : `${task.instructions.slice(0, 500)}...`}
+          </Text>
+          {task.instructions.length > 500 && (
+            <TouchableOpacity
+              style={styles.showMoreButton}
+              onPress={() => setIsExpanded(!isExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.showMoreText}>
+                {isExpanded ? 'Show less' : 'Show more'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
       {task.type === 'question' && task.options && task.options.length > 0 && (
         <View style={styles.optionsCard}>
           <Text style={styles.sectionTitle}>Options</Text>
-          {task.options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionButton,
-                selectedOption === option && styles.optionButtonSelected,
-              ]}
-              onPress={() => handleAnswer(option)}
-              disabled={isAnswering}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                styles.optionText,
-                selectedOption === option && styles.optionTextSelected,
-              ]}>{option}</Text>
-            </TouchableOpacity>
-          ))}
+          {isAnswered && (
+            <Text style={styles.answeredText}>✓ Answer sent</Text>
+          )}
+          {task.options.map((option, index) => {
+            const isSelected = selectedOption === option;
+            const isDisabled = isAnswering || isAnswered;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.optionButton,
+                  isSelected && isAnswered && styles.optionButtonAnswered,
+                  !isSelected && isAnswered && styles.optionButtonDisabled,
+                  isSelected && !isAnswered && styles.optionButtonSelected,
+                ]}
+                onPress={() => handleAnswer(option)}
+                disabled={isDisabled}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.optionText,
+                  isSelected && isAnswered && styles.optionTextAnswered,
+                  !isSelected && isAnswered && styles.optionTextDisabled,
+                  isSelected && !isAnswered && styles.optionTextSelected,
+                ]}>
+                  {isSelected && isAnswered && '✓ '}
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -284,5 +331,37 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     color: theme.colors.primary,
+  },
+  answeredText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.success || theme.colors.primary,
+    fontWeight: '600',
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  optionButtonAnswered: {
+    backgroundColor: theme.colors.primary + '30',
+    borderColor: theme.colors.primary,
+  },
+  optionTextAnswered: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
+  optionButtonDisabled: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    opacity: 0.4,
+  },
+  optionTextDisabled: {
+    color: theme.colors.textMuted,
+  },
+  showMoreButton: {
+    marginTop: theme.spacing.md,
+    alignSelf: 'flex-start',
+  },
+  showMoreText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });
