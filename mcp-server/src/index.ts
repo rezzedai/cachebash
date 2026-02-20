@@ -142,11 +142,11 @@ async function main() {
       const auth = await validateApiKey(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
+      const isoMcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (isoMcpSessionId) setIsoSessionAuth(isoMcpSessionId, auth);
+
       const webReq = await nodeToWebRequest(req);
       const webRes = await iso.transport.handleRequest(webReq, auth);
-
-      const sessionId = webRes.headers.get("Mcp-Session-Id");
-      if (sessionId) setIsoSessionAuth(sessionId, auth);
 
       res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
       const body = await webRes.text();
@@ -160,11 +160,13 @@ async function main() {
       const auth = await validateApiKey(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
+      const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (mcpSessionId) {
+        sessions.set(mcpSessionId, { authContext: auth, lastActivity: Date.now() });
+      }
+
       const webReq = await nodeToWebRequest(req);
       const webRes = await transport.handleRequest(webReq, auth);
-
-      const sessionId = webRes.headers.get("Mcp-Session-Id");
-      if (sessionId) sessions.set(sessionId, { authContext: auth, lastActivity: Date.now() });
 
       res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
       const body = await webRes.text();
