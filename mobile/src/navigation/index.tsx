@@ -12,6 +12,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import ProgramDetailScreen from '../screens/ProgramDetailScreen';
 import ChannelDetailScreen from '../screens/ChannelDetailScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
+import CreateTaskScreen from '../screens/CreateTaskScreen';
 import { navigationRef } from '../utils/navigationRef';
 
 const Tab = createBottomTabNavigator();
@@ -82,6 +83,7 @@ function TasksStackScreen() {
     >
       <TasksStack.Screen name="Tasks" component={TasksScreen} options={{ title: 'Tasks' }} />
       <TasksStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task' }} />
+      <TasksStack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'Create Task' }} />
     </TasksStack.Navigator>
   );
 }
