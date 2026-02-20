@@ -9,6 +9,7 @@
 
 import { generateCorrelationId } from "./correlationId.js";
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import { emitEvent } from "../modules/events.js";
 import type { AuthContext } from "../auth/apiKeyValidator.js";
 
 export interface AuditEntry {
@@ -23,6 +24,22 @@ export interface AuditEntry {
   allowed: boolean;
   reason?: string;
   durationMs?: number;
+}
+
+/**
+ * Classify Guardian rejection reason into structured categories.
+ */
+function classifyGuardianReason(entry: AuditEntry): string {
+  if (!entry.allowed) {
+    const reason = (entry.reason || "").toLowerCase();
+    if (reason.includes("mismatch") || reason.includes("source")) return "SOURCE_MISMATCH";
+    if (reason.includes("rate") || reason.includes("limit")) return "RATE_LIMIT";
+    if (reason.includes("credential") || reason.includes("key") || reason.includes("auth")) return "CREDENTIAL";
+    if (reason.includes("budget") || reason.includes("cost")) return "BUDGET";
+    if (reason.includes("destroy") || reason.includes("delete") || reason.includes("force")) return "DESTRUCTIVE_OP";
+    return "UNKNOWN";
+  }
+  return "NONE";
 }
 
 /** Log audit entry to console AND persist to Firestore */
@@ -42,6 +59,19 @@ export function logAudit(entry: AuditEntry): void {
       timestamp: serverTimestamp(),
     }).catch((err) => {
       console.error("[Audit] Failed to persist audit entry:", err);
+    });
+
+    // Emit telemetry event
+    emitEvent(entry.userId, {
+      event_type: "GUARDIAN_CHECK",
+      program_id: entry.programId,
+      session_id: entry.correlationId,
+      tool: entry.tool,
+      decision: entry.allowed ? "ALLOW" : "BLOCK",
+      reason_class: classifyGuardianReason(entry),
+      source: entry.source,
+      claimed_source: entry.claimedSource,
+      endpoint: entry.endpoint,
     });
   }
 }
