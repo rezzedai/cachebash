@@ -108,5 +108,6 @@ export function useMessages() {
     isLoading: result.isLoading,
     refetch: result.refetch,
     lastUpdated: result.lastUpdated,
+    isCached: result.isCached,
   };
 }
