@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -36,21 +36,24 @@ export default function HomeScreen({ navigation }: Props) {
   }, [refetch]);
 
   // Total fleet programs count
-  const programCount = programs.length;
+  const programCount = useMemo(() => programs.length, [programs]);
 
   // Find most recent update time across all sessions
-  const lastUpdateTime = sessions.reduce((latest, session) => {
-    const time = new Date(session.lastUpdate || session.createdAt).getTime();
-    return time > latest ? time : latest;
-  }, 0);
+  const lastUpdateTime = useMemo(() => {
+    return sessions.reduce((latest, session) => {
+      const time = new Date(session.lastUpdate || session.createdAt).getTime();
+      return time > latest ? time : latest;
+    }, 0);
+  }, [sessions]);
 
   const lastUpdateStr = lastUpdateTime
     ? timeAgo(new Date(lastUpdateTime).toISOString())
     : 'never';
 
   // Filter pending questions (tasks of type 'question' with status 'created')
-  const pendingQuestions = tasks.filter(
-    (t) => t.type === 'question' && t.status === 'created'
+  const pendingQuestions = useMemo(
+    () => tasks.filter((t) => t.type === 'question' && t.status === 'created'),
+    [tasks]
   );
 
   const handleProgramPress = (program: Program) => {

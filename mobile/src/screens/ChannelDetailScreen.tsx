@@ -38,7 +38,14 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   // Set header title to program name
   useEffect(() => {
     if (programId) {
-      navigation.setOptions({ title: programId.toUpperCase() });
+      navigation.setOptions({
+        title: programId.toUpperCase(),
+        headerRight: () => (
+          <TouchableOpacity onPress={() => navigation.navigate('ProgramDetail', { programId })}>
+            <Text style={{ color: theme.colors.primary, fontSize: 14, fontWeight: '600' }}>Profile</Text>
+          </TouchableOpacity>
+        ),
+      });
     }
   }, [programId, navigation]);
 
@@ -143,6 +150,10 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messageList}
+          maxToRenderPerBatch={15}
+          initialNumToRender={20}
+          windowSize={7}
+          inverted={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
         />
       )}
