@@ -1,0 +1,76 @@
+import { usePolling } from './usePolling';
+import { useAuth } from '../contexts/AuthContext';
+import { Session, Program } from '../types';
+
+interface SessionsData {
+  sessions: Session[];
+  programs: Program[];
+}
+
+export function useSessions() {
+  const { api } = useAuth();
+
+  const result = usePolling<SessionsData>({
+    fetcher: async () => {
+      if (!api) return { sessions: [], programs: [] };
+
+      const response = await api.listSessions({ state: 'all', limit: 50 });
+
+      // Map response to Session type
+      const sessions: Session[] = (response.sessions || []).map((s: any) => ({
+        id: s.id || s.sessionId,
+        name: s.name || s.status || '',
+        programId: s.programId,
+        status: s.status || '',
+        state: s.state || 'working',
+        progress: s.progress,
+        projectName: s.projectName,
+        createdAt: s.createdAt,
+        lastUpdate: s.lastUpdate || s.createdAt,
+        lastHeartbeat: s.lastHeartbeat,
+      }));
+
+      // Build programs map from sessions
+      // Group by programId, take the latest session for each program
+      const programMap = new Map<string, Program>();
+
+      for (const session of sessions) {
+        const pid = session.programId || session.name?.split('.')[0] || 'unknown';
+        const existing = programMap.get(pid);
+
+        if (
+          !existing ||
+          new Date(session.lastUpdate) >
+            new Date(existing.lastHeartbeat || existing.lastHeartbeat || '')
+        ) {
+          programMap.set(pid, {
+            id: pid,
+            name: pid,
+            state: session.state || 'offline',
+            status: session.status,
+            progress: session.progress,
+            lastHeartbeat: session.lastHeartbeat || session.lastUpdate,
+            sessionId: session.id,
+          });
+        }
+      }
+
+      return {
+        sessions,
+        programs: Array.from(programMap.values()),
+      };
+    },
+    interval: 15000,
+    enabled: !!api,
+  });
+
+  return {
+    sessions: result.data?.sessions || [],
+    programs: result.data?.programs || [],
+    data: result.data,
+    error: result.error,
+    isLoading: result.isLoading,
+    refetch: result.refetch,
+    lastUpdated: result.lastUpdated,
+  };
+}
