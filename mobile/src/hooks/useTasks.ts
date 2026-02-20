@@ -1,5 +1,7 @@
+import { useRef, useEffect } from 'react';
 import { usePolling } from './usePolling';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { Task } from '../types';
 
 interface UseTasksOptions {
@@ -9,6 +11,9 @@ interface UseTasksOptions {
 
 export function useTasks(filter?: UseTasksOptions) {
   const { api } = useAuth();
+  const { notifyNewTask } = useNotifications();
+  const prevTaskIdsRef = useRef<Set<string>>(new Set());
+  const isSeededRef = useRef(false);
 
   const result = usePolling<Task[]>({
     fetcher: async () => {
@@ -54,6 +59,35 @@ export function useTasks(filter?: UseTasksOptions) {
   });
 
   const tasks = result.data || [];
+
+  // Detect new tasks and fire notifications
+  useEffect(() => {
+    if (!result.data || result.data.length === 0) return;
+
+    const currentIds = new Set(result.data.map((t) => t.id));
+
+    if (!isSeededRef.current) {
+      // First load — seed the known IDs without notifying
+      prevTaskIdsRef.current = currentIds;
+      isSeededRef.current = true;
+      return;
+    }
+
+    // Find genuinely new tasks
+    for (const task of result.data) {
+      if (!prevTaskIdsRef.current.has(task.id) && task.status === 'created') {
+        notifyNewTask({
+          id: task.id,
+          title: task.title,
+          type: task.type,
+          priority: task.priority,
+          source: task.source,
+        });
+      }
+    }
+
+    prevTaskIdsRef.current = currentIds;
+  }, [result.data, notifyNewTask]);
 
   // Calculate counts
   const pendingCount = tasks.filter((t) => t.status === 'created').length;

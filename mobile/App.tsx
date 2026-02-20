@@ -2,6 +2,7 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { NotificationProvider } from './src/contexts/NotificationContext';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
@@ -18,7 +19,11 @@ function AppContent() {
     return <SignInScreen />;
   }
 
-  return <AppNavigation />;
+  return (
+    <NotificationProvider>
+      <AppNavigation />
+    </NotificationProvider>
+  );
 }
 
 export default function App() {

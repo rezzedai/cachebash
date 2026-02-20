@@ -99,3 +99,24 @@ export interface Program {
   sessionId?: string;
   projectName?: string;
 }
+
+// Notification types
+export type NotificationTier = 'critical' | 'operational' | 'informational' | 'suppressed';
+
+export interface NotificationPreferences {
+  critical: boolean; // Always true, cannot be disabled
+  operational: boolean;
+  informational: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string; // "23:00" format
+  quietHoursEnd: string; // "07:00" format
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  critical: true,
+  operational: true,
+  informational: false,
+  quietHoursEnabled: true,
+  quietHoursStart: '23:00',
+  quietHoursEnd: '07:00',
+};
