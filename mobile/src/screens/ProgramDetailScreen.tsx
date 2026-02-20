@@ -615,7 +615,7 @@ const styles = StyleSheet.create({
   sendMessageButtonText: {
     fontSize: theme.fontSize.md,
     fontWeight: '700',
-    color: theme.colors.text,
+    color: theme.colors.background,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
