@@ -31,6 +31,13 @@ const BASE_COSTS: Record<string, number> = {
   revoke_key: 0.001,
   list_keys: 0.0005,
   get_audit: 0.0005,
+  get_program_state: 0.0005,
+  update_program_state: 0.001,
+  get_cost_summary: 0.001,
+  get_sent_messages: 0.0005,
+  get_comms_metrics: 0.001,
+  get_fleet_health: 0.001,
+  query_message_history: 0.001,
 };
 
 function estimateCost(tool: string): number {
