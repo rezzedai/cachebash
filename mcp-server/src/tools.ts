@@ -5,7 +5,7 @@
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
-import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler } from "./modules/relay.js";
+import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
@@ -27,6 +27,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   send_message: sendMessageHandler,
   get_messages: getMessagesHandler,
   get_dead_letters: getDeadLettersHandler,
+  list_groups: listGroupsHandler,
   // Pulse
   create_session: createSessionHandler,
   update_session: updateSessionHandler,
@@ -133,7 +134,7 @@ export const TOOL_DEFINITIONS = [
       properties: {
         message: { type: "string", maxLength: 2000 },
         source: { type: "string", maxLength: 100 },
-        target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
+        target: { type: "string", maxLength: 100, description: "Target program ID or group name (required). Use program name for unicast, or group name for multicast: 'council', 'builders', 'intelligence', 'all'." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"] },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
@@ -169,6 +170,14 @@ export const TOOL_DEFINITIONS = [
       properties: {
         limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max results to return" },
       },
+    },
+  },
+  {
+    name: "list_groups",
+    description: "List available multicast groups and their members. Use group names as targets in send_message for multicast.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
     },
   },
   // === Pulse ===
