@@ -15,6 +15,7 @@ import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, cleanupRateLimits } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
+import { traceToolCall } from "./modules/trace.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
@@ -84,11 +85,15 @@ async function main() {
     try {
       const result = await handler(auth, args);
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
+      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
+        JSON.stringify(result).substring(0, 500), Date.now() - startTime, true);
       audit.log(name, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return result;
     } catch (err) {
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
         err instanceof Error ? err.message : String(err));
+      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
+        "", Date.now() - startTime, false, err instanceof Error ? err.message : String(err));
       audit.error(name, err instanceof Error ? err.message : String(err), { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
