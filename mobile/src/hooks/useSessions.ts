@@ -87,5 +87,6 @@ export function useSessions() {
     isLoading: result.isLoading,
     refetch: result.refetch,
     lastUpdated: result.lastUpdated,
+    isCached: result.isCached,
   };
 }
