@@ -102,5 +102,6 @@ export function useTasks(filter?: UseTasksOptions) {
     isLoading: result.isLoading,
     refetch: result.refetch,
     lastUpdated: result.lastUpdated,
+    isCached: result.isCached,
   };
 }

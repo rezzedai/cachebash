@@ -6,18 +6,18 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
-  const { signOut, apiKey } = useAuth();
+  const { signOut, user } = useAuth();
   const { error: sessionsError } = useSessions();
   const { permissionStatus, preferences, updatePreferences, requestPermissions } = useNotifications();
 
   const handleDisconnect = () => {
     Alert.alert(
-      'Disconnect',
-      'Are you sure you want to disconnect? You will need to re-enter your API key to reconnect.',
+      'Sign Out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: 'Sign Out',
           style: 'destructive',
           onPress: signOut,
         },
@@ -36,17 +36,17 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle} accessibilityRole="header">Account</Text>
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>API Key</Text>
-            <Text style={styles.rowValue}>••••{apiKey?.slice(-4) || '????'}</Text>
+            <Text style={styles.rowLabel}>Account</Text>
+            <Text style={styles.rowValue}>{user?.email || 'Unknown'}</Text>
           </View>
           <View style={styles.divider} />
           <TouchableOpacity
             style={styles.buttonRow}
             onPress={handleDisconnect}
             activeOpacity={0.7}
-            accessibilityLabel="Disconnect from Grid"
+            accessibilityLabel="Sign out of CacheBash"
           >
-            <Text style={styles.disconnectText}>Disconnect</Text>
+            <Text style={styles.disconnectText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
       </View>
