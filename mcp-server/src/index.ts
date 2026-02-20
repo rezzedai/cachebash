@@ -10,7 +10,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase } from "./firebase/client.js";
-import { validateApiKey, type AuthContext } from "./auth/apiKeyValidator.js";
+import { validateAuth, type AuthContext } from "./auth/apiKeyValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
@@ -152,7 +152,7 @@ async function main() {
     if (url === "/v1/iso/mcp") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateApiKey(token);
+      const auth = await validateAuth(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
@@ -175,7 +175,7 @@ async function main() {
     if (url === "/v1/mcp" || url === "/mcp") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateApiKey(token);
+      const auth = await validateAuth(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
