@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTasks } from '../hooks/useTasks';
 import { Task } from '../types';
@@ -12,7 +12,7 @@ type FilterType = 'all' | 'created' | 'active' | 'done';
 
 export default function TasksScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<FilterType>('all');
-  const { tasks, isLoading, refetch } = useTasks();
+  const { tasks, isLoading, refetch, error } = useTasks();
 
   const filteredTasks = useMemo(() => {
     if (filter === 'all') return tasks;
@@ -81,11 +81,30 @@ export default function TasksScreen({ navigation }: Props) {
     </TouchableOpacity>
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No tasks found</Text>
-    </View>
-  );
+  const renderEmpty = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.errorText}>Failed to load tasks</Text>
+          <TouchableOpacity onPress={refetch} style={styles.retryButton}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>No tasks found</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -233,5 +252,23 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.textMuted,
+  },
+  errorText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.error,
+    marginBottom: theme.spacing.md,
+  },
+  retryButton: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  retryText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });

@@ -25,6 +25,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const { messages: allMessages, refetch, isLoading } = useMessages();
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   // Filter messages for this specific program
@@ -44,6 +45,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
 
     const messageText = inputText.trim();
     setInputText('');
+    setSendError(null);
     setIsSending(true);
 
     try {
@@ -64,8 +66,9 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       }, 100);
     } catch (error) {
       console.error('Failed to send message:', error);
-      // Restore input text on error
       setInputText(messageText);
+      setSendError('Failed to send');
+      setTimeout(() => setSendError(null), 3000); // Auto-dismiss after 3s
     } finally {
       setIsSending(false);
     }
@@ -125,6 +128,12 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
         />
       )}
 
+      {sendError && (
+        <View style={styles.sendErrorBanner}>
+          <Text style={styles.sendErrorText}>{sendError}</Text>
+        </View>
+      )}
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
@@ -135,12 +144,16 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
           multiline
           maxLength={2000}
           editable={!isSending}
+          accessibilityLabel="Message input"
+          accessibilityHint="Type a message to send"
         />
         <TouchableOpacity
           style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]}
           onPress={handleSend}
           disabled={!inputText.trim() || isSending}
           activeOpacity={0.7}
+          accessibilityLabel="Send message"
+          accessibilityRole="button"
         >
           {isSending ? (
             <ActivityIndicator size="small" color={theme.colors.text} />
@@ -278,5 +291,16 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.text,
     fontWeight: '600',
+  },
+  sendErrorBanner: {
+    backgroundColor: theme.colors.error + '15',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  sendErrorText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.error,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });
