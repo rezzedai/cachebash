@@ -33,10 +33,8 @@ export default function HomeScreen({ navigation }: Props) {
     setRefreshing(false);
   }, [refetch]);
 
-  // Calculate active programs count
-  const activeCount = programs.filter(
-    (p) => p.state === 'working' || p.state === 'blocked'
-  ).length;
+  // Total fleet programs count
+  const programCount = programs.length;
 
   // Find most recent update time across all sessions
   const lastUpdateTime = sessions.reduce((latest, session) => {
@@ -89,8 +87,8 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Quick Stats Row */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, styles.statCardFirst]}>
-            <Text style={styles.statValue}>{activeCount}</Text>
-            <Text style={styles.statLabel}>Active Programs</Text>
+            <Text style={styles.statValue}>{programCount}</Text>
+            <Text style={styles.statLabel}>Programs</Text>
             <View
               style={[
                 styles.statIndicator,

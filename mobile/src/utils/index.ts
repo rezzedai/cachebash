@@ -52,6 +52,8 @@ export function getStateColor(state: string): string {
     working: '#22c55e',
     blocked: '#ef4444',
     complete: '#00d4ff',
+    done: '#22c55e',
+    active: '#f59e0b',
     pinned: '#f59e0b',
     offline: '#2a2a3a',
   };

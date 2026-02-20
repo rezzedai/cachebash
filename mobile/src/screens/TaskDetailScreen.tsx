@@ -3,18 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Task } from '../types';
 import { theme } from '../theme';
+import { getStatusColor } from '../utils';
 
 type Props = NativeStackScreenProps<any, 'TaskDetail'>;
-
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -27,34 +18,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'created':
-      return theme.colors.warning;
-    case 'active':
-      return theme.colors.primary;
-    case 'done':
-      return theme.colors.success;
-    case 'failed':
-      return theme.colors.error;
-    default:
-      return theme.colors.textMuted;
-  }
-}
-
 function getStatusLabel(status: string): string {
-  switch (status) {
-    case 'created':
-      return 'Pending';
-    case 'active':
-      return 'Active';
-    case 'done':
-      return 'Done';
-    case 'failed':
-      return 'Failed';
-    default:
-      return status;
-  }
+  const labels: Record<string, string> = {
+    created: 'Pending',
+    active: 'Active',
+    done: 'Done',
+    failed: 'Failed',
+  };
+  return labels[status] || status;
 }
 
 export default function TaskDetailScreen({ route, navigation }: Props) {

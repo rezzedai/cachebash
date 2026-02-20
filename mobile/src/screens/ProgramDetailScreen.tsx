@@ -12,56 +12,19 @@ import { useSessions } from '../hooks/useSessions';
 import { useMessages } from '../hooks/useMessages';
 import { useTasks } from '../hooks/useTasks';
 import { theme } from '../theme';
+import { timeAgo, getStateColor } from '../utils';
 
 type Props = NativeStackScreenProps<any, 'ProgramDetail'>;
 
-/**
- * Convert ISO 8601 timestamp to relative time string
- */
-function timeAgo(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-/**
- * Get state indicator color based on program state
- */
-function getStateColor(state: string): string {
-  switch (state) {
-    case 'working':
-      return theme.colors.success;
-    case 'blocked':
-      return theme.colors.error;
-    case 'complete':
-      return theme.colors.primary;
-    case 'offline':
-      return theme.colors.border;
-    default:
-      return theme.colors.textMuted;
-  }
-}
-
-/**
- * Get state display label
- */
 function getStateLabel(state: string): string {
-  switch (state) {
-    case 'working':
-      return 'Working';
-    case 'blocked':
-      return 'Blocked';
-    case 'complete':
-      return 'Complete';
-    case 'offline':
-      return 'Offline';
-    default:
-      return state;
-  }
+  const labels: Record<string, string> = {
+    working: 'Working',
+    blocked: 'Blocked',
+    complete: 'Complete',
+    pinned: 'Pinned',
+    offline: 'Offline',
+  };
+  return labels[state] || state;
 }
 
 export default function ProgramDetailScreen({ route, navigation }: Props) {

@@ -35,83 +35,168 @@ export class CacheBashAPIError extends Error {
 class CacheBashAPI {
   private apiKey: string;
   private baseUrl: string;
+  private sessionId: string | null = null;
+  private initPromise: Promise<void> | null = null;
+  private requestQueue: Promise<unknown> = Promise.resolve();
 
   constructor(apiKey: string, baseUrl: string = API_URL) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
   }
 
-  private async call<T>(
-    toolName: string,
-    args: Record<string, unknown>
-  ): Promise<T> {
-    const requestId = Date.now();
+  private async initialize(): Promise<void> {
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
-      id: requestId,
-      method: 'tools/call',
+      id: 0,
+      method: 'initialize',
       params: {
-        name: toolName,
-        arguments: args,
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'cachebash-mobile', version: '1.0.0' },
       },
     };
 
     try {
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(request),
-      });
+      const resp = await this.sendXHR(JSON.stringify(request));
 
-      if (!response.ok) {
-        throw new CacheBashAPIError(
-          `HTTP error: ${response.status} ${response.statusText}`,
-          response.status
-        );
+      const mcpSessionId = resp.headers['mcp-session-id'];
+      if (!mcpSessionId) {
+        throw new CacheBashAPIError('Server did not return Mcp-Session-Id header');
       }
 
-      const jsonResponse: JsonRpcResponse<McpToolResult> =
-        await response.json();
-
-      if (jsonResponse.error) {
-        throw new CacheBashAPIError(
-          jsonResponse.error.message,
-          jsonResponse.error.code
-        );
-      }
-
-      if (!jsonResponse.result) {
-        throw new CacheBashAPIError('No result in response');
-      }
-
-      // MCP tools return result in result.content[0].text as a JSON string
-      const content = jsonResponse.result.content?.[0];
-      if (!content || content.type !== 'text') {
-        throw new CacheBashAPIError('Invalid MCP response format');
-      }
-
-      try {
-        return JSON.parse(content.text) as T;
-      } catch (parseError) {
-        throw new CacheBashAPIError(
-          'Failed to parse MCP response',
-          undefined,
-          parseError
-        );
-      }
+      this.sessionId = mcpSessionId;
     } catch (error) {
-      if (error instanceof CacheBashAPIError) {
-        throw error;
-      }
+      this.sessionId = null;
+      if (error instanceof CacheBashAPIError) throw error;
       throw new CacheBashAPIError(
-        error instanceof Error ? error.message : 'Unknown error',
+        error instanceof Error ? error.message : 'Unknown initialization error',
         undefined,
         error
       );
     }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    // If already initialized, return immediately
+    if (this.sessionId) {
+      return;
+    }
+
+    // If initialization is in progress, wait for it
+    if (this.initPromise) {
+      await this.initPromise;
+      return;
+    }
+
+    // Start initialization
+    this.initPromise = this.initialize();
+    try {
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
+  }
+
+  private async call<T>(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<T> {
+    // Serialize all requests — concurrent requests on the same MCP session
+    // cause the server to mix up responses
+    return new Promise<T>((resolve, reject) => {
+      this.requestQueue = this.requestQueue.then(async () => {
+        try {
+          const result = await this.executeCall<T>(toolName, args);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+
+  private sendXHR(body: string): Promise<{ status: number; text: string; headers: Record<string, string> }> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', this.baseUrl, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Authorization', `Bearer ${this.apiKey}`);
+      if (this.sessionId) {
+        xhr.setRequestHeader('Mcp-Session-Id', this.sessionId);
+      }
+      xhr.onload = () => {
+        const headers: Record<string, string> = {};
+        const sessionHeader = xhr.getResponseHeader('mcp-session-id');
+        if (sessionHeader) headers['mcp-session-id'] = sessionHeader;
+        resolve({ status: xhr.status, text: xhr.responseText, headers });
+      };
+      xhr.onerror = () => reject(new CacheBashAPIError('Network error'));
+      xhr.ontimeout = () => reject(new CacheBashAPIError('Request timeout'));
+      xhr.timeout = 15000;
+      xhr.send(body);
+    });
+  }
+
+  private async executeCall<T>(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<T> {
+    await this.ensureInitialized();
+
+    const request: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'tools/call',
+      params: { name: toolName, arguments: args },
+    };
+
+    // Retry up to 3 times
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const resp = await this.sendXHR(JSON.stringify(request));
+
+        if (resp.status === 204 || !resp.text || resp.text.trim() === '') {
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, 500));
+            continue;
+          }
+          throw new CacheBashAPIError('Empty response', resp.status);
+        }
+
+        if (resp.status >= 400) {
+          throw new CacheBashAPIError(`HTTP ${resp.status}`, resp.status);
+        }
+
+        const jsonResponse: JsonRpcResponse<McpToolResult> = JSON.parse(resp.text);
+
+        if (jsonResponse.error) {
+          throw new CacheBashAPIError(jsonResponse.error.message, jsonResponse.error.code);
+        }
+
+        if (!jsonResponse.result?.content?.[0]?.text) {
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, 500));
+            continue;
+          }
+          throw new CacheBashAPIError('No result in response');
+        }
+
+        return JSON.parse(jsonResponse.result.content[0].text) as T;
+      } catch (error) {
+        if (attempt === MAX_RETRIES - 1) {
+          if (error instanceof CacheBashAPIError) throw error;
+          throw new CacheBashAPIError(
+            error instanceof Error ? error.message : 'Unknown error',
+            undefined,
+            error
+          );
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+
+    throw new CacheBashAPIError('Max retries exceeded');
   }
 
   // Sessions
