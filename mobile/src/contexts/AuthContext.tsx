@@ -6,23 +6,32 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import {
+  onAuthStateChanged,
+  onIdTokenChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail,
+  User,
+} from 'firebase/auth';
+import { auth } from '../config/firebase';
 import CacheBashAPI, { CacheBashAPIError } from '../services/api';
 
 interface AuthState {
-  apiKey: string | null;
+  user: User | null;
   api: CacheBashAPI | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
 
 interface AuthContextType extends AuthState {
-  signIn: (apiKey: string) => Promise<boolean>;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string) => Promise<boolean>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   error: string | null;
 }
-
-const STORAGE_KEY = 'cachebash_api_key';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -32,118 +41,157 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, setState] = useState<AuthState>({
-    apiKey: null,
+    user: null,
     api: null,
     isLoading: true,
     isAuthenticated: false,
   });
   const [error, setError] = useState<string | null>(null);
 
-  // Load saved API key on mount
+  // Set up Firebase auth state listener
   useEffect(() => {
-    const loadApiKey = async () => {
-      // Dev mode auto-login bypass
-      if (__DEV__) {
-        const devKey = 'cb_7302ac94ee5c64c84903206d582c80ed0a8aa19b66b2cedd6ed30ffb9832637b';
-        const api = new CacheBashAPI(devKey);
-        setState({
-          apiKey: devKey,
-          api,
-          isLoading: false,
-          isAuthenticated: true,
-        });
-        return;
-      }
+    // Dev mode auto-login bypass using API key
+    if (__DEV__) {
+      const devKey = 'cb_7302ac94ee5c64c84903206d582c80ed0a8aa19b66b2cedd6ed30ffb9832637b';
+      const api = new CacheBashAPI(devKey);
+      setState({
+        user: null,
+        api,
+        isLoading: false,
+        isAuthenticated: true,
+      });
+      return;
+    }
 
-      try {
-        const savedKey = await SecureStore.getItemAsync(STORAGE_KEY);
-        if (savedKey) {
-          const api = new CacheBashAPI(savedKey);
+    // Listen for ID token changes (includes auth state + token refresh)
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (user) {
+        try {
+          // Get the Firebase ID token
+          const idToken = await user.getIdToken();
+          const api = new CacheBashAPI(idToken);
 
-          // Validate the saved key
-          try {
-            await api.getFleetHealth();
-            setState({
-              apiKey: savedKey,
-              api,
-              isLoading: false,
-              isAuthenticated: true,
-            });
-          } catch (validationError) {
-            // Saved key is invalid, clear it
-            await SecureStore.deleteItemAsync(STORAGE_KEY);
-            setState({
-              apiKey: null,
-              api: null,
-              isLoading: false,
-              isAuthenticated: false,
-            });
-          }
-        } else {
           setState({
-            apiKey: null,
+            user,
+            api,
+            isLoading: false,
+            isAuthenticated: true,
+          });
+        } catch (error) {
+          console.error('Failed to get ID token:', error);
+          setState({
+            user: null,
             api: null,
             isLoading: false,
             isAuthenticated: false,
           });
         }
-      } catch (error) {
-        console.error('Failed to load API key:', error);
+      } else {
         setState({
-          apiKey: null,
+          user: null,
           api: null,
           isLoading: false,
           isAuthenticated: false,
         });
       }
-    };
+    });
 
-    loadApiKey();
+    return () => unsubscribe();
   }, []);
 
-  const signIn = useCallback(async (apiKey: string): Promise<boolean> => {
+  const signIn = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
 
-    if (!apiKey || apiKey.trim() === '') {
-      setError('API key cannot be empty');
+    if (!email || email.trim() === '') {
+      setError('Email cannot be empty');
+      return false;
+    }
+
+    if (!password || password.trim() === '') {
+      setError('Password cannot be empty');
       return false;
     }
 
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const api = new CacheBashAPI(apiKey.trim());
-
-      // Validate the API key by making a test call
-      await api.getFleetHealth();
-
-      // Key is valid, save it
-      await SecureStore.setItemAsync(STORAGE_KEY, apiKey.trim());
-
-      setState({
-        apiKey: apiKey.trim(),
-        api,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       return true;
-    } catch (error) {
-      let errorMessage = 'Failed to authenticate';
+    } catch (error: any) {
+      let errorMessage = 'Failed to sign in';
 
-      if (error instanceof CacheBashAPIError) {
-        if (error.code === 401 || error.code === 403) {
-          errorMessage = 'Invalid API key';
-        } else {
-          errorMessage = error.message;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
+      switch (error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'This account has been disabled';
+          break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many failed attempts. Try again later';
+          break;
+        default:
+          errorMessage = error.message || 'Failed to sign in';
       }
 
       setError(errorMessage);
       setState({
-        apiKey: null,
+        user: null,
+        api: null,
+        isLoading: false,
+        isAuthenticated: false,
+      });
+
+      return false;
+    }
+  }, []);
+
+  const signUp = useCallback(async (email: string, password: string): Promise<boolean> => {
+    setError(null);
+
+    if (!email || email.trim() === '') {
+      setError('Email cannot be empty');
+      return false;
+    }
+
+    if (!password || password.trim() === '') {
+      setError('Password cannot be empty');
+      return false;
+    }
+
+    setState((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      return true;
+    } catch (error: any) {
+      let errorMessage = 'Failed to create account';
+
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'Email already in use';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak. Use at least 6 characters';
+          break;
+        default:
+          errorMessage = error.message || 'Failed to create account';
+      }
+
+      setError(errorMessage);
+      setState({
+        user: null,
         api: null,
         isLoading: false,
         isAuthenticated: false,
@@ -155,25 +203,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signOut = useCallback(async () => {
     try {
-      await SecureStore.deleteItemAsync(STORAGE_KEY);
+      await firebaseSignOut(auth);
     } catch (error) {
-      console.error('Failed to delete API key:', error);
+      console.error('Failed to sign out:', error);
+    }
+    setError(null);
+  }, []);
+
+  const resetPassword = useCallback(async (email: string) => {
+    setError(null);
+
+    if (!email || email.trim() === '') {
+      setError('Email cannot be empty');
+      return;
     }
 
-    setState({
-      apiKey: null,
-      api: null,
-      isLoading: false,
-      isAuthenticated: false,
-    });
-    setError(null);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch (error: any) {
+      let errorMessage = 'Failed to send reset email';
+
+      switch (error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email';
+          break;
+        default:
+          errorMessage = error.message || 'Failed to send reset email';
+      }
+
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
   }, []);
 
   const value: AuthContextType = {
     ...state,
     error,
     signIn,
+    signUp,
     signOut,
+    resetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
