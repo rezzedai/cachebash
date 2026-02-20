@@ -109,8 +109,6 @@ export default function AppNavigation() {
           tabBarStyle: {
             backgroundColor: '#0a0a0f',
             borderTopColor: '#1a1a24',
-            height: 60,
-            paddingBottom: 8,
             paddingTop: 8,
           },
           tabBarActiveTintColor: '#00d4ff',
