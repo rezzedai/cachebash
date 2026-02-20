@@ -52,6 +52,87 @@ function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
 
+const CommsMetricsSchema = z.object({
+  period: z.enum(["today", "this_week", "this_month", "all"]).default("this_month"),
+});
+
+export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  // ISO/Flynn gate
+  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+    return jsonResult({
+      success: false,
+      error: "get_comms_metrics is only accessible by ISO and Flynn.",
+    });
+  }
+
+  const args = CommsMetricsSchema.parse(rawArgs || {});
+  const db = getFirestore();
+
+  const start = periodStart(args.period);
+
+  // Query relay messages
+  let relayQuery: admin.firestore.Query = db.collection(`users/${auth.userId}/relay`);
+  if (start) {
+    relayQuery = relayQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start));
+  }
+  const relaySnap = await relayQuery.get();
+
+  // Query dead letters
+  let dlQuery: admin.firestore.Query = db.collection(`users/${auth.userId}/dead_letters`);
+  if (start) {
+    dlQuery = dlQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start));
+  }
+  const dlSnap = await dlQuery.get();
+
+  // Aggregate by status
+  const statusCounts: Record<string, number> = { delivered: 0, pending: 0, expired: 0, dead_letter: 0 };
+  let totalLatencyMs = 0;
+  let deliveredCount = 0;
+
+  // Per-program breakdown
+  const programBreakdown = new Map<string, { sent: number; delivered: number }>();
+
+  for (const doc of relaySnap.docs) {
+    const data = doc.data();
+    const status = data.status || "pending";
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+    const source = data.source || "unknown";
+    const prog = programBreakdown.get(source) || { sent: 0, delivered: 0 };
+    prog.sent++;
+    if (status === "delivered") {
+      prog.delivered++;
+      deliveredCount++;
+      if (data.deliveredAt && data.createdAt) {
+        const created = data.createdAt.toDate?.() ? data.createdAt.toDate().getTime() : 0;
+        const delivered = data.deliveredAt.toDate?.() ? data.deliveredAt.toDate().getTime() : 0;
+        if (created && delivered) {
+          totalLatencyMs += delivered - created;
+        }
+      }
+    }
+    programBreakdown.set(source, prog);
+  }
+
+  // Dead letters count
+  statusCounts.dead_letter = dlSnap.size;
+
+  const avgDeliveryLatencyMs = deliveredCount > 0 ? Math.round(totalLatencyMs / deliveredCount) : null;
+
+  const perProgram = Array.from(programBreakdown.entries())
+    .map(([program, stats]) => ({ program, ...stats }))
+    .sort((a, b) => b.sent - a.sent);
+
+  return jsonResult({
+    success: true,
+    period: args.period,
+    totalMessages: relaySnap.size + dlSnap.size,
+    statusCounts,
+    avgDeliveryLatencyMs,
+    perProgram,
+  });
+}
+
 export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CostSummarySchema.parse(rawArgs || {});
   const db = getFirestore();

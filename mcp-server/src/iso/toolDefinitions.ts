@@ -155,6 +155,55 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_sent_messages",
+    description: "Query sent messages from a program's outbox. ISO can query any source.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        status: { type: "string", description: "Filter by message status" },
+        target: { type: "string", maxLength: 100, description: "Filter by target program" },
+        threadId: { type: "string", description: "Filter by thread ID" },
+        source: { type: "string", maxLength: 100, description: "Source program to query" },
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20 },
+      },
+    },
+  },
+  {
+    name: "get_comms_metrics",
+    description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+      },
+    },
+  },
+  {
+    name: "get_fleet_health",
+    description: "Get health status of all Grid programs. Shows heartbeat age, pending messages/tasks per program.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "query_message_history",
+    description: "Query full message history with bodies. Requires at least one of: threadId, source, target.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        threadId: { type: "string", description: "Filter by thread ID" },
+        source: { type: "string", maxLength: 100, description: "Filter by source program" },
+        target: { type: "string", maxLength: 100, description: "Filter by target program" },
+        message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"] },
+        status: { type: "string", description: "Filter by message status" },
+        since: { type: "string", description: "Start date (ISO 8601)" },
+        until: { type: "string", description: "End date (ISO 8601)" },
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
+      },
+    },
+  },
+  {
     name: "get_cost_summary",
     description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",
     inputSchema: {

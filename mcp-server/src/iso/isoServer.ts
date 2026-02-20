@@ -11,12 +11,12 @@ import {
 import { CustomHTTPTransport } from "../transport/CustomHTTPTransport.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "../modules/dispatch.js";
-import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler } from "../modules/relay.js";
-import { updateSessionHandler } from "../modules/pulse.js";
+import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "../modules/relay.js";
+import { updateSessionHandler, getFleetHealthHandler } from "../modules/pulse.js";
 import { sendAlertHandler } from "../modules/signal.js";
 import { listKeysHandler } from "../modules/keys.js";
 import { getAuditHandler } from "../modules/audit.js";
-import { getCostSummaryHandler } from "../modules/metrics.js";
+import { getCostSummaryHandler, getCommsMetricsHandler } from "../modules/metrics.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
@@ -35,6 +35,10 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   list_keys: listKeysHandler,
   get_audit: getAuditHandler,
   get_cost_summary: getCostSummaryHandler,
+  get_sent_messages: getSentMessagesHandler,
+  get_comms_metrics: getCommsMetricsHandler,
+  get_fleet_health: getFleetHealthHandler,
+  query_message_history: queryMessageHistoryHandler,
 };
 
 const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
