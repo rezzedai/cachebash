@@ -8,6 +8,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { z } from "zod";
+import { syncSprintCreated, syncSprintCompleted } from "./github-sync.js";
 
 const StorySchema = z.object({
   id: z.string(),
@@ -130,6 +131,9 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   }
   await batch.commit();
 
+  // Fire-and-forget: sync sprint to GitHub Milestone + Issues
+  syncSprintCreated(auth.userId, sprintId, args.projectName, args.stories);
+
   return jsonResult({
     success: true,
     sprintId,
@@ -251,6 +255,9 @@ export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown)
     completedAt: serverTimestamp(),
     "sprint.summary": summary,
   });
+
+  // Fire-and-forget: close GitHub Milestone
+  syncSprintCompleted(auth.userId, args.sprintId);
 
   return jsonResult({
     success: true,
