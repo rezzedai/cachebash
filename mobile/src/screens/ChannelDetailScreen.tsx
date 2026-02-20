@@ -10,6 +10,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { useMessages } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +43,9 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string | null>(null); // null = all types
+  const [searchText, setSearchText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const sendingRef = useRef(false);
   const lastSentRef = useRef<{ text: string; timestamp: number } | null>(null);
@@ -62,8 +66,21 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       );
     });
 
-    return [...real, ...activeOptimistic];
-  }, [allMessages, programId, optimisticMessages]);
+    let combined = [...real, ...activeOptimistic];
+
+    // Apply type filter
+    if (typeFilter) {
+      combined = combined.filter(msg => msg.message_type === typeFilter);
+    }
+
+    // Apply search filter
+    if (searchText.trim()) {
+      const query = searchText.trim().toLowerCase();
+      combined = combined.filter(msg => msg.message.toLowerCase().includes(query));
+    }
+
+    return combined;
+  }, [allMessages, programId, optimisticMessages, typeFilter, searchText]);
 
   // Set header title to program name
   useEffect(() => {
@@ -236,6 +253,74 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
+      {/* Filter Bar */}
+      <View style={styles.filterBar}>
+        <TouchableOpacity
+          style={styles.filterToggle}
+          onPress={() => {
+            haptic.selection();
+            setShowFilters(!showFilters);
+          }}
+          accessibilityLabel={showFilters ? 'Hide filters' : 'Show filters'}
+          accessibilityRole="button"
+        >
+          <Text style={styles.filterToggleText}>
+            {showFilters ? '▼ Filters' : '▶ Filters'}
+          </Text>
+          {(typeFilter || searchText.trim()) && (
+            <View style={styles.filterActiveDot} />
+          )}
+        </TouchableOpacity>
+
+        {showFilters && (
+          <View style={styles.filterContent}>
+            {/* Search */}
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search messages..."
+              placeholderTextColor={theme.colors.textMuted}
+              value={searchText}
+              onChangeText={setSearchText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              accessibilityLabel="Search messages"
+            />
+
+            {/* Type filter chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.typeFilterRow}
+            >
+              {[null, 'DIRECTIVE', 'RESULT', 'STATUS', 'QUERY', 'ACK'].map((type) => {
+                const isActive = typeFilter === type;
+                const label = type || 'All';
+                const color = type ? getMessageTypeColor(type as RelayMessageType) : theme.colors.textSecondary;
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    style={[
+                      styles.typeChip,
+                      isActive && { borderColor: color, backgroundColor: color + '15' },
+                    ]}
+                    onPress={() => {
+                      haptic.selection();
+                      setTypeFilter(type);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text style={[styles.typeChipText, isActive && { color }]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
       {isLoading && displayMessages.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -454,5 +539,57 @@ const styles = StyleSheet.create({
     color: theme.colors.error,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  filterBar: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  filterToggleText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+  },
+  filterActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  filterContent: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  searchInput: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+  },
+  typeFilterRow: {
+    gap: theme.spacing.sm,
+  },
+  typeChip: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  typeChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
   },
 });
