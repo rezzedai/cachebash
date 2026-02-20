@@ -13,7 +13,7 @@ import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprin
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
-import { getCostSummaryHandler, getCommsMetricsHandler } from "./modules/metrics.js";
+import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { queryTracesHandler } from "./modules/trace.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -64,6 +64,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Metrics
   get_cost_summary: getCostSummaryHandler,
   get_comms_metrics: getCommsMetricsHandler,
+  get_operational_metrics: getOperationalMetricsHandler,
   // Fleet
   get_fleet_health: getFleetHealthHandler,
 
@@ -614,6 +615,16 @@ export const TOOL_DEFINITIONS = [
         period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
         groupBy: { type: "string", enum: ["program", "type", "none"], default: "none", description: "Group results by program (source) or task type" },
         programFilter: { type: "string", maxLength: 100, description: "Filter to a specific program (source field)" },
+      },
+    },
+  },
+  {
+    name: "get_operational_metrics",
+    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. ISO/Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
       },
     },
   },

@@ -225,6 +225,16 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
+    name: "get_operational_metrics",
+    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. ISO/Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+      },
+    },
+  },
+  {
     name: "query_traces",
     description: "Query execution traces for debugging. Filters: sprintId, taskId, programId, tool, since/until.",
     inputSchema: {

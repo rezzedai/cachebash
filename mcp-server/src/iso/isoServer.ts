@@ -16,7 +16,7 @@ import { updateSessionHandler, getFleetHealthHandler } from "../modules/pulse.js
 import { sendAlertHandler } from "../modules/signal.js";
 import { listKeysHandler } from "../modules/keys.js";
 import { getAuditHandler } from "../modules/audit.js";
-import { getCostSummaryHandler, getCommsMetricsHandler } from "../modules/metrics.js";
+import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "../modules/metrics.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
@@ -39,6 +39,7 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   get_cost_summary: getCostSummaryHandler,
   get_sent_messages: getSentMessagesHandler,
   get_comms_metrics: getCommsMetricsHandler,
+  get_operational_metrics: getOperationalMetricsHandler,
   get_fleet_health: getFleetHealthHandler,
   query_message_history: queryMessageHistoryHandler,
   query_traces: queryTracesHandler,
