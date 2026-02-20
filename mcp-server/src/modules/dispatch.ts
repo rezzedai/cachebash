@@ -11,6 +11,7 @@ import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
+import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -186,6 +187,9 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
 
   const ref = await db.collection(`users/${auth.userId}/tasks`).add(taskData);
 
+  // Fire-and-forget: sync to GitHub Issues + Project board
+  syncTaskCreated(auth.userId, ref.id, args.title, args.instructions || "", verifiedSource, args.priority, args.projectId, args.action);
+
   return jsonResult({
     success: true,
     taskId: ref.id,
@@ -230,6 +234,11 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     });
 
     if ("error" in result) return jsonResult({ success: false, error: result.error });
+
+    // Fire-and-forget: sync claim to GitHub Project board (outside transaction)
+    if (!result.alreadyClaimed) {
+      syncTaskClaimed(auth.userId, args.taskId);
+    }
 
     const decrypted = decryptTaskFields(result.data!, auth.encryptionKey);
     return jsonResult({
@@ -276,6 +285,9 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (args.cost_usd !== undefined) updateFields.cost_usd = args.cost_usd;
       tx.update(taskRef, updateFields);
     });
+
+    // Fire-and-forget: sync completion to GitHub (outside transaction)
+    syncTaskCompleted(auth.userId, args.taskId);
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
   } catch (error) {

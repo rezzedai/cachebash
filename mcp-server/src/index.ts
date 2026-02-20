@@ -18,6 +18,7 @@ import { logToolCall } from "./modules/ledger.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
+import { handleGithubWebhook } from "./modules/github-webhook.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -129,6 +130,11 @@ async function main() {
           docs: "See README for full REST API reference",
         },
       });
+    }
+
+    // GitHub webhook (no API key auth — uses HMAC signature verification)
+    if (url === "/v1/webhooks/github" && req.method === "POST") {
+      return handleGithubWebhook(req, res);
     }
 
     // REST API
