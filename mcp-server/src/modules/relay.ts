@@ -8,7 +8,7 @@ import { verifySource } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
-import { resolveTargets, isGroupTarget } from "../config/programs.js";
+import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -344,4 +344,14 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
       ? `Found ${deadLetters.length} dead letter(s)`
       : "No dead letters found",
   });
+}
+
+export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
+  const groups: Record<string, string[]> = {};
+  for (const [name, members] of Object.entries(PROGRAM_GROUPS)) {
+    groups[name] = [...members];
+  }
+  return {
+    content: [{ type: "text", text: JSON.stringify({ success: true, groups, message: `${Object.keys(groups).length} groups available` }) }],
+  };
 }
