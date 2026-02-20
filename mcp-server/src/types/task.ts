@@ -59,6 +59,15 @@ export interface SprintData {
   config?: SprintConfig;
   currentAction?: string;
   summary?: SprintSummary;
+  definition?: Array<{
+    id: string;
+    title: string;
+    wave: number;
+    dependencies: string[];
+    complexity: string;
+    retryPolicy: string;
+    maxRetries: number;
+  }>;
 }
 
 /** The Task document — lives in users/{uid}/tasks/{id} */
@@ -75,6 +84,12 @@ export interface Task extends Envelope {
   question?: QuestionData;
   dream?: DreamData;
   sprint?: SprintData;
+  retry?: {
+    policy: string;
+    maxRetries: number;
+    retryCount: number;
+    retryHistory: Array<{ attempt: number; failedAt: string }>;
+  };
 
   // Lifecycle
   status: LifecycleStatus;
