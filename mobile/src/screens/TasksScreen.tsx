@@ -5,6 +5,7 @@ import { useTasks } from '../hooks/useTasks';
 import { Task } from '../types';
 import { theme } from '../theme';
 import { timeAgo, getStatusColor } from '../utils';
+import { haptic } from '../utils/haptics';
 
 type Props = NativeStackScreenProps<any, 'Tasks'>;
 
@@ -35,7 +36,10 @@ export default function TasksScreen({ navigation }: Props) {
           styles.filterChip,
           isActive && styles.filterChipActive,
         ]}
-        onPress={() => setFilter(key)}
+        onPress={() => {
+          haptic.selection();
+          setFilter(key);
+        }}
         accessibilityRole="button"
         accessibilityState={{ selected: isActive }}
       >
@@ -162,7 +166,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
+    paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
@@ -178,7 +182,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   filterContent: {
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     gap: theme.spacing.sm,
   },

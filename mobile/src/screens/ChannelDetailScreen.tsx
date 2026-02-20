@@ -16,6 +16,7 @@ import { theme } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RelayMessage, RelayMessageType } from '../types';
 import { timeAgo, getMessageTypeColor } from '../utils';
+import { haptic } from '../utils/haptics';
 
 type Props = NativeStackScreenProps<any, 'ChannelDetail'>;
 
@@ -65,6 +66,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    haptic.medium();
     setSendError(null);
     setIsSending(true);
 
@@ -76,6 +78,8 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
         message_type: 'DIRECTIVE',
         priority: 'normal',
       });
+
+      haptic.success();
 
       // Track last sent for deduplication
       lastSentRef.current = { text: messageText, timestamp: now };
@@ -92,6 +96,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       }, 100);
     } catch (error) {
       console.error('Failed to send message:', error);
+      haptic.error();
       setSendError('Failed to send');
       setTimeout(() => setSendError(null), 3000); // Auto-dismiss after 3s
     } finally {
