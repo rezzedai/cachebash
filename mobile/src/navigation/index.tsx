@@ -12,6 +12,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import ProgramDetailScreen from '../screens/ProgramDetailScreen';
 import ChannelDetailScreen from '../screens/ChannelDetailScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
+import { navigationRef } from '../utils/navigationRef';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator<ParamListBase>();
@@ -101,7 +102,7 @@ function SettingsStackScreen() {
 
 export default function AppNavigation() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused }) => <TabIcon routeName={route.name} focused={focused} />,
