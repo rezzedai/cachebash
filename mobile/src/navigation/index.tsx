@@ -49,7 +49,7 @@ function HomeStackScreen() {
         headerShadowVisible: false,
       }}
     >
-      <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ title: 'Home' }} />
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="ProgramDetail" component={ProgramDetailScreen} options={{ title: 'Program' }} />
     </HomeStack.Navigator>
   );

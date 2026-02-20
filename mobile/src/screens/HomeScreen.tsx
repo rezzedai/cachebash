@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function HomeScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const { sessions, programs, isLoading, refetch } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
@@ -59,7 +61,7 @@ export default function HomeScreen({ navigation }: Props) {
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + theme.spacing.sm }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -76,7 +78,7 @@ export default function HomeScreen({ navigation }: Props) {
               <View
                 style={[
                   styles.connectionDot,
-                  { backgroundColor: theme.colors.success },
+                  { backgroundColor: programs.length > 0 ? theme.colors.success : theme.colors.warning },
                 ]}
               />
             </View>
@@ -132,7 +134,7 @@ export default function HomeScreen({ navigation }: Props) {
                 activeOpacity={0.7}
               >
                 <View style={styles.programHeader}>
-                  <Text style={styles.programName}>{program.name}</Text>
+                  <Text style={styles.programName}>{program.name.toUpperCase()}</Text>
                   <View
                     style={[
                       styles.stateDot,
@@ -361,9 +363,10 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   programName: {
-    fontSize: theme.fontSize.md,
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
     color: theme.colors.text,
+    letterSpacing: 1,
     flex: 1,
   },
   stateDot: {

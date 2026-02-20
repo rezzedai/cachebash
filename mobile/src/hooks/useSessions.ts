@@ -57,10 +57,22 @@ export function useSessions() {
         }
       }
 
-      return {
-        sessions,
-        programs: Array.from(programMap.values()),
+      // Sort programs: working first, then blocked, then active, then done/complete, then offline
+      const stateOrder: Record<string, number> = {
+        working: 0,
+        blocked: 1,
+        active: 2,
+        pinned: 3,
+        done: 4,
+        complete: 5,
+        offline: 6,
       };
+
+      const programs = Array.from(programMap.values()).sort((a, b) => {
+        return (stateOrder[a.state] ?? 9) - (stateOrder[b.state] ?? 9);
+      });
+
+      return { sessions, programs };
     },
     interval: 15000,
     enabled: !!api,
