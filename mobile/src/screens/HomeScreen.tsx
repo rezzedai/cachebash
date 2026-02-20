@@ -23,7 +23,7 @@ type Props = {
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { sessions, programs, isLoading, refetch } = useSessions();
+  const { sessions, programs, isLoading, refetch, error } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
 
@@ -85,6 +85,15 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
           <Text style={styles.lastUpdate}>Updated {lastUpdateStr}</Text>
         </View>
+
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>Unable to connect to Grid</Text>
+            <TouchableOpacity onPress={onRefresh}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Quick Stats Row */}
         <View style={styles.statsRow}>
@@ -188,6 +197,7 @@ export default function HomeScreen({ navigation }: Props) {
                   key={question.id}
                   style={styles.questionCard}
                   activeOpacity={0.7}
+                  onPress={() => navigation.navigate('TaskDetail', { task: question })}
                 >
                   <View style={styles.questionHeader}>
                     <View style={styles.questionIcon}>
@@ -433,5 +443,28 @@ const styles = StyleSheet.create({
   questionTime: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
+  },
+
+  // Error Banner
+  errorBanner: {
+    backgroundColor: theme.colors.error + '15',
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.error + '30',
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    fontWeight: '500',
+  },
+  retryText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });

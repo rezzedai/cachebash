@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, StyleSheet } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useSessions } from '../hooks/useSessions';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
   const { signOut, apiKey } = useAuth();
+  const { error: sessionsError } = useSessions();
   const [operationalNotifs, setOperationalNotifs] = useState(true);
   const [informationalNotifs, setInformationalNotifs] = useState(false);
 
@@ -31,7 +33,7 @@ export default function SettingsScreen() {
 
       {/* Account Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Account</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>API Key</Text>
@@ -42,6 +44,7 @@ export default function SettingsScreen() {
             style={styles.buttonRow}
             onPress={handleDisconnect}
             activeOpacity={0.7}
+            accessibilityLabel="Disconnect from Grid"
           >
             <Text style={styles.disconnectText}>Disconnect</Text>
           </TouchableOpacity>
@@ -50,7 +53,7 @@ export default function SettingsScreen() {
 
       {/* Notifications Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">Notifications</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <View>
@@ -62,6 +65,7 @@ export default function SettingsScreen() {
               disabled={true}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="#fff"
+              accessibilityLabel="Critical notifications"
             />
           </View>
           <View style={styles.divider} />
@@ -75,6 +79,7 @@ export default function SettingsScreen() {
               onValueChange={setOperationalNotifs}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="#fff"
+              accessibilityLabel="Operational notifications"
             />
           </View>
           <View style={styles.divider} />
@@ -88,6 +93,7 @@ export default function SettingsScreen() {
               onValueChange={setInformationalNotifs}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="#fff"
+              accessibilityLabel="Informational notifications"
             />
           </View>
           <View style={styles.divider} />
@@ -103,7 +109,7 @@ export default function SettingsScreen() {
 
       {/* About Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Version</Text>
@@ -113,8 +119,10 @@ export default function SettingsScreen() {
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Grid Status</Text>
             <View style={styles.statusRow}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Connected</Text>
+              <View style={[styles.statusDot, sessionsError && { backgroundColor: theme.colors.error }]} />
+              <Text style={[styles.statusText, sessionsError && { color: theme.colors.error }]}>
+                {sessionsError ? 'Disconnected' : 'Connected'}
+              </Text>
             </View>
           </View>
         </View>
