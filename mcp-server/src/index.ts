@@ -12,7 +12,7 @@ import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase } from "./firebase/client.js";
 import { validateApiKey, type AuthContext } from "./auth/apiKeyValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
-import { checkRateLimit, getRateLimitResetIn, cleanupRateLimits } from "./middleware/rateLimiter.js";
+import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
@@ -74,7 +74,8 @@ async function main() {
     }
 
     if (!checkRateLimit(auth.userId, name)) {
-      return { content: [{ type: "text", text: `Rate limit exceeded for ${name}.` }], isError: true };
+      const resetIn = getRateLimitResetIn(auth.userId, name);
+      return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
     }
 
     const handler = TOOL_HANDLERS[name];
@@ -154,6 +155,11 @@ async function main() {
       const auth = await validateApiKey(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
+      const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+      }
+
       const isoMcpSessionId = req.headers['mcp-session-id'] as string | undefined;
       if (isoMcpSessionId) setIsoSessionAuth(isoMcpSessionId, auth);
 
@@ -171,6 +177,11 @@ async function main() {
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
       const auth = await validateApiKey(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
+
+      const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+      if (!checkAuthRateLimit(clientIp)) {
+        return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+      }
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
       if (mcpSessionId) {
