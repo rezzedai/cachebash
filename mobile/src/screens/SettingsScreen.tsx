@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, StyleSheet } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
+import { useNotifications } from '../contexts/NotificationContext';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
   const { signOut, apiKey } = useAuth();
   const { error: sessionsError } = useSessions();
-  const [operationalNotifs, setOperationalNotifs] = useState(true);
-  const [informationalNotifs, setInformationalNotifs] = useState(false);
+  const { permissionStatus, preferences, updatePreferences, requestPermissions } = useNotifications();
 
   const handleDisconnect = () => {
     Alert.alert(
@@ -57,6 +57,32 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <View style={styles.row}>
             <View>
+              <Text style={styles.rowLabel}>Permission</Text>
+              <Text style={styles.rowSubtext}>
+                {permissionStatus === 'granted' ? 'Notifications allowed' :
+                 permissionStatus === 'denied' ? 'Blocked in Settings' : 'Not yet requested'}
+              </Text>
+            </View>
+            {permissionStatus !== 'granted' && (
+              <TouchableOpacity
+                onPress={requestPermissions}
+                style={styles.enableButton}
+                accessibilityRole="button"
+                accessibilityLabel="Enable notifications"
+              >
+                <Text style={styles.enableButtonText}>Enable</Text>
+              </TouchableOpacity>
+            )}
+            {permissionStatus === 'granted' && (
+              <View style={styles.statusRow}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>Enabled</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View>
               <Text style={styles.rowLabel}>Critical</Text>
               <Text style={styles.rowSubtext}>Always enabled</Text>
             </View>
@@ -75,8 +101,8 @@ export default function SettingsScreen() {
               <Text style={styles.rowSubtext}>Task updates, status changes</Text>
             </View>
             <Switch
-              value={operationalNotifs}
-              onValueChange={setOperationalNotifs}
+              value={preferences.operational}
+              onValueChange={(val) => updatePreferences({ operational: val })}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="#fff"
               accessibilityLabel="Operational notifications"
@@ -89,8 +115,8 @@ export default function SettingsScreen() {
               <Text style={styles.rowSubtext}>General updates</Text>
             </View>
             <Switch
-              value={informationalNotifs}
-              onValueChange={setInformationalNotifs}
+              value={preferences.informational}
+              onValueChange={(val) => updatePreferences({ informational: val })}
               trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
               thumbColor="#fff"
               accessibilityLabel="Informational notifications"
@@ -98,11 +124,22 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Quiet Hours</Text>
               <Text style={styles.rowSubtext}>Mute non-critical alerts</Text>
+              {preferences.quietHoursEnabled && (
+                <Text style={[styles.rowSubtext, { marginTop: 4 }]}>
+                  {preferences.quietHoursStart} - {preferences.quietHoursEnd}
+                </Text>
+              )}
             </View>
-            <Text style={styles.rowValue}>11:00 PM - 7:00 AM</Text>
+            <Switch
+              value={preferences.quietHoursEnabled}
+              onValueChange={(val) => updatePreferences({ quietHoursEnabled: val })}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor="#fff"
+              accessibilityLabel="Quiet hours"
+            />
           </View>
         </View>
       </View>
@@ -244,5 +281,18 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
     marginTop: theme.spacing.xs,
+  },
+  enableButton: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  enableButtonText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });

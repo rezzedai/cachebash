@@ -1,9 +1,14 @@
+import { useRef, useEffect } from 'react';
 import { usePolling } from './usePolling';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { RelayMessage } from '../types';
 
 export function useMessages() {
   const { api } = useAuth();
+  const { notifyNewMessage } = useNotifications();
+  const prevMessageIdsRef = useRef<Set<string>>(new Set());
+  const isSeededRef = useRef(false);
 
   const result = usePolling<RelayMessage[]>({
     fetcher: async () => {
@@ -52,6 +57,39 @@ export function useMessages() {
   });
 
   const messages = result.data || [];
+
+  // Detect new messages and fire notifications
+  useEffect(() => {
+    if (!result.data || result.data.length === 0) return;
+
+    const currentIds = new Set(result.data.map((m) => m.id));
+
+    if (!isSeededRef.current) {
+      // First load — seed the known IDs without notifying
+      prevMessageIdsRef.current = currentIds;
+      isSeededRef.current = true;
+      return;
+    }
+
+    // Find genuinely new incoming messages
+    for (const msg of result.data) {
+      if (
+        !prevMessageIdsRef.current.has(msg.id) &&
+        msg.source !== 'iso' &&
+        msg.source !== 'flynn'
+      ) {
+        notifyNewMessage({
+          id: msg.id,
+          source: msg.source,
+          message: msg.message,
+          message_type: msg.message_type,
+          priority: msg.priority,
+        });
+      }
+    }
+
+    prevMessageIdsRef.current = currentIds;
+  }, [result.data, notifyNewMessage]);
 
   // Count only incoming unread messages (not from iso/flynn, and not read/archived)
   const unreadCount = messages.filter(
