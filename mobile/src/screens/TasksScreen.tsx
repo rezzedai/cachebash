@@ -132,6 +132,17 @@ export default function TasksScreen({ navigation }: Props) {
               <Text style={styles.cachedBadgeText}>CACHED</Text>
             </View>
           )}
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => {
+              haptic.selection();
+              navigation.navigate('CreateTask');
+            }}
+            accessibilityLabel="Create new task"
+            accessibilityRole="button"
+          >
+            <Text style={styles.createButtonText}>+</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -199,6 +210,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textMuted,
     letterSpacing: 0.5,
+  },
+  createButton: {
+    marginLeft: 'auto',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.background,
+    lineHeight: 22,
   },
   filterContainer: {
     flexGrow: 0,
