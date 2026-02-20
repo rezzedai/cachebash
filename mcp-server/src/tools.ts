@@ -123,7 +123,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "complete_task",
-    description: "Mark a task as complete (done)",
+    description: "Mark a task as complete (done) or failed",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -131,6 +131,11 @@ export const TOOL_DEFINITIONS = [
         tokens_in: { type: "number", description: "Input tokens consumed" },
         tokens_out: { type: "number", description: "Output tokens consumed" },
         cost_usd: { type: "number", description: "Estimated cost in USD" },
+        completed_status: { type: "string", enum: ["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"], default: "SUCCESS", description: "Completion outcome" },
+        model: { type: "string", description: "Model used (e.g., claude-3.5-sonnet)" },
+        provider: { type: "string", description: "Provider (e.g., anthropic, vertex)" },
+        error_code: { type: "string", description: "Error code if failed" },
+        error_class: { type: "string", enum: ["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"], description: "Error classification" },
       },
       required: ["taskId"],
     },
