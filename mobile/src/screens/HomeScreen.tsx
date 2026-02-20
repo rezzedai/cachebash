@@ -16,6 +16,7 @@ import { useMessages } from '../hooks/useMessages';
 import { theme } from '../theme';
 import type { Program } from '../types';
 import { timeAgo, getStateColor } from '../utils';
+import { haptic } from '../utils/haptics';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -57,6 +58,7 @@ export default function HomeScreen({ navigation }: Props) {
   );
 
   const handleProgramPress = (program: Program) => {
+    haptic.light();
     navigation.navigate('ProgramDetail', { programId: program.id });
   };
 
@@ -105,7 +107,7 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Quick Stats Row */}
         <View style={styles.statsRow}>
           <View
-            style={[styles.statCard, styles.statCardFirst]}
+            style={styles.statCard}
             accessibilityLabel={`${programCount} Programs`}
           >
             <Text style={styles.statValue}>{programCount}</Text>
@@ -133,7 +135,7 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
 
           <View
-            style={[styles.statCard, styles.statCardLast]}
+            style={styles.statCard}
             accessibilityLabel={`${unreadCount} Messages`}
           >
             <Text style={styles.statValue}>{unreadCount}</Text>
@@ -224,7 +226,10 @@ export default function HomeScreen({ navigation }: Props) {
                   key={question.id}
                   style={styles.questionCard}
                   activeOpacity={0.7}
-                  onPress={() => navigation.navigate('TaskDetail', { task: question })}
+                  onPress={() => {
+                    haptic.light();
+                    navigation.navigate('TaskDetail', { task: question });
+                  }}
                   accessibilityLabel={`Question from ${question.source}: ${question.title}`}
                   accessibilityRole="button"
                 >
@@ -321,12 +326,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     position: 'relative',
     overflow: 'hidden',
-  },
-  statCardFirst: {
-    // Could add specific styles for first card if needed
-  },
-  statCardLast: {
-    // Could add specific styles for last card if needed
   },
   statValue: {
     fontSize: theme.fontSize.xxl,

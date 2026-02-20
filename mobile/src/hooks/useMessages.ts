@@ -53,9 +53,18 @@ export function useMessages() {
 
   const messages = result.data || [];
 
+  // Count only incoming unread messages (not from iso/flynn, and not read/archived)
+  const unreadCount = messages.filter(
+    (msg) =>
+      msg.source !== 'iso' &&
+      msg.source !== 'flynn' &&
+      msg.status !== 'read' &&
+      msg.status !== 'archived'
+  ).length;
+
   return {
     messages,
-    unreadCount: messages.length,
+    unreadCount,
     error: result.error,
     isLoading: result.isLoading,
     refetch: result.refetch,
