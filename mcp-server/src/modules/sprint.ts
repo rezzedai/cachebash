@@ -174,7 +174,7 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   await batch.commit();
 
   // Fire-and-forget: sync sprint to GitHub Milestone + Issues
-  syncSprintCreated(auth.userId, sprintId, args.projectName, args.stories);
+  syncSprintCreated(auth.userId, sprintId, args.projectName, args.stories, null);
 
   return jsonResult({
     success: true,
