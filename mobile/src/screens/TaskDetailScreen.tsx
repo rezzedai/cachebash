@@ -33,10 +33,13 @@ function getStatusLabel(status: string): string {
 export default function TaskDetailScreen({ route, navigation }: Props) {
   const task: Task = route.params?.task;
   const { api } = useAuth();
+  const [localTask, setLocalTask] = React.useState<Task>(task);
   const [selectedOption, setSelectedOption] = React.useState<string | null>(null);
   const [isAnswering, setIsAnswering] = React.useState(false);
   const [isAnswered, setIsAnswered] = React.useState(false);
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isClaiming, setIsClaiming] = React.useState(false);
+  const [isCompleting, setIsCompleting] = React.useState(false);
   const answeringRef = React.useRef(false);
   const cooldownRef = React.useRef(false);
 
@@ -50,7 +53,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
   const handleAnswer = async (option: string) => {
     // Prevent double-submit via ref (synchronous check)
-    if (answeringRef.current || cooldownRef.current || !api || !task.id) return;
+    if (answeringRef.current || cooldownRef.current || !api || !localTask.id) return;
     answeringRef.current = true;
 
     haptic.medium();
@@ -60,11 +63,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     try {
       await api.sendMessage({
         source: 'flynn',
-        target: task.source || 'iso',
+        target: localTask.source || 'iso',
         message: option,
         message_type: 'RESULT',
-        priority: task.priority || 'normal',
-        reply_to: task.id,
+        priority: localTask.priority || 'normal',
+        reply_to: localTask.id,
       });
 
       // Mark as answered with persistent UI feedback
@@ -87,35 +90,67 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const handleClaim = async () => {
+    if (!api || !localTask.id || isClaiming) return;
+    setIsClaiming(true);
+    
+    try {
+      await api.claimTask(localTask.id);
+      haptic.success();
+      setLocalTask(prev => ({ ...prev, status: 'active' as any }));
+    } catch (err) {
+      haptic.error();
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to claim task');
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!api || !localTask.id || isCompleting) return;
+    setIsCompleting(true);
+    
+    try {
+      await api.completeTask(localTask.id);
+      haptic.success();
+      setLocalTask(prev => ({ ...prev, status: 'done' as any }));
+    } catch (err) {
+      haptic.error();
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to complete task');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) + '20' }]}>
-        <Text style={[styles.statusText, { color: getStatusColor(task.status) }]}>
-          {getStatusLabel(task.status)}
+      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(localTask.status) + '20' }]}>
+        <Text style={[styles.statusText, { color: getStatusColor(localTask.status) }]}>
+          {getStatusLabel(localTask.status)}
         </Text>
       </View>
 
-      <Text style={styles.title} ellipsizeMode="tail">{task.title}</Text>
+      <Text style={styles.title} ellipsizeMode="tail">{localTask.title}</Text>
 
-      {task.question && (
+      {localTask.question && (
         <View style={styles.questionCard}>
-          <Text style={styles.questionText}>{task.question}</Text>
+          <Text style={styles.questionText}>{localTask.question}</Text>
         </View>
       )}
 
       <View style={styles.metadataRow}>
         <View style={styles.metaBadge}>
           <Text style={styles.metaBadgeLabel}>Type</Text>
-          <Text style={styles.metaBadgeValue}>{task.type}</Text>
+          <Text style={styles.metaBadgeValue}>{localTask.type}</Text>
         </View>
         <View style={styles.metaBadge}>
           <Text style={styles.metaBadgeLabel}>Priority</Text>
-          <Text style={styles.metaBadgeValue}>{task.priority || 'normal'}</Text>
+          <Text style={styles.metaBadgeValue}>{localTask.priority || 'normal'}</Text>
         </View>
-        {task.action && (
+        {localTask.action && (
           <View style={styles.metaBadge}>
             <Text style={styles.metaBadgeLabel}>Action</Text>
-            <Text style={styles.metaBadgeValue}>{task.action}</Text>
+            <Text style={styles.metaBadgeValue}>{localTask.action}</Text>
           </View>
         )}
       </View>
@@ -124,11 +159,11 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Source</Text>
           <TouchableOpacity
-            onPress={() => task.source && navigation.navigate('ProgramDetail', { programId: task.source })}
-            disabled={!task.source}
+            onPress={() => localTask.source && navigation.navigate('ProgramDetail', { programId: localTask.source })}
+            disabled={!localTask.source}
           >
-            <Text style={[styles.infoValue, task.source && styles.infoValueLink]}>
-              {task.source || 'Unknown'}
+            <Text style={[styles.infoValue, localTask.source && styles.infoValueLink]}>
+              {localTask.source || 'Unknown'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -136,39 +171,39 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Target</Text>
           <TouchableOpacity
-            onPress={() => task.target && navigation.navigate('ProgramDetail', { programId: task.target })}
-            disabled={!task.target}
+            onPress={() => localTask.target && navigation.navigate('ProgramDetail', { programId: localTask.target })}
+            disabled={!localTask.target}
           >
-            <Text style={[styles.infoValue, task.target && styles.infoValueLink]}>
-              {task.target || 'Unknown'}
+            <Text style={[styles.infoValue, localTask.target && styles.infoValueLink]}>
+              {localTask.target || 'Unknown'}
             </Text>
           </TouchableOpacity>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Created</Text>
-          <Text style={styles.infoValue}>{formatDate(task.createdAt)}</Text>
+          <Text style={styles.infoValue}>{formatDate(localTask.createdAt)}</Text>
         </View>
-        {task.projectId && (
+        {localTask.projectId && (
           <>
             <View style={styles.divider} />
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Project</Text>
-              <Text style={styles.infoValue}>{task.projectId}</Text>
+              <Text style={styles.infoValue}>{localTask.projectId}</Text>
             </View>
           </>
         )}
       </View>
 
-      {task.instructions && (
+      {localTask.instructions && (
         <View style={styles.instructionsCard}>
           <Text style={styles.sectionTitle}>Instructions</Text>
           <Text style={styles.instructionsText}>
-            {isExpanded || task.instructions.length <= 500
-              ? task.instructions
-              : `${task.instructions.slice(0, 500)}...`}
+            {isExpanded || localTask.instructions.length <= 500
+              ? localTask.instructions
+              : `${localTask.instructions.slice(0, 500)}...`}
           </Text>
-          {task.instructions.length > 500 && (
+          {localTask.instructions.length > 500 && (
             <TouchableOpacity
               style={styles.showMoreButton}
               onPress={() => setIsExpanded(!isExpanded)}
@@ -182,18 +217,18 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {task.type === 'question' && task.options && task.options.length > 0 && (
+      {localTask.type === 'question' && localTask.options && localTask.options.length > 0 && (
         <View style={styles.optionsCard}>
           <Text style={styles.sectionTitle}>Options</Text>
           {isAnswered && (
             <Text style={styles.answeredText}>✓ Answer sent</Text>
           )}
-          {task.response && (
+          {localTask.response && (
             <Text style={styles.previouslyAnsweredText}>Previously answered</Text>
           )}
-          {task.options.map((option, index) => {
+          {localTask.options.map((option, index) => {
             const isSelected = selectedOption === option;
-            const isDisabled = isAnswering || isAnswered || !!task.response;
+            const isDisabled = isAnswering || isAnswered || !!localTask.response;
             return (
               <TouchableOpacity
                 key={index}
@@ -222,10 +257,45 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         </View>
       )}
 
-      {task.response && (
+      {localTask.response && (
         <View style={styles.responseCard}>
           <Text style={styles.sectionTitle}>Your Response</Text>
-          <Text style={styles.responseText}>{task.response}</Text>
+          <Text style={styles.responseText}>{localTask.response}</Text>
+        </View>
+      )}
+
+      {/* Task Actions */}
+      {localTask.status === 'created' && (
+        <View style={styles.actionsCard}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.claimButton]}
+            onPress={handleClaim}
+            disabled={isClaiming}
+            activeOpacity={0.7}
+            accessibilityLabel="Claim this task"
+            accessibilityRole="button"
+          >
+            <Text style={styles.actionButtonText}>
+              {isClaiming ? 'Claiming...' : 'Claim Task'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {localTask.status === 'active' && (
+        <View style={styles.actionsCard}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.completeButton]}
+            onPress={handleComplete}
+            disabled={isCompleting}
+            activeOpacity={0.7}
+            accessibilityLabel="Complete this task"
+            accessibilityRole="button"
+          >
+            <Text style={styles.actionButtonText}>
+              {isCompleting ? 'Completing...' : 'Complete Task'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -434,5 +504,25 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.text,
     fontWeight: '600',
+  },
+  actionsCard: {
+    marginTop: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  actionButton: {
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+  },
+  claimButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  completeButton: {
+    backgroundColor: theme.colors.success,
+  },
+  actionButtonText: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: theme.colors.background,
   },
 });
