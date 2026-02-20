@@ -136,6 +136,17 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
     const text = result?.content?.[0]?.text;
     return text ? JSON.parse(text) : result;
   } catch (err) {
+    if (err instanceof ZodError) {
+      const issues = err.issues.map(i => ({
+        path: i.path.join('.'),
+        message: i.message,
+        code: i.code,
+      }));
+      throw new ValidationError(
+        `Validation failed: ${issues.map(i => `${i.path}: ${i.message}`).join('; ')}`,
+        issues
+      );
+    }
     logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
     traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
@@ -379,6 +390,13 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
       try {
         return await r.handler(auth, req, res, params);
       } catch (err) {
+        if (err instanceof ValidationError) {
+          return restResponse(res, false, {
+            code: "VALIDATION_ERROR",
+            message: err.message,
+            issues: err.issues,
+          }, 400);
+        }
         if (err instanceof RateLimitError) {
           return restResponse(res, false, {
             code: "RATE_LIMITED",
