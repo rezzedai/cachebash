@@ -4,6 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import * as crypto from "crypto";
 
 export type EventType =
   | "TASK_CREATED"
@@ -36,7 +37,18 @@ export interface EventData {
   session_id?: string;
   task_id?: string;
   task_class?: TaskClass;
+  prompt_hash?: string;
+  output_hash?: string;
+  config_hash?: string;
   [key: string]: unknown;
+}
+
+/**
+ * Compute SHA-256 hash of a string for provenance tracking.
+ * Used to create tamper-evident traces of prompts and outputs.
+ */
+export function computeHash(content: string): string {
+  return crypto.createHash("sha256").update(content).digest("hex");
 }
 
 /**
