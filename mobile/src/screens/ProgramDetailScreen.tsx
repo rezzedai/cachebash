@@ -11,6 +11,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useMessages } from '../hooks/useMessages';
 import { useTasks } from '../hooks/useTasks';
+import { useFleetHealth } from '../hooks/useFleetHealth';
 import { theme } from '../theme';
 import { timeAgo, getStateColor } from '../utils';
 
@@ -34,6 +35,13 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
   const { programs, sessions, refetch: refetchSessions } = useSessions();
   const { messages, refetch: refetchMessages } = useMessages();
   const { tasks, refetch: refetchTasks } = useTasks();
+  const { programs: healthPrograms, refetch: refetchHealth } = useFleetHealth();
+
+  // Look up fleet health for this program
+  const programHealth = useMemo(
+    () => healthPrograms.find((p) => p.programId === programId),
+    [healthPrograms, programId]
+  );
 
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -71,9 +79,9 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchSessions(), refetchMessages(), refetchTasks()]);
+    await Promise.all([refetchSessions(), refetchMessages(), refetchTasks(), refetchHealth()]);
     setRefreshing(false);
-  }, [refetchSessions, refetchMessages, refetchTasks]);
+  }, [refetchSessions, refetchMessages, refetchTasks, refetchHealth]);
 
   if (!program) {
     return (
@@ -85,6 +93,15 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
     );
   }
 
+  // Calculate heartbeat color based on age
+  const heartbeatAge = programHealth?.heartbeatAge ?? null;
+  const heartbeatColor = heartbeatAge !== null
+    ? heartbeatAge < 60
+      ? '#22c55e'
+      : heartbeatAge < 120
+      ? '#f59e0b'
+      : '#ef4444'
+    : theme.colors.text;
   const heartbeatText = program.lastHeartbeat
     ? timeAgo(program.lastHeartbeat)
     : 'never';
@@ -169,7 +186,21 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
         <View style={styles.infoGrid}>
           <View style={styles.infoCard}>
             <Text style={styles.infoLabel}>Last Heartbeat</Text>
-            <Text style={styles.infoValue}>{heartbeatText}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {programHealth && (
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: programHealth.isHealthy ? '#22c55e' : '#ef4444',
+                  }}
+                />
+              )}
+              <Text style={[styles.infoValue, { color: heartbeatColor }]}>
+                {heartbeatText}
+              </Text>
+            </View>
           </View>
           {programSession && (
             <View style={styles.infoCard}>
@@ -179,6 +210,18 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
               </Text>
             </View>
           )}
+          <View style={styles.infoCard}>
+            <Text style={styles.infoLabel}>Pending Messages</Text>
+            <Text style={styles.infoValue}>
+              {programHealth?.pendingMessages ?? 0}
+            </Text>
+          </View>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoLabel}>Pending Tasks</Text>
+            <Text style={styles.infoValue}>
+              {programHealth?.pendingTasks ?? 0}
+            </Text>
+          </View>
         </View>
 
         {/* Recent Messages Section */}
@@ -294,14 +337,23 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
         )}
       </ScrollView>
 
-      {/* Send Message Button */}
-      <TouchableOpacity
-        style={styles.sendMessageButton}
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate('ChannelDetail', { programId })}
-      >
-        <Text style={styles.sendMessageButtonText}>Send Message</Text>
-      </TouchableOpacity>
+      {/* Action Buttons */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('ChannelDetail', { programId })}
+        >
+          <Text style={styles.primaryButtonText}>Send Message</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('CreateTask', { initialTarget: programId })}
+        >
+          <Text style={styles.secondaryButtonText}>Send Task</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -424,11 +476,13 @@ const styles = StyleSheet.create({
   // Info Grid
   infoGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.lg,
   },
   infoCard: {
-    flex: 1,
+    flexBasis: '48%',
+    flexGrow: 1,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
@@ -597,11 +651,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.xl,
   },
 
-  // Send Message Button
-  sendMessageButton: {
-    backgroundColor: theme.colors.primary,
+  // Action Buttons
+  actionButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
     margin: theme.spacing.md,
     marginBottom: theme.spacing.lg,
+  },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.md,
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
@@ -612,10 +671,27 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  sendMessageButtonText: {
+  primaryButtonText: {
     fontSize: theme.fontSize.md,
     fontWeight: '700',
     color: theme.colors.background,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
