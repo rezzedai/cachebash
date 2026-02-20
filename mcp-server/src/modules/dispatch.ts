@@ -12,7 +12,7 @@ import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
 import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
-import { emitEvent, classifyTask, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
+import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -310,6 +310,9 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
 
+  // Capture task data for provenance hashing
+  let taskData: { instructions?: string; source?: string; target?: string } = {};
+
   try {
     await db.runTransaction(async (tx) => {
       const doc = await tx.get(taskRef);
@@ -317,6 +320,13 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       const data = doc.data()!;
       const current = data.status as LifecycleStatus;
+
+      // Capture task data for provenance hashing (before transaction completes)
+      taskData = {
+        instructions: data.instructions as string | undefined,
+        source: data.source as string | undefined,
+        target: data.target as string | undefined,
+      };
 
       // Determine lifecycle target based on completed_status
       const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
@@ -341,7 +351,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
     // Fire-and-forget: sync completion to GitHub (outside transaction)
     syncTaskCompleted(auth.userId, args.taskId);
 
-    // Emit telemetry event
+    // Emit telemetry event with cryptographic provenance
     emitEvent(auth.userId, {
       event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
       program_id: auth.programId,
@@ -354,6 +364,8 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       provider: args.provider,
       error_code: args.error_code,
       error_class: args.error_class,
+      prompt_hash: taskData.instructions ? computeHash(taskData.instructions) : undefined,
+      config_hash: taskData.source ? computeHash(`${taskData.source}:${taskData.target}:${args.model || "unknown"}`) : undefined,
     });
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
@@ -364,3 +376,4 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
     });
   }
 }
+
