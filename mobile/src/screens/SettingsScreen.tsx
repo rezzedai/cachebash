@@ -112,11 +112,6 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle} accessibilityRole="header">About</Text>
         <View style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Version</Text>
-            <Text style={styles.rowValue}>v2.0.0-beta</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.row}>
             <Text style={styles.rowLabel}>Grid Status</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, sessionsError && { backgroundColor: theme.colors.error }]} />
@@ -124,6 +119,16 @@ export default function SettingsScreen() {
                 {sessionsError ? 'Disconnected' : 'Connected'}
               </Text>
             </View>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>App Version</Text>
+            <Text style={styles.rowValue}>v2.0.0-dev</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Build</Text>
+            <Text style={styles.rowValue}>Expo SDK 54</Text>
           </View>
         </View>
       </View>
