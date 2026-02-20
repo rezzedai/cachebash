@@ -15,6 +15,7 @@ import TaskDetailScreen from '../screens/TaskDetailScreen';
 import CreateTaskScreen from '../screens/CreateTaskScreen';
 import SprintsScreen from '../screens/SprintsScreen';
 import SprintDetailScreen from '../screens/SprintDetailScreen';
+import FleetHealthScreen from '../screens/FleetHealthScreen';
 import { navigationRef } from '../utils/navigationRef';
 
 const Tab = createBottomTabNavigator();
@@ -57,6 +58,7 @@ function HomeStackScreen() {
       <HomeStack.Screen name="ProgramDetail" component={ProgramDetailScreen} options={{ title: 'Program' }} />
       <HomeStack.Screen name="Sprints" component={SprintsScreen} options={{ title: 'Sprints' }} />
       <HomeStack.Screen name="SprintDetail" component={SprintDetailScreen} options={{ title: 'Sprint' }} />
+      <HomeStack.Screen name="FleetHealth" component={FleetHealthScreen} options={{ title: 'Fleet Health' }} />
     </HomeStack.Navigator>
   );
 }
