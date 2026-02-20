@@ -188,7 +188,20 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const ref = await db.collection(`users/${auth.userId}/tasks`).add(taskData);
 
   // Fire-and-forget: sync to GitHub Issues + Project board
-  syncTaskCreated(auth.userId, ref.id, args.title, args.instructions || "", verifiedSource, args.priority, args.projectId, args.action);
+  syncTaskCreated(
+    auth.userId,
+    ref.id,
+    args.title,
+    args.instructions || "",
+    args.target,
+    args.priority,
+    args.projectId,
+    args.action,
+    args.type,
+    verifiedSource,
+    null, // sessionId - not tracked at task creation
+    new Date().toISOString()
+  );
 
   return jsonResult({
     success: true,
