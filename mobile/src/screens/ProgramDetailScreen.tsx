@@ -105,7 +105,9 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.programName}>{program.name.toUpperCase()}</Text>
+            <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
+              {(program?.name || program?.id || 'Unknown').toUpperCase()}
+            </Text>
             <View
               style={[
                 styles.stateBadge,
@@ -129,12 +131,18 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {program.status && (
-            <View style={styles.statusCard}>
-              <Text style={styles.statusLabel}>Current Status</Text>
-              <Text style={styles.statusText}>{program.status}</Text>
-            </View>
-          )}
+          <View style={styles.statusCard}>
+            <Text style={styles.statusLabel}>Current Status</Text>
+            {program.status ? (
+              <Text style={styles.statusText} numberOfLines={2} ellipsizeMode="tail">
+                {program.status}
+              </Text>
+            ) : (
+              <Text style={[styles.statusText, { color: theme.colors.textMuted }]}>
+                No status
+              </Text>
+            )}
+          </View>
 
           {program.progress !== undefined && program.progress > 0 && (
             <View style={styles.progressSection}>

@@ -27,6 +27,8 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const sendingRef = useRef(false);
+  const lastSentRef = useRef<{ text: string; timestamp: number } | null>(null);
 
   // Filter messages for this specific program
   const channelMessages = useMemo(() => {
@@ -43,8 +45,19 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const handleSend = async () => {
     if (!inputText.trim() || !api || !programId) return;
 
+    // Prevent double-send via ref (synchronous check)
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+
     const messageText = inputText.trim();
-    setInputText('');
+
+    // Request deduplication: ignore if same message sent within 2 seconds
+    const now = Date.now();
+    if (lastSentRef.current?.text === messageText && now - lastSentRef.current.timestamp < 2000) {
+      sendingRef.current = false;
+      return;
+    }
+
     setSendError(null);
     setIsSending(true);
 
@@ -57,6 +70,12 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
         priority: 'normal',
       });
 
+      // Track last sent for deduplication
+      lastSentRef.current = { text: messageText, timestamp: now };
+
+      // Clear input only after successful send
+      setInputText('');
+
       // Refetch messages to show the new one
       await refetch();
 
@@ -66,11 +85,11 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       }, 100);
     } catch (error) {
       console.error('Failed to send message:', error);
-      setInputText(messageText);
       setSendError('Failed to send');
       setTimeout(() => setSendError(null), 3000); // Auto-dismiss after 3s
     } finally {
       setIsSending(false);
+      sendingRef.current = false;
     }
   };
 

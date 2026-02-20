@@ -55,18 +55,20 @@ export default function TasksScreen({ navigation }: Props) {
     >
       <View style={styles.taskCardHeader}>
         <View style={[styles.statusDot, { backgroundColor: getStatusColor(task.status) }]} />
-        <Text style={styles.taskTitle} numberOfLines={1}>
+        <Text style={styles.taskTitle} numberOfLines={1} ellipsizeMode="tail">
           {task.title}
         </Text>
       </View>
 
-      <View style={styles.taskMeta}>
-        <Text style={styles.taskMetaText}>
-          {task.source} → {task.target}
-        </Text>
-        <Text style={styles.taskMetaText}>•</Text>
-        <Text style={styles.taskMetaText}>{timeAgo(task.createdAt)}</Text>
-      </View>
+      {(task.source || task.target) && (
+        <View style={styles.taskMeta}>
+          <Text style={styles.taskMetaText}>
+            {task.source || 'unknown'} → {task.target || 'unknown'}
+          </Text>
+          <Text style={styles.taskMetaText}>•</Text>
+          <Text style={styles.taskMetaText}>{timeAgo(task.createdAt)}</Text>
+        </View>
+      )}
 
       <View style={styles.taskBadges}>
         <View style={styles.typeBadge}>

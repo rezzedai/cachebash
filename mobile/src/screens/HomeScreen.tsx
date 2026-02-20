@@ -143,7 +143,9 @@ export default function HomeScreen({ navigation }: Props) {
                 activeOpacity={0.7}
               >
                 <View style={styles.programHeader}>
-                  <Text style={styles.programName}>{program.name.toUpperCase()}</Text>
+                  <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
+                    {(program.name || program.id || '?').toUpperCase()}
+                  </Text>
                   <View
                     style={[
                       styles.stateDot,
@@ -159,7 +161,7 @@ export default function HomeScreen({ navigation }: Props) {
                 </View>
 
                 {program.status && (
-                  <Text style={styles.programStatus} numberOfLines={1}>
+                  <Text style={styles.programStatus} numberOfLines={2} ellipsizeMode="tail">
                     {program.status}
                   </Text>
                 )}
