@@ -21,6 +21,19 @@ import { haptic } from '../utils/haptics';
 
 type Props = NativeStackScreenProps<any, 'ChannelDetail'>;
 
+interface OptimisticMessage {
+  id: string; // temp id like `optimistic_${Date.now()}`
+  source: string;
+  target: string;
+  message: string;
+  message_type: RelayMessageType;
+  priority: string;
+  status: string;
+  createdAt: string;
+  isOptimistic: true;
+  isFailed?: boolean;
+}
+
 export default function ChannelDetailScreen({ route, navigation }: Props) {
   const { programId } = route.params || {};
   const { api } = useAuth();
@@ -28,14 +41,29 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const flatListRef = useRef<FlatList>(null);
   const sendingRef = useRef(false);
   const lastSentRef = useRef<{ text: string; timestamp: number } | null>(null);
 
-  // Filter messages for this specific program
-  const channelMessages = useMemo(() => {
-    return allMessages.filter((msg) => msg.source === programId || msg.target === programId);
-  }, [allMessages, programId]);
+  // Filter messages for this specific program and merge with optimistic messages
+  const displayMessages = useMemo(() => {
+    // Filter real messages for this channel
+    const real = allMessages.filter((msg) => msg.source === programId || msg.target === programId);
+
+    // Filter out optimistic messages that have been confirmed by real messages
+    const activeOptimistic = optimisticMessages.filter(opt => {
+      // Check if a real message matches this optimistic one
+      return !real.some(realMsg =>
+        realMsg.source === opt.source &&
+        realMsg.target === opt.target &&
+        realMsg.message === opt.message &&
+        Math.abs(new Date(realMsg.createdAt).getTime() - new Date(opt.createdAt).getTime()) < 30000
+      );
+    });
+
+    return [...real, ...activeOptimistic];
+  }, [allMessages, programId, optimisticMessages]);
 
   // Set header title to program name
   useEffect(() => {
@@ -67,6 +95,24 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    const tempId = `optimistic_${Date.now()}`;
+
+    // Optimistic insert
+    const optimistic: OptimisticMessage = {
+      id: tempId,
+      source: 'flynn',
+      target: programId,
+      message: messageText,
+      message_type: 'DIRECTIVE',
+      priority: 'normal',
+      status: 'sending',
+      createdAt: new Date().toISOString(),
+      isOptimistic: true,
+    };
+
+    setOptimisticMessages(prev => [...prev, optimistic]);
+    setInputText(''); // Clear immediately for quick follow-up messages
+
     haptic.medium();
     setSendError(null);
     setIsSending(true);
@@ -85,18 +131,17 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       // Track last sent for deduplication
       lastSentRef.current = { text: messageText, timestamp: now };
 
-      // Clear input only after successful send
-      setInputText('');
-
       // Refetch messages to show the new one
       await refetch();
 
-      // Scroll to bottom after sending
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      // Clean up confirmed optimistic message
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Mark optimistic message as failed
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === tempId ? { ...m, isFailed: true, status: 'failed' } : m)
+      );
       haptic.error();
       setSendError('Failed to send');
       setTimeout(() => setSendError(null), 3000); // Auto-dismiss after 3s
@@ -106,23 +151,74 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const renderMessage = ({ item }: { item: RelayMessage }) => {
+  const handleRetry = async (message: OptimisticMessage) => {
+    // Remove the failed message
+    setOptimisticMessages(prev => prev.filter(m => m.id !== message.id));
+
+    const tempId = `optimistic_${Date.now()}`;
+    const retryMsg: OptimisticMessage = {
+      ...message,
+      id: tempId,
+      isFailed: false,
+      status: 'sending',
+      createdAt: new Date().toISOString(),
+    };
+    setOptimisticMessages(prev => [...prev, retryMsg]);
+
+    try {
+      await api!.sendMessage({
+        source: 'flynn',
+        target: programId,
+        message: message.message,
+        message_type: 'DIRECTIVE',
+        priority: 'normal',
+      });
+      haptic.success();
+      await refetch();
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+    } catch {
+      setOptimisticMessages(prev =>
+        prev.map(m => m.id === tempId ? { ...m, isFailed: true, status: 'failed' } : m)
+      );
+      haptic.error();
+    }
+  };
+
+  const renderMessage = ({ item }: { item: RelayMessage | OptimisticMessage }) => {
     const isFromUser = item.source === 'flynn';
+    const isOptimistic = 'isOptimistic' in item && item.isOptimistic;
+    const isFailed = isOptimistic && 'isFailed' in item && item.isFailed;
     const typeColor = getMessageTypeColor(item.message_type);
 
     return (
-      <View style={[styles.messageRow, isFromUser && styles.messageRowRight]}>
-        <View style={[styles.messageBubble, isFromUser && styles.messageBubbleUser]}>
+      <TouchableOpacity
+        style={[styles.messageRow, isFromUser && styles.messageRowRight]}
+        onPress={isFailed ? () => handleRetry(item as OptimisticMessage) : undefined}
+        disabled={!isFailed}
+        activeOpacity={isFailed ? 0.7 : 1}
+      >
+        <View style={[
+          styles.messageBubble,
+          isFromUser && styles.messageBubbleUser,
+          isOptimistic && !isFailed && styles.messageBubbleOptimistic,
+          isFailed && styles.messageBubbleFailed,
+        ]}>
           <Text style={styles.messageSource}>{item.source.toUpperCase()}</Text>
           <Text style={styles.messageText}>{item.message}</Text>
           <View style={styles.messageFooter}>
             <View style={[styles.typeBadge, { backgroundColor: typeColor }]}>
               <Text style={styles.typeText}>{item.message_type}</Text>
             </View>
-            <Text style={styles.messageTime}>{timeAgo(item.createdAt)}</Text>
+            {isOptimistic && !isFailed ? (
+              <ActivityIndicator size="small" color={theme.colors.textMuted} style={{ marginLeft: theme.spacing.sm }} />
+            ) : isFailed ? (
+              <Text style={styles.failedText}>Tap to retry</Text>
+            ) : (
+              <Text style={styles.messageTime}>{timeAgo(item.createdAt)}</Text>
+            )}
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -140,11 +236,11 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={90}
     >
-      {isLoading && channelMessages.length === 0 ? (
+      {isLoading && displayMessages.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
-      ) : channelMessages.length === 0 ? (
+      ) : displayMessages.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>◈ No messages yet</Text>
           <Text style={styles.emptySubtext}>Start a conversation with {programId.toUpperCase()}</Text>
@@ -152,7 +248,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       ) : (
         <FlatList
           ref={flatListRef}
-          data={channelMessages}
+          data={displayMessages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messageList}
@@ -163,7 +259,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
           refreshControl={
             <RefreshControl
-              refreshing={isLoading && channelMessages.length > 0}
+              refreshing={isLoading && displayMessages.length > 0}
               onRefresh={refetch}
               tintColor={theme.colors.primary}
             />
@@ -263,6 +359,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceElevated,
     borderColor: theme.colors.primary,
   },
+  messageBubbleOptimistic: {
+    opacity: 0.6,
+  },
+  messageBubbleFailed: {
+    borderColor: theme.colors.error,
+    opacity: 0.8,
+  },
   messageSource: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
@@ -294,6 +397,12 @@ const styles = StyleSheet.create({
   messageTime: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
+    marginLeft: theme.spacing.sm,
+  },
+  failedText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.error,
+    fontWeight: '500',
     marginLeft: theme.spacing.sm,
   },
   inputContainer: {
