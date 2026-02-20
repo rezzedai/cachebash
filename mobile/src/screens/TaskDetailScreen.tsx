@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Task } from '../types';
 import { theme } from '../theme';
 import { getStatusColor } from '../utils';
+import { useAuth } from '../contexts/AuthContext';
 
 type Props = NativeStackScreenProps<any, 'TaskDetail'>;
 
@@ -30,6 +31,9 @@ function getStatusLabel(status: string): string {
 
 export default function TaskDetailScreen({ route, navigation }: Props) {
   const task: Task = route.params?.task;
+  const { api } = useAuth();
+  const [selectedOption, setSelectedOption] = React.useState<string | null>(null);
+  const [isAnswering, setIsAnswering] = React.useState(false);
 
   if (!task) {
     return (
@@ -38,6 +42,28 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       </View>
     );
   }
+
+  const handleAnswer = async (option: string) => {
+    if (!api || !task.id || isAnswering) return;
+    setSelectedOption(option);
+    setIsAnswering(true);
+    try {
+      await api.sendMessage({
+        source: 'flynn',
+        target: task.source || 'iso',
+        message: option,
+        message_type: 'RESULT',
+        priority: task.priority || 'normal',
+        reply_to: task.id,
+      });
+      Alert.alert('Sent', `Response "${option}" sent to ${task.source || 'iso'}`);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to send response');
+      setSelectedOption(null);
+    } finally {
+      setIsAnswering(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -105,10 +131,18 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
           {task.options.map((option, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.optionButton}
+              style={[
+                styles.optionButton,
+                selectedOption === option && styles.optionButtonSelected,
+              ]}
+              onPress={() => handleAnswer(option)}
+              disabled={isAnswering}
               activeOpacity={0.7}
             >
-              <Text style={styles.optionText}>{option}</Text>
+              <Text style={[
+                styles.optionText,
+                selectedOption === option && styles.optionTextSelected,
+              ]}>{option}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -243,5 +277,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     color: theme.colors.text,
     fontWeight: '500',
+  },
+  optionButtonSelected: {
+    backgroundColor: theme.colors.primary + '20',
+    borderColor: theme.colors.primary,
+  },
+  optionTextSelected: {
+    color: theme.colors.primary,
   },
 });

@@ -21,6 +21,8 @@ function getStateLabel(state: string): string {
     working: 'Working',
     blocked: 'Blocked',
     complete: 'Complete',
+    done: 'Done',
+    active: 'Active',
     pinned: 'Pinned',
     offline: 'Offline',
   };
@@ -103,7 +105,7 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.programName}>{program.name}</Text>
+            <Text style={styles.programName}>{program.name.toUpperCase()}</Text>
             <View
               style={[
                 styles.stateBadge,
@@ -322,6 +324,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.text,
     flex: 1,
+    letterSpacing: 2,
   },
   stateBadge: {
     flexDirection: 'row',

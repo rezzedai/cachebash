@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
 import { useMessages } from '../hooks/useMessages';
 import { theme } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,14 +17,17 @@ interface Channel {
 }
 
 export default function MessagesScreen({ navigation }: MessagesScreenProps) {
-  const { messages, unreadCount, isLoading, refetch } = useMessages();
+  const { messages, unreadCount, isLoading, refetch, error } = useMessages();
 
   // Group messages by source (program) and get the latest message per channel
   const channels = useMemo(() => {
     const channelMap = new Map<string, Channel>();
 
     messages.forEach((message) => {
-      const programId = message.source;
+      // Group by conversation partner — the program that isn't iso/flynn
+      const programId = (message.source === 'iso' || message.source === 'flynn')
+        ? message.target
+        : message.source;
 
       if (!channelMap.has(programId)) {
         channelMap.set(programId, {
@@ -71,7 +74,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           <View style={styles.channelContent}>
             <Text style={styles.programName}>{item.programId.toUpperCase()}</Text>
             <Text style={styles.messagePreview} numberOfLines={1}>
-              {item.lastMessage.message}
+              {(item.lastMessage.source === 'iso' || item.lastMessage.source === 'flynn') ? 'You: ' : ''}{item.lastMessage.message}
             </Text>
           </View>
         </View>
@@ -87,6 +90,29 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       </TouchableOpacity>
     );
   };
+
+  if (isLoading && messages.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error && messages.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <Text style={styles.errorText}>Failed to load messages</Text>
+          <TouchableOpacity onPress={refetch} style={styles.retryButton}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (messages.length === 0 && !isLoading) {
     return (
@@ -185,5 +211,23 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: theme.fontSize.lg,
     color: theme.colors.textMuted,
+  },
+  errorText: {
+    fontSize: theme.fontSize.lg,
+    color: theme.colors.error,
+    marginBottom: theme.spacing.md,
+  },
+  retryButton: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  retryText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });
