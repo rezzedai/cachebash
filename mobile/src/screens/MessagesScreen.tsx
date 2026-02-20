@@ -71,6 +71,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         style={styles.channelRow}
         onPress={() => navigation.navigate('ChannelDetail', { programId: item.programId })}
         activeOpacity={0.7}
+        accessibilityLabel={`Channel with ${item.programId.toUpperCase()}, ${item.unreadCount} unread`}
+        accessibilityRole="button"
       >
         <View style={styles.channelLeft}>
           <View style={[styles.programDot, { backgroundColor: typeColor }]} />
@@ -109,7 +111,12 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       <View style={styles.container}>
         <View style={styles.emptyState}>
           <Text style={styles.errorText}>Failed to load messages</Text>
-          <TouchableOpacity onPress={refetch} style={styles.retryButton}>
+          <TouchableOpacity
+            onPress={refetch}
+            style={styles.retryButton}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading messages"
+          >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -121,7 +128,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No messages yet</Text>
+          <Text style={styles.emptyText}>◈ No messages yet</Text>
+          <Text style={styles.emptyHintText}>Pull down to refresh</Text>
         </View>
       </View>
     );
@@ -214,6 +222,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: theme.fontSize.lg,
     color: theme.colors.textMuted,
+  },
+  emptyHintText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
   },
   errorText: {
     fontSize: theme.fontSize.lg,

@@ -133,7 +133,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
         </View>
       ) : channelMessages.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No messages yet</Text>
+          <Text style={styles.emptyText}>◈ No messages yet</Text>
           <Text style={styles.emptySubtext}>Start a conversation with {programId.toUpperCase()}</Text>
         </View>
       ) : (

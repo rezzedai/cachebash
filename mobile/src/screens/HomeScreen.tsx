@@ -89,7 +89,11 @@ export default function HomeScreen({ navigation }: Props) {
         {error && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>Unable to connect to Grid</Text>
-            <TouchableOpacity onPress={onRefresh}>
+            <TouchableOpacity
+              onPress={onRefresh}
+              accessibilityRole="button"
+              accessibilityLabel="Retry connection"
+            >
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -97,7 +101,10 @@ export default function HomeScreen({ navigation }: Props) {
 
         {/* Quick Stats Row */}
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, styles.statCardFirst]}>
+          <View
+            style={[styles.statCard, styles.statCardFirst]}
+            accessibilityLabel={`${programCount} Programs`}
+          >
             <Text style={styles.statValue}>{programCount}</Text>
             <Text style={styles.statLabel}>Programs</Text>
             <View
@@ -108,7 +115,10 @@ export default function HomeScreen({ navigation }: Props) {
             />
           </View>
 
-          <View style={styles.statCard}>
+          <View
+            style={styles.statCard}
+            accessibilityLabel={`${pendingCount} Pending Tasks`}
+          >
             <Text style={styles.statValue}>{pendingCount}</Text>
             <Text style={styles.statLabel}>Pending Tasks</Text>
             <View
@@ -119,7 +129,10 @@ export default function HomeScreen({ navigation }: Props) {
             />
           </View>
 
-          <View style={[styles.statCard, styles.statCardLast]}>
+          <View
+            style={[styles.statCard, styles.statCardLast]}
+            accessibilityLabel={`${unreadCount} Messages`}
+          >
             <Text style={styles.statValue}>{unreadCount}</Text>
             <Text style={styles.statLabel}>Messages</Text>
             <View
@@ -134,54 +147,63 @@ export default function HomeScreen({ navigation }: Props) {
         {/* Program Grid */}
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>Fleet Status</Text>
-          <View style={styles.programGrid}>
-            {programs.map((program) => (
-              <TouchableOpacity
-                key={program.id}
-                style={styles.programCard}
-                onPress={() => handleProgramPress(program)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.programHeader}>
-                  <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
-                    {(program.name || program.id || '?').toUpperCase()}
-                  </Text>
-                  <View
-                    style={[
-                      styles.stateDot,
-                      {
-                        backgroundColor: program.state !== 'offline'
-                          ? getStateColor(program.state)
-                          : 'transparent',
-                        borderWidth: program.state !== 'offline' ? 0 : 1.5,
-                        borderColor: getStateColor(program.state),
-                      },
-                    ]}
-                  />
-                </View>
-
-                {program.status && (
-                  <Text style={styles.programStatus} numberOfLines={2} ellipsizeMode="tail">
-                    {program.status}
-                  </Text>
-                )}
-
-                {program.progress !== undefined && program.progress > 0 && (
-                  <View style={styles.progressBar}>
+          {programs.length === 0 && !isLoading && !error ? (
+            <View style={styles.emptyFleet}>
+              <Text style={styles.emptyFleetText}>⬡ No programs online</Text>
+              <Text style={styles.emptyFleetHint}>Pull down to refresh</Text>
+            </View>
+          ) : (
+            <View style={styles.programGrid}>
+              {programs.map((program) => (
+                <TouchableOpacity
+                  key={program.id}
+                  style={styles.programCard}
+                  onPress={() => handleProgramPress(program)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={`View ${program.name || program.id} details`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.programHeader}>
+                    <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
+                      {(program.name || program.id || '?').toUpperCase()}
+                    </Text>
                     <View
                       style={[
-                        styles.progressFill,
+                        styles.stateDot,
                         {
-                          width: `${program.progress}%`,
-                          backgroundColor: getStateColor(program.state),
+                          backgroundColor: program.state !== 'offline'
+                            ? getStateColor(program.state)
+                            : 'transparent',
+                          borderWidth: program.state !== 'offline' ? 0 : 1.5,
+                          borderColor: getStateColor(program.state),
                         },
                       ]}
                     />
                   </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+
+                  {program.status && (
+                    <Text style={styles.programStatus} numberOfLines={2} ellipsizeMode="tail">
+                      {program.status}
+                    </Text>
+                  )}
+
+                  {program.progress !== undefined && program.progress > 0 && (
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${program.progress}%`,
+                            backgroundColor: getStateColor(program.state),
+                          },
+                        ]}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Pending Questions */}
@@ -200,6 +222,8 @@ export default function HomeScreen({ navigation }: Props) {
                   style={styles.questionCard}
                   activeOpacity={0.7}
                   onPress={() => navigation.navigate('TaskDetail', { task: question })}
+                  accessibilityLabel={`Question from ${question.source}: ${question.title}`}
+                  accessibilityRole="button"
                 >
                   <View style={styles.questionHeader}>
                     <View style={styles.questionIcon}>
@@ -468,5 +492,22 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+
+  // Empty Fleet State
+  emptyFleet: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
+  },
+  emptyFleetText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    marginVertical: theme.spacing.xl,
+  },
+  emptyFleetHint: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
   },
 });

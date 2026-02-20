@@ -36,6 +36,8 @@ export default function TasksScreen({ navigation }: Props) {
           isActive && styles.filterChipActive,
         ]}
         onPress={() => setFilter(key)}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isActive }}
       >
         <Text style={[
           styles.filterChipText,
@@ -52,6 +54,8 @@ export default function TasksScreen({ navigation }: Props) {
       style={styles.taskCard}
       onPress={() => navigation.navigate('TaskDetail', { task })}
       activeOpacity={0.7}
+      accessibilityLabel={`${task.title}, ${task.status}, ${task.priority} priority`}
+      accessibilityRole="button"
     >
       <View style={styles.taskCardHeader}>
         <View style={[styles.statusDot, { backgroundColor: getStatusColor(task.status) }]} />
@@ -95,7 +99,12 @@ export default function TasksScreen({ navigation }: Props) {
       return (
         <View style={styles.emptyState}>
           <Text style={styles.errorText}>Failed to load tasks</Text>
-          <TouchableOpacity onPress={refetch} style={styles.retryButton}>
+          <TouchableOpacity
+            onPress={refetch}
+            style={styles.retryButton}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading tasks"
+          >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -103,7 +112,8 @@ export default function TasksScreen({ navigation }: Props) {
     }
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyStateText}>No tasks found</Text>
+        <Text style={styles.emptyStateText}>☰ No tasks found</Text>
+        <Text style={styles.emptyHintText}>Pull down to refresh</Text>
       </View>
     );
   };
@@ -254,6 +264,11 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.textMuted,
+  },
+  emptyHintText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
   },
   errorText: {
     fontSize: theme.fontSize.md,

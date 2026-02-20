@@ -23,7 +23,7 @@ export const theme = {
     // Text hierarchy
     text: '#f0f0f5',
     textSecondary: '#9ca3af',
-    textMuted: '#6b7280',
+    textMuted: '#8b95a3',
 
     // Borders
     border: '#2a2a3a',
