@@ -30,18 +30,20 @@ export function useSessions() {
         lastHeartbeat: s.lastHeartbeat,
       }));
 
-      // Build programs map from sessions
+      // Build programs map from sessions with a programId
       // Group by programId, take the latest session for each program
       const programMap = new Map<string, Program>();
 
       for (const session of sessions) {
-        const pid = session.programId || session.name?.split('.')[0] || 'unknown';
+        const pid = session.programId;
+        if (!pid) continue; // Skip anonymous sessions
+
         const existing = programMap.get(pid);
 
         if (
           !existing ||
-          new Date(session.lastUpdate) >
-            new Date(existing.lastHeartbeat || existing.lastHeartbeat || '')
+          new Date(session.lastUpdate).getTime() >
+            new Date(existing.lastHeartbeat || '').getTime()
         ) {
           programMap.set(pid, {
             id: pid,

@@ -24,18 +24,19 @@ export function usePolling<T>({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef<boolean>(true);
+  const fetcherRef = useRef(fetcher);
 
-  const fetch = useCallback(async () => {
-    if (!enabled) return;
+  // Keep fetcher ref current without triggering effect re-runs
+  fetcherRef.current = fetcher;
 
+  const doFetch = useCallback(async () => {
     try {
-      setError(null);
-      const result = await fetcher();
-
+      const result = await fetcherRef.current();
       if (isMountedRef.current) {
         setData(result);
+        setError(null);
         setLastUpdated(new Date());
         setIsLoading(false);
       }
@@ -45,46 +46,34 @@ export function usePolling<T>({
         setIsLoading(false);
       }
     }
-  }, [fetcher, enabled]);
+  }, []);
 
   const refetch = useCallback(async () => {
     setIsLoading(true);
-    await fetch();
-  }, [fetch]);
+    await doFetch();
+  }, [doFetch]);
 
-  // Initial fetch on mount
+  // Initial fetch + polling interval
   useEffect(() => {
     isMountedRef.current = true;
-    if (enabled) {
-      fetch();
+
+    if (!enabled) {
+      setIsLoading(false);
+      return () => { isMountedRef.current = false; };
     }
+
+    doFetch();
+
+    intervalRef.current = setInterval(doFetch, interval);
 
     return () => {
       isMountedRef.current = false;
-    };
-  }, [fetch, enabled]);
-
-  // Set up polling interval
-  useEffect(() => {
-    if (!enabled) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
-
-    intervalRef.current = setInterval(() => {
-      fetch();
-    }, interval);
-
-    return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [fetch, interval, enabled]);
+  }, [doFetch, interval, enabled]);
 
   return {
     data,
