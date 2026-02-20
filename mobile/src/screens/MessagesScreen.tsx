@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
 import { useMessages } from '../hooks/useMessages';
+import { useGroups } from '../hooks/useGroups';
 import { theme } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RelayMessage, RelayMessageType } from '../types';
-import { timeAgo, getMessageTypeColor } from '../utils';
+import { timeAgo, getMessageTypeColor, haptic } from '../utils';
 
 type MessagesScreenProps = {
   navigation: NativeStackNavigationProp<any>;
@@ -18,6 +19,7 @@ interface Channel {
 
 export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   const { messages, unreadCount, isLoading, refetch, error } = useMessages();
+  const { groups } = useGroups();
 
   // Group messages by source (program) and get the latest message per channel
   const channels = useMemo(() => {
@@ -148,6 +150,44 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         maxToRenderPerBatch={10}
         initialNumToRender={15}
         windowSize={5}
+        ListHeaderComponent={
+          <>
+            {/* Multicast Groups */}
+            {groups.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionHeader}>Groups</Text>
+                <View style={styles.groupList}>
+                  {groups.map((group) => (
+                    <TouchableOpacity
+                      key={group.name}
+                      style={styles.groupCard}
+                      onPress={() => {
+                        haptic.light();
+                        navigation.navigate('ChannelDetail', { programId: group.name });
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Group ${group.name}, ${group.members.length} members`}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.groupHeader}>
+                        <Text style={styles.groupName}>{group.name.toUpperCase()}</Text>
+                        <Text style={styles.groupCount}>{group.members.length} members</Text>
+                      </View>
+                      <Text style={styles.groupMembers} numberOfLines={1}>
+                        {group.members.join(', ')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Channels Section Header */}
+            {channels.length > 0 && (
+              <Text style={styles.sectionHeader}>Channels</Text>
+            )}
+          </>
+        }
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
@@ -167,6 +207,49 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: theme.spacing.sm,
+  },
+  section: {
+    marginBottom: theme.spacing.md,
+  },
+  sectionHeader: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  groupList: {
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  groupCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  groupName: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.primary,
+    letterSpacing: 0.5,
+  },
+  groupCount: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+  },
+  groupMembers: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
   },
   channelRow: {
     flexDirection: 'row',
