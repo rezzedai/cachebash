@@ -118,7 +118,7 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 async function callTool(auth: AuthContext, toolName: string, args: unknown): Promise<unknown> {
   if (!checkRateLimit(auth.userId, toolName)) {
     const resetIn = getRateLimitResetIn(auth.userId, toolName);
-    throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`);
+    throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
   }
 
   const handler = TOOL_HANDLERS[toolName];
