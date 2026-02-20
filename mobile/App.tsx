@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -24,8 +25,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" />
-        <AppContent />
+        <ErrorBoundary>
+          <StatusBar style="light" />
+          <AppContent />
+        </ErrorBoundary>
       </AuthProvider>
     </SafeAreaProvider>
   );
