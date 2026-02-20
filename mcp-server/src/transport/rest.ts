@@ -153,6 +153,16 @@ const routes: Route[] = [
     const data = await callTool(auth, "list_groups", {});
     restResponse(res, true, data);
   }),
+  route("GET", "/v1/messages/sent", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "get_sent_messages", query);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/messages/history", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "query_message_history", query);
+    restResponse(res, true, data);
+  }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -220,6 +230,17 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
 
+  // Metrics
+  route("GET", "/v1/metrics/comms", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "get_comms_metrics", query);
+    restResponse(res, true, data);
+  }),
+  // Fleet
+  route("GET", "/v1/fleet/health", async (auth, req, res) => {
+    const data = await callTool(auth, "get_fleet_health", {});
+    restResponse(res, true, data);
+  }),
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
     const result = await dreamPeekHandler(auth, {});

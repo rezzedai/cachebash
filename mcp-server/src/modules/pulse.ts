@@ -155,6 +155,70 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   return jsonResult({ success: true, sessionId, message: `Status updated: "${args.status}"` });
 }
 
+export async function getFleetHealthHandler(auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
+  // ISO/Flynn gate
+  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+    return jsonResult({
+      success: false,
+      error: "get_fleet_health is only accessible by ISO and Flynn.",
+    });
+  }
+
+  const db = getFirestore();
+  const now = Date.now();
+
+  // 3 parallel Firestore queries
+  const [programsSnap, pendingRelaySnap, pendingTasksSnap] = await Promise.all([
+    db.collection(`users/${auth.userId}/programs`).get(),
+    db.collection(`users/${auth.userId}/relay`).where("status", "==", "pending").get(),
+    db.collection(`users/${auth.userId}/tasks`).where("status", "==", "created").get(),
+  ]);
+
+  // Count pending messages by target
+  const pendingMsgsByTarget = new Map<string, number>();
+  for (const doc of pendingRelaySnap.docs) {
+    const target = doc.data().target || "unknown";
+    pendingMsgsByTarget.set(target, (pendingMsgsByTarget.get(target) || 0) + 1);
+  }
+
+  // Count pending tasks by target
+  const pendingTasksByTarget = new Map<string, number>();
+  for (const doc of pendingTasksSnap.docs) {
+    const target = doc.data().target || "unknown";
+    pendingTasksByTarget.set(target, (pendingTasksByTarget.get(target) || 0) + 1);
+  }
+
+  const summary = { working: 0, blocked: 0, idle: 0, stale: 0 };
+  const programs = programsSnap.docs.map((doc) => {
+    const data = doc.data();
+    const heartbeatTime = data.lastHeartbeat?.toDate?.() ? data.lastHeartbeat.toDate().getTime() : 0;
+    const heartbeatAgeMinutes = heartbeatTime ? Math.round((now - heartbeatTime) / 60000) : null;
+    const isStale = heartbeatAgeMinutes !== null && heartbeatAgeMinutes > 10;
+
+    const state = isStale ? "stale" : (data.currentState || "idle");
+    if (isStale) summary.stale++;
+    else if (state === "working") summary.working++;
+    else if (state === "blocked") summary.blocked++;
+    else summary.idle++;
+
+    return {
+      programId: doc.id,
+      state,
+      sessionId: data.currentSessionId || null,
+      lastHeartbeat: data.lastHeartbeat?.toDate?.()?.toISOString() || null,
+      heartbeatAgeMinutes,
+      pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
+      pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
+    };
+  });
+
+  return jsonResult({
+    success: true,
+    programs,
+    summary,
+  });
+}
+
 export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = ListSessionsSchema.parse(rawArgs);
   const db = getFirestore();
