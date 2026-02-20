@@ -12,6 +12,7 @@ import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
 import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
+import { emitEvent, classifyTask, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -50,6 +51,11 @@ const CompleteTaskSchema = z.object({
   tokens_in: z.number().nonnegative().optional(),
   tokens_out: z.number().nonnegative().optional(),
   cost_usd: z.number().nonnegative().optional(),
+  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+  error_code: z.string().optional(),
+  error_class: z.enum(["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"]).optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -180,12 +186,28 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     fallback: args.fallback || null,
   };
 
+    // Telemetry: classify task
+    taskData.task_class = classifyTask(args.type, args.action, args.title);
+    taskData.attempt_count = 0;
+
   if (args.ttl) {
     // expiresAt computed by Cloud Function on write, or we estimate here
     taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + args.ttl * 1000);
   }
 
   const ref = await db.collection(`users/${auth.userId}/tasks`).add(taskData);
+
+  // Emit telemetry event
+  emitEvent(auth.userId, {
+    event_type: "TASK_CREATED",
+    program_id: verifiedSource,
+    task_id: ref.id,
+    task_class: taskData.task_class as TaskClass,
+    target: args.target,
+    type: args.type,
+    priority: args.priority,
+    action: args.action,
+  });
 
   // Fire-and-forget: sync to GitHub Issues + Project board
   syncTaskCreated(
@@ -241,6 +263,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         startedAt: admin.firestore.FieldValue.serverTimestamp(),
         sessionId: args.sessionId || null,
         lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+        attempt_count: admin.firestore.FieldValue.increment(1),
       });
 
       return { data };
@@ -251,6 +274,16 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     // Fire-and-forget: sync claim to GitHub Project board (outside transaction)
     if (!result.alreadyClaimed) {
       syncTaskClaimed(auth.userId, args.taskId);
+    }
+
+    // Emit telemetry event
+    if (!result.alreadyClaimed) {
+      emitEvent(auth.userId, {
+        event_type: "TASK_CLAIMED",
+        program_id: auth.programId,
+        session_id: args.sessionId || undefined,
+        task_id: args.taskId,
+      });
     }
 
     const decrypted = decryptTaskFields(result.data!, auth.encryptionKey);
@@ -285,22 +318,43 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const data = doc.data()!;
       const current = data.status as LifecycleStatus;
 
-      // Validate transition — active → done
-      transition("task", current, "done");
+      // Determine lifecycle target based on completed_status
+      const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
+      transition("task", current, lifecycleTarget as LifecycleStatus);
 
       const updateFields: Record<string, unknown> = {
-        status: "done",
+        status: args.completed_status === "FAILED" ? "failed" : "done",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastHeartbeat: null,
+        completed_status: args.completed_status,
       };
       if (args.tokens_in !== undefined) updateFields.tokens_in = args.tokens_in;
       if (args.tokens_out !== undefined) updateFields.tokens_out = args.tokens_out;
       if (args.cost_usd !== undefined) updateFields.cost_usd = args.cost_usd;
+      if (args.model) updateFields.model = args.model;
+      if (args.provider) updateFields.provider = args.provider;
+      if (args.error_code) updateFields.last_error_code = args.error_code;
+      if (args.error_class) updateFields.last_error_class = args.error_class;
       tx.update(taskRef, updateFields);
     });
 
     // Fire-and-forget: sync completion to GitHub (outside transaction)
     syncTaskCompleted(auth.userId, args.taskId);
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
+      program_id: auth.programId,
+      task_id: args.taskId,
+      completed_status: args.completed_status,
+      tokens_in: args.tokens_in,
+      tokens_out: args.tokens_out,
+      cost_usd: args.cost_usd,
+      model: args.model,
+      provider: args.provider,
+      error_code: args.error_code,
+      error_class: args.error_class,
+    });
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
   } catch (error) {

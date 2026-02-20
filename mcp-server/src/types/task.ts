@@ -106,6 +106,15 @@ export interface Task extends Envelope {
   lastHeartbeat?: FirestoreTimestamp;
 
   // Metadata
+  // Telemetry (v2.2)
+  task_class?: "WORK" | "CONTROL";
+  completed_status?: "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
+  attempt_count?: number;
+  last_error_code?: string;
+  last_error_class?: "TRANSIENT" | "PERMANENT" | "DEPENDENCY" | "POLICY" | "TIMEOUT" | "UNKNOWN";
+  model?: string;
+  provider?: string;
+
   encrypted: boolean;
   archived: boolean;
   deletedAt?: FirestoreTimestamp;
