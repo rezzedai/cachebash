@@ -9,6 +9,7 @@ import {
   Platform,
   StyleSheet,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useMessages } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
@@ -160,6 +161,13 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
           windowSize={7}
           inverted={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading && channelMessages.length > 0}
+              onRefresh={refetch}
+              tintColor={theme.colors.primary}
+            />
+          }
         />
       )}
 
