@@ -53,3 +53,16 @@ export async function validateApiKey(
 }
 
 export { hashApiKey };
+
+import { validateFirebaseToken, isFirebaseToken } from "./firebaseAuthValidator.js";
+
+/**
+ * Combined auth validator — tries Firebase token first (if JWT),
+ * then falls back to API key validation.
+ */
+export async function validateAuth(token: string): Promise<AuthContext | null> {
+  if (isFirebaseToken(token)) {
+    return validateFirebaseToken(token);
+  }
+  return validateApiKey(token);
+}

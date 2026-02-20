@@ -5,7 +5,7 @@
 
 import http from "http";
 import { ZodError } from "zod";
-import { validateApiKey, type AuthContext } from "../auth/apiKeyValidator.js";
+import { validateAuth, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
@@ -370,7 +370,7 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
     // Auth
     const token = extractBearerToken(req.headers.authorization);
     if (!token) return restResponse(res, false, { code: "UNAUTHORIZED", message: "Missing Authorization header" }, 401);
-    const auth = await validateApiKey(token);
+    const auth = await validateAuth(token);
     if (!auth) return restResponse(res, false, { code: "UNAUTHORIZED", message: "Invalid API key" }, 401);
 
     const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
