@@ -5,6 +5,7 @@ import { Task } from '../types';
 import { theme } from '../theme';
 import { getStatusColor } from '../utils';
 import { useAuth } from '../contexts/AuthContext';
+import { haptic } from '../utils/haptics';
 
 type Props = NativeStackScreenProps<any, 'TaskDetail'>;
 
@@ -52,6 +53,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     if (answeringRef.current || cooldownRef.current || !api || !task.id) return;
     answeringRef.current = true;
 
+    haptic.medium();
     setSelectedOption(option);
     setIsAnswering(true);
 
@@ -67,6 +69,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
       // Mark as answered with persistent UI feedback
       setIsAnswered(true);
+      haptic.success();
 
       // 2-second cooldown
       cooldownRef.current = true;
@@ -74,6 +77,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
         cooldownRef.current = false;
       }, 2000);
     } catch (err) {
+      haptic.error();
       Alert.alert('Error', 'Failed to send response');
       setSelectedOption(null);
       setIsAnswered(false);

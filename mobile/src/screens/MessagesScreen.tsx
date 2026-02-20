@@ -63,7 +63,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     });
   }, [messages]);
 
-  const renderChannel = ({ item }: { item: Channel }) => {
+  const renderChannel = ({ item, index }: { item: Channel; index: number }) => {
     const typeColor = getMessageTypeColor(item.lastMessage.message_type);
 
     return (
@@ -95,6 +95,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       </TouchableOpacity>
     );
   };
+
+  const renderSeparator = () => <View style={styles.separator} />;
 
   if (isLoading && messages.length === 0) {
     return (
@@ -142,6 +144,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         renderItem={renderChannel}
         keyExtractor={(item) => item.programId}
         contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={renderSeparator}
         maxToRenderPerBatch={10}
         initialNumToRender={15}
         windowSize={5}
@@ -172,8 +175,10 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: theme.colors.border,
   },
   channelLeft: {
     flexDirection: 'row',
