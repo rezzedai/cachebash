@@ -1,5 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
@@ -21,9 +22,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <AppContent />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <AppContent />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

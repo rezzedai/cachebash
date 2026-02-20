@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { theme } from '../theme';
 
 export default function SignInScreen() {
+  const insets = useSafeAreaInsets();
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,20 +31,21 @@ export default function SignInScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>CacheBash</Text>
-          <Text style={styles.subtitle}>Mobile Operations Bridge</Text>
+          <Text style={styles.subtitle}>MOBILE OPERATIONS BRIDGE</Text>
         </View>
 
         <View style={styles.formContainer}>
+          <Text style={styles.inputLabel}>API KEY</Text>
           <TextInput
             style={styles.input}
-            placeholder="API Key"
-            placeholderTextColor="#6b7280"
+            placeholder="cb_..."
+            placeholderTextColor={theme.colors.textMuted}
             value={apiKey}
             onChangeText={setApiKey}
             secureTextEntry
@@ -58,12 +62,14 @@ export default function SignInScreen() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#ffffff" />
+              <ActivityIndicator color={theme.colors.background} />
             ) : (
               <Text style={styles.buttonText}>Connect</Text>
             )}
           </TouchableOpacity>
         </View>
+
+        <Text style={styles.footer}>Part of The Grid</Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -72,7 +78,7 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0f',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -86,37 +92,46 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 48,
     fontWeight: '700',
-    color: '#00d4ff',
-    marginBottom: 8,
+    color: theme.colors.primary,
+    marginBottom: 12,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    letterSpacing: 1,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    letterSpacing: 3,
+    fontWeight: '600',
   },
   formContainer: {
     width: '100%',
   },
+  inputLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+    letterSpacing: 1,
+    marginBottom: theme.spacing.sm,
+  },
   input: {
-    backgroundColor: '#1a1a24',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#2a2a3a',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#f0f0f5',
-    marginBottom: 16,
+    fontSize: theme.fontSize.lg,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   error: {
-    color: '#ef4444',
-    fontSize: 14,
-    marginBottom: 16,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.sm,
+    marginBottom: theme.spacing.md,
     textAlign: 'center',
   },
   button: {
-    backgroundColor: '#00d4ff',
-    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -126,8 +141,14 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#0a0a0f',
-    fontSize: 16,
-    fontWeight: '600',
+    color: theme.colors.background,
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+  },
+  footer: {
+    textAlign: 'center',
+    color: theme.colors.textMuted,
+    fontSize: theme.fontSize.xs,
+    marginTop: 48,
   },
 });
