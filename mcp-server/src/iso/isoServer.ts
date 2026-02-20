@@ -20,6 +20,8 @@ import { getCostSummaryHandler, getCommsMetricsHandler } from "../modules/metric
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { logToolCall } from "../modules/ledger.js";
+import { traceToolCall, queryTracesHandler } from "../modules/trace.js";
+import { getSprintHandler } from "../modules/sprint.js";
 import { ISO_TOOL_DEFINITIONS } from "./toolDefinitions.js";
 
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
@@ -39,6 +41,8 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   get_comms_metrics: getCommsMetricsHandler,
   get_fleet_health: getFleetHealthHandler,
   query_message_history: queryMessageHistoryHandler,
+  query_traces: queryTracesHandler,
+  get_sprint: getSprintHandler,
 };
 
 const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
@@ -102,12 +106,16 @@ export async function createIsoServer(): Promise<{
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
       logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true);
+      traceToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, args,
+        JSON.stringify(result).substring(0, 500), durationMs, true);
       audit.log(name, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
       logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, false,
         error instanceof Error ? error.message : String(error));
+      traceToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, args,
+        "", durationMs, false, error instanceof Error ? error.message : String(error));
       audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],

@@ -73,6 +73,7 @@ export const ISO_TOOL_DEFINITIONS = [
         context: { type: "string", maxLength: 500 },
         sessionId: { type: "string" },
         reply_to: { type: "string" },
+        payload: { type: "object", description: "Optional structured payload. Validated against message_type schema." },
       },
       required: ["message", "source", "target", "message_type"],
     },
@@ -213,6 +214,33 @@ export const ISO_TOOL_DEFINITIONS = [
         groupBy: { type: "string", enum: ["program", "type", "none"], default: "none", description: "Group results by program (source) or task type" },
         programFilter: { type: "string", maxLength: 100, description: "Filter to a specific program (source field)" },
       },
+    },
+  },
+  {
+    name: "query_traces",
+    description: "Query execution traces for debugging. Filters: sprintId, taskId, programId, tool, since/until.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sprintId: { type: "string", description: "Filter by sprint ID" },
+        taskId: { type: "string", description: "Filter by task ID" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
+        tool: { type: "string", description: "Filter by tool name" },
+        since: { type: "string", description: "Start date (ISO 8601)" },
+        until: { type: "string", description: "End date (ISO 8601)" },
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
+      },
+    },
+  },
+  {
+    name: "get_sprint",
+    description: "Get a sprint's full state including definition, stories, and stats.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sprintId: { type: "string", description: "The sprint ID to fetch" },
+      },
+      required: ["sprintId"],
     },
   },
 ];
