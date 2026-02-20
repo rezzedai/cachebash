@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { theme } from '../theme';
 import { useAuth } from '../contexts/AuthContext';
 import { haptic } from '../utils/haptics';
@@ -37,9 +37,11 @@ const PROGRAMS: Program[] = [
 
 const CreateTaskScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute<any>();
+  const initialTarget = route.params?.initialTarget || null;
   const { api } = useAuth();
   const [title, setTitle] = useState('');
-  const [target, setTarget] = useState<string | null>(null);
+  const [target, setTarget] = useState<string | null>(initialTarget);
   const [priority, setPriority] = useState<Priority>('normal');
   const [action, setAction] = useState<Action>('queue');
   const [instructions, setInstructions] = useState('');
