@@ -5,15 +5,15 @@
 
 import { AuthContext } from "./auth/apiKeyValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
-import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler } from "./modules/relay.js";
-import { createSessionHandler, updateSessionHandler, listSessionsHandler } from "./modules/pulse.js";
+import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
+import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
-import { getCostSummaryHandler } from "./modules/metrics.js";
+import { getCostSummaryHandler, getCommsMetricsHandler } from "./modules/metrics.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -28,6 +28,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_messages: getMessagesHandler,
   get_dead_letters: getDeadLettersHandler,
   list_groups: listGroupsHandler,
+  get_sent_messages: getSentMessagesHandler,
+  query_message_history: queryMessageHistoryHandler,
   // Pulse
   create_session: createSessionHandler,
   update_session: updateSessionHandler,
@@ -59,6 +61,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Metrics
   get_cost_summary: getCostSummaryHandler,
+  get_comms_metrics: getCommsMetricsHandler,
+  // Fleet
+  get_fleet_health: getFleetHealthHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -178,6 +183,37 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {},
+    },
+  },
+  {
+    name: "get_sent_messages",
+    description: "Query sent messages from a program's outbox. Programs see own sent only; ISO/Flynn can query any source.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        status: { type: "string", description: "Filter by message status" },
+        target: { type: "string", maxLength: 100, description: "Filter by target program" },
+        threadId: { type: "string", description: "Filter by thread ID" },
+        source: { type: "string", maxLength: 100, description: "Source program (ISO/Flynn only — others forced to own)" },
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20 },
+      },
+    },
+  },
+  {
+    name: "query_message_history",
+    description: "Query full message history with bodies. ISO/Flynn only. Requires at least one of: threadId, source, target.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        threadId: { type: "string", description: "Filter by thread ID" },
+        source: { type: "string", maxLength: 100, description: "Filter by source program" },
+        target: { type: "string", maxLength: 100, description: "Filter by target program" },
+        message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"], description: "Filter by message type" },
+        status: { type: "string", description: "Filter by message status" },
+        since: { type: "string", description: "Start date (ISO 8601)" },
+        until: { type: "string", description: "End date (ISO 8601)" },
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
+      },
     },
   },
   // === Pulse ===
@@ -525,7 +561,26 @@ export const TOOL_DEFINITIONS = [
       required: ["programId"],
     },
   },
+  // === Fleet ===
+  {
+    name: "get_fleet_health",
+    description: "Get health status of all Grid programs. Shows heartbeat age, pending messages/tasks per program. ISO/Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
   // === Metrics ===
+  {
+    name: "get_comms_metrics",
+    description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown. ISO/Flynn only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+      },
+    },
+  },
   {
     name: "get_cost_summary",
     description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",

@@ -299,6 +299,61 @@ const GetDeadLettersSchema = z.object({
   limit: z.number().min(1).max(50).default(20),
 });
 
+const GetSentMessagesSchema = z.object({
+  status: z.string().optional(),
+  target: z.string().max(100).optional(),
+  threadId: z.string().optional(),
+  source: z.string().max(100).optional(),
+  limit: z.number().min(1).max(50).default(20),
+});
+
+export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GetSentMessagesSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  // Programs see own sent only; ISO/Flynn can pass optional source to see any
+  const isPrivileged = ["iso", "flynn", "legacy", "mobile"].includes(auth.programId);
+  const source = isPrivileged && args.source ? args.source : auth.programId;
+
+  let query: admin.firestore.Query = db
+    .collection(`users/${auth.userId}/relay`)
+    .where("source", "==", source);
+
+  if (args.status) {
+    query = query.where("status", "==", args.status);
+  }
+  if (args.target) {
+    query = query.where("target", "==", args.target);
+  }
+  if (args.threadId) {
+    query = query.where("threadId", "==", args.threadId);
+  }
+
+  query = query.orderBy("createdAt", "desc").limit(args.limit);
+
+  const snapshot = await query.get();
+  const messages = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      target: data.target,
+      message_type: data.message_type,
+      status: data.status,
+      deliveryAttempts: data.deliveryAttempts || 0,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+      deliveredAt: data.deliveredAt?.toDate?.()?.toISOString() || null,
+      expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  return jsonResult({
+    success: true,
+    count: messages.length,
+    source,
+    messages,
+  });
+}
+
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Only accessible by ISO and Flynn (legacy/mobile keys)
   if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "iso") {
@@ -344,6 +399,134 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
       ? `Found ${deadLetters.length} dead letter(s)`
       : "No dead letters found",
   });
+}
+
+const QueryMessageHistorySchema = z.object({
+  threadId: z.string().optional(),
+  source: z.string().max(100).optional(),
+  target: z.string().max(100).optional(),
+  message_type: z.enum(["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"]).optional(),
+  status: z.string().optional(),
+  since: z.string().optional(),
+  until: z.string().optional(),
+  limit: z.number().min(1).max(100).default(50),
+});
+
+export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = QueryMessageHistorySchema.parse(rawArgs);
+
+  // Require at least 1 filter
+  if (!args.threadId && !args.source && !args.target) {
+    return jsonResult({
+      success: false,
+      error: "At least one of threadId, source, or target is required.",
+    });
+  }
+
+  // ISO/Flynn gate
+  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+    return jsonResult({
+      success: false,
+      error: "query_message_history is only accessible by ISO and Flynn.",
+    });
+  }
+
+  const db = getFirestore();
+  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/relay`);
+
+  if (args.threadId) {
+    query = query.where("threadId", "==", args.threadId);
+  }
+  if (args.source) {
+    query = query.where("source", "==", args.source);
+  }
+  if (args.target) {
+    query = query.where("target", "==", args.target);
+  }
+  if (args.message_type) {
+    query = query.where("message_type", "==", args.message_type);
+  }
+  if (args.status) {
+    query = query.where("status", "==", args.status);
+  }
+
+  // Sort: ASC when threadId filter set (conversation thread), DESC otherwise
+  const sortDirection = args.threadId ? "asc" : "desc";
+  query = query.orderBy("createdAt", sortDirection);
+
+  if (args.since) {
+    const sinceDate = new Date(args.since);
+    query = query.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(sinceDate));
+  }
+  if (args.until) {
+    const untilDate = new Date(args.until);
+    query = query.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(untilDate));
+  }
+
+  query = query.limit(args.limit);
+
+  const snapshot = await query.get();
+  const messages = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      source: data.source,
+      target: data.target,
+      message_type: data.message_type,
+      message: data.payload,
+      status: data.status,
+      priority: data.priority,
+      action: data.action,
+      context: data.context || null,
+      threadId: data.threadId || null,
+      reply_to: data.reply_to || null,
+      deliveryAttempts: data.deliveryAttempts || 0,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+      deliveredAt: data.deliveredAt?.toDate?.()?.toISOString() || null,
+      expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  return jsonResult({
+    success: true,
+    count: messages.length,
+    sort: sortDirection,
+    messages,
+  });
+}
+
+export async function cleanupExpiredRelayMessages(userId: string): Promise<number> {
+  const db = getFirestore();
+  const now = admin.firestore.Timestamp.now();
+
+  const snapshot = await db
+    .collection(`users/${userId}/relay`)
+    .where("status", "==", "pending")
+    .where("expiresAt", "<=", now)
+    .limit(100)
+    .get();
+
+  if (snapshot.empty) return 0;
+
+  const batch = db.batch();
+  let count = 0;
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    // Copy to dead_letters
+    const deadLetterRef = db.collection(`users/${userId}/dead_letters`).doc(doc.id);
+    batch.set(deadLetterRef, {
+      ...data,
+      reason: "TTL expired",
+      deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    // Delete from relay
+    batch.delete(doc.ref);
+    count++;
+  }
+
+  await batch.commit();
+  return count;
 }
 
 export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
