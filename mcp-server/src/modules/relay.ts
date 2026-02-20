@@ -9,6 +9,7 @@ import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
 import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
+import { validatePayload } from "../types/relay-schemas.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -27,6 +28,7 @@ const SendMessageSchema = z.object({
     model: z.string().optional(),
     cost_tokens: z.number().optional(),
   }).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 const GetMessagesSchema = z.object({
@@ -60,6 +62,18 @@ function sortByPriorityThenDate(messages: Array<Record<string, unknown>>): Array
 export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = SendMessageSchema.parse(rawArgs);
 
+  // Advisory schema validation for structured payload
+  let schemaValid: boolean | null = null;
+  let structuredPayload: unknown = null;
+  if (args.payload) {
+    const validation = validatePayload(args.message_type, args.payload);
+    schemaValid = validation.valid;
+    structuredPayload = args.payload;
+    if (!validation.valid) {
+      console.warn(`[Relay] Schema validation warning for ${args.message_type}:`, validation.errors);
+    }
+  }
+
   // Phase 2: Enforce source identity
   const verifiedSource = verifySource(args.source, auth, "mcp");
   const db = getFirestore();
@@ -88,6 +102,8 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     deliveryAttempts: 0,
     maxDeliveryAttempts: 3,
     provenance: args.provenance || null,
+    structuredPayload: structuredPayload,
+    schemaValid: schemaValid,
     createdAt: serverTimestamp(),
   };
 
@@ -168,6 +184,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     messageId: relayRef.id,
     action: args.action,
     relay: true,
+    schemaValid,
     message: `Message sent. ID: "${relayRef.id}"`,
   });
 }
