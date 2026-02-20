@@ -4,12 +4,23 @@
  */
 
 import http from "http";
+import { ZodError } from "zod";
 import { validateApiKey, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
+import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError } from "../middleware/rateLimiter.js";
+
+export class ValidationError extends Error {
+  issues: Array<{ path: string; message: string; code: string }>;
+  constructor(message: string, issues: Array<{ path: string; message: string; code: string }>) {
+    super(message);
+    this.name = 'ValidationError';
+    this.issues = issues;
+  }
+}
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -20,14 +31,26 @@ function extractBearerToken(header: string | undefined): string | null {
   return header?.startsWith("Bearer ") ? header.slice(7) : null;
 }
 
+const MAX_BODY_SIZE = 64 * 1024; // 64KB
 async function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let totalSize = 0;
+  for await (const chunk of req) {
+    totalSize += chunk.length;
+    if (totalSize > MAX_BODY_SIZE) {
+      throw new ValidationError('Request body too large (max 64KB)', [
+        { path: 'body', message: 'Exceeds maximum size of 64KB', code: 'too_big' }
+      ]);
+    }
+    chunks.push(Buffer.from(chunk));
+  }
   if (chunks.length === 0) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString());
   } catch {
-    return {};
+    throw new ValidationError('Invalid JSON in request body', [
+      { path: 'body', message: 'Request body is not valid JSON', code: 'invalid_type' }
+    ]);
   }
 }
 
@@ -93,6 +116,11 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 }
 
 async function callTool(auth: AuthContext, toolName: string, args: unknown): Promise<unknown> {
+  if (!checkRateLimit(auth.userId, toolName)) {
+    const resetIn = getRateLimitResetIn(auth.userId, toolName);
+    throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`);
+  }
+
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
@@ -334,6 +362,11 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
     const auth = await validateApiKey(token);
     if (!auth) return restResponse(res, false, { code: "UNAUTHORIZED", message: "Invalid API key" }, 401);
 
+    const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    if (!checkAuthRateLimit(clientIp)) {
+      return restResponse(res, false, { code: "RATE_LIMITED", message: "Too many authentication attempts" }, 429);
+    }
+
     // Route matching
     for (const r of routes) {
       if (r.method !== method) continue;
@@ -346,6 +379,12 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
       try {
         return await r.handler(auth, req, res, params);
       } catch (err) {
+        if (err instanceof RateLimitError) {
+          return restResponse(res, false, {
+            code: "RATE_LIMITED",
+            message: err.message,
+          }, 429);
+        }
         return restResponse(res, false, {
           code: "INTERNAL_ERROR",
           message: err instanceof Error ? err.message : String(err),
