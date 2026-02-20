@@ -7,3 +7,5 @@ export { usePolling } from './usePolling';
 export { useSessions } from './useSessions';
 export { useTasks } from './useTasks';
 export { useMessages } from './useMessages';
+export { useNotifications } from '../contexts/NotificationContext';
+export { useConnectivity } from '../contexts/ConnectivityContext';

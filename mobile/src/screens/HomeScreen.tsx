@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
+import { useConnectivity } from '../contexts/ConnectivityContext';
 import { theme } from '../theme';
 import type { Program } from '../types';
 import { timeAgo, getStateColor } from '../utils';
@@ -27,6 +28,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { sessions, programs, isLoading, refetch, error } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
+  const { isConnected, isInternetReachable } = useConnectivity();
 
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -83,12 +85,14 @@ export default function HomeScreen({ navigation }: Props) {
               <View
                 style={[
                   styles.connectionDot,
-                  { backgroundColor: programs.length > 0 ? theme.colors.success : theme.colors.warning },
+                  { backgroundColor: (isConnected && isInternetReachable !== false) ? theme.colors.success : theme.colors.error },
                 ]}
               />
             </View>
           </View>
-          <Text style={styles.lastUpdate}>Updated {lastUpdateStr}</Text>
+          <Text style={styles.lastUpdate}>
+            {(isConnected && isInternetReachable !== false) ? 'Connected' : 'Offline'} • Updated {lastUpdateStr}
+          </Text>
         </View>
 
         {error && (
