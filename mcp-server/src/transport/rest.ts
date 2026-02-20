@@ -149,6 +149,10 @@ const routes: Route[] = [
     const data = await callTool(auth, "get_dead_letters", query);
     restResponse(res, true, data);
   }),
+  route("GET", "/v1/relay/groups", async (auth, req, res) => {
+    const data = await callTool(auth, "list_groups", {});
+    restResponse(res, true, data);
+  }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
