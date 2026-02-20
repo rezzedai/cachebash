@@ -33,6 +33,10 @@ export interface RelayMessage extends Omit<Envelope, "action"> {
   // Session
   sessionId?: string;
 
+  // Structured payload (optional)
+  structuredPayload?: unknown;
+  schemaValid?: boolean | null;
+
   // Delivery
   status: RelayStatus;
   ttl: number;

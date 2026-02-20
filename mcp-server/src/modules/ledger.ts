@@ -38,6 +38,9 @@ const BASE_COSTS: Record<string, number> = {
   get_comms_metrics: 0.001,
   get_fleet_health: 0.001,
   query_message_history: 0.001,
+  query_traces: 0.001,
+  get_sprint: 0.001,
+  list_groups: 0.0002,
 };
 
 function estimateCost(tool: string): number {

@@ -7,6 +7,7 @@ import http from "http";
 import { validateApiKey, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
+import { traceToolCall } from "../modules/trace.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 
@@ -100,6 +101,8 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
   try {
     const result = await handler(auth, args);
     logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, true);
+    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+      JSON.stringify(result).substring(0, 500), Date.now() - start, true);
     audit.log(toolName, { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
@@ -107,6 +110,8 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
   } catch (err) {
     logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
+    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+      "", Date.now() - start, false, err instanceof Error ? err.message : String(err));
     audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     throw err;
   }
@@ -215,6 +220,10 @@ const routes: Route[] = [
     const data = await callTool(auth, "complete_sprint", { sprintId: p.id, ...body });
     restResponse(res, true, data);
   }),
+  route("GET", "/v1/sprints/:id", async (auth, req, res, p) => {
+    const data = await callTool(auth, "get_sprint", { sprintId: p.id });
+    restResponse(res, true, data);
+  }),
   // Budget
   route("GET", "/v1/budget/summary", async (auth, req, res) => {
     const { budgetSummaryHandler } = await import("../modules/budget.js");
@@ -304,6 +313,13 @@ const routes: Route[] = [
     const result = await dreamActivateHandler(auth, body);
     const text = result?.content?.[0]?.text;
     restResponse(res, true, text ? JSON.parse(text) : result);
+  }),
+
+  // Traces
+  route("GET", "/v1/traces", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "query_traces", query);
+    restResponse(res, true, data);
   }),
 ];
 

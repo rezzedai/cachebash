@@ -9,11 +9,12 @@ import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGrou
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
-import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler } from "./modules/sprint.js";
+import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler } from "./modules/metrics.js";
+import { queryTracesHandler } from "./modules/trace.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -46,6 +47,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   update_sprint_story: updateStoryHandler,
   add_story_to_sprint: addStoryHandler,
   complete_sprint: completeSprintHandler,
+  get_sprint: getSprintHandler,
 
   // Keys
   create_key: createKeyHandler,
@@ -64,6 +66,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_comms_metrics: getCommsMetricsHandler,
   // Fleet
   get_fleet_health: getFleetHealthHandler,
+
+  // Trace
+  query_traces: queryTracesHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -148,6 +153,7 @@ export const TOOL_DEFINITIONS = [
         reply_to: { type: "string" },
         threadId: { type: "string" },
         ttl: { type: "number", description: "TTL in seconds (default 86400)" },
+        payload: { type: "object", description: "Optional structured payload object. Validated against message_type schema (advisory)." },
       },
       required: ["message", "source", "target", "message_type"],
     },
@@ -347,6 +353,8 @@ export const TOOL_DEFINITIONS = [
               wave: { type: "number" },
               dependencies: { type: "array", items: { type: "string" } },
               complexity: { type: "string", enum: ["normal", "high"] },
+              retryPolicy: { type: "string", enum: ["none", "auto_retry", "escalate"], default: "none" },
+              maxRetries: { type: "number", minimum: 0, maximum: 5, default: 1 },
             },
             required: ["id", "title"],
           },
@@ -418,6 +426,17 @@ export const TOOL_DEFINITIONS = [
             duration: { type: "number" },
           },
         },
+      },
+      required: ["sprintId"],
+    },
+  },
+  {
+    name: "get_sprint",
+    description: "Get a sprint's full state including definition, stories, and stats. Any authenticated program can read.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sprintId: { type: "string", description: "The sprint ID to fetch" },
       },
       required: ["sprintId"],
     },
@@ -590,6 +609,23 @@ export const TOOL_DEFINITIONS = [
         period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
         groupBy: { type: "string", enum: ["program", "type", "none"], default: "none", description: "Group results by program (source) or task type" },
         programFilter: { type: "string", maxLength: 100, description: "Filter to a specific program (source field)" },
+      },
+    },
+  },
+  // === Trace ===
+  {
+    name: "query_traces",
+    description: "Query execution traces for debugging. ISO/Flynn only. Filters: sprintId, taskId, programId, tool, since/until.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sprintId: { type: "string", description: "Filter by sprint ID" },
+        taskId: { type: "string", description: "Filter by task ID" },
+        programId: { type: "string", maxLength: 100, description: "Filter by program ID" },
+        tool: { type: "string", description: "Filter by tool name" },
+        since: { type: "string", description: "Start date (ISO 8601)" },
+        until: { type: "string", description: "End date (ISO 8601)" },
+        limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
       },
     },
   },
