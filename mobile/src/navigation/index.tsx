@@ -16,6 +16,7 @@ import CreateTaskScreen from '../screens/CreateTaskScreen';
 import SprintsScreen from '../screens/SprintsScreen';
 import SprintDetailScreen from '../screens/SprintDetailScreen';
 import FleetHealthScreen from '../screens/FleetHealthScreen';
+import UsageScreen from '../screens/UsageScreen';
 import { navigationRef } from '../utils/navigationRef';
 
 const Tab = createBottomTabNavigator();
@@ -104,6 +105,7 @@ function SettingsStackScreen() {
       }}
     >
       <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <SettingsStack.Screen name="Usage" component={UsageScreen} options={{ title: 'Usage' }} />
     </SettingsStack.Navigator>
   );
 }
