@@ -207,3 +207,125 @@ export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown)
     breakdown,
   });
 }
+
+const OperationalMetricsSchema = z.object({
+  period: z.enum(["today", "this_week", "this_month", "all"]).default("this_month"),
+});
+
+export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  // ISO/Flynn gate
+  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+    return jsonResult({ success: false, error: "get_operational_metrics is only accessible by ISO and Flynn." });
+  }
+
+  const args = OperationalMetricsSchema.parse(rawArgs || {});
+  const db = getFirestore();
+  const start = periodStart(args.period);
+
+  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/events`);
+  if (start) {
+    query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start));
+  }
+  const snapshot = await query.get();
+
+  // Aggregate
+  let taskCreated = 0, taskClaimed = 0, taskSucceeded = 0, taskFailed = 0;
+  let workTasks = 0, controlTasks = 0;
+  let guardianAllow = 0, guardianBlock = 0;
+  let deadLetterCount = 0;
+  let totalQueueLatencyMs = 0, totalRunLatencyMs = 0;
+  let latencySamples = 0;
+  const reasonClassCounts: Record<string, number> = {};
+  const deadLetterReasons: Record<string, number> = {};
+  const errorClassCounts: Record<string, number> = {};
+  const programCounts: Record<string, { created: number; succeeded: number; failed: number }> = {};
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const eventType = data.event_type;
+
+    switch (eventType) {
+      case "TASK_CREATED":
+        taskCreated++;
+        if (data.task_class === "WORK") workTasks++;
+        if (data.task_class === "CONTROL") controlTasks++;
+        // Track by program
+        if (data.program_id) {
+          if (!programCounts[data.program_id]) programCounts[data.program_id] = { created: 0, succeeded: 0, failed: 0 };
+          programCounts[data.program_id].created++;
+        }
+        break;
+      case "TASK_CLAIMED":
+        taskClaimed++;
+        break;
+      case "TASK_SUCCEEDED":
+        taskSucceeded++;
+        if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].succeeded++;
+        // Latency if available
+        if (data.queue_latency_ms) { totalQueueLatencyMs += data.queue_latency_ms; latencySamples++; }
+        if (data.run_latency_ms) { totalRunLatencyMs += data.run_latency_ms; }
+        break;
+      case "TASK_FAILED":
+        taskFailed++;
+        if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].failed++;
+        if (data.error_class) errorClassCounts[data.error_class] = (errorClassCounts[data.error_class] || 0) + 1;
+        break;
+      case "GUARDIAN_CHECK":
+        if (data.decision === "ALLOW") guardianAllow++;
+        if (data.decision === "BLOCK") guardianBlock++;
+        if (data.reason_class && data.reason_class !== "NONE") {
+          reasonClassCounts[data.reason_class] = (reasonClassCounts[data.reason_class] || 0) + 1;
+        }
+        break;
+      case "RELAY_DEAD_LETTERED":
+        deadLetterCount += (data.dead_letter_count || 1);
+        if (data.dead_letter_reason) {
+          deadLetterReasons[data.dead_letter_reason] = (deadLetterReasons[data.dead_letter_reason] || 0) + 1;
+        }
+        break;
+    }
+  }
+
+  const firstPassRate = taskCreated > 0 ? round4((taskSucceeded / Math.max(taskSucceeded + taskFailed, 1)) * 100) : null;
+  const avgQueueLatencyMs = latencySamples > 0 ? Math.round(totalQueueLatencyMs / latencySamples) : null;
+  const avgRunLatencyMs = latencySamples > 0 ? Math.round(totalRunLatencyMs / latencySamples) : null;
+
+  const perProgram = Object.entries(programCounts)
+    .map(([program, counts]) => ({ program, ...counts }))
+    .sort((a, b) => b.created - a.created);
+
+  return jsonResult({
+    success: true,
+    period: args.period,
+    totalEvents: snapshot.size,
+    tasks: {
+      created: taskCreated,
+      claimed: taskClaimed,
+      succeeded: taskSucceeded,
+      failed: taskFailed,
+      firstPassSuccessRate: firstPassRate,
+      workTasks,
+      controlTasks,
+    },
+    latency: {
+      avgQueueLatencyMs,
+      avgRunLatencyMs,
+      samples: latencySamples,
+    },
+    safety: {
+      guardianChecks: guardianAllow + guardianBlock,
+      allowed: guardianAllow,
+      blocked: guardianBlock,
+      blockRate: (guardianAllow + guardianBlock) > 0 ? round4((guardianBlock / (guardianAllow + guardianBlock)) * 100) : null,
+      reasonClassBreakdown: reasonClassCounts,
+    },
+    reliability: {
+      errorClassBreakdown: errorClassCounts,
+    },
+    delivery: {
+      deadLetterEvents: deadLetterCount,
+      reasonBreakdown: deadLetterReasons,
+    },
+    perProgram,
+  });
+}
