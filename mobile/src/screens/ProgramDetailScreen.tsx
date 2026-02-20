@@ -282,8 +282,8 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
         {programMessages.length === 0 && programTasks.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No recent activity</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Messages and tasks will appear here when they become available
+            <Text style={styles.emptyHintText}>
+              Check back when {(program?.name || program?.id || 'this program').toUpperCase()} is working
             </Text>
           </View>
         )}
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.xs,
   },
-  emptyStateSubtext: {
+  emptyHintText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
     textAlign: 'center',
