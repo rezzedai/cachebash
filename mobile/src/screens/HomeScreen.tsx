@@ -97,6 +97,17 @@ export default function HomeScreen({ navigation }: Props) {
                 ]}
               />
             </View>
+            <TouchableOpacity
+              style={styles.healthLink}
+              onPress={() => {
+                haptic.light();
+                navigation.navigate('FleetHealth');
+              }}
+              accessibilityLabel="View fleet health"
+              accessibilityRole="button"
+            >
+              <Text style={styles.healthLinkText}>Health</Text>
+            </TouchableOpacity>
           </View>
           <Text style={styles.lastUpdate}>
             {(isConnected && isInternetReachable !== false) ? 'Connected' : 'Offline'} • Updated {lastUpdateStr}{isCached ? ' • Cached' : ''}
@@ -360,6 +371,17 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  healthLink: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surfaceElevated,
+  },
+  healthLinkText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
   },
   lastUpdate: {
     fontSize: theme.fontSize.xs,
