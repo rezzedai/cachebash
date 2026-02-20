@@ -13,6 +13,7 @@ import { initializeFirebase } from "./firebase/client.js";
 import { validateApiKey, type AuthContext } from "./auth/apiKeyValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, cleanupRateLimits } from "./middleware/rateLimiter.js";
+import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
@@ -184,6 +185,13 @@ async function main() {
     }
     cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
+    // TTL cleanup for expired relay messages (uses admin UID from first active session)
+    for (const [, info] of sessions.entries()) {
+      cleanupExpiredRelayMessages(info.authContext.userId).catch((err) => {
+        console.error("[Relay] TTL cleanup failed:", err);
+      });
+      break; // Only need one userId — all sessions share the same admin user
+    }
   }, 5 * 60 * 1000);
 
   httpServer.listen(PORT, () => {
