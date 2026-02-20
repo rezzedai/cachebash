@@ -113,12 +113,26 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Source</Text>
-          <Text style={styles.infoValue}>{task.source || 'Unknown'}</Text>
+          <TouchableOpacity
+            onPress={() => task.source && navigation.navigate('ProgramDetail', { programId: task.source })}
+            disabled={!task.source}
+          >
+            <Text style={[styles.infoValue, task.source && styles.infoValueLink]}>
+              {task.source || 'Unknown'}
+            </Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Target</Text>
-          <Text style={styles.infoValue}>{task.target || 'Unknown'}</Text>
+          <TouchableOpacity
+            onPress={() => task.target && navigation.navigate('ProgramDetail', { programId: task.target })}
+            disabled={!task.target}
+          >
+            <Text style={[styles.infoValue, task.target && styles.infoValueLink]}>
+              {task.target || 'Unknown'}
+            </Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.divider} />
         <View style={styles.infoRow}>
@@ -280,6 +294,10 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.text,
     fontWeight: '600',
+  },
+  infoValueLink: {
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
   },
   divider: {
     height: 1,

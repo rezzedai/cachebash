@@ -142,6 +142,9 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         renderItem={renderChannel}
         keyExtractor={(item) => item.programId}
         contentContainerStyle={styles.listContent}
+        maxToRenderPerBatch={10}
+        initialNumToRender={15}
+        windowSize={5}
         refreshControl={
           <RefreshControl
             refreshing={isLoading}

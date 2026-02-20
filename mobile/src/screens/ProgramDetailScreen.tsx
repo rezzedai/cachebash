@@ -192,7 +192,12 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
             </View>
             <View style={styles.messageList}>
               {programMessages.map((message) => (
-                <View key={message.id} style={styles.messageCard}>
+                <TouchableOpacity
+                  key={message.id}
+                  style={styles.messageCard}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('ChannelDetail', { programId })}
+                >
                   <View style={styles.messageHeader}>
                     <View style={styles.messageDirection}>
                       <Text style={styles.messageDirectionLabel}>
@@ -221,7 +226,7 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.messageTime}>
                     {timeAgo(message.createdAt)}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
@@ -288,6 +293,15 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
           </View>
         )}
       </ScrollView>
+
+      {/* Send Message Button */}
+      <TouchableOpacity
+        style={styles.sendMessageButton}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('ChannelDetail', { programId })}
+      >
+        <Text style={styles.sendMessageButtonText}>Send Message</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -581,5 +595,28 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textAlign: 'center',
     paddingHorizontal: theme.spacing.xl,
+  },
+
+  // Send Message Button
+  sendMessageButton: {
+    backgroundColor: theme.colors.primary,
+    margin: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  sendMessageButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

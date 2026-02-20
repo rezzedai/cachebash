@@ -139,6 +139,10 @@ export default function TasksScreen({ navigation }: Props) {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={renderEmpty}
+        maxToRenderPerBatch={10}
+        initialNumToRender={15}
+        windowSize={5}
+        removeClippedSubviews={true}
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
