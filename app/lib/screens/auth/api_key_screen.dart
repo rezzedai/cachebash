@@ -354,7 +354,7 @@ class _ApiKeyScreenState extends ConsumerState<ApiKeyScreen> {
                           const Text(
                             'Your API key connects Claude Code to this app. '
                             'Add it to your MCP configuration to receive notifications '
-                            'and respond to questions from Claude.',
+                            'and respond to questions from your agent.',
                           ),
                         ],
                       ),
