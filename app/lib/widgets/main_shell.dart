@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/messages_provider.dart';
+import '../providers/channel_provider.dart';
 import '../services/haptic_service.dart';
 
 /// Shell wrapper that provides persistent bottom nav for all authenticated routes
@@ -16,17 +16,25 @@ class MainShellWrapper extends ConsumerWidget {
 
   int _getSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/messages') || location.startsWith('/questions')) return 1;
-    if (location.startsWith('/sessions')) return 3;
-    if (location.startsWith('/search')) return 4;
-    return 0; // Home and everything else
+    if (location.startsWith('/channels')) return 0;
+    if (location.startsWith('/activity')) return 1;
+    if (location.startsWith('/settings')) return 2;
+    return 0; // Default to Channels
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _getSelectedIndex(context);
-    final pendingMessages = ref.watch(pendingMessagesProvider);
-    final pendingCount = pendingMessages.valueOrNull?.length ?? 0;
+    final channelsAsync = ref.watch(channelListProvider);
+    
+    // Count pending questions across all channels
+    final pendingCount = channelsAsync.maybeWhen(
+      data: (channels) => channels.fold<int>(
+        0,
+        (sum, channel) => sum + channel.pendingQuestionCount,
+      ),
+      orElse: () => 0,
+    );
 
     return Column(
       children: [
@@ -49,46 +57,31 @@ class MainShellWrapper extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _NavItem(
-                    icon: Icons.home_outlined,
-                    selectedIcon: Icons.home,
+                    icon: Icons.chat_bubble_outline,
+                    selectedIcon: Icons.chat_bubble,
                     isSelected: selectedIndex == 0,
                     onTap: () {
                       HapticService.light();
-                      context.go('/home');
+                      context.go('/channels');
                     },
                   ),
                   _NavItemWithBadge(
-                    icon: Icons.inbox_outlined,
-                    selectedIcon: Icons.inbox,
+                    icon: Icons.notifications_outlined,
+                    selectedIcon: Icons.notifications,
                     isSelected: selectedIndex == 1,
                     badgeCount: pendingCount,
                     onTap: () {
                       HapticService.light();
-                      context.go('/messages');
-                    },
-                  ),
-                  _ComposeButton(
-                    onTap: () {
-                      HapticService.medium();
-                      context.push('/messages/new');
+                      context.go('/activity');
                     },
                   ),
                   _NavItem(
-                    icon: Icons.terminal_outlined,
-                    selectedIcon: Icons.terminal,
-                    isSelected: selectedIndex == 3,
+                    icon: Icons.settings_outlined,
+                    selectedIcon: Icons.settings,
+                    isSelected: selectedIndex == 2,
                     onTap: () {
                       HapticService.light();
-                      context.go('/sessions');
-                    },
-                  ),
-                  _NavItem(
-                    icon: Icons.search_outlined,
-                    selectedIcon: Icons.search,
-                    isSelected: selectedIndex == 4,
-                    onTap: () {
-                      HapticService.light();
-                      context.go('/search');
+                      context.go('/settings');
                     },
                   ),
                 ],
@@ -128,32 +121,6 @@ class _NavItem extends StatelessWidget {
           color: isSelected
               ? Theme.of(context).colorScheme.primary
               : Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
-
-class _ComposeButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _ComposeButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          Icons.add,
-          size: 28,
-          color: Theme.of(context).colorScheme.onPrimary,
         ),
       ),
     );
@@ -225,20 +192,5 @@ class _NavItemWithBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// Keep old class for backwards compatibility during transition
-class MainShell extends ConsumerWidget {
-  final StatefulNavigationShell navigationShell;
-
-  const MainShell({
-    super.key,
-    required this.navigationShell,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return MainShellWrapper(child: navigationShell);
   }
 }
