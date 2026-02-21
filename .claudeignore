@@ -1,0 +1,35 @@
+# Lock files — huge, never useful for context
+package-lock.json
+*.lock
+
+# Build output & artifacts
+dist/
+build/
+coverage/
+tmp/
+*.log
+*.tsbuildinfo
+*.js.map
+*.d.ts
+
+# Binary assets
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.gif
+*.svg
+
+# Expo / React Native generated
+mobile/.expo/
+mobile/ios/
+mobile/android/
+
+# Firebase generated
+firebase/functions/lib/
+
+# Legacy app directories (not active development)
+app/ios/
+app/android/
+app/macos/
+app/web/
