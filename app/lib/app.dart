@@ -7,27 +7,17 @@ import 'services/fcm_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/api_key_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/questions/questions_screen.dart';
+import 'screens/channels/channel_list_screen.dart';
+import 'screens/activity/activity_screen.dart';
 import 'screens/questions/question_detail_screen.dart';
-import 'screens/projects/projects_screen.dart';
-import 'screens/projects/project_detail_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/profile_screen.dart';
 import 'screens/settings/change_password_screen.dart';
 import 'screens/settings/delete_account_screen.dart';
 import 'screens/settings/notifications_screen.dart';
 import 'screens/sessions/session_detail_screen.dart';
-import 'screens/sessions/sessions_screen.dart';
-import 'screens/sessions/archived_sessions_screen.dart';
 import 'screens/sprints/sprint_dashboard_screen.dart';
 import 'screens/sprints/add_to_sprint_screen.dart';
-import 'screens/tasks/tasks_screen.dart';
-import 'screens/tasks/create_task_screen.dart';
-import 'screens/messages/messages_screen.dart';
-import 'screens/messages/create_message_screen.dart';
-import 'screens/messages/archived_messages_screen.dart';
-import 'screens/search/search_screen.dart';
 import 'screens/dreams/activate_dream_screen.dart';
 import 'screens/dreams/dream_detail_screen.dart';
 import 'screens/feedback/feedback_screen.dart';
@@ -53,7 +43,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
       if (isLoggedIn && isAuthRoute) {
-        return '/home';
+        return '/channels';
       }
       return null;
     },
@@ -82,31 +72,45 @@ final routerProvider = Provider<GoRouter>((ref) {
           return MainShellWrapper(child: child);
         },
         routes: [
-          // Home
+          // Channels - main tab
+          GoRoute(
+            path: '/channels',
+            builder: (context, state) => const ChannelListScreen(),
+          ),
+          GoRoute(
+            path: '/channels/:programId',
+            builder: (context, state) {
+              final programId = state.pathParameters['programId']!;
+              return Scaffold(
+                appBar: AppBar(title: Text(programId.toUpperCase())),
+                body: const Center(child: Text('Channel detail coming in Story 3A')),
+              );
+            },
+          ),
+          
+          // Activity - second tab
+          GoRoute(
+            path: '/activity',
+            builder: (context, state) => const ActivityScreen(),
+          ),
+          
+          // Redirects from old routes
           GoRoute(
             path: '/home',
-            builder: (context, state) => const HomeScreen(),
+            redirect: (context, state) => '/channels',
           ),
-          // Questions
           GoRoute(
-            path: '/questions',
-            builder: (context, state) => const QuestionsScreen(),
+            path: '/messages',
+            redirect: (context, state) => '/channels',
           ),
+          
+          // Deep link routes that are still needed
           GoRoute(
             path: '/questions/:id',
             builder: (context, state) {
               final questionId = state.pathParameters['id']!;
               return QuestionDetailScreen(questionId: questionId);
             },
-          ),
-          // Sessions
-          GoRoute(
-            path: '/sessions',
-            builder: (context, state) => const SessionsScreen(),
-          ),
-          GoRoute(
-            path: '/sessions/archived',
-            builder: (context, state) => const ArchivedSessionsScreen(),
           ),
           GoRoute(
             path: '/sessions/:id',
@@ -115,6 +119,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               return SessionDetailScreen(sessionId: sessionId);
             },
           ),
+          
           // Sprints
           GoRoute(
             path: '/sprints/:id',
@@ -130,46 +135,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               return AddToSprintScreen(sprintId: sprintId);
             },
           ),
-          // Tasks (legacy routes - redirect to messages)
-          GoRoute(
-            path: '/tasks',
-            builder: (context, state) => const TasksScreen(),
-          ),
-          GoRoute(
-            path: '/tasks/new',
-            builder: (context, state) => const CreateTaskScreen(),
-          ),
-          // Messages (unified inbox)
-          GoRoute(
-            path: '/messages',
-            builder: (context, state) => const MessagesScreen(),
-          ),
-          GoRoute(
-            path: '/messages/archived',
-            builder: (context, state) => const ArchivedMessagesScreen(),
-          ),
-          GoRoute(
-            path: '/messages/new',
-            builder: (context, state) => const CreateMessageScreen(),
-          ),
-          // Search
-          GoRoute(
-            path: '/search',
-            builder: (context, state) => const SearchScreen(),
-          ),
-          // Projects
-          GoRoute(
-            path: '/projects',
-            builder: (context, state) => const ProjectsScreen(),
-          ),
-          GoRoute(
-            path: '/projects/:id',
-            builder: (context, state) {
-              final projectId = state.pathParameters['id']!;
-              return ProjectDetailScreen(projectId: projectId);
-            },
-          ),
-          // Settings
+          
+          // Settings - third tab
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsScreen(),
@@ -190,6 +157,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/settings/notifications',
             builder: (context, state) => const NotificationsScreen(),
           ),
+          
           // Dreams
           GoRoute(
             path: '/dreams/new',
@@ -202,6 +170,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               return DreamDetailScreen(dreamId: dreamId);
             },
           ),
+          
           // Feedback
           GoRoute(
             path: '/feedback',
