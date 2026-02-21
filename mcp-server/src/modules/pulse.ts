@@ -98,7 +98,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
-    await db.doc(`users/${auth.userId}/programs/${programId}`).set(programData, { merge: true });
+    await db.doc(`users/${auth.userId}/sessions/_programs/${programId}`).set(programData, { merge: true });
   }
 
   return jsonResult({ success: true, sessionId, message: `Session created: "${args.name}"` });
@@ -149,7 +149,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
-    await db.doc(`users/${auth.userId}/programs/${programId}`).set(programData, { merge: true });
+    await db.doc(`users/${auth.userId}/sessions/_programs/${programId}`).set(programData, { merge: true });
   }
 
   return jsonResult({ success: true, sessionId, message: `Status updated: "${args.status}"` });
@@ -169,7 +169,7 @@ export async function getFleetHealthHandler(auth: AuthContext, _rawArgs: unknown
 
   // 3 parallel Firestore queries
   const [programsSnap, pendingRelaySnap, pendingTasksSnap] = await Promise.all([
-    db.collection(`users/${auth.userId}/programs`).get(),
+    db.collection(`users/${auth.userId}/sessions/_programs`).get(),
     db.collection(`users/${auth.userId}/relay`).where("status", "==", "pending").get(),
     db.collection(`users/${auth.userId}/tasks`).where("status", "==", "created").get(),
   ]);
