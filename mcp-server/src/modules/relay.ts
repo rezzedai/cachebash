@@ -405,7 +405,8 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
   const db = getFirestore();
 
   const snapshot = await db
-    .collection(`users/${auth.userId}/dead_letters`)
+    .collection(`users/${auth.userId}/relay`)
+    .where("status", "==", "dead_lettered")
     .orderBy("deadLetteredAt", "desc")
     .limit(args.limit)
     .get();
@@ -570,17 +571,14 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<numbe
 
   for (const doc of snapshot.docs) {
     const data = doc.data();
-    // Copy to dead_letters
-    const deadLetterRef = db.collection(`users/${userId}/dead_letters`).doc(doc.id);
-    batch.set(deadLetterRef, {
-      ...data,
+    // Update in-place with dead_lettered status
+    batch.update(doc.ref, {
+      status: "dead_lettered",
       reason: "TTL expired",           // keep for backwards compat
       dead_letter_reason: "EXPIRED_TTL" as const,  // new structured field
       dead_letter_class: classifyDeadLetter(data),  // add classification
       deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    // Delete from relay
-    batch.delete(doc.ref);
     count++;
   }
 
