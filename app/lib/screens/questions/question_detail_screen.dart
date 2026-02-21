@@ -388,7 +388,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
             enabled: !_isSubmitting,
             autofocus: true,
             decoration: InputDecoration(
-              hintText: 'Add context or instructions for Claude...',
+              hintText: 'Add context or instructions for agent...',
               border: const OutlineInputBorder(),
               suffixIcon: ValueListenableBuilder<TextEditingValue>(
                 valueListenable: _alertReplyController,
