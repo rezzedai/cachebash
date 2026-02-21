@@ -9,6 +9,7 @@ export { onUserCreate } from "./auth/onUserCreate";
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";
 export { onSessionUpdate } from "./notifications/onSessionUpdate";
+export { onRelayCreate } from "./notifications/onRelayCreate";
 
 // Scheduled cleanup
 export { cleanupExpiredSessions } from "./cleanup/cleanupExpiredSessions";
