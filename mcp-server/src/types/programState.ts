@@ -1,6 +1,6 @@
 /**
  * Program State Schema — Persistent operational memory for Grid programs.
- * Collection: users/{uid}/program_state/{programId}
+ * Collection: users/{uid}/sessions/_program_state/{programId}
  * Designed by ALAN (Decision #15b), safety requirements from SARK (Decision #15c).
  */
 
