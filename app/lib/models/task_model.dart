@@ -203,7 +203,7 @@ extension TaskActionExtension on TaskAction {
       case TaskAction.sprint:
         return 'Add to current sprint';
       case TaskAction.parallel:
-        return 'Start new Claude soon';
+        return 'Start subagent soon';
       case TaskAction.queue:
         return 'Do after current task';
       case TaskAction.backlog:
