@@ -4,7 +4,7 @@
  * Every request passes through the Gate. The Gate validates the API key,
  * verifies the claimed source identity, and logs the decision.
  *
- * Phase 2: Source verification is ENFORCED. Audit entries persisted to Firestore.
+ * Phase 2: Source verification is ENFORCED. Audit entries persisted to ledger collection.
  */
 
 import { generateCorrelationId } from "./correlationId.js";
@@ -54,8 +54,9 @@ export function logAudit(entry: AuditEntry): void {
     const clean = Object.fromEntries(
       Object.entries(entry).filter(([_, v]) => v !== undefined)
     );
-    db.collection(`users/${entry.userId}/audit`).add({
+    db.collection(`users/${entry.userId}/ledger`).add({
       ...clean,
+      type: "audit",
       timestamp: serverTimestamp(),
     }).catch((err) => {
       console.error("[Audit] Failed to persist audit entry:", err);
