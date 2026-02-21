@@ -8,6 +8,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/api_key_screen.dart';
 import 'screens/channels/channel_list_screen.dart';
+import 'screens/channels/channel_detail_screen.dart';
 import 'screens/activity/activity_screen.dart';
 import 'screens/questions/question_detail_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -81,10 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/channels/:programId',
             builder: (context, state) {
               final programId = state.pathParameters['programId']!;
-              return Scaffold(
-                appBar: AppBar(title: Text(programId.toUpperCase())),
-                body: const Center(child: Text('Channel detail coming in Story 3A')),
-              );
+              return ChannelDetailScreen(programId: programId);
             },
           ),
           
