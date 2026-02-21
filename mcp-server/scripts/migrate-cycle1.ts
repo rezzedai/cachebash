@@ -5,8 +5,8 @@
  *   - dead_letters → relay (with status: "dead_lettered")
  *   - audit → ledger (with type: "audit")
  *   - traces → ledger (with type: "trace")
- *   - program_state → sessions/_program_state
- *   - programs → sessions/_programs
+ *   - program_state → sessions/_meta/program_state
+ *   - programs → sessions/_meta/programs
  *
  * Usage:
  *   npx tsx scripts/migrate-cycle1.ts [--dry-run] [--user-id <uid>]
@@ -21,6 +21,8 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes("--dry-run");
 const userIdIndex = args.indexOf("--user-id");
 const TARGET_USER_ID = userIdIndex >= 0 ? args[userIdIndex + 1] : undefined;
+const skipIndex = args.indexOf("--skip");
+const SKIP_COLLECTIONS = skipIndex >= 0 ? args[skipIndex + 1]?.split(",") || [] : [];
 
 if (!TARGET_USER_ID) {
   console.error("Usage: npx tsx scripts/migrate-cycle1.ts [--dry-run] --user-id <uid>");
@@ -41,6 +43,8 @@ interface MigrationStats {
 }
 
 const stats: MigrationStats[] = [];
+
+const BATCH_SIZE = 400; // Firestore limit is 500, leave headroom
 
 async function migrateCollection(
   sourcePath: string,
@@ -64,32 +68,46 @@ async function migrateCollection(
     return;
   }
 
+  if (DRY_RUN) {
+    console.log(`  [DRY RUN] Would write ${stat.read} documents → ${targetPath}`);
+    stat.written = stat.read;
+    stats.push(stat);
+    return;
+  }
+
+  // Batch write — no per-doc idempotency check for speed.
+  // Uses set() with same doc ID, so re-runs overwrite (safe for migration).
+  let batch = db.batch();
+  let batchCount = 0;
+  let totalWritten = 0;
+
   for (const doc of sourceSnap.docs) {
     try {
-      // Check if already migrated (idempotent — use same doc ID)
       const targetRef = db.collection(targetPath).doc(doc.id);
-      const existing = await targetRef.get();
-
-      if (existing.exists) {
-        stat.skipped++;
-        continue;
-      }
-
       const transformed = transform(doc.data(), doc.id);
+      batch.set(targetRef, transformed);
+      batchCount++;
 
-      if (DRY_RUN) {
-        console.log(`  [DRY RUN] Would write ${doc.id} → ${targetPath}`);
-        stat.written++;
-      } else {
-        await targetRef.set(transformed);
-        stat.written++;
+      if (batchCount >= BATCH_SIZE) {
+        await batch.commit();
+        totalWritten += batchCount;
+        console.log(`  Progress: ${totalWritten}/${stat.read} written`);
+        batch = db.batch();
+        batchCount = 0;
       }
     } catch (err) {
       stat.errors++;
-      console.error(`  ERROR migrating ${doc.id}:`, err);
+      console.error(`  ERROR preparing ${doc.id}:`, err);
     }
   }
 
+  // Commit remaining
+  if (batchCount > 0) {
+    await batch.commit();
+    totalWritten += batchCount;
+  }
+
+  stat.written = totalWritten;
   stats.push(stat);
   console.log(`  Results: ${stat.written} written, ${stat.skipped} skipped, ${stat.errors} errors`);
 }
@@ -99,59 +117,73 @@ async function main(): Promise<void> {
   console.log(`User ID: ${TARGET_USER_ID}`);
   console.log(`Mode: ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
   console.log(`Project: ${projectId}`);
+  if (SKIP_COLLECTIONS.length > 0) {
+    console.log(`Skipping: ${SKIP_COLLECTIONS.join(", ")}`);
+  }
 
   const uid = TARGET_USER_ID!;
 
   // 1. dead_letters → relay (with status: "dead_lettered")
-  await migrateCollection(
-    `users/${uid}/dead_letters`,
-    `users/${uid}/relay`,
-    (data) => ({
-      ...data,
-      status: "dead_lettered",
-      deadLetteredAt: data.deadLetteredAt || data.createdAt || admin.firestore.FieldValue.serverTimestamp(),
-    }),
-    "dead_letters → relay"
-  );
+  if (!SKIP_COLLECTIONS.includes("dead_letters")) {
+    await migrateCollection(
+      `users/${uid}/dead_letters`,
+      `users/${uid}/relay`,
+      (data) => ({
+        ...data,
+        status: "dead_lettered",
+        deadLetteredAt: data.deadLetteredAt || data.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+      }),
+      "dead_letters → relay"
+    );
+  }
 
   // 2. audit → ledger (with type: "audit")
-  await migrateCollection(
-    `users/${uid}/audit`,
-    `users/${uid}/ledger`,
-    (data) => ({
-      ...data,
-      type: "audit",
-    }),
-    "audit → ledger"
-  );
+  if (!SKIP_COLLECTIONS.includes("audit")) {
+    await migrateCollection(
+      `users/${uid}/audit`,
+      `users/${uid}/ledger`,
+      (data) => ({
+        ...data,
+        type: "audit",
+      }),
+      "audit → ledger"
+    );
+  }
 
   // 3. traces → ledger (with type: "trace")
   // Note: traces and audit share the ledger target, but doc IDs are unique per source
-  await migrateCollection(
-    `users/${uid}/traces`,
-    `users/${uid}/ledger`,
-    (data) => ({
-      ...data,
-      type: "trace",
-    }),
-    "traces → ledger"
-  );
+  if (!SKIP_COLLECTIONS.includes("traces")) {
+    await migrateCollection(
+      `users/${uid}/traces`,
+      `users/${uid}/ledger`,
+      (data) => ({
+        ...data,
+        type: "trace",
+      }),
+      "traces → ledger"
+    );
+  }
 
-  // 4. program_state → sessions/_program_state
-  await migrateCollection(
-    `users/${uid}/program_state`,
-    `users/${uid}/sessions/_program_state`,
-    (data) => ({ ...data }),
-    "program_state → sessions/_program_state"
-  );
+  // 4. program_state → sessions/_meta/program_state
+  // Uses _meta sentinel doc to maintain valid Firestore path segments (odd for collection, even for doc)
+  if (!SKIP_COLLECTIONS.includes("program_state")) {
+    await migrateCollection(
+      `users/${uid}/program_state`,
+      `users/${uid}/sessions/_meta/program_state`,
+      (data) => ({ ...data }),
+      "program_state → sessions/_meta/program_state"
+    );
+  }
 
-  // 5. programs → sessions/_programs
-  await migrateCollection(
-    `users/${uid}/programs`,
-    `users/${uid}/sessions/_programs`,
-    (data) => ({ ...data }),
-    "programs → sessions/_programs"
-  );
+  // 5. programs → sessions/_meta/programs
+  if (!SKIP_COLLECTIONS.includes("programs")) {
+    await migrateCollection(
+      `users/${uid}/programs`,
+      `users/${uid}/sessions/_meta/programs`,
+      (data) => ({ ...data }),
+      "programs → sessions/_meta/programs"
+    );
+  }
 
   // Summary
   console.log("\n=== Migration Summary ===");
