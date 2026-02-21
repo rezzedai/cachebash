@@ -77,15 +77,9 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
   }
   const relaySnap = await relayQuery.get();
 
-  // Query dead letters
-  let dlQuery: admin.firestore.Query = db.collection(`users/${auth.userId}/dead_letters`);
-  if (start) {
-    dlQuery = dlQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start));
-  }
-  const dlSnap = await dlQuery.get();
-
+  // Dead letters are now relay docs with status: "dead_lettered" — counted in relay loop below
   // Aggregate by status
-  const statusCounts: Record<string, number> = { delivered: 0, pending: 0, expired: 0, dead_letter: 0 };
+  const statusCounts: Record<string, number> = { delivered: 0, pending: 0, expired: 0, dead_lettered: 0 };
   let totalLatencyMs = 0;
   let deliveredCount = 0;
 
@@ -114,8 +108,6 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
     programBreakdown.set(source, prog);
   }
 
-  // Dead letters count
-  statusCounts.dead_letter = dlSnap.size;
 
   const avgDeliveryLatencyMs = deliveredCount > 0 ? Math.round(totalLatencyMs / deliveredCount) : null;
 
@@ -126,7 +118,7 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
   return jsonResult({
     success: true,
     period: args.period,
-    totalMessages: relaySnap.size + dlSnap.size,
+    totalMessages: relaySnap.size,
     statusCounts,
     avgDeliveryLatencyMs,
     perProgram,
