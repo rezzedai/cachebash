@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.onUserCreate = void 0;
+exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onRelayCreate = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.onUserCreate = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Auth triggers
@@ -46,6 +46,8 @@ var onTaskUpdate_1 = require("./notifications/onTaskUpdate");
 Object.defineProperty(exports, "onTaskUpdate", { enumerable: true, get: function () { return onTaskUpdate_1.onTaskUpdate; } });
 var onSessionUpdate_1 = require("./notifications/onSessionUpdate");
 Object.defineProperty(exports, "onSessionUpdate", { enumerable: true, get: function () { return onSessionUpdate_1.onSessionUpdate; } });
+var onRelayCreate_1 = require("./notifications/onRelayCreate");
+Object.defineProperty(exports, "onRelayCreate", { enumerable: true, get: function () { return onRelayCreate_1.onRelayCreate; } });
 // Scheduled cleanup
 var cleanupExpiredSessions_1 = require("./cleanup/cleanupExpiredSessions");
 Object.defineProperty(exports, "cleanupExpiredSessions", { enumerable: true, get: function () { return cleanupExpiredSessions_1.cleanupExpiredSessions; } });
