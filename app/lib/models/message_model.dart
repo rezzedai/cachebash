@@ -133,9 +133,9 @@ extension MessageDirectionExtension on MessageDirection {
   String get displayName {
     switch (this) {
       case MessageDirection.toUser:
-        return 'From Claude';
+        return 'From Agent';
       case MessageDirection.toClaude:
-        return 'To Claude';
+        return 'To Agent';
     }
   }
 }
@@ -202,7 +202,7 @@ extension MessageActionExtension on MessageAction {
       case MessageAction.interrupt:
         return 'Stop work immediately';
       case MessageAction.parallel:
-        return 'Start new Claude soon';
+        return 'Start subagent soon';
       case MessageAction.queue:
         return 'Do after current task';
       case MessageAction.backlog:
