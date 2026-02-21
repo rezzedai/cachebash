@@ -26,7 +26,7 @@ export const READ_TOOLS = new Set([
 
 const READ_LIMIT = 120; // requests per minute
 const WRITE_LIMIT = 60; // requests per minute
-const AUTH_LIMIT = 10; // attempts per minute per IP
+const AUTH_LIMIT = 60; // attempts per minute per IP (raised from 10 for fleet-scale ops)
 const WINDOW_MS = 60 * 1000; // 1 minute
 const CLEANUP_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
 
