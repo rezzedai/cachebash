@@ -50,7 +50,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         _messageController.clear();
         HapticService.success();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message sent to Claude')),
+          const SnackBar(content: Text('Message sent to agent')),
         );
       }
     } catch (e) {
@@ -306,7 +306,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Send a message to interrupt Claude and provide new instructions or ask a question.',
+                                  'Send a message to interrupt the agent and provide new instructions or ask a question.',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
@@ -349,7 +349,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
                           child: TextField(
                             controller: _messageController,
                             decoration: InputDecoration(
-                              hintText: 'Send a message to Claude...',
+                              hintText: 'Send a message to agent...',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(24),
                               ),

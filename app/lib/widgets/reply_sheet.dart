@@ -167,7 +167,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
               maxLines: 4,
               decoration: const InputDecoration(
                 labelText: 'Your message',
-                hintText: 'What would you like Claude to do?',
+                hintText: 'What would you like the agent to do?',
                 border: OutlineInputBorder(),
               ),
               maxLength: 2000,
@@ -176,7 +176,7 @@ class _ReplySheetState extends ConsumerState<ReplySheet> {
 
             // Action level selector
             Text(
-              'When should Claude handle this?',
+              'When should the agent handle this?',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 8),

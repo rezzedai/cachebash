@@ -41,7 +41,7 @@ class NotificationsScreen extends ConsumerWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Push notifications let you respond to Claude\'s questions from anywhere.',
+                        'Push notifications let you respond to agent questions from anywhere.',
                         style: TextStyle(
                           color:
                               Theme.of(context).colorScheme.onPrimaryContainer,
@@ -118,7 +118,7 @@ class NotificationsScreen extends ConsumerWidget {
                 SwitchListTile(
                   secondary: const Icon(Icons.help_outline),
                   title: const Text('New Questions'),
-                  subtitle: const Text('When Claude asks you a question'),
+                  subtitle: const Text('When the agent asks you a question'),
                   value: preferences.newQuestions,
                   onChanged: user == null
                       ? null
@@ -136,7 +136,7 @@ class NotificationsScreen extends ConsumerWidget {
                 SwitchListTile(
                   secondary: const Icon(Icons.update),
                   title: const Text('Session Updates'),
-                  subtitle: const Text('Progress updates from Claude'),
+                  subtitle: const Text('Progress updates from agent'),
                   value: preferences.sessionUpdates,
                   onChanged: user == null
                       ? null
