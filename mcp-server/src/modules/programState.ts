@@ -1,6 +1,6 @@
 /**
  * Program State Module — Persistent operational memory for Grid programs.
- * Collection: users/{uid}/program_state/{programId}
+ * Collection: users/{uid}/sessions/_program_state/{programId}
  */
 
 import { getFirestore } from "../firebase/client.js";
@@ -137,7 +137,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   }
 
   const db = getFirestore();
-  const doc = await db.doc(`users/${auth.userId}/program_state/${args.programId}`).get();
+  const doc = await db.doc(`users/${auth.userId}/sessions/_program_state/${args.programId}`).get();
 
   if (!doc.exists) {
     return jsonResult({
@@ -170,7 +170,7 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
   }
 
   const db = getFirestore();
-  const docRef = db.doc(`users/${auth.userId}/program_state/${args.programId}`);
+  const docRef = db.doc(`users/${auth.userId}/sessions/_program_state/${args.programId}`);
   const existing = await docRef.get();
 
   const now = new Date().toISOString();
