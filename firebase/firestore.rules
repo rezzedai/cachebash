@@ -1,19 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write their own data.
-    // Grid Portal (web client SDK) authenticates via Firebase Auth as Flynn.
+    // UID aliasing: allows Grid Portal (Google auth) to access CacheBash data (API key auth)
+    // userLinks/{authUid} → { dataUid: "cachebash-uid" }
+    function isOwnerOrLinked(userId) {
+      return request.auth.uid == userId ||
+        (exists(/databases/$(database)/documents/userLinks/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/userLinks/$(request.auth.uid)).data.dataUid == userId);
+    }
+
+    // Users can read/write their own data (or linked data via userLinks)
     // Subcollections: sessions, tasks, relay, programs, questions, dream_sessions, audit, ledger, devices
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && isOwnerOrLinked(userId);
     }
-    
+
+    // User links: readable by the linked user, writable only by server
+    match /userLinks/{linkId} {
+      allow read: if request.auth != null && request.auth.uid == linkId;
+      allow write: if false;
+    }
+
     // API keys are read-only for authenticated users
     match /apiKeys/{hash} {
       allow read: if request.auth != null;
       allow write: if false;
     }
-    
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
