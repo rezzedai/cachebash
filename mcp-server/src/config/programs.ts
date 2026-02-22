@@ -8,7 +8,7 @@ export const GRID_PROGRAMS = [
   'casp', 'clu', 'able', 'beck', 'gem', 'rinzler',
   'tron', 'yori', 'pixel', 'castor', 'ram', 'scribe',
   'sage', 'link', 'dumont', 'gridbot', 'bit', 'byte',
-  'tesler', 'flynns-mirror', 'council'
+  'tesler', 'flynns-mirror', 'council', 'codex'
 ] as const;
 
 export type GridProgramId = typeof GRID_PROGRAMS[number];
@@ -66,4 +66,5 @@ export const PROGRAM_REGISTRY: Partial<Record<GridProgramId, ProgramMeta>> = {
   able:   { displayName: "ABLE",   color: "#4DB870", role: "Growth" },
   beck:   { displayName: "BECK",   color: "#40A8A0", role: "Operations" },
   radia:  { displayName: "RADIA",  color: "#E8E0D0", role: "Vision" },
+  codex:  { displayName: "CODEX",  color: "#10A37F", role: "Cross-Model Builder" },
 };
