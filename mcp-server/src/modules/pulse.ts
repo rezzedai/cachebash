@@ -26,6 +26,8 @@ const UpdateSessionSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
   lastHeartbeat: z.boolean().optional(), // When true, also update heartbeat timestamp
+  contextBytes: z.number().min(0).optional(),
+  handoffRequired: z.boolean().optional(),
 });
 
 const ListSessionsSchema = z.object({
@@ -124,7 +126,8 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (args.projectName) updateData.projectName = args.projectName;
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
 
-  await db.doc(`users/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
+  if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
+  if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;  await db.doc(`users/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
 
   // Add to history
   await db.collection(`users/${auth.userId}/sessions/${sessionId}/updates`).add({
@@ -209,6 +212,8 @@ export async function getFleetHealthHandler(auth: AuthContext, _rawArgs: unknown
       heartbeatAgeMinutes,
       pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
       pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
+      contextBytes: data.contextBytes || null,
+      handoffRequired: data.handoffRequired || false,
     };
   });
 
