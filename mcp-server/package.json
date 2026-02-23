@@ -1,7 +1,7 @@
 {
   "name": "cachebash-mcp",
   "version": "2.0.0",
-  "description": "CacheBash MCP Server — Grid Execution Infrastructure",
+  "description": "CacheBash MCP Server — multi-agent coordination and communication",
   "main": "dist/index.js",
   "bin": {
     "cachebash-mcp": "./dist/index.js"
