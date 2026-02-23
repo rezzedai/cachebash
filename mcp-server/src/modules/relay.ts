@@ -112,6 +112,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
 
   const baseData: Record<string, unknown> = {
+    schemaVersion: '2.2' as const,
     source: verifiedSource,
     message_type: args.message_type,
     payload: args.message,
@@ -152,6 +153,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
     const taskRef = db.collection(`users/${auth.userId}/tasks`).doc();
     batch.set(taskRef, {
+      schemaVersion: '2.2' as const,
       type: "task",
       title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
       instructions: args.message,
@@ -220,6 +222,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   // Also write to tasks collection for mobile app visibility
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
   await db.collection(`users/${auth.userId}/tasks`).doc(relayRef.id).set({
+    schemaVersion: '2.2' as const,
     type: "task",
     title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
     instructions: args.message,
