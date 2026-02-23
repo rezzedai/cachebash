@@ -76,6 +76,13 @@ export const SPAWNABLE_PROGRAMS: Map<string, ProgramLaunchConfig> = new Map([
     repo: "rezzedai/grid",
     description: "Knowledge — pattern store, memory management",
   }],
+  ["vector", {
+    programId: "vector",
+    spawnable: true,
+    model: "opus",
+    repo: "rezzedai/grid",
+    description: "Strategic counsel — architecture, roadmap, council contributions",
+  }],
 ]);
 
 /** Check if a program is spawnable by the wake daemon */
