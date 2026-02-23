@@ -1,7 +1,7 @@
 /**
  * Audit Module — Query Gate audit log.
  * Collection: users/{uid}/ledger (type: audit)
- * Read-only. ISO and Flynn only.
+ * Read-only. Admin only.
  */
 
 import { getFirestore } from "../firebase/client.js";
@@ -21,11 +21,11 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Only accessible by ISO and Flynn (legacy/mobile keys)
+  // Admin only (legacy/mobile keys)
   if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "iso") {
     return jsonResult({
       success: false,
-      error: "Audit log is only accessible by ISO and Flynn.",
+      error: "Audit log is only accessible by admin.",
     });
   }
 

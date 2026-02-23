@@ -1,5 +1,5 @@
 /**
- * Tests for GRIDBOT Health Monitoring Module
+ * Tests for Health Monitoring Module
  */
 
 import { runHealthCheck, HealthCheckResult } from "../modules/gridbot-monitor";
@@ -24,7 +24,7 @@ const mockCollection = {
   add: jest.fn(),
 };
 
-describe("GRIDBOT Health Monitor", () => {
+describe("Health Monitor", () => {
   const testUserId = "test-user-123";
   const now = admin.firestore.Timestamp.now();
   const oneHourAgo = admin.firestore.Timestamp.fromDate(
@@ -119,7 +119,7 @@ describe("GRIDBOT Health Monitor", () => {
     expect(staleIndicator?.status).toBe("warning");
   });
 
-  it("should route critical alerts to Flynn mobile", async () => {
+  it("should route critical alerts to admin mobile", async () => {
     // Create critical relay queue depth
     const mockPendingRelay = Array(60).fill({ data: () => ({ status: "pending" }) });
 
@@ -138,13 +138,13 @@ describe("GRIDBOT Health Monitor", () => {
     const result = await runHealthCheck(testUserId);
 
     expect(result.overall_status).toBe("critical");
-    expect(result.alerts_sent).toContain("HEALTH_CRITICAL alert to Flynn (mobile)");
+    expect(result.alerts_sent).toContain("HEALTH_CRITICAL alert to admin (mobile)");
     
     // Verify alert was written to relay and tasks
     expect(mockCollection.add).toHaveBeenCalledTimes(3); // relay + tasks + health_checks
   });
 
-  it("should route warning alerts to ISO", async () => {
+  it("should route warning alerts to orchestrator", async () => {
     // Create warning-level wake failures
     const mockWakeEvents = [
       { data: () => ({ event_type: "PROGRAM_WAKE", wake_result: "failed" }) },
@@ -167,7 +167,7 @@ describe("GRIDBOT Health Monitor", () => {
     const result = await runHealthCheck(testUserId);
 
     expect(result.overall_status).toBe("warning");
-    expect(result.alerts_sent).toContain("HEALTH_WARNING status to ISO");
+    expect(result.alerts_sent).toContain("HEALTH_WARNING status to orchestrator");
 
     // Verify warning was written to relay
     expect(mockCollection.add).toHaveBeenCalled();

@@ -1,5 +1,5 @@
 /**
- * ISO MCP Server — Scoped endpoint for claude.ai desktop/mobile.
+ * Admin MCP Server — Scoped endpoint for claude.ai desktop/mobile.
  * Separate MCP Server with whitelisted tools. Auth via Bearer header.
  */
 
@@ -98,7 +98,7 @@ export async function createIsoServer(): Promise<{
     const handler = ISO_TOOL_HANDLERS[name];
     if (!handler) {
       return {
-        content: [{ type: "text", text: `Tool "${name}" is not available on the ISO endpoint.` }],
+        content: [{ type: "text", text: `Tool "${name}" is not available on the admin endpoint.` }],
         isError: true,
       };
     }
