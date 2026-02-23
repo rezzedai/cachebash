@@ -86,10 +86,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // User links: readable by the linked user, writable only by server
+    // Authorized emails: readable by authenticated users (for auto-linking check)
+    match /authorizedEmails/{email} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // User links: readable by the linked user, auto-created for authorized emails
     match /userLinks/{linkId} {
       allow read: if isAuth() && request.auth.uid == linkId;
-      allow write: if false;
+      // Allow auto-linking: user can create their own link if their email is in authorizedEmails
+      allow create: if isAuth() && request.auth.uid == linkId &&
+        exists(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email)) &&
+        request.resource.data.dataUid == get(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email)).data.dataUid &&
+        request.resource.data.keys().hasOnly(['dataUid']);
+      // No updates or deletes from client
+      allow update, delete: if false;
     }
 
     // API keys: no client access at all (sensitive auth material)
