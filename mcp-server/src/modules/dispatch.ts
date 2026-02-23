@@ -13,7 +13,7 @@ import { z } from "zod";
 import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
 import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
 import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
-
+import { checkDreamBudget, updateDreamConsumption } from "./budget.js";
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
@@ -310,8 +310,14 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
 
-  // Capture task data for provenance hashing
-  let taskData: { instructions?: string; source?: string; target?: string } = {};
+  // Capture task data for provenance hashing and budget tracking
+  let taskData: { 
+    instructions?: string; 
+    source?: string; 
+    target?: string;
+    dreamId?: string;
+    sprintParentId?: string;
+  } = {};
 
   try {
     await db.runTransaction(async (tx) => {
@@ -321,11 +327,13 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const data = doc.data()!;
       const current = data.status as LifecycleStatus;
 
-      // Capture task data for provenance hashing (before transaction completes)
+      // Capture task data for provenance hashing and budget tracking (before transaction completes)
       taskData = {
         instructions: data.instructions as string | undefined,
         source: data.source as string | undefined,
         target: data.target as string | undefined,
+        dreamId: data.dreamId as string | undefined,
+        sprintParentId: data.sprint?.parentId as string | undefined,
       };
 
       // Determine lifecycle target based on completed_status
@@ -350,6 +358,77 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
     // Fire-and-forget: sync completion to GitHub (outside transaction)
     syncTaskCompleted(auth.userId, args.taskId);
+
+    // Budget tracking: update dream consumption if task belongs to a dream and has cost
+    if (args.cost_usd && args.cost_usd > 0) {
+      let dreamId: string | undefined;
+      
+      // Check if task directly has dreamId
+      if (taskData.dreamId) {
+        dreamId = taskData.dreamId;
+      }
+      // Check if task is a sprint story that belongs to a dream sprint
+      else if (taskData.sprintParentId) {
+        try {
+          const sprintDoc = await db.doc(`users/${auth.userId}/tasks/${taskData.sprintParentId}`).get();
+          if (sprintDoc.exists) {
+            const sprintData = sprintDoc.data()!;
+            dreamId = sprintData.dreamId as string | undefined;
+          }
+        } catch (err) {
+          console.error("[Budget] Failed to check sprint parent for dream context:", err);
+        }
+      }
+
+      // If we found a dream context, track the cost
+      if (dreamId) {
+        try {
+          // Update dream consumption atomically
+          await updateDreamConsumption(auth.userId, dreamId, args.cost_usd);
+          
+          // Check if budget exceeded
+          const budgetCheck = await checkDreamBudget(auth.userId, dreamId);
+          
+          if (!budgetCheck.withinBudget) {
+            // Emit BUDGET_EXCEEDED event
+            emitEvent(auth.userId, {
+              event_type: "BUDGET_EXCEEDED",
+              program_id: auth.programId,
+              task_id: dreamId,
+              consumed: budgetCheck.consumed,
+              cap: budgetCheck.cap,
+              remaining: budgetCheck.remaining,
+            });
+
+            // Send alert to Flynn (fire-and-forget)
+            const alertMessage = `Dream ${dreamId} has exceeded its budget cap.
+
+Consumed: $${budgetCheck.consumed.toFixed(4)}
+Cap: $${budgetCheck.cap.toFixed(4)}
+Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
+            
+            db.collection(`users/${auth.userId}/relay`).add({
+              source: "system",
+              target: "user",
+              message_type: "STATUS",
+              payload: alertMessage,
+              priority: "high",
+              action: "queue",
+              sessionId: null,
+              status: "pending",
+              ttl: 3600,
+              expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 3600 * 1000),
+              alertType: "BUDGET_EXCEEDED",
+              context: { dreamId, consumed: budgetCheck.consumed, cap: budgetCheck.cap },
+              createdAt: serverTimestamp(),
+            }).catch((err) => console.error("[Budget] Failed to send alert:", err));
+          }
+        } catch (err) {
+          console.error("[Budget] Failed to track dream budget:", err);
+          // Don't fail the task completion if budget tracking fails
+        }
+      }
+    }
 
     // Emit telemetry event with cryptographic provenance
     emitEvent(auth.userId, {
