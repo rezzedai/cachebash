@@ -137,6 +137,7 @@ async function main() {
           health: "/v1/health",
           cleanup: "/v1/internal/cleanup",
           wake: "/v1/internal/wake",
+          healthCheck: "/v1/internal/health-check",
         },
         restFallback: {
           description: "If MCP session dies, use REST endpoints with the same Bearer auth",
@@ -387,6 +388,50 @@ async function main() {
       res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
       const body = await webRes.text();
       return res.end(body);
+    }
+
+    // Health check endpoint (scheduled job)
+    if (url === "/v1/internal/health-check" && req.method === "POST") {
+      const startTime = Date.now();
+
+      try {
+        const db = getFirestore();
+        const { runHealthCheck } = await import("./modules/gridbot-monitor.js");
+
+        // Find active users (same pattern as cleanup/wake)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const keysSnapshot = await db
+          .collection("apiKeys")
+          .where("lastUsedAt", ">=", sevenDaysAgo)
+          .get();
+
+        const activeUserIds = new Set<string>();
+        for (const doc of keysSnapshot.docs) {
+          const userId = doc.data().userId;
+          if (userId) activeUserIds.add(userId);
+        }
+
+        const results = [];
+        for (const userId of activeUserIds) {
+          const result = await runHealthCheck(userId);
+          results.push({ userId: userId.substring(0, 8) + "...", ...result });
+        }
+
+        const duration = Date.now() - startTime;
+        return sendJson(res, 200, {
+          success: true,
+          activeUsers: activeUserIds.size,
+          results,
+          duration_ms: duration,
+        });
+      } catch (error) {
+        console.error("[HealthCheck] Health check failed:", error);
+        return sendJson(res, 500, {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     // Main MCP endpoint
