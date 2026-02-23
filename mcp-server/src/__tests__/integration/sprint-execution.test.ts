@@ -128,6 +128,10 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
+      // Ensure document is fully committed before updating
+      let sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      expect(sprintDoc.exists).toBe(true);
+
       // Transition to active
       await db.collection(`users/${userId}/sprints`).doc(sprintId).update({
         stories: [
@@ -144,7 +148,7 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
-      let sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
       let story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("active");
@@ -196,6 +200,10 @@ describe("Sprint Execution Integration", () => {
           },
         ],
       });
+
+      // Ensure document exists before updating
+      let sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      expect(sprintDoc.exists).toBe(true);
 
       // Mark as failed
       await db.collection(`users/${userId}/sprints`).doc(sprintId).update({
@@ -263,6 +271,7 @@ describe("Sprint Execution Integration", () => {
 
       // Check wave 0 is complete
       let sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      expect(sprintDoc.exists).toBe(true);
       let data = sprintDoc.data();
       const wave0Stories = data?.stories.filter((s: any) => s.wave === 0);
       const allWave0Complete = wave0Stories.every((s: any) => s.status === "complete");
@@ -326,6 +335,7 @@ describe("Sprint Execution Integration", () => {
 
       // Calculate summary
       const sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      expect(sprintDoc.exists).toBe(true);
       const stories = sprintDoc.data()?.stories || [];
       const summary = {
         completed: stories.filter((s: any) => s.status === "complete").length,
@@ -366,6 +376,10 @@ describe("Sprint Execution Integration", () => {
           { id: "s1", title: "Story 1", status: "complete", wave: 0, complexity: "normal" },
         ],
       });
+
+      // Ensure document exists
+      let sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      expect(sprintDoc.exists).toBe(true);
 
       // Simulate some time passing
       await new Promise((resolve) => setTimeout(resolve, 100));
