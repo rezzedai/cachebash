@@ -24,7 +24,6 @@ export type EventType =
   | "SESSION_ENDED"
   | "PROGRAM_WAKE"
   | "STATE_DECAY";
-
 export type TaskClass = "WORK" | "CONTROL";
 
 export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";

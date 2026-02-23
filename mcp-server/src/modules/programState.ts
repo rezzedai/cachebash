@@ -125,6 +125,99 @@ function canWrite(auth: AuthContext, targetProgramId: string): boolean {
   return auth.programId === targetProgramId;
 }
 
+
+interface DecayResult {
+  state: any;
+  decayed: boolean;
+  patternsMarkedStale: number;
+  contextCleared: boolean;
+}
+
+function applyDecay(state: any): DecayResult {
+  const decay = state.decay || {};
+  const now = Date.now();
+  let decayed = false;
+  let patternsMarkedStale = 0;
+  let contextCleared = false;
+
+  // 1. Context Summary TTL
+  const contextTTLDays = decay.contextSummaryTTLDays || 7;
+  if (state.contextSummary?.lastTask) {
+    const lastTask = state.contextSummary.lastTask;
+    // Only clear if task was completed (not in-progress or blocked)
+    if (lastTask.outcome === "completed") {
+      // Check if lastTask has a timestamp we can use
+      // The contextSummary doesn't have a direct timestamp, so use lastUpdatedAt from the state
+      const lastUpdated = state.lastUpdatedAt;
+      if (lastUpdated) {
+        const updatedAt = typeof lastUpdated === 'string' ? new Date(lastUpdated).getTime() :
+                          lastUpdated._seconds ? lastUpdated._seconds * 1000 :
+                          lastUpdated.toDate ? lastUpdated.toDate().getTime() : 0;
+        const ttlMs = contextTTLDays * 24 * 60 * 60 * 1000;
+        if (updatedAt > 0 && (now - updatedAt) > ttlMs) {
+          state.contextSummary = {
+            lastTask: null,
+            activeWorkItems: [],
+            handoffNotes: "",
+            openQuestions: [],
+          };
+          contextCleared = true;
+          decayed = true;
+        }
+      }
+    }
+  }
+
+  // 2. Learned Pattern Max Age
+  const maxAgeDays = decay.learnedPatternMaxAge || 30;
+  const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+  if (Array.isArray(state.learnedPatterns)) {
+    for (const pattern of state.learnedPatterns) {
+      if (pattern.stale) continue; // already stale
+      if (pattern.promotedToStore) continue; // promoted patterns don't decay
+      const reinforced = new Date(pattern.lastReinforced).getTime();
+      if (!isNaN(reinforced) && (now - reinforced) > maxAgeMs) {
+        pattern.stale = true;
+        patternsMarkedStale++;
+        decayed = true;
+      }
+    }
+  }
+
+  // 3. Max Unpromoted Patterns (already enforced on write, but also enforce on read for consistency)
+  const maxUnpromoted = decay.maxUnpromotedPatterns || 50;
+  if (Array.isArray(state.learnedPatterns)) {
+    const unpromoted = state.learnedPatterns.filter((p: any) => !p.promotedToStore && !p.stale);
+    if (unpromoted.length > maxUnpromoted) {
+      unpromoted.sort((a: any, b: any) => a.confidence - b.confidence);
+      const excess = unpromoted.slice(0, unpromoted.length - maxUnpromoted);
+      for (const p of excess) {
+        p.stale = true;
+        patternsMarkedStale++;
+        decayed = true;
+      }
+    }
+  }
+
+  // Update decay metadata
+  if (decayed) {
+    state.decay = {
+      ...decay,
+      lastDecayRun: new Date().toISOString(),
+      decayLog: [
+        ...(decay.decayLog || []).slice(-9), // keep last 10 entries
+        {
+          timestamp: new Date().toISOString(),
+          patternsMarkedStale,
+          contextCleared,
+        },
+      ],
+    };
+  }
+
+  return { state, decayed, patternsMarkedStale, contextCleared };
+}
+
 export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetProgramStateSchema.parse(rawArgs);
 
@@ -137,7 +230,8 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   }
 
   const db = getFirestore();
-  const doc = await db.doc(`users/${auth.userId}/sessions/_meta/program_state/${args.programId}`).get();
+  const docRef = db.doc(`users/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const doc = await docRef.get();
 
   if (!doc.exists) {
     return jsonResult({
@@ -150,11 +244,34 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
 
   const data = doc.data()!;
 
+  // Apply decay before returning state
+  const { state: decayedState, decayed, patternsMarkedStale, contextCleared } = applyDecay({ ...data });
+
+  // Write decayed state back to Firestore if anything changed (merge update)
+  if (decayed) {
+    const { emitEvent } = await import("./events.js");
+    
+    // Merge update — only write changed fields
+    await docRef.update({
+      contextSummary: decayedState.contextSummary,
+      learnedPatterns: decayedState.learnedPatterns,
+      decay: decayedState.decay,
+    });
+    
+    emitEvent(auth.userId, {
+      event_type: "STATE_DECAY" as any,
+      program_id: args.programId,
+      patterns_decayed: patternsMarkedStale,
+      patterns_remaining: (decayedState.learnedPatterns || []).filter((p: any) => !p.stale).length,
+      context_cleared: contextCleared,
+    });
+  }
+
   return jsonResult({
     success: true,
     exists: true,
-    state: data,
-    message: `State loaded for "${args.programId}".`,
+    state: decayedState,
+    message: `State loaded for "${args.programId}".${decayed ? ` Decay applied: ${patternsMarkedStale} patterns marked stale${contextCleared ? ', context cleared' : ''}.` : ''}`,
   });
 }
 
