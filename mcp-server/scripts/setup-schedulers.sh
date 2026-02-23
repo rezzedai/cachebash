@@ -71,5 +71,51 @@ gcloud scheduler jobs update http cachebash-ttl-reaper \
   --attempt-deadline="60s"
 
 echo ""
+echo "=== Creating GitHub reconciliation scheduler (every 15min) ==="
+gcloud scheduler jobs create http cachebash-github-reconcile \
+  --schedule="*/15 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/reconcile-github" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="GitHub Reconciliation: retries failed GitHub sync operations" \
+  --attempt-deadline="120s" 2>/dev/null || \
+gcloud scheduler jobs update http cachebash-github-reconcile \
+  --schedule="*/15 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/reconcile-github" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="GitHub Reconciliation: retries failed GitHub sync operations" \
+  --attempt-deadline="120s"
+
+echo ""
+echo "=== Creating health check scheduler (every 5min) ==="
+gcloud scheduler jobs create http cachebash-health-check \
+  --schedule="*/5 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/health-check" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="GRIDBOT Health Check: monitors 6 health indicators, routes alerts" \
+  --attempt-deadline="60s" 2>/dev/null || \
+gcloud scheduler jobs update http cachebash-health-check \
+  --schedule="*/5 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/health-check" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="GRIDBOT Health Check: monitors 6 health indicators, routes alerts" \
+  --attempt-deadline="60s"
+
+echo ""
 echo "=== Done. Verify with: ==="
 echo "gcloud scheduler jobs list --location=$REGION --project=$PROJECT"
