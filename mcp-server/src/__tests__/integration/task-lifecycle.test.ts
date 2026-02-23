@@ -37,8 +37,8 @@ describe("Task Lifecycle Integration", () => {
         type: "task",
         priority: "normal",
         action: "queue",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         status: "created",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -52,8 +52,8 @@ describe("Task Lifecycle Integration", () => {
       expect(data?.title).toBe("Test Task");
       expect(data?.instructions).toBe("Do something");
       expect(data?.status).toBe("created");
-      expect(data?.source).toBe("iso");
-      expect(data?.target).toBe("basher");
+      expect(data?.source).toBe("orchestrator");
+      expect(data?.target).toBe("builder");
       expect(data?.createdAt).toBeDefined();
     });
 
@@ -64,8 +64,8 @@ describe("Task Lifecycle Integration", () => {
         type: "task",
         priority: "normal",
         action: "queue",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         status: "created",
         projectId: "test-project",
         threadId: "thread-123",
@@ -91,8 +91,8 @@ describe("Task Lifecycle Integration", () => {
         title: "Claimable Task",
         type: "task",
         status: "created",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -119,8 +119,8 @@ describe("Task Lifecycle Integration", () => {
         title: "Contentious Task",
         type: "task",
         status: "created",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -170,8 +170,8 @@ describe("Task Lifecycle Integration", () => {
         title: "Completable Task",
         type: "task",
         status: "active",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         claimedAt: admin.firestore.FieldValue.serverTimestamp(),
         sessionId: "session-123",
@@ -208,8 +208,8 @@ describe("Task Lifecycle Integration", () => {
         title: "Failing Task",
         type: "task",
         status: "active",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         claimedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -243,8 +243,8 @@ describe("Task Lifecycle Integration", () => {
         title: "Expired Task",
         type: "task",
         status: "created",
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         expiresAt: pastTimestamp,
       });
@@ -273,8 +273,8 @@ describe("Task Lifecycle Integration", () => {
           title: `Budget Task ${task.id}`,
           type: "task",
           status: "done",
-          source: "iso",
-          target: "basher",
+          source: "orchestrator",
+          target: "builder",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           completedAt: admin.firestore.FieldValue.serverTimestamp(),
           completed_status: "SUCCESS",

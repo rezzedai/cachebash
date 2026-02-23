@@ -151,7 +151,7 @@ export async function runHealthCheck(
         alertType: "error",
         priority: "high",
         source: "gridbot",
-        target: "flynn",
+        target: "admin",
         status: "pending",
         type: "alert",
         expiresAt: admin.firestore.Timestamp.fromDate(
@@ -195,7 +195,7 @@ export async function runHealthCheck(
       await firestore.collection(`users/${userId}/relay`).add({
         message: warningMessage,
         source: "gridbot",
-        target: "iso",
+        target: "orchestrator",
         message_type: "STATUS",
         status: "pending",
         priority: "normal",

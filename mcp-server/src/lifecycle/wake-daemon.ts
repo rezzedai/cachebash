@@ -263,7 +263,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
           const alertRef = await db.collection(`users/${userId}/relay`).add({
             message: alertMessage,
             source: "wake-daemon",
-            target: "flynn",
+            target: "admin",
             message_type: "STATUS",
             status: "pending",
             ttl: TTL_SECONDS,
@@ -280,7 +280,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             instructions: alertMessage,
             preview,
             source: "wake-daemon",
-            target: "flynn",
+            target: "admin",
             status: "created",
             priority: "high",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
