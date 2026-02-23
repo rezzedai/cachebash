@@ -57,7 +57,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const failureRateIndicator = result.indicators.find(
         (i) => i.name === "task_failure_rate"
       );
@@ -99,7 +99,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const failureRateIndicator = result.indicators.find(
         (i) => i.name === "task_failure_rate"
       );
@@ -142,7 +142,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const failureRateIndicator = result.indicators.find(
         (i) => i.name === "task_failure_rate"
       );
@@ -177,7 +177,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const staleTaskIndicator = result.indicators.find(
         (i) => i.name === "stale_task_count"
       );
@@ -205,7 +205,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "relay", pendingMessages);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const relayIndicator = result.indicators.find(
         (i) => i.name === "relay_queue_depth"
       );
@@ -236,7 +236,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "events", events);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
       const deathIndicator = result.indicators.find(
         (i) => i.name === "session_death_count"
       );
@@ -280,7 +280,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
 
       expect(result.overall_status).toBe("critical");
     });
@@ -302,13 +302,13 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
 
       expect(result.overall_status).toBe("warning");
     });
 
     it("should report overall status as OK when all indicators are healthy", async () => {
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
 
       expect(result.overall_status).toBe("ok");
     });
@@ -316,7 +316,7 @@ describe("Health Monitoring Integration", () => {
 
   describe("Alert Routing", () => {
     it("should include alert routing information in result", async () => {
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
 
       expect(result).toHaveProperty("alerts_sent");
       expect(Array.isArray(result.alerts_sent)).toBe(true);
@@ -355,7 +355,7 @@ describe("Health Monitoring Integration", () => {
 
       await seedTestData(userId, "tasks", tasks);
 
-      const result = await runHealthCheck(userId);
+      const result = await runHealthCheck(userId, db);
 
       // Check if critical alert was attempted
       expect(result.overall_status).toBe("critical");
