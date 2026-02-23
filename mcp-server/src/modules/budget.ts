@@ -123,3 +123,46 @@ export async function budgetSummaryHandler(auth: AuthContext, _rawArgs: unknown)
 
   return jsonResult({ success: true, periods });
 }
+
+/**
+ * Check if a dream is within its budget cap.
+ * Returns current consumption and remaining budget.
+ */
+export async function checkDreamBudget(userId: string, dreamId: string): Promise<{
+  withinBudget: boolean;
+  consumed: number;
+  cap: number;
+  remaining: number;
+}> {
+  const db = getFirestore();
+  const dreamRef = db.doc(`users/${userId}/tasks/${dreamId}`);
+  
+  const doc = await dreamRef.get();
+  if (!doc.exists) {
+    throw new Error(`Dream task ${dreamId} not found`);
+  }
+  
+  const data = doc.data()!;
+  const consumed = data.dream?.budget_consumed_usd || 0;
+  const cap = data.dream?.budget_cap_usd || 0;
+  
+  return {
+    withinBudget: consumed < cap,
+    consumed,
+    cap,
+    remaining: Math.max(0, cap - consumed),
+  };
+}
+
+/**
+ * Update dream budget consumption atomically.
+ * Uses Firestore FieldValue.increment() for safe concurrent updates.
+ */
+export async function updateDreamConsumption(userId: string, dreamId: string, costDelta: number): Promise<void> {
+  const db = getFirestore();
+  const dreamRef = db.doc(`users/${userId}/tasks/${dreamId}`);
+  
+  await dreamRef.update({
+    "dream.budget_consumed_usd": admin.firestore.FieldValue.increment(costDelta),
+  });
+}
