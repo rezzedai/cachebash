@@ -12,7 +12,7 @@ import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
 import { validateAuth, type AuthContext } from "./auth/apiKeyValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
-import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits } from "./middleware/rateLimiter.js";
+import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits, checkToolRateLimit, getToolRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
@@ -84,6 +84,11 @@ async function main() {
       return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
     }
 
+    // Per-tool rate limit (SARK Phase 4: tighter limits on state writes)
+    if (!checkToolRateLimit(auth.userId, name, auth.programId)) {
+      const resetIn = getToolRateLimitResetIn(auth.userId, name, auth.programId);
+      return { content: [{ type: "text", text: `Tool rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
+    }
     // Phase 4: Capability gate
     const { checkToolCapability } = await import("./middleware/capabilities.js");
     const capCheck = checkToolCapability(name, auth.capabilities);

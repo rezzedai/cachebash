@@ -135,3 +135,55 @@ export function cleanupRateLimits(): void {
     }
   }
 }
+
+// Per-tool rate limits (overrides generic category limit)
+// Key: tool name, Value: { limit: requests per minute, scope: "user" | "program" }
+const TOOL_RATE_LIMITS: Record<string, { limit: number; scope: string }> = {
+  update_program_state: { limit: 10, scope: "program" }, // 10 writes/min per program
+};
+
+/**
+ * Check tool-specific rate limit (tighter than category limit).
+ * Returns true if allowed, false if rate limited.
+ * Only applies to tools in TOOL_RATE_LIMITS table.
+ */
+export function checkToolRateLimit(userId: string, tool: string, programId: string): boolean {
+  const toolLimit = TOOL_RATE_LIMITS[tool];
+  if (!toolLimit) return true; // No tool-specific limit
+
+  const key = toolLimit.scope === "program"
+    ? `${userId}:tool:${tool}:${programId}`
+    : `${userId}:tool:${tool}`;
+
+  const now = Date.now();
+  const entry = rateLimits.get(key) || { timestamps: [] };
+  entry.timestamps = entry.timestamps.filter(ts => now - ts < WINDOW_MS);
+
+  if (entry.timestamps.length >= toolLimit.limit) {
+    return false;
+  }
+
+  entry.timestamps.push(now);
+  rateLimits.set(key, entry);
+  return true;
+}
+
+/**
+ * Get seconds until tool-specific rate limit resets.
+ */
+export function getToolRateLimitResetIn(userId: string, tool: string, programId: string): number {
+  const toolLimit = TOOL_RATE_LIMITS[tool];
+  if (!toolLimit) return 0;
+
+  const key = toolLimit.scope === "program"
+    ? `${userId}:tool:${tool}:${programId}`
+    : `${userId}:tool:${tool}`;
+
+  const entry = rateLimits.get(key);
+  if (!entry || entry.timestamps.length === 0) return 0;
+
+  const now = Date.now();
+  const oldestTimestamp = entry.timestamps[0];
+  const resetMs = oldestTimestamp + WINDOW_MS - now;
+  return Math.ceil(resetMs / 1000);
+}
