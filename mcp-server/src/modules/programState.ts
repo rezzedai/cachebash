@@ -1,11 +1,11 @@
 /**
- * Program State Module — Persistent operational memory for Grid programs.
+ * Program State Module — Persistent operational memory for programs.
  * Collection: users/{uid}/sessions/_meta/program_state/{programId}
  */
 
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/apiKeyValidator.js";
-import { isGridProgram } from "../config/programs.js";
+import { isRegisteredProgram } from "../config/programs.js";
 import { verifySource } from "../middleware/gate.js";
 import { z } from "zod";
 import type { ProgramState } from "../types/programState.js";
@@ -106,19 +106,19 @@ function defaultState(programId: string, sessionId: string): ProgramState {
 /**
  * Access control:
  * - Programs can read their own state
- * - SARK can read any program's state (audit)
- * - ISO/Flynn (legacy/mobile) can read any program's state
+ * - Auditor can read any program's state (audit)
+ * - Admin (legacy/mobile) can read any program's state
  */
 function canRead(auth: AuthContext, targetProgramId: string): boolean {
   if (auth.programId === "legacy" || auth.programId === "mobile") return true;
-  if (auth.programId === "iso" || auth.programId === "sark") return true;
+  if (auth.programId === "orchestrator" || auth.programId === "auditor") return true;
   return auth.programId === targetProgramId;
 }
 
 /**
  * Access control:
  * - Programs can only write their own state
- * - Legacy/mobile (Flynn) can write any state
+ * - Admin (legacy/mobile) can write any state
  */
 function canWrite(auth: AuthContext, targetProgramId: string): boolean {
   if (auth.programId === "legacy" || auth.programId === "mobile") return true;
@@ -221,7 +221,7 @@ function applyDecay(state: any): DecayResult {
 export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetProgramStateSchema.parse(rawArgs);
 
-  if (!isGridProgram(args.programId)) {
+  if (!isRegisteredProgram(args.programId)) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -229,7 +229,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read state for "${args.programId}"` });
   }
 
-  // Audit cross-program state reads (SARK Phase 4: transparency on state access)
+  // Audit cross-program state reads (transparency on state access)
   if (auth.programId !== args.programId) {
     const { emitEvent } = await import("./events.js");
     emitEvent(auth.userId, {
@@ -289,7 +289,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
 export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UpdateProgramStateSchema.parse(rawArgs);
 
-  if (!isGridProgram(args.programId)) {
+  if (!isRegisteredProgram(args.programId)) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 

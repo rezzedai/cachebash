@@ -142,7 +142,7 @@ export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): P
     });
   }
 
-  if (data.status === "derezzed") {
+  if (data.status === "archived") {
     return jsonResult({
       success: true,
       answered: false,

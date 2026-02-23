@@ -1,7 +1,7 @@
 /**
  * Cleanup expired sessions.
- * Runs every 5 minutes. Transitions sessions without heartbeat for 65+ minutes to derezzed.
- * Emits relay message to ISO for each reaped session.
+ * Runs every 5 minutes. Transitions sessions without heartbeat for 65+ minutes to archived.
+ * Emits relay message to the orchestrator for each reaped session.
  */
 
 import * as functions from "firebase-functions";
@@ -52,7 +52,7 @@ export const cleanupExpiredSessions = functions.pubsub
 
         // Update session to derezzed
         batch.update(doc.ref, {
-          status: "derezzed",
+          status: "archived",
           archived: true,
           archivedAt: admin.firestore.FieldValue.serverTimestamp(),
           endedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -64,7 +64,7 @@ export const cleanupExpiredSessions = functions.pubsub
         const relayRef = db.collection("users").doc(userId).collection("relay").doc();
         batch.set(relayRef, {
           source: "system",
-          target: "iso",
+          target: "orchestrator",
           message_type: "STATUS",
           message: `Session ${sessionId} (${programId}) reaped — no heartbeat for ${minutesSinceHeartbeat} minutes`,
           priority: "normal",

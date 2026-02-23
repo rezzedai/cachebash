@@ -96,7 +96,7 @@ export function storyStatusToLifecycle(status: string): string {
     case "active": return "active";
     case "complete": return "done";
     case "failed": return "failed";
-    case "skipped": return "derezzed";
+    case "skipped": return "archived";
     default: return "created";
   }
 }
@@ -350,7 +350,7 @@ export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown)
       const s = doc.data().status;
       if (s === "done") completed++;
       else if (s === "failed") failed++;
-      else if (s === "derezzed") skipped++;
+      else if (s === "archived") skipped++;
     }
     summary = { completed, failed, skipped };
   }

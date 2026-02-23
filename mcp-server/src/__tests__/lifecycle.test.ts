@@ -14,7 +14,7 @@ const ALL_STATUSES: LifecycleStatus[] = [
   "completing",
   "done",
   "failed",
-  "derezzed",
+  "archived",
 ];
 
 const ALL_ENTITY_TYPES: EntityType[] = ["task", "session", "dream", "sprint-story"];
@@ -25,19 +25,19 @@ describe("Lifecycle Engine", () => {
       const valid: [LifecycleStatus, LifecycleStatus][] = [
         ["created", "active"],
         ["created", "failed"],
-        ["created", "derezzed"],
+        ["created", "archived"],
         ["active", "blocked"],
         ["active", "completing"],
         ["active", "done"],
         ["active", "failed"],
         ["blocked", "active"],
         ["blocked", "failed"],
-        ["blocked", "derezzed"],
+        ["blocked", "archived"],
         ["completing", "done"],
         ["completing", "failed"],
-        ["done", "derezzed"],
+        ["done", "archived"],
         ["failed", "created"],
-        ["failed", "derezzed"],
+        ["failed", "archived"],
       ];
 
       it.each(valid)("allows %s → %s", (from, to) => {
@@ -59,9 +59,9 @@ describe("Lifecycle Engine", () => {
         ["done", "failed"],
         ["failed", "active"],
         ["failed", "blocked"],
-        ["derezzed", "created"],
-        ["derezzed", "active"],
-        ["derezzed", "failed"],
+        ["archived", "created"],
+        ["archived", "active"],
+        ["archived", "failed"],
       ];
 
       it.each(invalid)("rejects %s → %s", (from, to) => {
@@ -77,8 +77,8 @@ describe("Lifecycle Engine", () => {
         ["active", "failed"],
         ["blocked", "active"],
         ["blocked", "failed"],
-        ["done", "derezzed"],
-        ["failed", "derezzed"],
+        ["done", "archived"],
+        ["failed", "archived"],
       ];
 
       it.each(valid)("allows %s → %s", (from, to) => {
@@ -106,8 +106,8 @@ describe("Lifecycle Engine", () => {
         ["active", "failed"],
         ["completing", "done"],
         ["completing", "failed"],
-        ["done", "derezzed"],
-        ["failed", "derezzed"],
+        ["done", "archived"],
+        ["failed", "archived"],
       ];
 
       it.each(valid)("allows %s → %s", (from, to) => {
@@ -142,9 +142,9 @@ describe("Lifecycle Engine", () => {
         ["blocked", "failed"],
         ["completing", "done"],
         ["completing", "failed"],
-        ["done", "derezzed"],
+        ["done", "archived"],
         ["failed", "created"],
-        ["failed", "derezzed"],
+        ["failed", "archived"],
       ];
 
       it.each(valid)("allows %s → %s", (from, to) => {
@@ -190,10 +190,10 @@ describe("Lifecycle Engine", () => {
     });
   });
 
-  describe("derezzed is terminal for all entity types", () => {
-    it.each(ALL_ENTITY_TYPES)("%s: derezzed has no outbound transitions", (entityType) => {
+  describe("archived is terminal for all entity types", () => {
+    it.each(ALL_ENTITY_TYPES)("%s: archived has no outbound transitions", (entityType) => {
       for (const to of ALL_STATUSES) {
-        expect(validateTransition(entityType, "derezzed", to)).toBe(false);
+        expect(validateTransition(entityType, "archived", to)).toBe(false);
       }
     });
   });
