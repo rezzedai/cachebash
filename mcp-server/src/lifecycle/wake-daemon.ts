@@ -7,6 +7,7 @@
 import { getFirestore } from "../firebase/client.js";
 import { SPAWNABLE_PROGRAMS, type ProgramLaunchConfig } from "../config/launch.js";
 import { emitEvent } from "../modules/events.js";
+import * as admin from "firebase-admin";
 
 export interface WakeDetail {
   programId: string;
@@ -27,6 +28,10 @@ export interface WakeResult {
 // Track consecutive host failures for ADD-003 health check
 let consecutiveHostFailures = 0;
 const HOST_FAILURE_ALERT_THRESHOLD = 3;
+
+// GAP-001b: Track per-program spawn failures for GRIDBOT monitoring
+const programSpawnFailures = new Map<string, number>();
+const PROGRAM_SPAWN_FAILURE_THRESHOLD = 3;
 
 const WAKE_HOST_URL = process.env.WAKE_HOST_URL || "http://localhost:7777";
 
@@ -170,6 +175,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       .get();
 
     if (!sessionsSnapshot.empty) {
+      // Program has an active session — reset failure counter
+      programSpawnFailures.set(programId, 0);
       result.details.push({
         programId,
         pendingTasks: pendingCount,
@@ -183,6 +190,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
     const spawned = await spawnProgram(programId, config);
 
     if (spawned) {
+      // Successful spawn — reset failure counter
+      programSpawnFailures.set(programId, 0);
       result.details.push({
         programId,
         pendingTasks: pendingCount,
@@ -198,6 +207,10 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
         wake_action: "spawned",
       });
     } else {
+      // Spawn failed — increment failure counter
+      const failCount = (programSpawnFailures.get(programId) || 0) + 1;
+      programSpawnFailures.set(programId, failCount);
+
       result.details.push({
         programId,
         pendingTasks: pendingCount,
@@ -211,7 +224,48 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
         program_id: programId,
         pending_tasks: pendingCount,
         wake_action: "spawn_failed",
+        consecutive_failures: failCount,
       });
+
+      // GAP-001b: Alert Flynn after threshold
+      if (failCount >= PROGRAM_SPAWN_FAILURE_THRESHOLD) {
+        const alertMessage = `Wake daemon: ${programId} failed to spawn ${failCount} consecutive times. ${pendingCount} tasks waiting. Auto-spawn may be broken for this program.`;
+        const TTL_SECONDS = 3600;
+        const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
+        const preview = alertMessage.substring(0, 47) + "...";
+
+        try {
+          const alertRef = await db.collection(`users/${userId}/relay`).add({
+            message: alertMessage,
+            source: "wake-daemon",
+            target: "flynn",
+            message_type: "STATUS",
+            status: "pending",
+            ttl: TTL_SECONDS,
+            expiresAt,
+            alertType: "error",
+            context: `program:${programId},failures:${failCount}`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Also write to tasks for mobile visibility
+          await db.collection(`users/${userId}/tasks`).doc(alertRef.id).set({
+            type: "task",
+            title: `[Alert: error] ${preview}`,
+            instructions: alertMessage,
+            preview,
+            source: "wake-daemon",
+            target: "flynn",
+            status: "created",
+            priority: "high",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.warn(`[WakeDaemon] Alert sent: ${programId} spawn failure threshold reached (${failCount})`);
+        } catch (err) {
+          console.error(`[WakeDaemon] Failed to send alert for ${programId}:`, err);
+        }
+      }
     }
   }
 
