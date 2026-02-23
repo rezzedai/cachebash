@@ -27,7 +27,9 @@ export type EventType =
   | "BUDGET_EXCEEDED"
   | "BUDGET_WARNING"
   | "GITHUB_SYNC_FAILED"
-  | "GITHUB_SYNC_RECONCILED";
+  | "GITHUB_SYNC_RECONCILED"
+  | "HEALTH_WARNING"
+  | "HEALTH_CRITICAL";
 export type TaskClass = "WORK" | "CONTROL";
 
 export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
