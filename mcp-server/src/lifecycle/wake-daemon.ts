@@ -12,6 +12,7 @@ import * as admin from "firebase-admin";
 export interface WakeDetail {
   programId: string;
   pendingTasks: number;
+  pendingMessages: number;
   action: "spawned" | "already_active" | "not_spawnable" | "spawn_failed" | "host_unreachable";
   error?: string;
 }
@@ -80,7 +81,7 @@ async function spawnProgram(programId: string, config: ProgramLaunchConfig): Pro
 
 /**
  * Core wake daemon loop. Called by Cloud Scheduler every 60 seconds.
- * 1. Query tasks in created status, group by target
+ * 1. Query tasks in created status AND pending relay messages, group by target
  * 2. For each target: check if active session exists
  * 3. If no session: attempt spawn via host listener
  * 4. Emit telemetry events
@@ -96,27 +97,44 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
     details: [],
   };
 
-  // Step 1: Find all created tasks grouped by target
-  const tasksSnapshot = await db
-    .collection(`users/${userId}/tasks`)
-    .where("status", "==", "created")
-    .limit(200)
-    .get();
+  // Step 1: Find all created tasks AND pending relay messages
+  const [tasksSnapshot, relaySnapshot] = await Promise.all([
+    db.collection(`users/${userId}/tasks`)
+      .where("status", "==", "created")
+      .limit(200)
+      .get(),
+    db.collection(`users/${userId}/relay`)
+      .where("status", "==", "pending")
+      .limit(200)
+      .get(),
+  ]);
 
-  if (tasksSnapshot.empty) {
-    return result;
-  }
+  // Build unified signal map: tasks + relay messages per target
+  const pendingByProgram = new Map<string, { tasks: number; messages: number }>();
 
-  // Group by target program
-  const tasksByTarget = new Map<string, number>();
   for (const doc of tasksSnapshot.docs) {
     const target = doc.data().target as string;
     if (target) {
-      tasksByTarget.set(target, (tasksByTarget.get(target) || 0) + 1);
+      const entry = pendingByProgram.get(target) || { tasks: 0, messages: 0 };
+      entry.tasks++;
+      pendingByProgram.set(target, entry);
     }
   }
 
-  result.checked = tasksByTarget.size;
+  for (const doc of relaySnapshot.docs) {
+    const target = doc.data().target as string;
+    if (target) {
+      const entry = pendingByProgram.get(target) || { tasks: 0, messages: 0 };
+      entry.messages++;
+      pendingByProgram.set(target, entry);
+    }
+  }
+
+  if (pendingByProgram.size === 0) {
+    return result;
+  }
+
+  result.checked = pendingByProgram.size;
 
   // Step 2: Check host health (ADD-003)
   const hostHealthy = await checkHostHealth();
@@ -137,10 +155,11 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
     }
 
     // Enter degraded mode — log all as skipped_host_down
-    for (const [programId, count] of tasksByTarget) {
+    for (const [programId, pending] of pendingByProgram) {
       result.details.push({
         programId,
-        pendingTasks: count,
+        pendingTasks: pending.tasks,
+        pendingMessages: pending.messages,
         action: "host_unreachable",
       });
       result.failed++;
@@ -152,14 +171,15 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
   consecutiveHostFailures = 0;
 
   // Step 3: For each target, check for active sessions
-  for (const [programId, pendingCount] of tasksByTarget) {
+  for (const [programId, pending] of pendingByProgram) {
     const config = SPAWNABLE_PROGRAMS.get(programId);
 
     // Not a spawnable program
     if (!config) {
       result.details.push({
         programId,
-        pendingTasks: pendingCount,
+        pendingTasks: pending.tasks,
+        pendingMessages: pending.messages,
         action: "not_spawnable",
       });
       result.skipped++;
@@ -179,7 +199,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       programSpawnFailures.set(programId, 0);
       result.details.push({
         programId,
-        pendingTasks: pendingCount,
+        pendingTasks: pending.tasks,
+        pendingMessages: pending.messages,
         action: "already_active",
       });
       result.skipped++;
@@ -194,7 +215,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       programSpawnFailures.set(programId, 0);
       result.details.push({
         programId,
-        pendingTasks: pendingCount,
+        pendingTasks: pending.tasks,
+        pendingMessages: pending.messages,
         action: "spawned",
       });
       result.woken++;
@@ -203,7 +225,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       emitEvent(userId, {
         event_type: "PROGRAM_WAKE",
         program_id: programId,
-        pending_tasks: pendingCount,
+        pending_tasks: pending.tasks,
+        pending_messages: pending.messages,
         wake_action: "spawned",
       });
     } else {
@@ -213,7 +236,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
 
       result.details.push({
         programId,
-        pendingTasks: pendingCount,
+        pendingTasks: pending.tasks,
+        pendingMessages: pending.messages,
         action: "spawn_failed",
         error: "Host listener returned non-OK response",
       });
@@ -222,14 +246,15 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       emitEvent(userId, {
         event_type: "PROGRAM_WAKE",
         program_id: programId,
-        pending_tasks: pendingCount,
+        pending_tasks: pending.tasks,
+        pending_messages: pending.messages,
         wake_action: "spawn_failed",
         consecutive_failures: failCount,
       });
 
       // GAP-001b: Alert Flynn after threshold
       if (failCount >= PROGRAM_SPAWN_FAILURE_THRESHOLD) {
-        const alertMessage = `Wake daemon: ${programId} failed to spawn ${failCount} consecutive times. ${pendingCount} tasks waiting. Auto-spawn may be broken for this program.`;
+        const alertMessage = `Wake daemon: ${programId} failed to spawn ${failCount} consecutive times. ${pending.tasks} tasks and ${pending.messages} messages waiting. Auto-spawn may be broken for this program.`;
         const TTL_SECONDS = 3600;
         const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
         const preview = alertMessage.substring(0, 47) + "...";
