@@ -229,6 +229,17 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read state for "${args.programId}"` });
   }
 
+  // Audit cross-program state reads (SARK Phase 4: transparency on state access)
+  if (auth.programId !== args.programId) {
+    const { emitEvent } = await import("./events.js");
+    emitEvent(auth.userId, {
+      event_type: "STATE_CROSS_READ" as any,
+      program_id: auth.programId,
+      target_program: args.programId,
+      reader_role: auth.programId,
+    });
+  }
+
   const db = getFirestore();
   const docRef = db.doc(`users/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
   const doc = await docRef.get();
