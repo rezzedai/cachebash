@@ -49,6 +49,9 @@ export async function dreamPeekHandler(auth: AuthContext, _rawArgs: unknown): Pr
 /**
  * Atomically activate a dream session.
  */
+/**
+ * Atomically activate a dream session.
+ */
 export async function dreamActivateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = z.object({ dreamId: z.string() }).parse(rawArgs);
   const db = getFirestore();
@@ -63,12 +66,25 @@ export async function dreamActivateHandler(auth: AuthContext, rawArgs: unknown):
       if (data.type !== "dream") return { error: "Not a dream task" };
       if (data.status !== "created") return { error: `Dream not activatable (status: ${data.status})` };
 
+      // Validate budget cap
+      const budgetCap = data.dream?.budget_cap_usd;
+      if (!budgetCap || budgetCap <= 0) {
+        return { error: "Dream must have a valid budget_cap_usd > 0" };
+      }
+
       transition("dream", "created", "active");
 
-      tx.update(dreamRef, {
+      const updateFields: Record<string, unknown> = {
         status: "active",
         startedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Initialize budget_consumed_usd if not set
+      if (data.dream?.budget_consumed_usd === undefined) {
+        updateFields["dream.budget_consumed_usd"] = 0;
+      }
+
+      tx.update(dreamRef, updateFields);
 
       return { data };
     });
