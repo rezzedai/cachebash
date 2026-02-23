@@ -8,6 +8,7 @@ import { AuthContext } from "../auth/apiKeyValidator.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
+import { emitAnalyticsEvent } from "./analytics.js";
 
 const CreateSessionSchema = z.object({
   name: z.string().max(200),
@@ -103,6 +104,15 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     await db.doc(`users/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
 
+  // Analytics: session_lifecycle create
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "session_lifecycle",
+    programId,
+    sessionId,
+    toolName: "create_session",
+    success: true,
+  });
+
   return jsonResult({ success: true, sessionId, message: `Session created: "${args.name}"` });
 }
 
@@ -154,6 +164,15 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     }
     await db.doc(`users/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
+
+  // Analytics: session_lifecycle update
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "session_lifecycle",
+    programId: auth.programId,
+    sessionId,
+    toolName: "update_session",
+    success: true,
+  });
 
   return jsonResult({ success: true, sessionId, message: `Status updated: "${args.status}"` });
 }

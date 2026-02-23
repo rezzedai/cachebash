@@ -13,6 +13,7 @@ import { z } from "zod";
 import { isGridProgram, isValidProgram, GRID_PROGRAMS, isGroupTarget } from "../config/programs.js";
 import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
 import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
+import { emitAnalyticsEvent } from "./analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "./budget.js";
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -210,6 +211,17 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     action: args.action,
   });
 
+  // Analytics: task_lifecycle create
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "task_lifecycle",
+    programId: verifiedSource,
+    toolName: "create_task",
+    taskType: args.type,
+    priority: args.priority,
+    action: args.action,
+    success: true,
+  });
+
   // Fire-and-forget: sync to GitHub Issues + Project board
   syncTaskCreated(
     auth.userId,
@@ -280,6 +292,18 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         program_id: auth.programId,
         session_id: args.sessionId || undefined,
         task_id: args.taskId,
+      });
+
+      // Analytics: task_lifecycle claim
+      emitAnalyticsEvent(auth.userId, {
+        eventType: "task_lifecycle",
+        programId: auth.programId,
+        sessionId: args.sessionId,
+        toolName: "claim_task",
+        taskType: result.data!.type as string,
+        priority: result.data!.priority as string,
+        action: result.data!.action as string,
+        success: true,
       });
     }
 
@@ -443,6 +467,16 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       error_class: args.error_class,
       prompt_hash: taskData.instructions ? computeHash(taskData.instructions) : undefined,
       config_hash: taskData.source ? computeHash(`${taskData.source}:${taskData.target}:${args.model || "unknown"}`) : undefined,
+    });
+
+    // Analytics: task_lifecycle complete
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "task_lifecycle",
+      programId: auth.programId,
+      toolName: "complete_task",
+      success: args.completed_status !== "FAILED",
+      errorCode: args.error_code,
+      errorClass: args.error_class,
     });
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
