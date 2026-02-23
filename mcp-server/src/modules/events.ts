@@ -13,6 +13,7 @@ export type EventType =
   | "TASK_FAILED"
   | "TASK_RETRIED"
   | "RELAY_DELIVERED"
+  | "TASK_RETRY_EXHAUSTED"
   | "RELAY_DEAD_LETTERED"
   | "GUARDIAN_CHECK"
   | "SUBAGENT_SPAWNED"
@@ -21,7 +22,8 @@ export type EventType =
   | "CLEANUP_RUN"
   | "SESSION_DEATH"
   | "SESSION_ENDED"
-  | "PROGRAM_WAKE";
+  | "PROGRAM_WAKE"
+  | "STATE_DECAY";
 
 export type TaskClass = "WORK" | "CONTROL";
 

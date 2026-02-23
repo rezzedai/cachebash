@@ -227,14 +227,44 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
       // Auto-retry: reset to created, increment count
       updateData.status = "created";
       updateData["retry.retryCount"] = retry.retryCount + 1;
+      
+      // Linear backoff: 30s * attempt number
+      const backoffMs = (retry.retryCount + 1) * 30000;
+      const retryAfter = new Date(Date.now() + backoffMs).toISOString();
+      updateData["retry.retryAfter"] = retryAfter;
+      
       updateData["retry.retryHistory"] = [
         ...(retry.retryHistory || []),
-        { attempt: retry.retryCount + 1, failedAt: new Date().toISOString() },
+        { 
+          attempt: retry.retryCount + 1, 
+          failedAt: new Date().toISOString(),
+        },
       ];
       delete updateData.completedAt;
+      
+      // Emit retry event
+      const { emitEvent } = await import("./events.js");
+      emitEvent(auth.userId, {
+        event_type: "TASK_RETRIED",
+        task_id: args.storyId,
+        program_id: auth.programId,
+        attempt: retry.retryCount + 1,
+        max_retries: retry.maxRetries,
+        sprint_id: args.sprintId,
+      });
     } else if (retry.policy === "escalate" || (retry.policy === "auto_retry" && retry.retryCount >= retry.maxRetries)) {
       // Escalate to ISO
       escalateToIso(auth, args.sprintId, args.storyId, storyData.title || args.storyId);
+      
+      // Emit exhaustion event
+      const { emitEvent } = await import("./events.js");
+      emitEvent(auth.userId, {
+        event_type: "TASK_RETRY_EXHAUSTED",
+        task_id: args.storyId,
+        program_id: auth.programId,
+        total_attempts: retry.retryCount,
+        sprint_id: args.sprintId,
+      });
     }
     // "none" policy: default behavior, just mark failed (already set above)
   }
