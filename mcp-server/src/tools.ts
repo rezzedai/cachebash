@@ -259,6 +259,8 @@ export const TOOL_DEFINITIONS = [
         progress: { type: "number", minimum: 0, maximum: 100 },
         projectName: { type: "string", maxLength: 100 },
         lastHeartbeat: { type: "boolean", description: "Also update heartbeat timestamp" },
+        contextBytes: { type: "number", minimum: 0, description: "Current context window usage in bytes (advisory, ALAN Decision #4)" },
+        handoffRequired: { type: "boolean", description: "True when context exceeds rotation threshold" },
       },
       required: ["status"],
     },
