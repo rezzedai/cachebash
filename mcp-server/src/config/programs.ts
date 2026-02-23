@@ -69,3 +69,7 @@ export const PROGRAM_REGISTRY: Partial<Record<GridProgramId, ProgramMeta>> = {
   codex:  { displayName: "CODEX",  color: "#10A37F", role: "Cross-Model Builder" },
   vector: { displayName: "VECTOR", color: "#C4A052", role: "Strategic Counsel" },
 };
+
+/** Default budget caps for sessions and dreams */
+export const DEFAULT_SESSION_BUDGET_USD = 20;
+export const DEFAULT_DREAM_BUDGET_USD = 50;
