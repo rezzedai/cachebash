@@ -238,7 +238,7 @@ describe("Relay Delivery Integration", () => {
           message_type: "DIRECTIVE",
           status: "pending",
           threadId: baseMessageId, // Same thread for grouped messages
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.Timestamp.now(),
         });
       }
 
@@ -270,7 +270,7 @@ describe("Relay Delivery Integration", () => {
             message_type: "DIRECTIVE",
             status: "pending",
             groupTarget: group,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.Timestamp.now(),
           });
         }
       }

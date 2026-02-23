@@ -197,7 +197,7 @@ describe("Task Lifecycle Integration", () => {
         provider: "anthropic",
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("done");
@@ -234,7 +234,7 @@ describe("Task Lifecycle Integration", () => {
         error_class: "TRANSIENT",
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("failed");
