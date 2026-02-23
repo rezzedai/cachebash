@@ -69,6 +69,7 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
 
   // Questions are tasks with type: "question"
   const taskData: Record<string, unknown> = {
+    schemaVersion: '2.2' as const,
     type: "question",
     title: preview,
     instructions: "",
@@ -168,6 +169,7 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
 
   // Alerts go to relay with short TTL
   const alertData: Record<string, unknown> = {
+    schemaVersion: '2.2' as const,
     source: "program",
     target: "user",
     message_type: "STATUS",
@@ -187,6 +189,7 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
 
   // Also write to tasks for mobile visibility
   await db.collection(`users/${auth.userId}/tasks`).doc(ref.id).set({
+    schemaVersion: '2.2' as const,
     type: "task",
     title: `[Alert: ${args.alertType}] ${preview}`,
     instructions: args.message,

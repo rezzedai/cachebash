@@ -1,5 +1,5 @@
 /**
- * Envelope v2.1 — Shared fields for all Grid entities.
+ * Envelope v2.2 — Shared fields for all Grid entities.
  *
  * Every task, relay message, and inter-program communication
  * carries an envelope. This is the Grid's addressing system.
@@ -29,6 +29,9 @@ export interface Envelope {
   target: ProgramId;
   priority: Priority;
   action: Action;
+
+  /** Schema version — v2.1 = pre-Phase 4, v2.2 = Phase 4+ with schema versioning */
+  schemaVersion?: '2.1' | '2.2';
 
   /** Seconds until expiry (null = no expiry) */
   ttl?: number | null;

@@ -165,6 +165,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const now = serverTimestamp();
 
   const taskData: Record<string, unknown> = {
+    schemaVersion: '2.2' as const,
     type: args.type,
     title: args.title,
     instructions: args.instructions || "",
@@ -404,6 +405,7 @@ Cap: $${budgetCheck.cap.toFixed(4)}
 Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
             
             db.collection(`users/${auth.userId}/relay`).add({
+              schemaVersion: '2.2' as const,
               source: "system",
               target: "user",
               message_type: "STATUS",

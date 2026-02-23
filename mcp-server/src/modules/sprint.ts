@@ -107,6 +107,7 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
 
   // Create parent sprint task
   const sprintData: Record<string, unknown> = {
+    schemaVersion: '2.2' as const,
     type: "sprint",
     title: `Sprint: ${args.projectName}`,
     instructions: "",
@@ -144,6 +145,7 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   for (const story of args.stories) {
     const storyRef = db.collection(`users/${auth.userId}/tasks`).doc();
     batch.set(storyRef, {
+      schemaVersion: '2.2' as const,
       type: "sprint-story",
       title: story.title,
       instructions: "",
@@ -290,6 +292,7 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
   if (args.insertionMode === "backlog") wave = 999;
 
   await storyRef.set({
+    schemaVersion: '2.2' as const,
     type: "sprint-story",
     title: args.story.title,
     instructions: "",
