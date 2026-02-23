@@ -18,7 +18,7 @@ describe("Trace Module", () => {
     });
 
     it("returns empty object for args without context fields", () => {
-      const ctx = extractContext("send_message", { message: "hello", target: "basher" });
+      const ctx = extractContext("send_message", { message: "hello", target: "builder" });
       expect(ctx).toEqual({});
     });
 

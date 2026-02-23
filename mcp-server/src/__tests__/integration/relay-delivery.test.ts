@@ -30,8 +30,8 @@ describe("Relay Delivery Integration", () => {
     it("should create a relay message document with correct structure", async () => {
       const messageId = "msg-001";
       const messageData = {
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Test message",
         message_type: "DIRECTIVE",
         priority: "normal",
@@ -46,8 +46,8 @@ describe("Relay Delivery Integration", () => {
       const data = messageDoc.data();
 
       expect(messageDoc.exists).toBe(true);
-      expect(data?.source).toBe("iso");
-      expect(data?.target).toBe("basher");
+      expect(data?.source).toBe("orchestrator");
+      expect(data?.target).toBe("builder");
       expect(data?.message).toBe("Test message");
       expect(data?.message_type).toBe("DIRECTIVE");
       expect(data?.status).toBe("pending");
@@ -60,8 +60,8 @@ describe("Relay Delivery Integration", () => {
       for (const type of messageTypes) {
         const messageId = `msg-type-${type}`;
         await db.collection(`users/${userId}/relay`).doc(messageId).set({
-          source: "iso",
-          target: "basher",
+          source: "orchestrator",
+          target: "builder",
           message: `${type} message`,
           message_type: type,
           status: "pending",
@@ -81,8 +81,8 @@ describe("Relay Delivery Integration", () => {
       };
 
       await db.collection(`users/${userId}/relay`).doc(messageId).set({
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Message with payload",
         message_type: "QUERY",
         status: "pending",
@@ -103,8 +103,8 @@ describe("Relay Delivery Integration", () => {
 
       // Create message
       await db.collection(`users/${userId}/relay`).doc(messageId).set({
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Transition test",
         message_type: "DIRECTIVE",
         status: "pending",
@@ -136,8 +136,8 @@ describe("Relay Delivery Integration", () => {
       const messageId = "msg-004";
 
       await db.collection(`users/${userId}/relay`).doc(messageId).set({
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Failed delivery",
         message_type: "DIRECTIVE",
         status: "pending",
@@ -170,8 +170,8 @@ describe("Relay Delivery Integration", () => {
       );
 
       await db.collection(`users/${userId}/relay`).doc(messageId).set({
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "TTL test",
         message_type: "DIRECTIVE",
         status: "pending",
@@ -196,8 +196,8 @@ describe("Relay Delivery Integration", () => {
       );
 
       await db.collection(`users/${userId}/relay`).doc(messageId).set({
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Expired message",
         message_type: "DIRECTIVE",
         status: "pending",
@@ -218,13 +218,13 @@ describe("Relay Delivery Integration", () => {
 
   describe("Multicast Delivery", () => {
     it("should create individual messages for each target in multicast", async () => {
-      const targets = ["basher", "able", "beck"];
+      const targets = ["builder", "able", "beck"];
       const baseMessageId = "msg-multicast-001";
 
       for (let i = 0; i < targets.length; i++) {
         const messageId = `${baseMessageId}-${targets[i]}`;
         await db.collection(`users/${userId}/relay`).doc(messageId).set({
-          source: "iso",
+          source: "orchestrator",
           target: targets[i],
           message: "Multicast message",
           message_type: "DIRECTIVE",
@@ -248,15 +248,15 @@ describe("Relay Delivery Integration", () => {
 
     it("should handle group targets correctly", async () => {
       const groupTargets = {
-        builders: ["basher", "able", "beck"],
-        council: ["iso", "alan", "quorra", "radia", "casp", "sark"],
+        builders: ["builder", "able", "beck"],
+        council: ["orchestrator", "architect", "reviewer", "designer", "coordinator", "auditor"],
       };
 
       for (const [group, members] of Object.entries(groupTargets)) {
         for (const member of members) {
           const messageId = `msg-group-${group}-${member}`;
           await db.collection(`users/${userId}/relay`).doc(messageId).set({
-            source: "iso",
+            source: "orchestrator",
             target: member,
             message: `Message to ${group} group`,
             message_type: "DIRECTIVE",
@@ -280,8 +280,8 @@ describe("Relay Delivery Integration", () => {
     it("should prevent duplicate messages with same idempotency key", async () => {
       const idempotencyKey = "unique-key-123";
       const messageData = {
-        source: "iso",
-        target: "basher",
+        source: "orchestrator",
+        target: "builder",
         message: "Idempotent message",
         message_type: "DIRECTIVE",
         status: "pending",
@@ -319,8 +319,8 @@ describe("Relay Delivery Integration", () => {
 
       for (const msg of messages) {
         await db.collection(`users/${userId}/relay`).doc(msg.id).set({
-          source: "iso",
-          target: "basher",
+          source: "orchestrator",
+          target: "builder",
           message: `Message ${msg.id}`,
           message_type: "DIRECTIVE",
           status: "pending",

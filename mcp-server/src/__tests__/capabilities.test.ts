@@ -92,7 +92,7 @@ describe('Capability System', () => {
 
   describe('DEFAULT_CAPABILITIES', () => {
     it('orchestrator has wildcard', () => {
-      expect(DEFAULT_CAPABILITIES['iso']).toEqual(['*']);
+      expect(DEFAULT_CAPABILITIES['orchestrator']).toEqual(['*']);
     });
 
     it('legacy has wildcard', () => {
@@ -100,7 +100,7 @@ describe('Capability System', () => {
     });
 
     it('builder programs can read and write dispatch', () => {
-      const builders = ['basher', 'alan', 'sark', 'quorra', 'radia', 'able', 'beck', 'ram', 'vector'];
+      const builders = ['builder', 'architect', 'auditor', 'reviewer', 'designer', 'growth', 'ops', 'memory', 'strategist'];
       for (const prog of builders) {
         expect(DEFAULT_CAPABILITIES[prog]).toContain('dispatch.read');
         expect(DEFAULT_CAPABILITIES[prog]).toContain('dispatch.write');
@@ -108,7 +108,7 @@ describe('Capability System', () => {
     });
 
     it('builder programs cannot manage keys', () => {
-      const builders = ['basher', 'alan', 'quorra', 'radia', 'able', 'beck', 'ram', 'vector'];
+      const builders = ['builder', 'architect', 'reviewer', 'designer', 'growth', 'ops', 'memory', 'strategist'];
       for (const prog of builders) {
         expect(DEFAULT_CAPABILITIES[prog]).not.toContain('keys.write');
       }
@@ -120,14 +120,14 @@ describe('Capability System', () => {
     });
 
     it('auditor has audit.read (security role)', () => {
-      expect(DEFAULT_CAPABILITIES['sark']).toContain('audit.read');
+      expect(DEFAULT_CAPABILITIES['auditor']).toContain('audit.read');
     });
   });
 
   describe('getDefaultCapabilities', () => {
     it('returns defaults for known programs', () => {
-      expect(getDefaultCapabilities('iso')).toEqual(['*']);
-      expect(getDefaultCapabilities('basher')).toContain('dispatch.read');
+      expect(getDefaultCapabilities('orchestrator')).toEqual(['*']);
+      expect(getDefaultCapabilities('builder')).toContain('dispatch.read');
     });
 
     it('returns wildcard for unknown programs (fail-open)', () => {
