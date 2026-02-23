@@ -45,6 +45,12 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow write: if false;
     }
+
+    // Analytics Aggregates (G-33 T1-B): read-only for clients. Server writes via Cloud Functions.
+    match /users/{userId}/analytics_aggregates/{docId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
     
     // Ledger: read-only for clients. Server-authoritative.
     match /users/{userId}/ledger/{entryId} {
