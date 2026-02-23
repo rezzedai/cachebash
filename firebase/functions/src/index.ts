@@ -11,6 +11,9 @@ export { onTaskUpdate } from "./notifications/onTaskUpdate";
 export { onSessionUpdate } from "./notifications/onSessionUpdate";
 export { onRelayCreate } from "./notifications/onRelayCreate";
 
+// Analytics aggregation
+export { onAnalyticsEventCreate } from "./analytics/onAnalyticsEventCreate";
+
 // Scheduled cleanup
 export { cleanupExpiredSessions } from "./cleanup/cleanupExpiredSessions";
 export { cleanupOrphanedTasks } from "./cleanup/cleanupOrphanedTasks";
