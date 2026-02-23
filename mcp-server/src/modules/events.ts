@@ -20,7 +20,8 @@ export type EventType =
   | "PR_MERGED"
   | "CLEANUP_RUN"
   | "SESSION_DEATH"
-  | "SESSION_ENDED";
+  | "SESSION_ENDED"
+  | "PROGRAM_WAKE";
 
 export type TaskClass = "WORK" | "CONTROL";
 
