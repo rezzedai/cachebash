@@ -20,67 +20,67 @@ export interface ProgramLaunchConfig {
  * and passes metadata to the host listener.
  */
 export const SPAWNABLE_PROGRAMS: Map<string, ProgramLaunchConfig> = new Map([
-  ["basher", {
-    programId: "basher",
+  ["builder", {
+    programId: "builder",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/basher",
+    repo: "",
     description: "Execution engine — builds, deploys, tests",
   }],
-  ["alan", {
-    programId: "alan",
+  ["architect", {
+    programId: "architect",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Architecture — schema design, technical assessment",
   }],
-  ["sark", {
-    programId: "sark",
+  ["auditor", {
+    programId: "auditor",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Security — audit, access control, compliance",
   }],
-  ["quorra", {
-    programId: "quorra",
+  ["reviewer", {
+    programId: "reviewer",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Design — pragmatic solutions, creative problem-solving",
   }],
-  ["radia", {
-    programId: "radia",
+  ["designer", {
+    programId: "designer",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Vision — product direction, unconstrained ideation",
   }],
-  ["able", {
-    programId: "able",
+  ["growth", {
+    programId: "growth",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Growth — external-facing, client work",
   }],
-  ["beck", {
-    programId: "beck",
+  ["ops", {
+    programId: "ops",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Operations — infrastructure, DevOps",
   }],
-  ["ram", {
-    programId: "ram",
+  ["memory", {
+    programId: "memory",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Knowledge — pattern store, memory management",
   }],
-  ["vector", {
-    programId: "vector",
+  ["strategist", {
+    programId: "strategist",
     spawnable: true,
     model: "opus",
-    repo: "rezzedai/grid",
+    repo: "",
     description: "Strategic counsel — architecture, roadmap, council contributions",
   }],
 ]);

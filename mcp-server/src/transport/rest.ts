@@ -121,7 +121,7 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
     throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
   }
 
-  // Per-tool rate limit (SARK Phase 4: tighter limits on state writes)
+  // Per-tool rate limit (Phase 4: tighter limits on state writes)
   if (!checkToolRateLimit(auth.userId, toolName, auth.programId)) {
     const resetIn = getToolRateLimitResetIn(auth.userId, toolName, auth.programId);
     throw new RateLimitError(`Tool rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);

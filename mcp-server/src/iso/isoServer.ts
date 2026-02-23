@@ -1,5 +1,5 @@
 /**
- * ISO MCP Server — Scoped endpoint for claude.ai desktop/mobile.
+ * Admin MCP Server — Scoped endpoint for claude.ai desktop/mobile.
  * Separate MCP Server with whitelisted tools. Auth via Bearer header.
  */
 
@@ -98,7 +98,7 @@ export async function createIsoServer(): Promise<{
     const handler = ISO_TOOL_HANDLERS[name];
     if (!handler) {
       return {
-        content: [{ type: "text", text: `Tool "${name}" is not available on the ISO endpoint.` }],
+        content: [{ type: "text", text: `Tool "${name}" is not available on the admin endpoint.` }],
         isError: true,
       };
     }
@@ -106,18 +106,18 @@ export async function createIsoServer(): Promise<{
     try {
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, true);
-      traceToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, args,
+      logToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, durationMs, true);
+      traceToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, args,
         JSON.stringify(result).substring(0, 500), durationMs, true);
-      audit.log(name, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
+      audit.log(name, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, durationMs, false,
+      logToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, durationMs, false,
         error instanceof Error ? error.message : String(error));
-      traceToolCall(authContext.userId, name, authContext.programId, "iso", sessionId, args,
+      traceToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, args,
         "", durationMs, false, error instanceof Error ? error.message : String(error));
-      audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "iso" });
+      audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,

@@ -1,12 +1,12 @@
 /**
- * Lifecycle Engine — The unified state machine for the Grid.
+ * Lifecycle Engine — The unified state machine for CacheBash.
  *
- * Every entity on the Grid follows the same lifecycle:
- *   created → active → completing → done → derezzed
+ * Every entity follows the same lifecycle:
+ *   created → active → completing → done → archived
  *
  * With branches for failure and blocking:
  *   active → blocked → active (unblocked)
- *   any → failed → created (retry) or derezzed (give up)
+ *   any → failed → created (retry) or archived (give up)
  *
  * The engine validates transitions and throws on illegal moves.
  * No entity changes status without going through this gate.
@@ -20,7 +20,7 @@ export type LifecycleStatus =
   | "completing"
   | "done"
   | "failed"
-  | "derezzed";
+  | "archived";
 
 /** Entity types that have lifecycle rules */
 export type EntityType = "task" | "session" | "dream" | "sprint-story";
@@ -28,40 +28,40 @@ export type EntityType = "task" | "session" | "dream" | "sprint-story";
 /** Valid transitions per entity type */
 export const TRANSITIONS: Record<EntityType, Record<LifecycleStatus, LifecycleStatus[]>> = {
   task: {
-    created: ["active", "failed", "derezzed"],
+    created: ["active", "failed", "archived"],
     active: ["blocked", "completing", "done", "failed"],
-    blocked: ["active", "failed", "derezzed"],
+    blocked: ["active", "failed", "archived"],
     completing: ["done", "failed"],
-    done: ["derezzed"],
-    failed: ["created", "derezzed"],
-    derezzed: [],
+    done: ["archived"],
+    failed: ["created", "archived"],
+    archived: [],
   },
   session: {
     created: ["active"],
     active: ["blocked", "done", "failed"],
     blocked: ["active", "failed"],
     completing: [],
-    done: ["derezzed"],
-    failed: ["derezzed"],
-    derezzed: [],
+    done: ["archived"],
+    failed: ["archived"],
+    archived: [],
   },
   dream: {
     created: ["active", "failed"],
     active: ["completing", "done", "failed"],
     blocked: [],
     completing: ["done", "failed"],
-    done: ["derezzed"],
-    failed: ["derezzed"],
-    derezzed: [],
+    done: ["archived"],
+    failed: ["archived"],
+    archived: [],
   },
   "sprint-story": {
     created: ["active", "blocked", "failed"],
     active: ["blocked", "completing", "done", "failed"],
     blocked: ["active", "failed"],
     completing: ["done", "failed"],
-    done: ["derezzed"],
-    failed: ["created", "derezzed"],
-    derezzed: [],
+    done: ["archived"],
+    failed: ["created", "archived"],
+    archived: [],
   },
 };
 

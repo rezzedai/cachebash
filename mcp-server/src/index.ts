@@ -84,7 +84,7 @@ async function main() {
       return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
     }
 
-    // Per-tool rate limit (SARK Phase 4: tighter limits on state writes)
+    // Per-tool rate limit (Phase 4: tighter limits on state writes)
     if (!checkToolRateLimit(auth.userId, name, auth.programId)) {
       const resetIn = getToolRateLimitResetIn(auth.userId, name, auth.programId);
       return { content: [{ type: "text", text: `Tool rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
@@ -128,7 +128,7 @@ async function main() {
 
   await server.connect(transport);
 
-  // Create ISO server
+  // Create admin server
   const iso = await createIsoServer();
 
   // Create REST router
@@ -380,7 +380,7 @@ async function main() {
       }
     }
 
-    // ISO MCP endpoint (Bearer auth)
+    // Admin MCP endpoint (Bearer auth)
     if (url === "/v1/iso/mcp") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });

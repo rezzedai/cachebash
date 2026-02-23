@@ -16,7 +16,7 @@ Thanks for your interest in contributing to CacheBash. This guide covers how to 
 
 ```bash
 # Clone repository
-git clone https://github.com/rezzedai/cachebash.git
+git clone https://github.com/your-org/cachebash.git
 cd cachebash
 
 # Install MCP server dependencies
@@ -365,11 +365,11 @@ Maintainers only:
 
 - **General questions:** Open a GitHub Discussion
 - **Bug reports:** Open a GitHub Issue
-- **Security issues:** Email security@rezzed.ai (do not open public issue)
-- **Contributing help:** Tag @rezzedai/maintainers in issue
+- **Security issues:** Email security@example.com (do not open public issue)
+- **Contributing help:** Tag maintainers in issue
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
 
-Built by [Rezzed.ai](https://rezzed.ai)
+Built with CacheBash

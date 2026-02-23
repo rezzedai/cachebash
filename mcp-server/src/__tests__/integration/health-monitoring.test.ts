@@ -195,8 +195,8 @@ describe("Health Monitoring Integration", () => {
           id: `relay-${i}`,
           data: {
             status: "pending",
-            source: "iso",
-            target: "basher",
+            source: "orchestrator",
+            target: "builder",
             message: `Pending message ${i}`,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           },
@@ -229,7 +229,7 @@ describe("Health Monitoring Integration", () => {
           data: {
             event_type: "SESSION_DEATH",
             timestamp: now,
-            programId: "basher",
+            programId: "builder",
           },
         });
       }

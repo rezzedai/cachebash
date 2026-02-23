@@ -62,10 +62,12 @@ async function completeTask(userId: string, taskId: string): Promise<void> {
   console.log(`[GitHub Webhook] Task ${taskId} completed via webhook`);
 }
 
-/** Parse "Closes rezzedai/grid#N" from PR body */
+/** Parse "Closes owner/repo#N" from PR body */
 function parseClosesIssueNumbers(body: string | null): number[] {
   if (!body) return [];
-  const pattern = /(?:closes|fixes|resolves)\s+rezzedai\/grid#(\d+)/gi;
+  const repo = process.env.GITHUB_REPO || "owner/repo";
+  const escaped = repo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?:closes|fixes|resolves)\\s+${escaped}#(\\d+)`, "gi");
   const numbers: number[] = [];
   let match;
   while ((match = pattern.exec(body)) !== null) {

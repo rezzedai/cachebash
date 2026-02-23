@@ -44,5 +44,5 @@ export {
 
 // API Key types
 export type { ApiKeyDoc } from "./apiKey.js";
-export { GRID_PROGRAMS, isGridProgram, isValidProgram, SPECIAL_PROGRAMS } from "../config/programs.js";
-export type { GridProgramId, SpecialProgramId, ValidProgramId } from "../config/programs.js";
+export { REGISTERED_PROGRAMS, isRegisteredProgram, isValidProgram, SPECIAL_PROGRAMS } from "../config/programs.js";
+export type { ProgramId as RegisteredProgramId, SpecialProgramId, ValidProgramId } from "../config/programs.js";
