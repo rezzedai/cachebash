@@ -1,6 +1,6 @@
 /**
- * ISO Tool Definitions — JSON schema for whitelisted tools.
- * These are the tools available on the ISO (claude.ai) endpoint.
+ * Admin Tool Definitions — JSON schema for whitelisted tools.
+ * These are the tools available on the admin (claude.ai) endpoint.
  */
 
 export const ISO_TOOL_DEFINITIONS = [
@@ -34,7 +34,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "get_dead_letters",
-    description: "View messages that failed delivery. ISO and Flynn only.",
+    description: "View messages that failed delivery. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -54,7 +54,7 @@ export const ISO_TOOL_DEFINITIONS = [
         progress: { type: "number", minimum: 0, maximum: 100 },
         projectName: { type: "string", maxLength: 100 },
         lastHeartbeat: { type: "boolean", description: "Also update heartbeat timestamp" },
-        contextBytes: { type: "number", minimum: 0, description: "Current context window usage in bytes (advisory, ALAN Decision #4)" },
+        contextBytes: { type: "number", minimum: 0, description: "Current context window usage in bytes (advisory)" },
         handoffRequired: { type: "boolean", description: "True when context exceeds rotation threshold" },
       },
       required: ["status"],
@@ -62,7 +62,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "send_message",
-    description: "Send a message to a running program. Grid Relay v0.2.",
+    description: "Send a message to a running program. Relay v0.2.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -155,7 +155,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "get_audit",
-    description: "Query the Gate audit log. ISO and Flynn only.",
+    description: "Query the Gate audit log. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -167,7 +167,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "get_sent_messages",
-    description: "Query sent messages from a program's outbox. ISO can query any source.",
+    description: "Query sent messages from a program's outbox. Admin can query any source.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -191,7 +191,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "get_fleet_health",
-    description: "Get health status of all Grid programs. Shows heartbeat age, pending messages/tasks per program.",
+    description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -228,7 +228,7 @@ export const ISO_TOOL_DEFINITIONS = [
   },
   {
     name: "get_operational_metrics",
-    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. ISO/Flynn only.",
+    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {

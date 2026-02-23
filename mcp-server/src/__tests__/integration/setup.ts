@@ -80,7 +80,7 @@ export async function seedTestUser(userId: string): Promise<{
 
   // Create API key document
   await db.collection(`users/${userId}/apiKeys`).doc(apiKeyHash).set({
-    programId: "iso",
+    programId: "orchestrator",
     label: "Test Key",
     keyHash: apiKeyHash,
     encryptionKey: encryptionKey.toString("base64"),

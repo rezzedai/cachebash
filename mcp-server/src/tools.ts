@@ -144,7 +144,7 @@ export const TOOL_DEFINITIONS = [
   // === Relay ===
   {
     name: "send_message",
-    description: "Send a message to another program. Grid Relay v0.2 — requires source, target, message_type.",
+    description: "Send a message to another program. Relay v0.2 — requires source, target, message_type.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -182,7 +182,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "get_dead_letters",
-    description: "View messages that failed delivery. ISO and Flynn only.",
+    description: "View messages that failed delivery. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -200,21 +200,21 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "get_sent_messages",
-    description: "Query sent messages from a program's outbox. Programs see own sent only; ISO/Flynn can query any source.",
+    description: "Query sent messages from a program's outbox. Programs see own sent only; admin can query any source.",
     inputSchema: {
       type: "object" as const,
       properties: {
         status: { type: "string", description: "Filter by message status" },
         target: { type: "string", maxLength: 100, description: "Filter by target program" },
         threadId: { type: "string", description: "Filter by thread ID" },
-        source: { type: "string", maxLength: 100, description: "Source program (ISO/Flynn only — others forced to own)" },
+        source: { type: "string", maxLength: 100, description: "Source program (admin only — others forced to own)" },
         limit: { type: "number", minimum: 1, maximum: 50, default: 20 },
       },
     },
   },
   {
     name: "query_message_history",
-    description: "Query full message history with bodies. ISO/Flynn only. Requires at least one of: threadId, source, target.",
+    description: "Query full message history with bodies. Admin only. Requires at least one of: threadId, source, target.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -259,7 +259,7 @@ export const TOOL_DEFINITIONS = [
         progress: { type: "number", minimum: 0, maximum: 100 },
         projectName: { type: "string", maxLength: 100 },
         lastHeartbeat: { type: "boolean", description: "Also update heartbeat timestamp" },
-        contextBytes: { type: "number", minimum: 0, description: "Current context window usage in bytes (advisory, ALAN Decision #4)" },
+        contextBytes: { type: "number", minimum: 0, description: "Current context window usage in bytes" },
         handoffRequired: { type: "boolean", description: "True when context exceeds rotation threshold" },
       },
       required: ["status"],
@@ -487,7 +487,7 @@ export const TOOL_DEFINITIONS = [
   // === Audit ===
   {
     name: "get_audit",
-    description: "Query the Gate audit log. ISO and Flynn only.",
+    description: "Query the Gate audit log. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -500,7 +500,7 @@ export const TOOL_DEFINITIONS = [
   // === Program State ===
   {
     name: "get_program_state",
-    description: "Read a program's persistent operational state. Programs can read their own state; SARK/ISO can read any.",
+    description: "Read a program's persistent operational state. Programs can read their own state; admin/auditor can read any.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -519,7 +519,7 @@ export const TOOL_DEFINITIONS = [
         sessionId: { type: "string", description: "CacheBash session ID writing this state", maxLength: 100 },
         contextSummary: {
           type: "object",
-          description: "What the program was doing — written on derez, read on boot",
+          description: "What the program was doing — written on shutdown, read on boot",
           properties: {
             lastTask: {
               type: "object",
@@ -539,7 +539,7 @@ export const TOOL_DEFINITIONS = [
         },
         learnedPatterns: {
           type: "array",
-          description: "Patterns discovered this session — staging area for RAM",
+          description: "Patterns discovered this session — staging area for knowledge store",
           items: {
             type: "object",
             properties: {
@@ -578,7 +578,7 @@ export const TOOL_DEFINITIONS = [
         },
         decay: {
           type: "object",
-          description: "Decay configuration (SARK 15c)",
+          description: "Decay configuration",
           properties: {
             contextSummaryTTLDays: { type: "number", minimum: 1, maximum: 90 },
             learnedPatternMaxAge: { type: "number", minimum: 1, maximum: 365 },
@@ -592,7 +592,7 @@ export const TOOL_DEFINITIONS = [
   // === Fleet ===
   {
     name: "get_fleet_health",
-    description: "Get health status of all Grid programs. Shows heartbeat age, pending messages/tasks per program. ISO/Flynn only.",
+    description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -601,7 +601,7 @@ export const TOOL_DEFINITIONS = [
   // === Metrics ===
   {
     name: "get_comms_metrics",
-    description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown. ISO/Flynn only.",
+    description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -623,7 +623,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "get_operational_metrics",
-    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. ISO/Flynn only.",
+    description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. Admin only.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -634,7 +634,7 @@ export const TOOL_DEFINITIONS = [
   // === Trace ===
   {
     name: "query_traces",
-    description: "Query execution traces for debugging. ISO/Flynn only. Filters: sprintId, taskId, programId, tool, since/until.",
+    description: "Query execution traces for debugging. Admin only. Filters: sprintId, taskId, programId, tool, since/until.",
     inputSchema: {
       type: "object" as const,
       properties: {

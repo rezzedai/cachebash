@@ -1,9 +1,9 @@
 /**
- * GRIDBOT Health Monitoring Module
- * 
+ * Health Monitoring Module
+ *
  * Runs health checks against Firestore data and emits alerts based on thresholds.
- * Critical alerts route to Flynn's mobile (via relay + tasks mirror).
- * Warning alerts route to ISO (via relay STATUS message).
+ * Critical alerts route to admin's mobile (via relay + tasks mirror).
+ * Warning alerts route to orchestrator (via relay STATUS message).
  */
 
 import * as admin from "firebase-admin";
@@ -139,7 +139,7 @@ export async function runHealthCheck(
 
   // Route alerts
   if (hasCritical) {
-    // Critical: send mobile alert to Flynn
+    // Critical: send mobile alert to admin
     try {
       const criticalIndicators = indicators.filter((i) => i.status === "critical");
       const alertMessage = `HEALTH CRITICAL: ${criticalIndicators
@@ -151,7 +151,7 @@ export async function runHealthCheck(
         alertType: "error",
         priority: "high",
         source: "gridbot",
-        target: "flynn",
+        target: "admin",
         status: "pending",
         type: "alert",
         expiresAt: admin.firestore.Timestamp.fromDate(
@@ -170,7 +170,7 @@ export async function runHealthCheck(
         instructions: alertMessage,
       });
 
-      alertsSent.push("HEALTH_CRITICAL alert to Flynn (mobile)");
+      alertsSent.push("HEALTH_CRITICAL alert to admin (mobile)");
     } catch (err) {
       console.error("[GRIDBOT] Failed to send critical alert:", err);
     }
@@ -185,7 +185,7 @@ export async function runHealthCheck(
   }
 
   if (hasWarning) {
-    // Warning: relay message to ISO
+    // Warning: relay message to orchestrator
     try {
       const warningIndicators = indicators.filter((i) => i.status === "warning");
       const warningMessage = `HEALTH WARNING: ${warningIndicators
@@ -195,7 +195,7 @@ export async function runHealthCheck(
       await firestore.collection(`users/${userId}/relay`).add({
         message: warningMessage,
         source: "gridbot",
-        target: "iso",
+        target: "orchestrator",
         message_type: "STATUS",
         status: "pending",
         priority: "normal",
@@ -205,7 +205,7 @@ export async function runHealthCheck(
         ),
       });
 
-      alertsSent.push("HEALTH_WARNING status to ISO");
+      alertsSent.push("HEALTH_WARNING status to orchestrator");
     } catch (err) {
       console.error("[GRIDBOT] Failed to send warning:", err);
     }

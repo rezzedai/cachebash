@@ -262,8 +262,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       : message.message;
 
     // Determine the conversation partner for navigation
-    const programId = message.source === 'iso' || message.source === 'flynn'
-      ? 'iso'
+    const programId = message.source === 'orchestrator' || message.source === 'admin'
+      ? 'orchestrator'
       : message.source;
 
     await scheduleLocalNotification(title, body, {

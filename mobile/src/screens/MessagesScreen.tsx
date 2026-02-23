@@ -26,8 +26,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     const channelMap = new Map<string, Channel>();
 
     messages.forEach((message) => {
-      // Group by conversation partner — the program that isn't iso/flynn
-      const programId = (message.source === 'iso' || message.source === 'flynn')
+      // Group by conversation partner — the program that isn't orchestrator/admin
+      const programId = (message.source === 'orchestrator' || message.source === 'admin')
         ? message.target
         : message.source;
 
@@ -81,7 +81,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           <View style={styles.channelContent}>
             <Text style={styles.programName}>{(item.programId || 'Unknown').toUpperCase()}</Text>
             <Text style={styles.messagePreview} numberOfLines={1} ellipsizeMode="tail">
-              {(item.lastMessage.source === 'iso' || item.lastMessage.source === 'flynn') ? 'You: ' : ''}{item.lastMessage.message}
+              {(item.lastMessage.source === 'orchestrator' || item.lastMessage.source === 'admin') ? 'You: ' : ''}{item.lastMessage.message}
             </Text>
           </View>
         </View>

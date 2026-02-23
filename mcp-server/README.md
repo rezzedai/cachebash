@@ -60,10 +60,10 @@ Type discriminator determines sub-object:
 ```
 created --> active --> completing --> done
    |          |                       |
-   +---> blocked <---+          failed / derezzed
+   +---> blocked <---+          failed / archived
 ```
 
-7 states: `created`, `active`, `blocked`, `completing`, `done`, `failed`, `derezzed`
+7 states: `created`, `active`, `blocked`, `completing`, `done`, `failed`, `archived`
 
 ### Envelope v2.1
 
@@ -95,7 +95,7 @@ API keys are stored in `users/{uid}/apiKeys/{keyHash}` with SHA-256 hashing. No 
 ### Relay (2 tools)
 | Tool | Description |
 |------|-------------|
-| `send_message` | Send a message between programs (Grid Relay v0.2) |
+| `send_message` | Send a message between programs (Relay v0.2) |
 | `get_messages` | Get pending messages for a session/target |
 
 ### Pulse (3 tools)

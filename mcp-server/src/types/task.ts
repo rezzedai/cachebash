@@ -1,5 +1,5 @@
 /**
- * Task — The unified work unit of the Grid.
+ * Task — The unified work unit of CacheBash.
  *
  * Tasks, questions, dreams, sprints, and sprint stories
  * are all the same entity with different `type` discriminators.

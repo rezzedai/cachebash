@@ -126,7 +126,7 @@ export function createAuditLogger(correlationId: string, userId: string) {
 export function verifySource(
   claimedSource: string | undefined,
   auth: AuthContext,
-  endpoint: "mcp" | "iso" | "rest"
+  endpoint: "mcp" | "admin" | "rest"
 ): string {
   if (auth.programId === "legacy" || auth.programId === "mobile") {
     return claimedSource || auth.programId;

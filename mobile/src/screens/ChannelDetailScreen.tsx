@@ -117,7 +117,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
     // Optimistic insert
     const optimistic: OptimisticMessage = {
       id: tempId,
-      source: 'flynn',
+      source: 'admin',
       target: programId,
       message: messageText,
       message_type: 'DIRECTIVE',
@@ -136,7 +136,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
 
     try {
       await api.sendMessage({
-        source: 'flynn',
+        source: 'admin',
         target: programId,
         message: messageText,
         message_type: 'DIRECTIVE',
@@ -184,7 +184,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
 
     try {
       await api!.sendMessage({
-        source: 'flynn',
+        source: 'admin',
         target: programId,
         message: message.message,
         message_type: 'DIRECTIVE',
@@ -202,7 +202,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   };
 
   const renderMessage = ({ item }: { item: RelayMessage | OptimisticMessage }) => {
-    const isFromUser = item.source === 'flynn';
+    const isFromUser = item.source === 'admin';
     const isOptimistic = 'isOptimistic' in item && item.isOptimistic;
     const isFailed = isOptimistic && 'isFailed' in item && item.isFailed;
     const typeColor = getMessageTypeColor(item.message_type);

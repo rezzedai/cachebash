@@ -14,17 +14,17 @@ export function useMessages() {
     fetcher: async () => {
       if (!api) return [];
 
-      // Fetch messages both TO and FROM iso (the hub) for full grid visibility
-      const [toIso, fromIso] = await Promise.all([
-        api.queryMessageHistory({ target: 'iso', limit: 30 }).catch(() => ({ messages: [] })),
-        api.queryMessageHistory({ source: 'iso', limit: 30 }).catch(() => ({ messages: [] })),
+      // Fetch messages both TO and FROM orchestrator (the hub) for full visibility
+      const [toOrch, fromOrch] = await Promise.all([
+        api.queryMessageHistory({ target: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
+        api.queryMessageHistory({ source: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
       ]);
 
       // Merge and deduplicate by message id
       const seen = new Set<string>();
       const allMessages: RelayMessage[] = [];
 
-      for (const m of [...(toIso.messages || []), ...(fromIso.messages || [])]) {
+      for (const m of [...(toOrch.messages || []), ...(fromOrch.messages || [])]) {
         const id = m.id || m.messageId;
         if (seen.has(id)) continue;
         seen.add(id);
@@ -76,8 +76,8 @@ export function useMessages() {
     for (const msg of result.data) {
       if (
         !prevMessageIdsRef.current.has(msg.id) &&
-        msg.source !== 'iso' &&
-        msg.source !== 'flynn'
+        msg.source !== 'orchestrator' &&
+        msg.source !== 'admin'
       ) {
         notifyNewMessage({
           id: msg.id,
@@ -92,11 +92,11 @@ export function useMessages() {
     prevMessageIdsRef.current = currentIds;
   }, [result.data, notifyNewMessage]);
 
-  // Count only incoming unread messages (not from iso/flynn, and not read/archived)
+  // Count only incoming unread messages (not from orchestrator/admin, and not read/archived)
   const unreadCount = messages.filter(
     (msg) =>
-      msg.source !== 'iso' &&
-      msg.source !== 'flynn' &&
+      msg.source !== 'orchestrator' &&
+      msg.source !== 'admin' &&
       msg.status !== 'read' &&
       msg.status !== 'archived'
   ).length;

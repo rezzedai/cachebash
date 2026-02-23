@@ -9,8 +9,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
   describe('Interface Structure', () => {
     it('should allow documents with schemaVersion 2.2', () => {
       const envelope: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal',
         action: 'queue',
         schemaVersion: '2.2',
@@ -21,8 +21,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
 
     it('should allow documents with schemaVersion 2.1', () => {
       const envelope: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal',
         action: 'queue',
         schemaVersion: '2.1',
@@ -33,8 +33,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
 
     it('should allow documents without schemaVersion (backward compat)', () => {
       const envelope: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal',
         action: 'queue',
       };
@@ -45,8 +45,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
 
     it('should allow all envelope fields with schemaVersion', () => {
       const fullEnvelope: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'high',
         action: 'interrupt',
         schemaVersion: '2.2',
@@ -58,7 +58,7 @@ describe('Envelope v2.2 Schema Versioning', () => {
           cost_tokens: 1000,
           confidence: 0.95,
         },
-        fallback: ['quorra', 'alan'],
+        fallback: ['reviewer', 'architect'],
       };
 
       expect(fullEnvelope.schemaVersion).toBe('2.2');
@@ -72,8 +72,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
       // Documents created before Phase 4 will have no schemaVersion,
       // which is semantically equivalent to v2.1
       const legacyDoc: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal',
         action: 'queue',
       };
@@ -85,8 +85,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
     it('v2.2 represents Phase 4+ documents with schema versioning', () => {
       // All new documents created in Phase 4+ should have schemaVersion: '2.2'
       const newDoc: Envelope = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal',
         action: 'queue',
         schemaVersion: '2.2',
@@ -103,23 +103,23 @@ describe('Envelope v2.2 Schema Versioning', () => {
       const documents: Envelope[] = [
         // Legacy document (no version)
         {
-          source: 'iso',
-          target: 'basher',
+          source: 'orchestrator',
+          target: 'builder',
           priority: 'normal',
           action: 'queue',
         },
         // v2.1 explicit
         {
-          source: 'quorra',
-          target: 'alan',
+          source: 'reviewer',
+          target: 'architect',
           priority: 'high',
           action: 'sprint',
           schemaVersion: '2.1',
         },
         // v2.2 (current)
         {
-          source: 'radia',
-          target: 'iso',
+          source: 'designer',
+          target: 'orchestrator',
           priority: 'low',
           action: 'backlog',
           schemaVersion: '2.2',
@@ -144,8 +144,8 @@ describe('Envelope v2.2 Schema Versioning', () => {
       // Example: In future, we could add v2.3 with breaking changes
       // and use schemaVersion to route through different handlers
       const futureDoc = {
-        source: 'iso',
-        target: 'basher',
+        source: 'orchestrator',
+        target: 'builder',
         priority: 'normal' as const,
         action: 'queue' as const,
         schemaVersion: '2.2' as const,
