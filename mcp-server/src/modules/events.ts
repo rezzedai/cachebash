@@ -25,7 +25,9 @@ export type EventType =
   | "PROGRAM_WAKE"
   | "STATE_DECAY"
   | "BUDGET_EXCEEDED"
-  | "BUDGET_WARNING";
+  | "BUDGET_WARNING"
+  | "GITHUB_SYNC_FAILED"
+  | "GITHUB_SYNC_RECONCILED";
 export type TaskClass = "WORK" | "CONTROL";
 
 export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
