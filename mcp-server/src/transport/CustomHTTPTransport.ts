@@ -1,6 +1,7 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { JSONRPCMessage, MessageExtraInfo } from "@modelcontextprotocol/sdk/types.js";
 import { SessionManager } from "./SessionManager.js";
+import { emitEvent } from "../modules/events.js";
 import { TransportConfig, ParsedRequest, TransportResponse, SessionInfo } from "./types.js";
 import { parseJsonBody, isInitializeRequest } from "./MessageParser.js";
 import {
@@ -114,10 +115,22 @@ export class CustomHTTPTransport implements Transport {
       }
       const validation = await this.sessionManager.validateSession(parsed.sessionId, authContext.userId);
       if (!validation.valid) {
+        // Emit session death telemetry
+        emitEvent(authContext.userId, {
+          event_type: "SESSION_DEATH",
+          session_id: parsed.sessionId,
+          program_id: (authContext as any).programId || "unknown",
+        });
         return this.toResponse(jsonRpcError(-32001, `Session expired or invalid: ${validation.error}. Use REST API fallback: POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/{tool_name} with Bearer auth. See /v1/health for status.`, null));
       }
       session = validation.session!;
       this.sessionId = session.sessionId;
+
+    // Heartbeat recognition: notifications/heartbeat refreshes session, returns immediately
+    const isHeartbeat = messages.every((m: any) => m.method === "notifications/heartbeat");
+    if (isHeartbeat) {
+      return new Response(null, { status: 204, headers: { "Mcp-Session-Id": this.sessionId } });
+    }
     }
 
     this.pendingResponses.delete(this.sessionId);
@@ -150,6 +163,12 @@ export class CustomHTTPTransport implements Transport {
     if (!parsed.sessionId) {
       return this.toResponse(jsonRpcError(-32600, "Mcp-Session-Id header is required", null));
     }
+    // Emit session ended telemetry
+    emitEvent(authContext.userId, {
+      event_type: "SESSION_ENDED",
+      session_id: parsed.sessionId,
+      program_id: (authContext as any).programId || "unknown",
+    });
     await this.sessionManager.deleteSession(parsed.sessionId, authContext.userId);
     return new Response(null, { status: 200, headers: { "Content-Type": "application/json" } });
   }
