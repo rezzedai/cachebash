@@ -121,6 +121,15 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
     throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
   }
 
+  // Phase 4: Capability gate
+  const { checkToolCapability } = await import("../middleware/capabilities.js");
+  const capCheck = checkToolCapability(toolName, auth.capabilities);
+  if (!capCheck.allowed) {
+    throw new Error(
+      `Insufficient capability: ${toolName} requires "${capCheck.required}" but key has [${capCheck.held.join(", ")}]`
+    );
+  }
+
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
