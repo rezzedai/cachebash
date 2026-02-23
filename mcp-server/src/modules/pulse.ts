@@ -178,11 +178,11 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
 }
 
 export async function getFleetHealthHandler(auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
-  // ISO/Flynn gate
-  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+  // Admin gate
+  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
-      error: "get_fleet_health is only accessible by ISO and Flynn.",
+      error: "get_fleet_health is only accessible by admins.",
     });
   }
 
