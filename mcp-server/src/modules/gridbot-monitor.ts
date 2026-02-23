@@ -24,8 +24,11 @@ export interface HealthCheckResult {
   alerts_sent: string[];
 }
 
-export async function runHealthCheck(userId: string): Promise<HealthCheckResult> {
-  const db = getFirestore();
+export async function runHealthCheck(
+  userId: string,
+  db?: admin.firestore.Firestore
+): Promise<HealthCheckResult> {
+    const firestore = db || getFirestore();
   const now = admin.firestore.Timestamp.now();
   const oneHourAgo = admin.firestore.Timestamp.fromDate(
     new Date(now.toDate().getTime() - 60 * 60 * 1000)
@@ -38,7 +41,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   const alertsSent: string[] = [];
 
   // 1. Task failure rate (failed / total in last hour)
-  const recentTasks = await db
+  const recentTasks = await firestore
     .collection(`users/${userId}/tasks`)
     .where("completedAt", ">=", oneHourAgo)
     .get();
@@ -57,7 +60,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   });
 
   // 2. Session death count (SESSION_DEATH events in last hour)
-  const deathEvents = await db
+  const deathEvents = await firestore
     .collection(`users/${userId}/events`)
     .where("event_type", "==", "SESSION_DEATH")
     .where("timestamp", ">=", oneHourAgo)
@@ -71,7 +74,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   });
 
   // 3. Stale task count (tasks in created status > 30 min)
-  const staleTasks = await db
+  const staleTasks = await firestore
     .collection(`users/${userId}/tasks`)
     .where("status", "==", "created")
     .where("createdAt", "<=", thirtyMinAgo)
@@ -85,7 +88,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   });
 
   // 4. Relay queue depth (pending relay messages)
-  const pendingRelay = await db
+  const pendingRelay = await firestore
     .collection(`users/${userId}/relay`)
     .where("status", "==", "pending")
     .get();
@@ -98,7 +101,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   });
 
   // 5. Wake failure rate (failed wake attempts in last hour)
-  const wakeEvents = await db
+  const wakeEvents = await firestore
     .collection(`users/${userId}/events`)
     .where("event_type", "==", "PROGRAM_WAKE")
     .where("timestamp", ">=", oneHourAgo)
@@ -116,7 +119,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   });
 
   // 6. Cleanup backlog (expired but uncleaned relay messages)
-  const expiredRelay = await db
+  const expiredRelay = await firestore
     .collection(`users/${userId}/relay`)
     .where("status", "==", "pending")
     .where("expiresAt", "<=", now)
@@ -158,10 +161,10 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
       };
 
       // Write to relay for alert feed
-      await db.collection(`users/${userId}/relay`).add(alertDoc);
+      await firestore.collection(`users/${userId}/relay`).add(alertDoc);
 
       // Mirror to tasks for mobile visibility
-      await db.collection(`users/${userId}/tasks`).add({
+      await firestore.collection(`users/${userId}/tasks`).add({
         ...alertDoc,
         title: "[GRIDBOT] Health Critical Alert",
         instructions: alertMessage,
@@ -189,7 +192,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
         .map((i) => `${i.name}=${i.value}`)
         .join(", ")}`;
 
-      await db.collection(`users/${userId}/relay`).add({
+      await firestore.collection(`users/${userId}/relay`).add({
         message: warningMessage,
         source: "gridbot",
         target: "iso",
@@ -225,7 +228,7 @@ export async function runHealthCheck(userId: string): Promise<HealthCheckResult>
   };
 
   try {
-    await db.collection(`users/${userId}/health_checks`).add({
+    await firestore.collection(`users/${userId}/health_checks`).add({
       ...result,
       timestamp: now,
     });
