@@ -126,6 +126,10 @@ describe("GitHub Reconciliation Integration", () => {
         payload: { title: "Test" },
       });
 
+      // Ensure document exists before updating
+      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      expect(syncDoc.exists).toBe(true);
+
       // Simulate retry
       await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
         retryCount: admin.firestore.FieldValue.increment(1),
@@ -133,7 +137,7 @@ describe("GitHub Reconciliation Integration", () => {
         lastError: "GitHub API timeout",
       });
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(1);
@@ -152,6 +156,10 @@ describe("GitHub Reconciliation Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Ensure document exists before updating
+      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      expect(syncDoc.exists).toBe(true);
+
       // Simulate multiple retries with exponential backoff
       for (let i = 1; i <= 3; i++) {
         const delayMs = baseDelayMs * Math.pow(2, i - 1);
@@ -166,7 +174,7 @@ describe("GitHub Reconciliation Integration", () => {
         });
       }
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(3);
@@ -242,7 +250,8 @@ describe("GitHub Reconciliation Integration", () => {
       });
 
       // Check if should be abandoned
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      expect(syncDoc.exists).toBe(true);
       const shouldAbandon = syncDoc.data()?.retryCount >= MAX_RETRY_COUNT;
 
       expect(shouldAbandon).toBe(true);
@@ -318,6 +327,10 @@ describe("GitHub Reconciliation Integration", () => {
         payload: { title: "Success case" },
       });
 
+      // Ensure document exists before updating
+      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      expect(syncDoc.exists).toBe(true);
+
       // Mark as completed
       await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
         status: "completed",
@@ -328,7 +341,7 @@ describe("GitHub Reconciliation Integration", () => {
         },
       });
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.status).toBe("completed");
@@ -360,6 +373,12 @@ describe("GitHub Reconciliation Integration", () => {
       ];
 
       await seedTestData(userId, "sync_queue", queueItems);
+
+      // Ensure all documents exist before batch update
+      for (const item of queueItems) {
+        const doc = await db.collection(`users/${userId}/sync_queue`).doc(item.id).get();
+        expect(doc.exists).toBe(true);
+      }
 
       // Mark all as completed
       const batch = db.batch();

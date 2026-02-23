@@ -96,6 +96,10 @@ describe("Task Lifecycle Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Ensure document exists before updating
+      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      expect(taskDoc.exists).toBe(true);
+
       // Claim task
       await db.collection(`users/${userId}/tasks`).doc(taskId).update({
         status: "active",
@@ -103,7 +107,7 @@ describe("Task Lifecycle Integration", () => {
         sessionId: "session-123",
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("active");
@@ -177,6 +181,10 @@ describe("Task Lifecycle Integration", () => {
         sessionId: "session-123",
       });
 
+      // Ensure document exists before updating
+      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      expect(taskDoc.exists).toBe(true);
+
       // Complete task
       await db.collection(`users/${userId}/tasks`).doc(taskId).update({
         status: "done",
@@ -189,7 +197,7 @@ describe("Task Lifecycle Integration", () => {
         provider: "anthropic",
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("done");
@@ -214,6 +222,10 @@ describe("Task Lifecycle Integration", () => {
         claimedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Ensure document exists before updating
+      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      expect(taskDoc.exists).toBe(true);
+
       await db.collection(`users/${userId}/tasks`).doc(taskId).update({
         status: "failed",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -222,7 +234,7 @@ describe("Task Lifecycle Integration", () => {
         error_class: "TRANSIENT",
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("failed");

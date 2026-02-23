@@ -111,13 +111,17 @@ describe("Relay Delivery Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Ensure document exists before updating
+      let messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      expect(messageDoc.exists).toBe(true);
+
       // Mark as delivered
       await db.collection(`users/${userId}/relay`).doc(messageId).update({
         status: "delivered",
         deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      let messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
       expect(messageDoc.data()?.status).toBe("delivered");
       expect(messageDoc.data()?.deliveredAt).toBeDefined();
 
@@ -144,13 +148,17 @@ describe("Relay Delivery Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Ensure document exists before updating
+      let messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      expect(messageDoc.exists).toBe(true);
+
       await db.collection(`users/${userId}/relay`).doc(messageId).update({
         status: "failed",
         failedAt: admin.firestore.FieldValue.serverTimestamp(),
         error: "Target not reachable",
       });
 
-      const messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
       const data = messageDoc.data();
 
       expect(data?.status).toBe("failed");
@@ -230,7 +238,7 @@ describe("Relay Delivery Integration", () => {
           message_type: "DIRECTIVE",
           status: "pending",
           threadId: baseMessageId, // Same thread for grouped messages
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.Timestamp.now(),
         });
       }
 
@@ -262,7 +270,7 @@ describe("Relay Delivery Integration", () => {
             message_type: "DIRECTIVE",
             status: "pending",
             groupTarget: group,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.Timestamp.now(),
           });
         }
       }
