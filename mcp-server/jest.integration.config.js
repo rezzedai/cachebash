@@ -8,4 +8,5 @@ module.exports = {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   testTimeout: 30000, // 30 seconds for integration tests
+  maxWorkers: 1, // Serial execution — tests share Firestore emulator state
 };

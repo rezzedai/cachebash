@@ -7,3 +7,11 @@ dist/
 .env.local
 *.log
 .DS_Store
+
+# Firebase config with real credentials
+mobile/src/config/firebase.ts
+**/google-services.json
+**/GoogleService-Info.plist
+
+# MCP config with API keys
+.mcp.json
