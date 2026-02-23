@@ -9,7 +9,7 @@ import http from "http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
-import { initializeFirebase } from "./firebase/client.js";
+import { initializeFirebase, getFirestore } from "./firebase/client.js";
 import { validateAuth, type AuthContext } from "./auth/apiKeyValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits } from "./middleware/rateLimiter.js";
@@ -20,12 +20,17 @@ import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
 import { handleGithubWebhook } from "./modules/github-webhook.js";
+import { SessionManager } from "./transport/SessionManager.js";
+import { emitEvent } from "./modules/events.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
 // Per-session auth context
 const sessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
+
+// Session manager for cleanup
+const sessionManager = new SessionManager(SESSION_TIMEOUT_MS);
 
 function extractBearerToken(header: string | undefined): string | null {
   return header?.startsWith("Bearer ") ? header.slice(7) : null;
@@ -129,6 +134,7 @@ async function main() {
           mcp: "/v1/mcp",
           rest: "/v1/{resource}",
           health: "/v1/health",
+          cleanup: "/v1/internal/cleanup",
         },
         restFallback: {
           description: "If MCP session dies, use REST endpoints with the same Bearer auth",
@@ -146,6 +152,79 @@ async function main() {
     // REST API
     if (url?.startsWith("/v1/") && url !== "/v1/mcp" && url !== "/v1/iso/mcp") {
       return restRouter(req, res);
+    }
+
+    // Internal cleanup endpoint (scheduled job)
+    if (url === "/v1/internal/cleanup" && req.method === "POST") {
+      // TODO: Restrict to Cloud Scheduler service account in production
+      const startTime = Date.now();
+
+      try {
+        const db = getFirestore();
+
+        // Find active users (API keys used in last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const keysSnapshot = await db
+          .collection("apiKeys")
+          .where("lastUsedAt", ">=", sevenDaysAgo)
+          .get();
+
+        const activeUserIds = new Set<string>();
+        for (const doc of keysSnapshot.docs) {
+          const userId = doc.data().userId;
+          if (userId) activeUserIds.add(userId);
+        }
+
+        let totalRelayExpired = 0;
+        let totalRelayCleaned = 0;
+        let totalSessionsExpired = 0;
+        let totalSessionsCleaned = 0;
+
+        // Run cleanup for each active user
+        for (const userId of activeUserIds) {
+          const relayResult = await cleanupExpiredRelayMessages(userId);
+          totalRelayExpired += relayResult.expired;
+          totalRelayCleaned += relayResult.cleaned;
+
+          const sessionResult = await sessionManager.cleanupExpiredSessions(userId);
+          totalSessionsExpired += sessionResult.expired;
+          totalSessionsCleaned += sessionResult.cleaned;
+        }
+
+        const duration = Date.now() - startTime;
+
+        // Emit CLEANUP_RUN event for each active user
+        for (const userId of activeUserIds) {
+          emitEvent(userId, {
+            event_type: "CLEANUP_RUN",
+            relay_expired: totalRelayExpired,
+            sessions_expired: totalSessionsExpired,
+            duration_ms: duration,
+          });
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          activeUsers: activeUserIds.size,
+          relay: {
+            expired: totalRelayExpired,
+            cleaned: totalRelayCleaned,
+          },
+          sessions: {
+            expired: totalSessionsExpired,
+            cleaned: totalSessionsCleaned,
+          },
+          duration_ms: duration,
+        });
+      } catch (error) {
+        console.error("[Cleanup] Internal cleanup failed:", error);
+        return sendJson(res, 500, {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     // ISO MCP endpoint (Bearer auth)
