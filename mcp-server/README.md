@@ -1,6 +1,6 @@
 # CacheBash MCP Server
 
-Model Context Protocol server for the Grid. Provides 18 tools across 6 modules with full MCP-REST parity.
+Model Context Protocol server for multi-agent coordination. Provides 18 tools across 6 modules with full MCP-REST parity.
 
 ## Architecture
 
