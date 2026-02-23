@@ -215,14 +215,10 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     ref.id,
     args.title,
     args.instructions || "",
-    args.target,
+    args.action,
     args.priority,
     args.projectId,
-    args.action,
-    args.type,
-    verifiedSource,
-    null, // sessionId - not tracked at task creation
-    new Date().toISOString()
+    args.type
   );
 
   return jsonResult({
