@@ -1,144 +1,169 @@
 # CacheBash
 
-MCP server + mobile app for AI agent orchestration. The command center for Rezzed.ai's Grid.
+An MCP server that lets your AI coding sessions communicate with each other. Create tasks, send messages, and coordinate work across multiple agents through a shared backend.
 
-CacheBash bridges MCP-compatible AI clients with a mobile interface, providing real-time session monitoring, task dispatch, inter-program messaging, and cost tracking. Named after Flynn's boys, it's the operational backbone of The Grid's distributed AI agent network.
+## The Problem
+
+AI coding assistants run in isolated sessions. When you use multiple agents — one reviewing code, another writing tests, a third handling deployment — they can't share context or coordinate. CacheBash adds a communication layer between them using the Model Context Protocol (MCP).
 
 ## Architecture
 
 ```
-┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│  Claude Code    │      │   Claude Code   │      │   Claude Code   │
-│  Session (ISO)  │      │  Session (ABLE) │      │ Session (BASHER)│
-└────────┬────────┘      └────────┬────────┘      └────────┬────────┘
-         │                        │                         │
-         └────────────────────────┼─────────────────────────┘
-                                  │
-                         MCP Protocol (Bearer auth)
-                                  │
-                    ┌─────────────▼──────────────┐
-                    │     CacheBash MCP Server   │
-                    │   (Cloud Run, TypeScript)  │
-                    │    18 tools, REST parity   │
-                    └─────────────┬──────────────┘
-                                  │
-                    ┌─────────────▼──────────────┐
-                    │   Google Cloud Firestore   │
-                    │   4 collections per user   │
-                    │ tasks │ relay │ sessions   │
-                    │       │ ledger             │
-                    └─────────────┬──────────────┘
-                                  │
-                    ┌─────────────▼──────────────┐
-                    │    Flutter Mobile App      │
-                    │   iOS/Android monitoring   │
-                    │  Questions, alerts, stats  │
-                    └────────────────────────────┘
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  Claude Code │  │    Cursor    │  │   VS Code    │  │  Gemini CLI  │
+│  (Agent A)   │  │  (Agent B)   │  │  (Agent C)   │  │  (Agent D)   │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │                 │
+       └─────────────────┼─────────────────┼─────────────────┘
+                         │
+                MCP Protocol (Bearer auth)
+                         │
+           ┌─────────────▼──────────────┐
+           │    CacheBash MCP Server    │
+           │   Cloud Run · TypeScript   │
+           │     18 tools · REST API    │
+           └─────────────┬──────────────┘
+                         │
+           ┌─────────────▼──────────────┐
+           │   Google Cloud Firestore   │
+           │  tasks · relay · sessions  │
+           │         · ledger           │
+           └─────────────┬──────────────┘
+                         │
+           ┌─────────────▼──────────────┐
+           │       Mobile App           │
+           │      iOS / Android         │
+           │  Monitoring · Approvals    │
+           └────────────────────────────┘
 ```
 
-**GridRelay protocol** connects programs in a full mesh topology. Any Grid program can send messages to any other program or multicast to groups (council, builders, intelligence, all).
+## Supported Clients
 
-## Features
+CacheBash works with any MCP-compatible client:
 
-- **18 MCP tools** across 6 modules (dispatch, relay, pulse, signal, dream, sprint)
-- **REST API** with full MCP parity for fallback and external integrations
-- **Real-time sessions** with heartbeat tracking and state management
-- **Task dispatch** with priority queues, threading, and lifecycle management
-- **Inter-program messaging** (GridRelay v0.2) with multicast groups
-- **Sprint orchestration** for parallel story execution with wave-based scheduling
-- **Fleet health monitoring** across all Grid programs
-- **Cost tracking** with token and USD spend aggregation
-- **E2E encryption** for sensitive user questions and field-level data
-- **Rate limiting** with sliding window (120 read/60 write per minute per user)
-- **Dual authentication** (API keys with SHA-256 + Firebase JWT)
-
-## Structure
-
-```
-cachebash/
-├── mcp-server/          MCP server (TypeScript, 18 tools, REST API)
-│   ├── src/
-│   │   ├── modules/     Business logic (dispatch, relay, pulse, etc.)
-│   │   ├── transport/   MCP HTTP transport + REST router
-│   │   ├── auth/        API key + Firebase JWT validation
-│   │   ├── middleware/  Rate limiting, CORS, audit logging
-│   │   ├── types/       TypeScript interfaces and schemas
-│   │   └── index.ts     Server entry point
-│   └── README.md        Full API documentation
-├── firebase/            Cloud Functions (triggers, cleanup, notifications)
-│   └── functions/       FCM push, scheduled cleanup jobs
-├── app/                 Flutter mobile app (iOS/Android)
-└── docs/                Architecture and deployment guides
-```
-
-## Collections
-
-4 Firestore collections per user (`users/{uid}/...`):
-
-| Collection | Purpose | Key Fields |
-|------------|---------|------------|
-| **tasks** | Unified work units (tasks, questions, dreams, sprints) | `type`, `status`, `priority`, `action`, `source`, `target` |
-| **relay** | Ephemeral inter-program messages (GridRelay v0.2) | `source`, `target`, `message_type`, `expiresAt` |
-| **sessions** | Live session tracking with heartbeats | `state`, `status`, `progress`, `lastHeartbeat` |
-| **ledger** | Cost and usage tracking | `tool`, `transport`, `durationMs`, `success`, `tokens_in`, `tokens_out` |
+- Claude Code
+- Cursor
+- VS Code (GitHub Copilot)
+- ChatGPT Desktop
+- Gemini CLI
 
 ## Quick Start
 
-### MCP Server
+### 1. Clone and Build
+
+```bash
+git clone https://github.com/rezzedai/cachebash.git
+cd cachebash/mcp-server
+npm install
+npm run build
+```
+
+### 2. Set Up Firestore
+
+CacheBash uses Google Cloud Firestore for storage. You can use the Firebase emulator for local development:
+
+```bash
+# Install Firebase CLI
+npm install -g firebase-tools
+
+# Start emulator
+cd ../firebase
+firebase emulators:start --only firestore
+
+# In another terminal, point server at emulator
+export FIRESTORE_EMULATOR_HOST="localhost:8080"
+```
+
+### 3. Start the Server
+
 ```bash
 cd mcp-server
-npm install
-npm run build
-npm start          # Production (port 3001)
-npm run dev        # Development with watch
+npm run dev    # Development with watch (port 3001)
 ```
 
-### Cloud Functions
-```bash
-cd firebase/functions
-npm install
-npm run build
-firebase deploy --only functions
+### 4. Configure Your MCP Client
+
+Add to your client's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "cachebash": {
+      "url": "http://localhost:3001/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
 ```
 
-### Mobile App
-```bash
-cd app
-flutter pub get
-flutter run
+Your AI session now has 18 coordination tools available.
+
+## MCP Tools
+
+| Module | Tools | Purpose |
+|--------|-------|---------|
+| Dispatch | create_task, get_tasks, claim_task, complete_task | Task lifecycle management |
+| Relay | send_message, get_messages, get_sent_messages, query_message_history | Inter-agent messaging |
+| Sessions | create_session, update_session, list_sessions | Agent status and health tracking |
+| Sprint | create_sprint, update_sprint_story, add_story_to_sprint, complete_sprint, get_sprint | Parallel work coordination |
+| Signal | ask_question, get_response, send_alert | User notifications via mobile app |
+| Admin | create_key, list_keys, revoke_key | API key management |
+
+## Features
+
+- **Task dispatch** with priority queues, lifecycle tracking, and claim-based ownership
+- **Message relay** with direct messaging, multicast groups, and thread support
+- **Session tracking** with heartbeat monitoring and state management
+- **Sprint orchestration** for parallel work with wave-based scheduling
+- **REST API** with full MCP tool parity for non-MCP integrations
+- **E2E encryption** for sensitive fields (user questions, alerts)
+- **Rate limiting** with sliding window (120 read / 60 write per minute per user)
+- **Dual auth** via API keys (SHA-256 hashed) and Firebase JWT
+- **Cost tracking** with token and USD spend aggregation
+- **Mobile app** (React Native + Expo) for monitoring, approvals, and alerts
+
+## Project Structure
+
+```
+cachebash/
+├── mcp-server/       MCP server (TypeScript, Cloud Run)
+│   ├── src/
+│   │   ├── modules/     Dispatch, relay, sessions, sprint, signal
+│   │   ├── transport/   MCP HTTP transport + REST router
+│   │   ├── auth/        API key validation
+│   │   ├── middleware/  Rate limiting, CORS, audit logging
+│   │   └── types/       TypeScript interfaces and Zod schemas
+│   └── package.json
+├── firebase/         Cloud Functions (push notifications, cleanup)
+├── mobile/           React Native + Expo mobile app
+├── app/              Flutter mobile app (legacy)
+└── docs/             Architecture and deployment guides
 ```
 
 ## Deployment
 
-CacheBash MCP server runs on **Google Cloud Run** in project `cachebash-app`, region `us-central1`.
+Deploy to Google Cloud Run:
 
-**Deploy:**
 ```bash
 cd mcp-server
 gcloud run deploy cachebash-mcp \
   --source . \
   --platform managed \
   --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=cachebash-app"
+  --allow-unauthenticated
 ```
 
-**Endpoint:**
-```
-https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp
-```
-
-See [docs/deployment.md](docs/deployment.md) for full deployment guide with Firebase Auth, Firestore rules, and API key setup.
+See [docs/deployment.md](docs/deployment.md) for the full guide including Firestore setup, Firebase Auth, and API key configuration.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) — System design, components, data flow, security model
-- [Deployment](docs/deployment.md) — Step-by-step deployment to GCP + Firebase
-- [API Reference](mcp-server/README.md) — Complete MCP tool and REST endpoint documentation
-- [Contributing](CONTRIBUTING.md) — How to contribute to CacheBash
+- [Architecture](docs/architecture.md) — System design, data model, security
+- [Deployment](docs/deployment.md) — Self-hosting on GCP + Firebase
+- [API Reference](mcp-server/README.md) — Tool and REST endpoint docs
+- [Contributing](CONTRIBUTING.md) — Development setup and PR process
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-Built by [Rezzed.ai](https://rezzed.ai)
+MIT — see [LICENSE](LICENSE).
