@@ -213,7 +213,7 @@ describe("Sprint Execution Integration", () => {
         "stories.0.retryCount": 1,
       });
 
-      const sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
       const story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("failed");
@@ -390,7 +390,7 @@ describe("Sprint Execution Integration", () => {
         completedAt,
       });
 
-      const sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`users/${userId}/sprints`).doc(sprintId).get();
       const data = sprintDoc.data();
 
       const durationMs = data?.completedAt.toMillis() - data?.createdAt.toMillis();

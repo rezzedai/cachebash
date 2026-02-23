@@ -137,7 +137,7 @@ describe("GitHub Reconciliation Integration", () => {
         lastError: "GitHub API timeout",
       });
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(1);
@@ -174,7 +174,7 @@ describe("GitHub Reconciliation Integration", () => {
         });
       }
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(3);
@@ -341,7 +341,7 @@ describe("GitHub Reconciliation Integration", () => {
         },
       });
 
-      const syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.status).toBe("completed");

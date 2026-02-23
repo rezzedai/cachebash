@@ -198,7 +198,7 @@ describe("Health Monitoring Integration", () => {
             source: "orchestrator",
             target: "builder",
             message: `Pending message ${i}`,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: admin.firestore.Timestamp.now(),
           },
         });
       }
