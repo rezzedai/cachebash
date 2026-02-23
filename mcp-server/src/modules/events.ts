@@ -18,7 +18,9 @@ export type EventType =
   | "SUBAGENT_SPAWNED"
   | "PR_OPENED"
   | "PR_MERGED"
-  | "CLEANUP_RUN";
+  | "CLEANUP_RUN"
+  | "SESSION_DEATH"
+  | "SESSION_ENDED";
 
 export type TaskClass = "WORK" | "CONTROL";
 

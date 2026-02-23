@@ -150,6 +150,43 @@ async function main() {
     }
 
     // REST API
+
+    // MCP heartbeat endpoint (out-of-band session keepalive)
+    if (url === "/v1/mcp/heartbeat" && req.method === "POST") {
+      const token = extractBearerToken(req.headers.authorization);
+      if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
+      const auth = await validateAuth(token);
+      if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
+
+      const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (!mcpSessionId) return sendJson(res, 400, { error: "Mcp-Session-Id header is required" });
+
+      const validation = await sessionManager.validateSession(mcpSessionId, auth.userId);
+      if (!validation.valid) {
+        emitEvent(auth.userId, {
+          event_type: "SESSION_DEATH",
+          session_id: mcpSessionId,
+          program_id: auth.programId || "unknown",
+        });
+        return sendJson(res, 410, {
+          error: "Session expired or invalid",
+          detail: validation.error,
+          fallback: "Use REST API: POST /v1/{tool_name} with Bearer auth",
+        });
+      }
+
+      // Also refresh the in-memory session map
+      if (sessions.has(mcpSessionId)) {
+        sessions.get(mcpSessionId)!.lastActivity = Date.now();
+      }
+
+      const remainingMs = SESSION_TIMEOUT_MS - (Date.now() - (validation.session!.lastActivity || Date.now()));
+      return sendJson(res, 200, {
+        status: "alive",
+        session_id: mcpSessionId,
+        session_expires_in_ms: Math.max(0, remainingMs),
+      });
+    }
     if (url?.startsWith("/v1/") && url !== "/v1/mcp" && url !== "/v1/iso/mcp") {
       return restRouter(req, res);
     }
