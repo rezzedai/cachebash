@@ -30,6 +30,7 @@ const SendMessageSchema = z.object({
     cost_tokens: z.number().optional(),
   }).optional(),
   payload: z.record(z.string(), z.unknown()).optional(),
+  idempotency_key: z.string().max(100).optional(),
 });
 
 const GetMessagesSchema = z.object({
@@ -78,6 +79,29 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   // Phase 2: Enforce source identity
   const verifiedSource = verifySource(args.source, auth, "mcp");
   const db = getFirestore();
+
+  // Idempotency check
+  if (args.idempotency_key) {
+    const idempotencyRef = db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`);
+    const existing = await idempotencyRef.get();
+    if (existing.exists) {
+      const data = existing.data()!;
+      // Check if not expired (1-hour TTL)
+      const expiresAt = data.expiresAt?.toMillis?.() || 0;
+      if (expiresAt > Date.now()) {
+        // Full short-circuit: return cached result
+        return jsonResult({
+          success: true,
+          messageId: data.messageId || undefined,
+          multicastId: data.multicastId || undefined,
+          action: args.action,
+          relay: true,
+          idempotent: true,
+          message: `Idempotent: message already sent. ID: "${data.messageId || data.multicastId}"`,
+        });
+      }
+    }
+  }
 
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
@@ -144,6 +168,16 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
     await batch.commit();
 
+    // Record idempotency key for multicast
+    if (args.idempotency_key) {
+      await db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
+        multicastId,
+        recipients: targets.length,
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
+        createdAt: serverTimestamp(),
+      });
+    }
+
     // Emit telemetry event for multicast delivery
     emitEvent(auth.userId, {
       event_type: "RELAY_DELIVERED",
@@ -199,6 +233,15 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     encrypted: false,
     archived: false,
   });
+
+  // Record idempotency key
+  if (args.idempotency_key) {
+    await db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
+      messageId: relayRef.id,
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
+      createdAt: serverTimestamp(),
+    });
+  }
 
   return jsonResult({
     success: true,
