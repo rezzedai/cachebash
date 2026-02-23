@@ -36,6 +36,7 @@ function classifyGuardianReason(entry: AuditEntry): string {
     if (reason.includes("rate") || reason.includes("limit")) return "RATE_LIMIT";
     if (reason.includes("credential") || reason.includes("key") || reason.includes("auth")) return "CREDENTIAL";
     if (reason.includes("budget") || reason.includes("cost")) return "BUDGET";
+    if (reason.includes("capability") || reason.includes("permission") || reason.includes("insufficient")) return "INSUFFICIENT_CAPABILITY";
     if (reason.includes("destroy") || reason.includes("delete") || reason.includes("force")) return "DESTRUCTIVE_OP";
     return "UNKNOWN";
   }

@@ -84,6 +84,14 @@ async function main() {
       return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
     }
 
+    // Phase 4: Capability gate
+    const { checkToolCapability } = await import("./middleware/capabilities.js");
+    const capCheck = checkToolCapability(name, auth.capabilities);
+    if (!capCheck.allowed) {
+      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
+    }
+
     const handler = TOOL_HANDLERS[name];
     if (!handler) {
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };

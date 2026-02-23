@@ -6,6 +6,7 @@ export function mockAuth(overrides?: Partial<AuthContext>): AuthContext {
     programId: "iso",
     apiKeyHash: "test-hash",
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
+    capabilities: ["*"],
     ...overrides,
   };
 }
