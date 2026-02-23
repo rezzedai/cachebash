@@ -76,6 +76,11 @@ export function emitEvent(userId: string, data: EventData): void {
       console.error("[Events] Failed to write event:", err);
     });
   } catch (err) {
+    // Gracefully handle Firebase not being initialized (e.g., in test environments)
+    if (err instanceof Error && err.message.includes("Firebase not initialized")) {
+      console.debug("[Events] Firebase not initialized; skipping event emission");
+      return;
+    }
     console.error("[Events] Failed to emit event:", err);
   }
 }
