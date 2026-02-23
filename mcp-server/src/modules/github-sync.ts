@@ -5,7 +5,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
-import { getFirestore } from "../firebase/client.js";
+import { getFirestore, serverTimestamp } from "../firebase/client.js";
 
 // ── Project Board Constants ──────────────────────────────────────────────────
 
@@ -99,73 +99,92 @@ function mapPriority(priority: string, action?: string): string {
 
 function mapProduct(projectId?: string | null): string {
   if (!projectId) return PRODUCT_MAP.grid;
-  const lower = projectId.toLowerCase();
-  return PRODUCT_MAP[lower] || PRODUCT_MAP.grid;
+  const key = projectId.toLowerCase();
+  return PRODUCT_MAP[key] || PRODUCT_MAP.grid;
 }
 
 function mapRepo(projectId?: string | null): string {
-  if (!projectId) return "grid";
-  const lower = projectId.toLowerCase();
-  const REPO_MAP: Record<string, string> = {
-    cachebash: "cachebash",
-    grid: "grid",
-    reach: "reach",
-    drivehub: "drive-hub",
-    "cb.com": "cachebash-com",
-    optimeasure: "optimeasure",
-  };
-  return REPO_MAP[lower] || "grid";
+  if (!projectId) return REPO_NAME;
+  const key = projectId.toLowerCase();
+  if (key === "cachebash") return "cachebash";
+  return REPO_NAME;
 }
 
 function mapKind(type: string, action?: string): string {
-  // Interrupt actions are always bugs (urgent/critical)
   if (action === "interrupt") return KIND_BUG;
-
-  // Map task type to Kind
   switch (type) {
-    case "task": return KIND_FEATURE;
-    case "question": return KIND_IDEA;
-    case "dream": return KIND_IDEA;
-    case "sprint": return KIND_CHORE;
-    case "sprint-story": return KIND_CHORE;
-    default: return KIND_FEATURE;
+    case "feature": return KIND_FEATURE;
+    case "bug": return KIND_BUG;
+    case "idea": return KIND_IDEA;
+    case "content": return KIND_CONTENT;
+    default: return KIND_CHORE;
   }
 }
 
-// ── Sync Functions ───────────────────────────────────────────────────────────
+// ── Queue failed sync for retry ──────────────────────────────────────────────
+
+/**
+ * Queue a failed sync operation for retry.
+ */
+async function queueFailedSync(
+  userId: string,
+  operation: string,
+  payload: Record<string, any>,
+  error: string
+): Promise<void> {
+  try {
+    const db = getFirestore();
+    await db.collection(`users/${userId}/sync_queue`).add({
+      operation,
+      payload,
+      error,
+      timestamp: serverTimestamp(),
+      retryCount: 0,
+      status: "pending",
+    });
+
+    // Emit event
+    const { emitEvent } = await import("./events.js");
+    emitEvent(userId, {
+      event_type: "GITHUB_SYNC_FAILED",
+      program_id: "gridbot",
+      operation,
+      error_class: "TRANSIENT",
+    });
+  } catch (queueError) {
+    console.error("[GitHub Sync] Failed to queue sync failure:", queueError);
+  }
+}
+
+// ── Export: Sync Task Created ────────────────────────────────────────────────
 
 export function syncTaskCreated(
   userId: string,
   taskId: string,
   title: string,
-  body: string,
-  target: string,
-  priority: string,
-  projectId?: string | null,
+  instructions: string,
   action?: string,
-  type?: string,
-  source?: string,
-  sessionId?: string | null,
-  createdAt?: string
+  priority?: string,
+  projectId?: string | null,
+  type?: string
 ): void {
   const ok = getOctokit();
   if (!ok) return;
 
   (async () => {
-    // Build enriched body with metadata
-    const enrichedBody = `> **CacheBash Task:** \`${taskId}\` | **Source:** ${source || 'unknown'} | **Target:** ${target}
-> **Session:** ${sessionId || 'none'} | **Created:** ${createdAt || new Date().toISOString()}
----
-${body || '(no instructions)'}`;
+    const repo = mapRepo(projectId);
 
-    // Create issue
+    // Include program routing metadata
+    const enrichedBody = `> **Task ID:** \`${taskId}\` | **Priority:** ${priority || "medium"} | **Action:** ${action || "queue"}
+---
+${instructions}`;
+
     const labels = [
       "grid-task",
-      `program:${target}`,
-      `type:${type || 'task'}`,
-      `source:${source || 'unknown'}`,
-      `priority:${priority}`,
+      `priority:${priority || "medium"}`,
+      `action:${action || "queue"}`,
     ];
+    if (type) labels.push(`type:${type}`);
 
     const issue = await ok.issues.create({
       owner: REPO_OWNER,
@@ -185,7 +204,7 @@ ${body || '(no instructions)'}`;
     // Set project fields
     await Promise.all([
       setProjectField(ok, projectItemId, FIELD_STATUS, STATUS_TODO),
-      setProjectField(ok, projectItemId, FIELD_PRIORITY, mapPriority(priority, action)),
+      setProjectField(ok, projectItemId, FIELD_PRIORITY, mapPriority(priority || "medium", action)),
       setProjectField(ok, projectItemId, FIELD_PRODUCT, mapProduct(projectId)),
       setProjectField(ok, projectItemId, FIELD_KIND, mapKind(type || "task", action)),
     ]);
@@ -200,6 +219,10 @@ ${body || '(no instructions)'}`;
     console.log(`[GitHub Sync] Task ${taskId} → Issue #${issueNumber}`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncTaskCreated failed:", err);
+    queueFailedSync(userId, "syncTaskCreated", {
+      taskId,
+      taskData: { title, instructions, action, priority, projectId, type },
+    }, err instanceof Error ? err.message : String(err));
   });
 }
 
@@ -217,6 +240,7 @@ export function syncTaskClaimed(userId: string, taskId: string): void {
     console.log(`[GitHub Sync] Task ${taskId} → InProgress`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncTaskClaimed failed:", err);
+    queueFailedSync(userId, "syncTaskClaimed", { taskId }, err instanceof Error ? err.message : String(err));
   });
 }
 
@@ -246,6 +270,7 @@ export function syncTaskCompleted(userId: string, taskId: string): void {
     console.log(`[GitHub Sync] Task ${taskId} → Done (Issue #${data.githubIssueNumber} closed)`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncTaskCompleted failed:", err);
+    queueFailedSync(userId, "syncTaskCompleted", { taskId }, err instanceof Error ? err.message : String(err));
   });
 }
 
@@ -344,6 +369,10 @@ ${story.title}`;
     console.log(`[GitHub Sync] Sprint ${sprintId} → Issue #${sprintIssue.data.number} + Milestone #${milestoneNumber} (${stories.length} stories)`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncSprintCreated failed:", err);
+    queueFailedSync(userId, "syncSprintCreated", {
+      sprintId,
+      sprintData: { projectName, stories, projectId },
+    }, err instanceof Error ? err.message : String(err));
   });
 }
 
@@ -367,5 +396,6 @@ export function syncSprintCompleted(userId: string, sprintId: string): void {
     console.log(`[GitHub Sync] Sprint ${sprintId} → Milestone #${data.githubMilestoneNumber} closed`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncSprintCompleted failed:", err);
+    queueFailedSync(userId, "syncSprintCompleted", { sprintId }, err instanceof Error ? err.message : String(err));
   });
 }
