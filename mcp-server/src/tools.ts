@@ -160,6 +160,7 @@ export const TOOL_DEFINITIONS = [
         threadId: { type: "string" },
         ttl: { type: "number", description: "TTL in seconds (default 86400)" },
         payload: { type: "object", description: "Optional structured payload object. Validated against message_type schema (advisory)." },
+        idempotency_key: { type: "string", maxLength: 100, description: "Optional idempotency key (UUID v4 recommended). Prevents duplicate messages on retry. Same key returns cached result." },
       },
       required: ["message", "source", "target", "message_type"],
     },
