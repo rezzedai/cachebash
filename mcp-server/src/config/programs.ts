@@ -8,7 +8,7 @@ export const GRID_PROGRAMS = [
   'casp', 'clu', 'able', 'beck', 'gem', 'rinzler',
   'tron', 'yori', 'pixel', 'castor', 'ram', 'scribe',
   'sage', 'link', 'dumont', 'gridbot', 'bit', 'byte',
-  'tesler', 'flynns-mirror', 'council', 'codex'
+  'tesler', 'flynns-mirror', 'council', 'codex', 'vector'
 ] as const;
 
 export type GridProgramId = typeof GRID_PROGRAMS[number];
@@ -31,7 +31,7 @@ export function isValidProgram(id: string): id is ValidProgramId {
 
 /** Named groups for multicast routing */
 export const PROGRAM_GROUPS: Record<string, readonly GridProgramId[]> = {
-  council: ['iso', 'alan', 'quorra', 'sark', 'casp', 'radia'],
+  council: ['iso', 'alan', 'quorra', 'sark', 'casp', 'radia', 'vector'],
   builders: ['basher', 'able', 'beck'],
   intelligence: ['clu', 'beck', 'scribe'],
   all: [...GRID_PROGRAMS].filter(p => p !== 'council'), // All individual programs except the 'council' meta-entry
@@ -67,4 +67,5 @@ export const PROGRAM_REGISTRY: Partial<Record<GridProgramId, ProgramMeta>> = {
   beck:   { displayName: "BECK",   color: "#40A8A0", role: "Operations" },
   radia:  { displayName: "RADIA",  color: "#E8E0D0", role: "Vision" },
   codex:  { displayName: "CODEX",  color: "#10A37F", role: "Cross-Model Builder" },
+  vector: { displayName: "VECTOR", color: "#C4A052", role: "Strategic Counsel" },
 };
