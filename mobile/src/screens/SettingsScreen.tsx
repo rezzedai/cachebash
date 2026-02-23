@@ -162,7 +162,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Grid Status</Text>
+            <Text style={styles.rowLabel}>Status</Text>
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, sessionsError && { backgroundColor: theme.colors.error }]} />
               <Text style={[styles.statusText, sessionsError && { color: theme.colors.error }]}>
@@ -185,7 +185,7 @@ export default function SettingsScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>CacheBash Mobile</Text>
-        <Text style={styles.footerSubtext}>Part of The Grid</Text>
+        <Text style={styles.footerSubtext}>Multi-agent coordination</Text>
       </View>
     </ScrollView>
   );

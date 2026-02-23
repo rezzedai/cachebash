@@ -1,7 +1,7 @@
 /**
  * Session — Program lifecycle tracking.
  *
- * Every program on the Grid has a session. Sessions track
+ * Every program in CacheBash has a session. Sessions track
  * what a program is doing, its health, and its lifecycle state.
  */
 
@@ -33,6 +33,6 @@ export interface Session {
   archivedAt?: FirestoreTimestamp;
   model?: string;
 
-  // Context Health (Phase 4, Decision #4)
+  // Context Health (Phase 4)
   contextBytes?: number;
   handoffRequired?: boolean;}

@@ -1,14 +1,14 @@
 /**
  * Relay — Ephemeral inter-program messages with TTL.
  *
- * The Grid's nervous system. Messages flow through relay,
+ * CacheBash's nervous system. Messages flow through relay,
  * get delivered, and expire. No permanent storage.
  * For durable work, use tasks.
  */
 
 import { FirestoreTimestamp, Envelope } from "./envelope.js";
 
-/** Relay message types — the Grid protocol vocabulary */
+/** Relay message types — the CacheBash protocol vocabulary */
 export type RelayMessageType =
   | "PING"
   | "PONG"

@@ -88,11 +88,11 @@ const QueryTracesSchema = z.object({
 });
 
 export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // ISO/Operator gate
+  // Admin only gate
   if (!["iso", "operator", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
-      error: "query_traces is only accessible by ISO and Operator.",
+      error: "query_traces is only accessible by admin.",
     });
   }
 

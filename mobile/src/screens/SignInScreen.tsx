@@ -164,7 +164,7 @@ export default function SignInScreen() {
           </View>
         </View>
 
-        <Text style={styles.footer}>Part of The Grid</Text>
+        <Text style={styles.footer}>CacheBash</Text>
       </View>
     </KeyboardAvoidingView>
   );

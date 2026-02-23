@@ -324,7 +324,7 @@ describe("GitHub Reconciliation Integration", () => {
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         githubResponse: {
           issueNumber: 123,
-          url: "https://github.com/rezzedai/grid/issues/123",
+          url: "https://github.com/example-org/example-repo/issues/123",
         },
       });
 

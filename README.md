@@ -54,7 +54,7 @@ CacheBash uses Streamable HTTP transport with Bearer token auth. Works with any 
 ### 1. Clone and Build
 
 ```bash
-git clone https://github.com/rezzedai/cachebash.git
+git clone https://github.com/your-org/cachebash.git
 cd cachebash/mcp-server
 npm install
 npm run build
