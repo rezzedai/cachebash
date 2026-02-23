@@ -11,7 +11,7 @@ import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
-import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError } from "../middleware/rateLimiter.js";
+import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError, checkToolRateLimit, getToolRateLimitResetIn } from "../middleware/rateLimiter.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -119,6 +119,12 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
   if (!checkRateLimit(auth.userId, toolName)) {
     const resetIn = getRateLimitResetIn(auth.userId, toolName);
     throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
+  }
+
+  // Per-tool rate limit (SARK Phase 4: tighter limits on state writes)
+  if (!checkToolRateLimit(auth.userId, toolName, auth.programId)) {
+    const resetIn = getToolRateLimitResetIn(auth.userId, toolName, auth.programId);
+    throw new RateLimitError(`Tool rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
   }
 
   // Phase 4: Capability gate
