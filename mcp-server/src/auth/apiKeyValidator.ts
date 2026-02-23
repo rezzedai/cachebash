@@ -9,6 +9,7 @@ export interface AuthContext {
   apiKeyHash: string;
   encryptionKey: Buffer;
   programId: ValidProgramId;
+  capabilities: string[];
 }
 
 function hashApiKey(apiKey: string): string {
@@ -40,11 +41,18 @@ export async function validateApiKey(
     // Update lastUsedAt (fire-and-forget — don't block auth)
     db.doc(`apiKeys/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
 
+    // Load capabilities from key doc, falling back to defaults for the program
+    const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+    const capabilities: string[] = data.capabilities && data.capabilities.length > 0 && data.capabilities[0] !== "*"
+      ? data.capabilities
+      : getDefaultCapabilities(programId);
+
     return {
       userId: data.userId,
       apiKeyHash: keyHash,
       encryptionKey: deriveEncryptionKey(apiKey),
       programId,
+      capabilities,
     };
   } catch (error) {
     console.error("API key validation error:", error);
