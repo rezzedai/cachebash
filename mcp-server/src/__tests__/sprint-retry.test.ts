@@ -18,7 +18,7 @@ describe("Sprint Retry", () => {
       ["active", "active"],
       ["complete", "done"],
       ["failed", "failed"],
-      ["skipped", "derezzed"],
+      ["skipped", "archived"],
     ];
 
     it.each(mappings)("maps %s to %s", (input, expected) => {

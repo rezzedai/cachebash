@@ -38,7 +38,7 @@ async function handleDreamTransition(
   before: FirebaseFirestore.DocumentData,
   after: FirebaseFirestore.DocumentData
 ): Promise<void> {
-  const terminalStatuses = ["done", "failed", "derezzed"];
+  const terminalStatuses = ["done", "failed", "archived"];
   if (!terminalStatuses.includes(after.status)) return;
 
   try {
@@ -70,7 +70,7 @@ async function handleDreamTransition(
         title = "Dream Failed";
         body = `${agent} encountered an error. ${after.dream?.outcome || "Check logs."}`;
         break;
-      case "derezzed":
+      case "archived":
         title = "Dream Stopped";
         body = `${agent} was stopped.`;
         break;
@@ -133,7 +133,7 @@ async function handleSprintStoryCascade(
 
     const activeStories = stories.filter((s) => s.status === "active");
     const completedStories = stories.filter((s) =>
-      ["done", "failed", "derezzed"].includes(s.status)
+      ["done", "failed", "archived"].includes(s.status)
     );
 
     let sprintStatus: string;
@@ -141,7 +141,7 @@ async function handleSprintStoryCascade(
 
     if (completedStories.length === stories.length) {
       const failedCount = stories.filter((s) => s.status === "failed").length;
-      const skippedCount = stories.filter((s) => s.status === "derezzed").length;
+      const skippedCount = stories.filter((s) => s.status === "archived").length;
       if (failedCount > 0) {
         sprintStatus = `Complete (${failedCount} failed)`;
       } else if (skippedCount > 0) {

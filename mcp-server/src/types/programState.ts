@@ -1,7 +1,6 @@
 /**
- * Program State Schema — Persistent operational memory for Grid programs.
+ * Program State Schema — Persistent operational memory for programs.
  * Collection: users/{uid}/sessions/_meta/program_state/{programId}
- * Designed by ALAN (Decision #15b), safety requirements from SARK (Decision #15c).
  */
 
 export interface LearnedPattern {
@@ -26,7 +25,7 @@ export interface ProgramState {
   programId: string;
   version: number;
 
-  // Provenance (SARK 15c)
+  // Provenance
   lastUpdatedBy: string;
   lastUpdatedAt: string;
   sessionId: string;
@@ -63,7 +62,7 @@ export interface ProgramState {
     lastSessionDurationMinutes: number | null;
   };
 
-  // Decay Metadata (SARK 15c)
+  // Decay Metadata
   decay: {
     contextSummaryTTLDays: number;
     learnedPatternMaxAge: number;
