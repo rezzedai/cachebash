@@ -17,7 +17,8 @@ export type EventType =
   | "GUARDIAN_CHECK"
   | "SUBAGENT_SPAWNED"
   | "PR_OPENED"
-  | "PR_MERGED";
+  | "PR_MERGED"
+  | "CLEANUP_RUN";
 
 export type TaskClass = "WORK" | "CONTROL";
 

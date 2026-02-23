@@ -553,7 +553,7 @@ function classifyDeadLetter(data: Record<string, unknown>): string {
   return "EXPIRED_TTL";
 }
 
-export async function cleanupExpiredRelayMessages(userId: string): Promise<number> {
+export async function cleanupExpiredRelayMessages(userId: string): Promise<{ expired: number; cleaned: number }> {
   const db = getFirestore();
   const now = admin.firestore.Timestamp.now();
 
@@ -564,7 +564,8 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<numbe
     .limit(100)
     .get();
 
-  if (snapshot.empty) return 0;
+  const expired = snapshot.size;
+  if (snapshot.empty) return { expired: 0, cleaned: 0 };
 
   const batch = db.batch();
   let count = 0;
@@ -583,15 +584,15 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<numbe
   }
 
   await batch.commit();
-  
+
   // Emit telemetry event for dead lettering
   emitEvent(userId, {
     event_type: "RELAY_DEAD_LETTERED",
     dead_letter_count: count,
     dead_letter_reason: "EXPIRED_TTL",
   });
-  
-  return count;
+
+  return { expired, cleaned: count };
 }
 
 export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {

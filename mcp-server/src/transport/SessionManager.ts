@@ -64,7 +64,7 @@ export class SessionManager {
     await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).delete();
   }
 
-  async cleanupExpiredSessions(userId: string): Promise<number> {
+  async cleanupExpiredSessions(userId: string): Promise<{ expired: number; cleaned: number }> {
     const db = getFirestore();
     const threshold = Date.now() - this.sessionTimeout;
     const snapshot = await db
@@ -72,11 +72,15 @@ export class SessionManager {
       .where("lastActivity", "<", threshold)
       .get();
 
-    if (snapshot.empty) return 0;
+    const expired = snapshot.size;
+    if (snapshot.empty) return { expired: 0, cleaned: 0 };
 
+    // Note: Firestore TTL policy on expiresAt field is an alternative for session cleanup
+    // (zero code, auto-deletes expired docs), but scheduled job is preferred for relay
+    // (preserves dead letter analytics).
     const batch = db.batch();
     snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
-    return snapshot.size;
+    return { expired, cleaned: snapshot.size };
   }
 }
