@@ -21,13 +21,13 @@ AI coding assistants run in isolated sessions. When you use multiple agents — 
            ┌─────────────▼──────────────┐
            │    CacheBash MCP Server    │
            │   Cloud Run · TypeScript   │
-           │     18 tools · REST API    │
+           │     34 tools · REST API    │
            └─────────────┬──────────────┘
                          │
            ┌─────────────▼──────────────┐
            │   Google Cloud Firestore   │
            │  tasks · relay · sessions  │
-           │         · ledger           │
+           │  programState · telemetry  │
            └─────────────┬──────────────┘
                          │
            ┌─────────────▼──────────────┐
@@ -39,13 +39,15 @@ AI coding assistants run in isolated sessions. When you use multiple agents — 
 
 ## Supported Clients
 
-CacheBash works with any MCP-compatible client:
+CacheBash uses Streamable HTTP transport with Bearer token auth. Works with any MCP client that supports both:
 
-- Claude Code
-- Cursor
-- VS Code (GitHub Copilot)
-- ChatGPT Desktop
-- Gemini CLI
+| Client | Status |
+|--------|--------|
+| Claude Code | Production driver. Used daily. |
+| Cursor | Works out of the box. |
+| VS Code (GitHub Copilot) | Works out of the box. |
+| Gemini CLI | Works. Supports env var expansion for API keys. |
+| ChatGPT Desktop | Not yet supported — requires OAuth 2.1. |
 
 ## Quick Start
 
@@ -98,30 +100,36 @@ Add to your client's MCP configuration:
 }
 ```
 
-Your AI session now has 18 coordination tools available.
+Your AI session now has 34 coordination tools available.
 
-## MCP Tools
+## MCP Tools (34)
 
 | Module | Tools | Purpose |
 |--------|-------|---------|
-| Dispatch | create_task, get_tasks, claim_task, complete_task | Task lifecycle management |
-| Relay | send_message, get_messages, get_sent_messages, query_message_history | Inter-agent messaging |
-| Sessions | create_session, update_session, list_sessions | Agent status and health tracking |
-| Sprint | create_sprint, update_sprint_story, add_story_to_sprint, complete_sprint, get_sprint | Parallel work coordination |
-| Signal | ask_question, get_response, send_alert | User notifications via mobile app |
-| Admin | create_key, list_keys, revoke_key | API key management |
+| Dispatch | `create_task`, `get_tasks`, `claim_task`, `complete_task` | Task lifecycle — priority queues, claim-based ownership |
+| Relay | `send_message`, `get_messages`, `get_sent_messages`, `query_message_history`, `get_dead_letters`, `list_groups` | Inter-agent messaging — direct, multicast, threaded |
+| Pulse | `create_session`, `update_session`, `list_sessions`, `get_fleet_health` | Session health, heartbeat, fleet-wide monitoring |
+| Sprint | `create_sprint`, `update_sprint_story`, `add_story_to_sprint`, `complete_sprint`, `get_sprint` | Parallel work — stories, waves, dependencies |
+| Signal | `ask_question`, `get_response`, `send_alert` | Push questions and alerts to mobile app |
+| Dream | `dream_peek`, `dream_activate` | Autonomous scheduling with budget caps |
+| Program State | `get_program_state`, `update_program_state` | Persistent agent memory across sessions |
+| Keys | `create_key`, `list_keys`, `revoke_key` | Per-agent API key management |
+| Observability | `get_audit`, `get_cost_summary`, `get_comms_metrics`, `get_operational_metrics`, `query_traces` | Audit log, cost tracking, metrics, execution traces |
 
 ## Features
 
 - **Task dispatch** with priority queues, lifecycle tracking, and claim-based ownership
-- **Message relay** with direct messaging, multicast groups, and thread support
-- **Session tracking** with heartbeat monitoring and state management
-- **Sprint orchestration** for parallel work with wave-based scheduling
+- **Message relay** with direct messaging, multicast groups, thread support, and dead letter queue
+- **Session tracking** with heartbeat monitoring, fleet health dashboard, and state management
+- **Sprint orchestration** for parallel work with wave-based scheduling and retry policies
+- **Program state** — persistent operational memory across sessions (context, learned patterns, handoff notes)
+- **Dream mode** — autonomous overnight scheduling with budget caps
+- **Observability** — audit log, cost/token tracking, comms metrics, operational metrics, execution traces
 - **REST API** with full MCP tool parity for non-MCP integrations
 - **E2E encryption** for sensitive fields (user questions, alerts)
 - **Rate limiting** with sliding window (120 read / 60 write per minute per user)
 - **Dual auth** via API keys (SHA-256 hashed) and Firebase JWT
-- **Cost tracking** with token and USD spend aggregation
+- **Cost tracking** with token and USD spend aggregation per session, per agent
 - **Mobile app** (React Native + Expo) for monitoring, approvals, and alerts
 
 ## Project Structure
@@ -130,11 +138,12 @@ Your AI session now has 18 coordination tools available.
 cachebash/
 ├── mcp-server/       MCP server (TypeScript, Cloud Run)
 │   ├── src/
-│   │   ├── modules/     Dispatch, relay, sessions, sprint, signal
+│   │   ├── modules/     11 modules (dispatch, relay, pulse, sprint, signal, dream, keys, audit, programState, metrics, trace)
 │   │   ├── transport/   MCP HTTP transport + REST router
-│   │   ├── auth/        API key validation
-│   │   ├── middleware/  Rate limiting, CORS, audit logging
-│   │   └── types/       TypeScript interfaces and Zod schemas
+│   │   ├── auth/        API key + Firebase JWT validation
+│   │   ├── middleware/  Rate limiting, gate (source verification), capabilities
+│   │   ├── lifecycle/   State machine engine, wake daemon
+│   │   └── types/       TypeScript interfaces
 │   └── package.json
 ├── firebase/         Cloud Functions (push notifications, cleanup)
 ├── mobile/           React Native + Expo mobile app
