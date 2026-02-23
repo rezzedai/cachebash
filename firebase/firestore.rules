@@ -39,6 +39,12 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow write: if false;
     }
+
+    // Analytics Events (G-33): read-only for clients. Server writes via Admin SDK.
+    match /users/{userId}/analytics_events/{eventId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
     
     // Ledger: read-only for clients. Server-authoritative.
     match /users/{userId}/ledger/{entryId} {
