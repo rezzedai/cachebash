@@ -50,19 +50,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Set up Firebase auth state listener
   useEffect(() => {
-    // Dev mode auto-login bypass using API key
-    if (__DEV__) {
-      const devKey = 'cb_7302ac94ee5c64c84903206d582c80ed0a8aa19b66b2cedd6ed30ffb9832637b';
-      const api = new CacheBashAPI(devKey);
-      setState({
-        user: null,
-        api,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-      return;
-    }
-
     // Listen for ID token changes (includes auth state + token refresh)
     const unsubscribe = onIdTokenChanged(auth, async (user) => {
       if (user) {
