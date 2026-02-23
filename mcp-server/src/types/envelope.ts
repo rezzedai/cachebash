@@ -1,8 +1,8 @@
 /**
- * Envelope v2.2 — Shared fields for all Grid entities.
+ * Envelope v2.2 — Shared fields for all CacheBash entities.
  *
  * Every task, relay message, and inter-program communication
- * carries an envelope. This is the Grid's addressing system.
+ * carries an envelope. This is CacheBash's addressing system.
  */
 
 import { Timestamp } from "firebase-admin/firestore";

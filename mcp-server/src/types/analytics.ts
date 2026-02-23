@@ -1,5 +1,5 @@
 /**
- * Analytics Event Types — G-33 Tier 1-A
+ * Analytics Event Types
  *
  * Product analytics for CacheBash usage patterns.
  * NEVER captures content — only metadata.

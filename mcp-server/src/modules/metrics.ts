@@ -1,5 +1,5 @@
 /**
- * Metrics Module — Cost aggregation endpoints for ISO.
+ * Metrics Module — Cost aggregation endpoints for admin.
  * Queries completed tasks and returns spend totals with optional grouping.
  */
 
@@ -57,11 +57,11 @@ const CommsMetricsSchema = z.object({
 });
 
 export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // ISO/Flynn gate
+  // Admin only gate
   if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
-      error: "get_comms_metrics is only accessible by ISO and Flynn.",
+      error: "get_comms_metrics is only accessible by admin.",
     });
   }
 
@@ -205,9 +205,9 @@ const OperationalMetricsSchema = z.object({
 });
 
 export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // ISO/Flynn gate
+  // Admin only gate
   if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
-    return jsonResult({ success: false, error: "get_operational_metrics is only accessible by ISO and Flynn." });
+    return jsonResult({ success: false, error: "get_operational_metrics is only accessible by admin." });
   }
 
   const args = OperationalMetricsSchema.parse(rawArgs || {});

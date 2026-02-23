@@ -418,7 +418,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const args = GetSentMessagesSchema.parse(rawArgs);
   const db = getFirestore();
 
-  // Programs see own sent only; ISO/Flynn can pass optional source to see any
+  // Programs see own sent only; admin can pass optional source to see any
   const isPrivileged = ["iso", "flynn", "legacy", "mobile"].includes(auth.programId);
   const source = isPrivileged && args.source ? args.source : auth.programId;
 
@@ -462,11 +462,11 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 }
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Only accessible by ISO and Flynn (legacy/mobile keys)
+  // Admin only (legacy/mobile keys)
   if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "iso") {
     return jsonResult({
       success: false,
-      error: "Dead letter queue is only accessible by ISO and Flynn.",
+      error: "Dead letter queue is only accessible by admin.",
     });
   }
 
@@ -533,11 +533,11 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
     });
   }
 
-  // ISO/Flynn gate
+  // Admin only gate
   if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
-      error: "query_message_history is only accessible by ISO and Flynn.",
+      error: "query_message_history is only accessible by admin.",
     });
   }
 

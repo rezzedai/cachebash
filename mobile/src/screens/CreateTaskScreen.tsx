@@ -63,7 +63,7 @@ const CreateTaskScreen = () => {
         instructions: instructions.trim() || undefined,
         priority,
         action,
-        source: 'flynn',
+        source: 'admin',
       });
 
       haptic.success();
@@ -95,7 +95,7 @@ const CreateTaskScreen = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Create Task</Text>
           <Text style={styles.headerSubtitle}>
-            Dispatch work to a Grid program
+            Dispatch work to an agent
           </Text>
         </View>
 

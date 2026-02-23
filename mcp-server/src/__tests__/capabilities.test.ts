@@ -1,5 +1,5 @@
 /**
- * Capability-Based Access Control Tests — Phase 4 Wave 2
+ * Capability-Based Access Control Tests
  */
 
 import { hasCapability, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
@@ -91,7 +91,7 @@ describe('Capability System', () => {
   });
 
   describe('DEFAULT_CAPABILITIES', () => {
-    it('ISO has wildcard', () => {
+    it('orchestrator has wildcard', () => {
       expect(DEFAULT_CAPABILITIES['iso']).toEqual(['*']);
     });
 
@@ -119,7 +119,7 @@ describe('Capability System', () => {
       expect(DEFAULT_CAPABILITIES['mobile']).toContain('metrics.read');
     });
 
-    it('SARK has audit.read (security role)', () => {
+    it('auditor has audit.read (security role)', () => {
       expect(DEFAULT_CAPABILITIES['sark']).toContain('audit.read');
     });
   });

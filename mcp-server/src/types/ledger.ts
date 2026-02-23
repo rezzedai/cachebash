@@ -1,7 +1,7 @@
 /**
  * Ledger — Cost tracking per tool call.
  *
- * Every tool invocation on the Grid gets a ledger entry.
+ * Every tool invocation in CacheBash gets a ledger entry.
  * Fire-and-forget writes — never blocks the response.
  */
 
