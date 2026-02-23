@@ -2,7 +2,7 @@
  * Key Management — Create, revoke, and list per-program API keys.
  *
  * Only Flynn's userId can manage keys (Phase 2 hardcode).
- * Phase 4 will add RBAC.
+ * Phase 4: Scoped capabilities per key.
  */
 
 import * as crypto from "crypto";
@@ -49,11 +49,17 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   const keyHash = hashKey(rawKey);
   const db = getFirestore();
 
+  // Phase 4: Accept scoped capabilities, default to program defaults
+  const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+  const requestedCapabilities: string[] = args.capabilities && Array.isArray(args.capabilities) && args.capabilities.length > 0
+    ? args.capabilities
+    : getDefaultCapabilities(programId);
+
   const keyDoc: Omit<ApiKeyDoc, "createdAt" | "lastUsedAt"> & { createdAt: any } = {
     userId: auth.userId,
     programId,
     label,
-    capabilities: ["*"],
+    capabilities: requestedCapabilities,
     createdAt: FieldValue.serverTimestamp(),
     active: true,
   };
@@ -69,6 +75,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
         keyHash,
         programId,
         label,
+        capabilities: requestedCapabilities,
         message: "Store this key securely. It will not be shown again.",
       }),
     }],

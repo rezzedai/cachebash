@@ -22,11 +22,15 @@ export async function validateFirebaseToken(
       "sha256"
     );
 
+    // Phase 4: Mobile gets scoped capabilities via defaults
+    const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+
     return {
       userId: decoded.uid,
       apiKeyHash: `firebase:${decoded.uid}`,
       encryptionKey,
       programId: "mobile",
+      capabilities: getDefaultCapabilities("mobile"),
     };
   } catch (error) {
     // Token expired, invalid, or revoked
