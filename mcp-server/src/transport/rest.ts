@@ -284,6 +284,12 @@ const routes: Route[] = [
     const data = await callTool(auth, "get_comms_metrics", query);
     restResponse(res, true, data);
   }),
+
+  route("GET", "/v1/metrics/operational", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, "get_operational_metrics", query);
+    restResponse(res, true, data);
+  }),
   // Fleet
   route("GET", "/v1/fleet/health", async (auth, req, res) => {
     const data = await callTool(auth, "get_fleet_health", {});
