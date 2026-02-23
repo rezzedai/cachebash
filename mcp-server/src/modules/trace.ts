@@ -89,7 +89,7 @@ const QueryTracesSchema = z.object({
 
 export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
-  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
       error: "query_traces is only accessible by admin.",

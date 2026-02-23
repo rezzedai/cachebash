@@ -419,7 +419,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const db = getFirestore();
 
   // Programs see own sent only; admin can pass optional source to see any
-  const isPrivileged = ["iso", "flynn", "legacy", "mobile"].includes(auth.programId);
+  const isPrivileged = ["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId);
   const source = isPrivileged && args.source ? args.source : auth.programId;
 
   let query: admin.firestore.Query = db
@@ -463,7 +463,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only (legacy/mobile keys)
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "iso") {
+  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator") {
     return jsonResult({
       success: false,
       error: "Dead letter queue is only accessible by admin.",
@@ -534,7 +534,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   }
 
   // Admin only gate
-  if (!["iso", "flynn", "legacy", "mobile"].includes(auth.programId)) {
+  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
     return jsonResult({
       success: false,
       error: "query_message_history is only accessible by admin.",

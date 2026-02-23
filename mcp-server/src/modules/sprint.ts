@@ -76,7 +76,7 @@ function escalateToIso(
     await sendMessageHandler(auth, {
       message: `Sprint story failed after retries exhausted. Sprint: ${sprintId}, Story: ${storyId} (${storyTitle})`,
       source: "sprint-engine",
-      target: "iso",
+      target: "orchestrator",
       message_type: "RESULT",
       priority: "high",
       action: "interrupt",

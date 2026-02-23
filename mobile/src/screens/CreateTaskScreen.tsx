@@ -25,11 +25,11 @@ interface Program {
 }
 
 const PROGRAMS: Program[] = [
-  { id: 'iso', name: 'iso', color: '#6FC3DF' },
-  { id: 'basher', name: 'basher', color: '#E87040' },
-  { id: 'alan', name: 'alan', color: '#4A8ED4' },
-  { id: 'quorra', name: 'quorra', color: '#9B6FC0' },
-  { id: 'sark', name: 'sark', color: '#C44040' },
+  { id: 'orchestrator', name: 'orchestrator', color: '#6FC3DF' },
+  { id: 'builder', name: 'builder', color: '#E87040' },
+  { id: 'architect', name: 'architect', color: '#4A8ED4' },
+  { id: 'reviewer', name: 'reviewer', color: '#9B6FC0' },
+  { id: 'auditor', name: 'auditor', color: '#C44040' },
   { id: 'able', name: 'able', color: '#4DB870' },
   { id: 'beck', name: 'beck', color: '#40A8A0' },
   { id: 'radia', name: 'radia', color: '#E8E0D0' },

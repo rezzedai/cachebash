@@ -62,8 +62,8 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
 
     try {
       await api.sendMessage({
-        source: 'flynn',
-        target: localTask.source || 'iso',
+        source: 'admin',
+        target: localTask.source || 'orchestrator',
         message: option,
         message_type: 'RESULT',
         priority: localTask.priority || 'normal',
