@@ -9,6 +9,7 @@ import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { z } from "zod";
 import { syncSprintCreated, syncSprintCompleted } from "./github-sync.js";
+import { emitAnalyticsEvent } from "./analytics.js";
 
 const StorySchema = z.object({
   id: z.string(),
@@ -177,6 +178,14 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
 
   // Fire-and-forget: sync sprint to GitHub Milestone + Issues
   syncSprintCreated(auth.userId, sprintId, args.projectName, args.stories, null);
+
+  // Analytics: sprint_lifecycle create
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "sprint_lifecycle",
+    programId: auth.programId,
+    toolName: "create_sprint",
+    success: true,
+  });
 
   return jsonResult({
     success: true,
@@ -354,6 +363,14 @@ export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown)
 
   // Fire-and-forget: close GitHub Milestone
   syncSprintCompleted(auth.userId, args.sprintId);
+
+  // Analytics: sprint_lifecycle complete
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "sprint_lifecycle",
+    programId: auth.programId,
+    toolName: "complete_sprint",
+    success: true,
+  });
 
   return jsonResult({
     success: true,

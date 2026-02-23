@@ -11,6 +11,7 @@ import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
 import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
 import { validatePayload } from "../types/relay-schemas.js";
 import { emitEvent } from "./events.js";
+import { emitAnalyticsEvent } from "./analytics.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -190,6 +191,17 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       is_multicast: true,
     });
 
+    // Analytics: message_lifecycle send (multicast)
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "message_lifecycle",
+      programId: verifiedSource,
+      toolName: "send_message",
+      messageType: args.message_type,
+      priority: args.priority,
+      action: args.action,
+      success: true,
+    });
+
     return jsonResult({
       success: true,
       multicastId,
@@ -245,6 +257,17 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       createdAt: serverTimestamp(),
     });
   }
+
+  // Analytics: message_lifecycle send
+  emitAnalyticsEvent(auth.userId, {
+    eventType: "message_lifecycle",
+    programId: verifiedSource,
+    toolName: "send_message",
+    messageType: args.message_type,
+    priority: args.priority,
+    action: args.action,
+    success: true,
+  });
 
   return jsonResult({
     success: true,
