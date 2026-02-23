@@ -2,29 +2,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // UID aliasing: allows Grid Portal (Google auth) to access CacheBash data (API key auth)
-    // userLinks/{authUid} → { dataUid: "cachebash-uid" }
     function isOwnerOrLinked(userId) {
       return request.auth.uid == userId ||
         (exists(/databases/$(database)/documents/userLinks/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/userLinks/$(request.auth.uid)).data.dataUid == userId);
     }
+    
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuth() && isOwnerOrLinked(userId);
+    }
 
-    // Users can read/write their own data (or linked data via userLinks)
-    // Subcollections: sessions, tasks, relay, programs, questions, dream_sessions, audit, ledger, devices
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && isOwnerOrLinked(userId);
+    // === Per-subcollection rules under /users/{userId}/ ===
+    
+    // Tasks: read all, write restricted to mobile task creation and question answering
+    match /users/{userId}/tasks/{taskId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+        request.resource.data.source == "mobile";
+      allow update: if isOwner(userId) && 
+        resource.data.type == "question" &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'answeredAt']);
+    }
+    
+    // Relay: read-only for clients. Server writes via Admin SDK.
+    match /users/{userId}/relay/{messageId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // Events: read-only for clients. Append-only from server.
+    match /users/{userId}/events/{eventId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // Ledger: read-only for clients. Server-authoritative.
+    match /users/{userId}/ledger/{entryId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // Sessions: read-only. Server manages via Admin SDK.
+    match /users/{userId}/sessions/{document=**} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // MCP Sessions: read-only. Server-side session management.
+    match /users/{userId}/mcp_sessions/{sessionId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // Idempotency Keys: no client access.
+    match /users/{userId}/idempotency_keys/{keyId} {
+      allow read, write: if false;
+    }
+    
+    // Health Checks: read-only. GRIDBOT writes via Admin SDK.
+    match /users/{userId}/health_checks/{checkId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+    
+    // Devices: read and write for push token registration.
+    match /users/{userId}/devices/{deviceId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // User root document: read-only
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
     }
 
     // User links: readable by the linked user, writable only by server
     match /userLinks/{linkId} {
-      allow read: if request.auth != null && request.auth.uid == linkId;
+      allow read: if isAuth() && request.auth.uid == linkId;
       allow write: if false;
     }
 
-    // API keys are read-only for authenticated users
+    // API keys: no client access at all (sensitive auth material)
     match /apiKeys/{hash} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // Default deny
