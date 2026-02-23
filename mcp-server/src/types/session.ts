@@ -32,4 +32,7 @@ export interface Session {
   archived: boolean;
   archivedAt?: FirestoreTimestamp;
   model?: string;
-}
+
+  // Context Health (Phase 4, Decision #4)
+  contextBytes?: number;
+  handoffRequired?: boolean;}
