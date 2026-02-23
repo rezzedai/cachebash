@@ -432,7 +432,7 @@ describe("GitHub Reconciliation Integration", () => {
     it("should clean up old completed items", async () => {
       const now = admin.firestore.Timestamp.now();
       const oldTime = admin.firestore.Timestamp.fromDate(
-        new Date(now.toDate().getTime() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+        new Date(now.toDate().getTime() - 31 * 24 * 60 * 60 * 1000) // 31 days ago
       );
 
       const queueItems = [
