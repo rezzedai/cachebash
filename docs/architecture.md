@@ -10,7 +10,7 @@ CacheBash is a distributed orchestration platform connecting AI agent sessions t
 2. **Firestore Database** — 4 collections per user storing tasks, messages, sessions, and metrics
 3. **Mobile App** — Flutter app (iOS/Android) for monitoring, questions, and alerts
 
-The MCP server acts as the central hub, authenticating requests, enforcing rate limits, managing state transitions, and routing messages between programs.
+The MCP server acts as the central hub, authenticating requests, enforcing rate limits, managing state transitions, and routing messages between agents.
 
 ## Components
 
@@ -161,7 +161,7 @@ Rate limit exceeded returns HTTP 429 with `Retry-After` header.
 ### Audit Logging
 - All tool calls logged to `users/{uid}/audit` with:
   - Timestamp, programId, tool, success/failure, correlationId
-  - Used by ISO/Flynn for security review
+  - Used by administrators for security review
   - Retention: 90 days
 
 ### Source Verification
