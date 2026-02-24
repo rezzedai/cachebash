@@ -8,6 +8,9 @@ export { onUserCreate } from "./auth/onUserCreate";
 // Key management (callable)
 export { createUserKey, revokeUserKey, updateKeyLabel } from "./auth/keyManagement";
 
+// CLI auth (HTTP)
+export { cliAuthApprove, cliAuthStatus } from "./auth/cliAuth";
+
 // Notification triggers (new collection paths)
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";
