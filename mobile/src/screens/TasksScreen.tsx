@@ -240,10 +240,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
     borderColor: theme.colors.border,
     marginRight: theme.spacing.sm,
+    minHeight: 34,
+    justifyContent: 'center',
   },
   filterChipActive: {
     backgroundColor: theme.colors.surface,
@@ -252,7 +254,8 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: theme.colors.textSecondary,
+    color: theme.colors.text,
+    lineHeight: 18,
   },
   filterChipTextActive: {
     color: theme.colors.primary,
