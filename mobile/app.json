@@ -34,10 +34,14 @@
     },
     "plugins": [
       "expo-secure-store",
-      ["expo-notifications", {
-        "color": "#00d4ff",
-        "defaultChannel": "default"
-      }]
+      [
+        "expo-notifications",
+        {
+          "color": "#00d4ff",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-web-browser"
     ]
   }
 }

@@ -11,7 +11,9 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, resetPassword, error: authError } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const { signIn, signUp, signInWithGoogle, signInWithGitHub, resetPassword, error: authError } = useAuth();
 
   const handleAuth = async () => {
     if (!email.trim()) {
@@ -69,6 +71,36 @@ export default function SignInScreen() {
     setPassword('');
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const success = await signInWithGoogle();
+      if (!success && authError) {
+        setError(authError);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGitHubSignIn = async () => {
+    setError('');
+    setGithubLoading(true);
+    try {
+      const success = await signInWithGitHub();
+      if (!success && authError) {
+        setError(authError);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'GitHub sign-in failed');
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
@@ -78,6 +110,42 @@ export default function SignInScreen() {
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>CacheBash</Text>
           <Text style={styles.subtitle}>MOBILE OPERATIONS BRIDGE</Text>
+        </View>
+
+        <View style={styles.oauthContainer}>
+          <TouchableOpacity
+            style={[styles.githubButton, (githubLoading || loading) && styles.buttonDisabled]}
+            onPress={handleGitHubSignIn}
+            disabled={githubLoading || loading || googleLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in with GitHub"
+          >
+            {githubLoading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.githubButtonText}>Sign in with GitHub</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.googleButton, (googleLoading || loading) && styles.buttonDisabled]}
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading || loading || githubLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in with Google"
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#333333" />
+            ) : (
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or sign in with email</Text>
+            <View style={styles.dividerLine} />
+          </View>
         </View>
 
         <View style={styles.formContainer}>
@@ -268,6 +336,55 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
+  },
+  oauthContainer: {
+    width: '100%',
+    marginBottom: theme.spacing.md,
+  },
+  githubButton: {
+    backgroundColor: '#24292e',
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    marginBottom: theme.spacing.sm,
+  },
+  githubButtonText: {
+    color: '#ffffff',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+  },
+  googleButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  googleButtonText: {
+    color: '#333333',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border,
+  },
+  dividerText: {
+    color: theme.colors.textMuted,
+    fontSize: theme.fontSize.sm,
+    marginHorizontal: theme.spacing.md,
   },
   footer: {
     textAlign: 'center',
