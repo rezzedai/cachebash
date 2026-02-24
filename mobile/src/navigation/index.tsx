@@ -57,6 +57,9 @@ function HomeStackScreen() {
     >
       <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="ProgramDetail" component={ProgramDetailScreen} options={{ title: 'Program' }} />
+      <HomeStack.Screen name="ChannelDetail" component={ChannelDetailScreen} options={{ title: 'Channel' }} />
+      <HomeStack.Screen name="CreateTask" component={CreateTaskScreen} options={{ title: 'Create Task' }} />
+      <HomeStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ title: 'Task' }} />
       <HomeStack.Screen name="Sprints" component={SprintsScreen} options={{ title: 'Sprints' }} />
       <HomeStack.Screen name="SprintDetail" component={SprintDetailScreen} options={{ title: 'Sprint' }} />
       <HomeStack.Screen name="FleetHealth" component={FleetHealthScreen} options={{ title: 'Fleet Health' }} />
