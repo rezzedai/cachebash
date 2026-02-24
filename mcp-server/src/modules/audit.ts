@@ -1,6 +1,6 @@
 /**
  * Audit Module — Query Gate audit log.
- * Collection: users/{uid}/ledger (type: audit)
+ * Collection: tenants/{uid}/ledger (type: audit)
  * Read-only. Admin only.
  */
 
@@ -33,7 +33,7 @@ export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Prom
   const db = getFirestore();
 
   let query: FirebaseFirestore.Query = db
-    .collection(`users/${auth.userId}/ledger`)
+    .collection(`tenants/${auth.userId}/ledger`)
     .where("type", "==", "audit")
     .orderBy("timestamp", "desc");
 

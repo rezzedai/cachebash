@@ -125,7 +125,7 @@ function mapKind(type: string, action?: string): string {
 
 export async function reconcileGitHub(userId: string): Promise<{ processed: number; succeeded: number; abandoned: number }> {
   const db = getFirestore();
-  const queueRef = db.collection(`users/${userId}/sync_queue`);
+  const queueRef = db.collection(`tenants/${userId}/sync_queue`);
   
   // Query pending items with retryCount < MAX_RETRY_COUNT
   const snapshot = await queueRef
@@ -239,7 +239,7 @@ ${instructions}`;
         setProjectField(ok, projectItemId, FIELD_KIND, mapKind(type || "task", action)),
       ]);
 
-      await db.doc(`users/${userId}/tasks/${taskId}`).update({
+      await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
         githubIssueNumber: issueNumber,
         githubProjectItemId: projectItemId,
       });
@@ -250,7 +250,7 @@ ${instructions}`;
 
     case "syncTaskClaimed": {
       const { taskId } = payload;
-      const doc = await db.doc(`users/${userId}/tasks/${taskId}`).get();
+      const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
       const data = doc.data();
       if (!data?.githubProjectItemId) {
         throw new Error("Task has no githubProjectItemId");
@@ -263,7 +263,7 @@ ${instructions}`;
 
     case "syncTaskCompleted": {
       const { taskId } = payload;
-      const doc = await db.doc(`users/${userId}/tasks/${taskId}`).get();
+      const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
       const data = doc.data();
       if (!data?.githubIssueNumber) {
         throw new Error("Task has no githubIssueNumber");
@@ -356,7 +356,7 @@ ${story.title}`;
         }
       }
 
-      await db.doc(`users/${userId}/tasks/${sprintId}`).update({
+      await db.doc(`tenants/${userId}/tasks/${sprintId}`).update({
         githubMilestoneNumber: milestoneNumber,
         githubIssueNumber: sprintIssue.data.number,
         githubProjectItemId: sprintProjectItemId,
@@ -368,7 +368,7 @@ ${story.title}`;
 
     case "syncSprintCompleted": {
       const { sprintId } = payload;
-      const doc = await db.doc(`users/${userId}/tasks/${sprintId}`).get();
+      const doc = await db.doc(`tenants/${userId}/tasks/${sprintId}`).get();
       const data = doc.data();
       if (!data?.githubMilestoneNumber) {
         throw new Error("Sprint has no githubMilestoneNumber");

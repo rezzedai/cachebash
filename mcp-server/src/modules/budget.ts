@@ -45,7 +45,7 @@ function emptyPeriod(): PeriodSummary {
 
 export async function budgetSummaryHandler(auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
   const db = getFirestore();
-  const tasksRef = db.collection(`users/${auth.userId}/tasks`);
+  const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
 
   const monthStart = admin.firestore.Timestamp.fromDate(startOfMonth());
 
@@ -135,7 +135,7 @@ export async function checkDreamBudget(userId: string, dreamId: string): Promise
   remaining: number;
 }> {
   const db = getFirestore();
-  const dreamRef = db.doc(`users/${userId}/tasks/${dreamId}`);
+  const dreamRef = db.doc(`tenants/${userId}/tasks/${dreamId}`);
   
   const doc = await dreamRef.get();
   if (!doc.exists) {
@@ -160,7 +160,7 @@ export async function checkDreamBudget(userId: string, dreamId: string): Promise
  */
 export async function updateDreamConsumption(userId: string, dreamId: string, costDelta: number): Promise<void> {
   const db = getFirestore();
-  const dreamRef = db.doc(`users/${userId}/tasks/${dreamId}`);
+  const dreamRef = db.doc(`tenants/${userId}/tasks/${dreamId}`);
   
   await dreamRef.update({
     "dream.budget_consumed_usd": admin.firestore.FieldValue.increment(costDelta),

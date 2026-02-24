@@ -1,6 +1,6 @@
 /**
  * Program State Schema — Persistent operational memory for programs.
- * Collection: users/{uid}/sessions/_meta/program_state/{programId}
+ * Collection: tenants/{uid}/sessions/_meta/program_state/{programId}
  */
 
 export interface LearnedPattern {

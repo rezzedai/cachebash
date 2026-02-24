@@ -22,7 +22,7 @@ export type RelayMessageType =
 /** Relay delivery status */
 export type RelayStatus = "pending" | "delivered" | "expired" | "dead_letter";
 
-/** The RelayMessage document — lives in users/{uid}/relay/{id} */
+/** The RelayMessage document — lives in tenants/{uid}/relay/{id} */
 export interface RelayMessage extends Omit<Envelope, "action"> {
   id: string;
 

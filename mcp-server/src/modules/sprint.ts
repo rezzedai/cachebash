@@ -1,7 +1,7 @@
 /**
  * Sprint Module — Sprint lifecycle management.
  * Sprints are tasks with type: "sprint", stories are type: "sprint-story"
- * All in users/{uid}/tasks
+ * All in tenants/{uid}/tasks
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
@@ -138,13 +138,13 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
     archived: false,
   };
 
-  const sprintRef = await db.collection(`users/${auth.userId}/tasks`).add(sprintData);
+  const sprintRef = await db.collection(`tenants/${auth.userId}/tasks`).add(sprintData);
   const sprintId = sprintRef.id;
 
   // Create child sprint-story tasks
   const batch = db.batch();
   for (const story of args.stories) {
-    const storyRef = db.collection(`users/${auth.userId}/tasks`).doc();
+    const storyRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
     batch.set(storyRef, {
       schemaVersion: '2.2' as const,
       type: "sprint-story",
@@ -201,7 +201,7 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
 
   // Find the story by looking for sprint-story tasks with matching sprint.parentId
   const snapshot = await db
-    .collection(`users/${auth.userId}/tasks`)
+    .collection(`tenants/${auth.userId}/tasks`)
     .where("type", "==", "sprint-story")
     .where("sprint.parentId", "==", args.sprintId)
     .get();
@@ -294,7 +294,7 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
   const args = AddStorySchema.parse(rawArgs);
   const db = getFirestore();
 
-  const storyRef = db.collection(`users/${auth.userId}/tasks`).doc();
+  const storyRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
 
   // Determine wave based on insertion mode
   let wave = 1;
@@ -334,13 +334,13 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
 export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CompleteSprintSchema.parse(rawArgs);
   const db = getFirestore();
-  const sprintRef = db.doc(`users/${auth.userId}/tasks/${args.sprintId}`);
+  const sprintRef = db.doc(`tenants/${auth.userId}/tasks/${args.sprintId}`);
 
   // Auto-calculate summary if not provided
   let summary = args.summary;
   if (!summary) {
     const stories = await db
-      .collection(`users/${auth.userId}/tasks`)
+      .collection(`tenants/${auth.userId}/tasks`)
       .where("type", "==", "sprint-story")
       .where("sprint.parentId", "==", args.sprintId)
       .get();
@@ -389,7 +389,7 @@ export async function getSprintHandler(auth: AuthContext, rawArgs: unknown): Pro
   const db = getFirestore();
 
   // Fetch sprint doc
-  const sprintDoc = await db.doc(`users/${auth.userId}/tasks/${args.sprintId}`).get();
+  const sprintDoc = await db.doc(`tenants/${auth.userId}/tasks/${args.sprintId}`).get();
   if (!sprintDoc.exists) {
     return jsonResult({ success: false, error: "Sprint not found" });
   }
@@ -401,7 +401,7 @@ export async function getSprintHandler(auth: AuthContext, rawArgs: unknown): Pro
 
   // Fetch all child stories
   const storiesSnapshot = await db
-    .collection(`users/${auth.userId}/tasks`)
+    .collection(`tenants/${auth.userId}/tasks`)
     .where("type", "==", "sprint-story")
     .where("sprint.parentId", "==", args.sprintId)
     .get();

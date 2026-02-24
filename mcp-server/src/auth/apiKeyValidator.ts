@@ -23,7 +23,7 @@ export async function validateApiKey(
   const db = getFirestore();
 
   try {
-    const keyDoc = await db.doc(`apiKeys/${keyHash}`).get();
+    const keyDoc = await db.doc(`keyIndex/${keyHash}`).get();
     if (!keyDoc.exists) return null;
 
     const data = keyDoc.data();
@@ -39,7 +39,7 @@ export async function validateApiKey(
     const programId: ValidProgramId = data.programId || "legacy";
 
     // Update lastUsedAt (fire-and-forget — don't block auth)
-    db.doc(`apiKeys/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
+    db.doc(`keyIndex/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
 
     // Load capabilities from key doc, falling back to defaults for the program
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");

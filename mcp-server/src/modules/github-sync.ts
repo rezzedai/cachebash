@@ -134,7 +134,7 @@ async function queueFailedSync(
 ): Promise<void> {
   try {
     const db = getFirestore();
-    await db.collection(`users/${userId}/sync_queue`).add({
+    await db.collection(`tenants/${userId}/sync_queue`).add({
       operation,
       payload,
       error,
@@ -211,7 +211,7 @@ ${instructions}`;
 
     // Store GitHub refs in Firestore task doc
     const db = getFirestore();
-    await db.doc(`users/${userId}/tasks/${taskId}`).update({
+    await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
       githubIssueNumber: issueNumber,
       githubProjectItemId: projectItemId,
     });
@@ -232,7 +232,7 @@ export function syncTaskClaimed(userId: string, taskId: string): void {
 
   (async () => {
     const db = getFirestore();
-    const doc = await db.doc(`users/${userId}/tasks/${taskId}`).get();
+    const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
     const data = doc.data();
     if (!data?.githubProjectItemId) return;
 
@@ -250,7 +250,7 @@ export function syncTaskCompleted(userId: string, taskId: string): void {
 
   (async () => {
     const db = getFirestore();
-    const doc = await db.doc(`users/${userId}/tasks/${taskId}`).get();
+    const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
     const data = doc.data();
     if (!data?.githubIssueNumber) return;
 
@@ -360,7 +360,7 @@ ${story.title}`;
 
     // Store milestone + parent issue ref in sprint doc
     const db = getFirestore();
-    await db.doc(`users/${userId}/tasks/${sprintId}`).update({
+    await db.doc(`tenants/${userId}/tasks/${sprintId}`).update({
       githubMilestoneNumber: milestoneNumber,
       githubIssueNumber: sprintIssue.data.number,
       githubProjectItemId: sprintProjectItemId,
@@ -382,7 +382,7 @@ export function syncSprintCompleted(userId: string, sprintId: string): void {
 
   (async () => {
     const db = getFirestore();
-    const doc = await db.doc(`users/${userId}/tasks/${sprintId}`).get();
+    const doc = await db.doc(`tenants/${userId}/tasks/${sprintId}`).get();
     const data = doc.data();
     if (!data?.githubMilestoneNumber) return;
 

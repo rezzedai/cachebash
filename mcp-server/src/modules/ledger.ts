@@ -1,6 +1,6 @@
 /**
  * Ledger Module — Cost tracking per tool call. Type discriminator: tool_call.
- * Collection: users/{uid}/ledger
+ * Collection: tenants/{uid}/ledger
  * Fire-and-forget writes — never blocks the response.
  */
 
@@ -59,7 +59,7 @@ export function logToolCall(
 ): void {
   // Fire and forget — don't await, don't block
   const db = getFirestore();
-  db.collection(`users/${userId}/ledger`).add({
+  db.collection(`tenants/${userId}/ledger`).add({
     type: "tool_call",
     tool,
     programId,

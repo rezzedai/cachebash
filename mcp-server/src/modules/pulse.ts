@@ -1,6 +1,6 @@
 /**
  * Pulse Module — Session CRUD + heartbeat.
- * Collection: users/{uid}/sessions
+ * Collection: tenants/{uid}/sessions
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
@@ -77,10 +77,10 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     archived: false,
   };
 
-  await db.doc(`users/${auth.userId}/sessions/${sessionId}`).set(sessionData);
+  await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(sessionData);
 
   // Add initial update to history
-  await db.collection(`users/${auth.userId}/sessions/${sessionId}/updates`).add({
+  await db.collection(`tenants/${auth.userId}/sessions/${sessionId}/updates`).add({
     status: args.status || args.name,
     lifecycleStatus,
     progress: args.progress ?? null,
@@ -101,7 +101,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
-    await db.doc(`users/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
+    await db.doc(`tenants/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
 
   // Analytics: session_lifecycle create
@@ -137,10 +137,10 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
 
   if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
-  if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;  await db.doc(`users/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
+  if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;  await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
 
   // Add to history
-  await db.collection(`users/${auth.userId}/sessions/${sessionId}/updates`).add({
+  await db.collection(`tenants/${auth.userId}/sessions/${sessionId}/updates`).add({
     status: args.status,
     lifecycleStatus,
     progress: args.progress ?? null,
@@ -162,7 +162,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
-    await db.doc(`users/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
+    await db.doc(`tenants/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
 
   // Analytics: session_lifecycle update
@@ -191,9 +191,9 @@ export async function getFleetHealthHandler(auth: AuthContext, _rawArgs: unknown
 
   // 3 parallel Firestore queries
   const [programsSnap, pendingRelaySnap, pendingTasksSnap] = await Promise.all([
-    db.collection(`users/${auth.userId}/sessions/_meta/programs`).get(),
-    db.collection(`users/${auth.userId}/relay`).where("status", "==", "pending").get(),
-    db.collection(`users/${auth.userId}/tasks`).where("status", "==", "created").get(),
+    db.collection(`tenants/${auth.userId}/sessions/_meta/programs`).get(),
+    db.collection(`tenants/${auth.userId}/relay`).where("status", "==", "pending").get(),
+    db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "created").get(),
   ]);
 
   // Count pending messages by target
@@ -247,7 +247,7 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
   const args = ListSessionsSchema.parse(rawArgs);
   const db = getFirestore();
 
-  let query: FirebaseFirestore.Query = db.collection(`users/${auth.userId}/sessions`);
+  let query: FirebaseFirestore.Query = db.collection(`tenants/${auth.userId}/sessions`);
 
   if (args.state && args.state !== "all") {
     const lifecycle = stateToLifecycle(args.state);

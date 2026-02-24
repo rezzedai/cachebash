@@ -1,6 +1,6 @@
 /**
  * Relay Module — Ephemeral inter-program messages.
- * Collection: users/{uid}/relay
+ * Collection: tenants/{uid}/relay
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
@@ -83,7 +83,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
   // Idempotency check
   if (args.idempotency_key) {
-    const idempotencyRef = db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`);
+    const idempotencyRef = db.doc(`tenants/${auth.userId}/idempotency_keys/${args.idempotency_key}`);
     const existing = await idempotencyRef.get();
     if (existing.exists) {
       const data = existing.data()!;
@@ -140,7 +140,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     const refs: string[] = [];
 
     for (const target of targets) {
-      const ref = db.collection(`users/${auth.userId}/relay`).doc();
+      const ref = db.collection(`tenants/${auth.userId}/relay`).doc();
       batch.set(ref, {
         ...baseData,
         target,
@@ -152,7 +152,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
     // Single task doc for mobile visibility (summary, not fan-out)
     const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
-    const taskRef = db.collection(`users/${auth.userId}/tasks`).doc();
+    const taskRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
     batch.set(taskRef, {
       schemaVersion: '2.2' as const,
       type: "task",
@@ -173,7 +173,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
     // Record idempotency key for multicast
     if (args.idempotency_key) {
-      await db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
+      await db.doc(`tenants/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
         multicastId,
         recipients: targets.length,
         expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
@@ -219,7 +219,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     target: args.target,
   };
 
-  const relayRef = await db.collection(`users/${auth.userId}/relay`).add(relayData);
+  const relayRef = await db.collection(`tenants/${auth.userId}/relay`).add(relayData);
 
   // Emit telemetry event for message delivery
   emitEvent(auth.userId, {
@@ -233,7 +233,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
   // Also write to tasks collection for mobile app visibility
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
-  await db.collection(`users/${auth.userId}/tasks`).doc(relayRef.id).set({
+  await db.collection(`tenants/${auth.userId}/tasks`).doc(relayRef.id).set({
     schemaVersion: '2.2' as const,
     type: "task",
     title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
@@ -251,7 +251,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
 
   // Record idempotency key
   if (args.idempotency_key) {
-    await db.doc(`users/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
+    await db.doc(`tenants/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
       messageId: relayRef.id,
       expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
       createdAt: serverTimestamp(),
@@ -284,7 +284,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   const db = getFirestore();
 
   let query: admin.firestore.Query = db
-    .collection(`users/${auth.userId}/relay`)
+    .collection(`tenants/${auth.userId}/relay`)
     .where("status", "==", "pending");
 
   if (args.message_type) {
@@ -423,7 +423,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const source = isPrivileged && args.source ? args.source : auth.programId;
 
   let query: admin.firestore.Query = db
-    .collection(`users/${auth.userId}/relay`)
+    .collection(`tenants/${auth.userId}/relay`)
     .where("source", "==", source);
 
   if (args.status) {
@@ -474,7 +474,7 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
   const db = getFirestore();
 
   const snapshot = await db
-    .collection(`users/${auth.userId}/relay`)
+    .collection(`tenants/${auth.userId}/relay`)
     .where("status", "==", "dead_lettered")
     .orderBy("deadLetteredAt", "desc")
     .limit(args.limit)
@@ -542,7 +542,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   }
 
   const db = getFirestore();
-  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/relay`);
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
 
   if (args.threadId) {
     query = query.where("threadId", "==", args.threadId);
@@ -627,7 +627,7 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<{ exp
   const now = admin.firestore.Timestamp.now();
 
   const snapshot = await db
-    .collection(`users/${userId}/relay`)
+    .collection(`tenants/${userId}/relay`)
     .where("status", "==", "pending")
     .where("expiresAt", "<=", now)
     .limit(100)
