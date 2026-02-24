@@ -22,7 +22,7 @@ export function useTasks(filter?: UseTasksOptions) {
       const response = await api.getTasks({
         status: filter?.status || 'all',
         target: filter?.target,
-        limit: 100,
+        limit: 50,
       });
 
       // Map response to Task type
