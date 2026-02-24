@@ -55,7 +55,11 @@ export default function TasksScreen({ navigation }: Props) {
 
   const renderTaskCard = ({ item: task }: { item: Task }) => (
     <TouchableOpacity
-      style={styles.taskCard}
+      style={[
+        styles.taskCard,
+        task.priority === 'high' && styles.taskCardHighPriority,
+        task.type === 'question' && task.status === 'created' && styles.taskCardQuestion,
+      ]}
       onPress={() => navigation.navigate('TaskDetail', { task })}
       activeOpacity={0.7}
       accessibilityLabel={`${task.title}, ${task.status}, ${task.priority} priority`}
@@ -271,6 +275,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.border,
+  },
+  taskCardHighPriority: {
+    borderLeftColor: theme.colors.error,
+    backgroundColor: theme.colors.surface,
+  },
+  taskCardQuestion: {
+    borderLeftColor: theme.colors.primary,
   },
   taskCardHeader: {
     flexDirection: 'row',
