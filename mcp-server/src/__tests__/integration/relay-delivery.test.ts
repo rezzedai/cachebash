@@ -40,9 +40,9 @@ describe("Relay Delivery Integration", () => {
         ttl: 86400, // 24 hours in seconds
       };
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).set(messageData);
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set(messageData);
 
-      const messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      const messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       const data = messageDoc.data();
 
       expect(messageDoc.exists).toBe(true);
@@ -59,7 +59,7 @@ describe("Relay Delivery Integration", () => {
 
       for (const type of messageTypes) {
         const messageId = `msg-type-${type}`;
-        await db.collection(`users/${userId}/relay`).doc(messageId).set({
+        await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
           source: "orchestrator",
           target: "builder",
           message: `${type} message`,
@@ -69,7 +69,7 @@ describe("Relay Delivery Integration", () => {
         });
       }
 
-      const allMessages = await db.collection(`users/${userId}/relay`).get();
+      const allMessages = await db.collection(`tenants/${userId}/relay`).get();
       expect(allMessages.size).toBe(messageTypes.length);
     });
 
@@ -80,7 +80,7 @@ describe("Relay Delivery Integration", () => {
         data: { foo: "bar", count: 42 },
       };
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).set({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
         source: "orchestrator",
         target: "builder",
         message: "Message with payload",
@@ -90,7 +90,7 @@ describe("Relay Delivery Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      const messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      const messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       const data = messageDoc.data();
 
       expect(data?.payload).toEqual(payload);
@@ -102,7 +102,7 @@ describe("Relay Delivery Integration", () => {
       const messageId = "msg-003";
 
       // Create message
-      await db.collection(`users/${userId}/relay`).doc(messageId).set({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
         source: "orchestrator",
         target: "builder",
         message: "Transition test",
@@ -112,26 +112,26 @@ describe("Relay Delivery Integration", () => {
       });
 
       // Ensure document exists before updating
-      let messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      let messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       expect(messageDoc.exists).toBe(true);
 
       // Mark as delivered
-      await db.collection(`users/${userId}/relay`).doc(messageId).update({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "delivered",
         deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       expect(messageDoc.data()?.status).toBe("delivered");
       expect(messageDoc.data()?.deliveredAt).toBeDefined();
 
       // Mark as read
-      await db.collection(`users/${userId}/relay`).doc(messageId).update({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "read",
         readAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       expect(messageDoc.data()?.status).toBe("read");
       expect(messageDoc.data()?.readAt).toBeDefined();
     });
@@ -139,7 +139,7 @@ describe("Relay Delivery Integration", () => {
     it("should handle failed delivery", async () => {
       const messageId = "msg-004";
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).set({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
         source: "orchestrator",
         target: "builder",
         message: "Failed delivery",
@@ -149,16 +149,16 @@ describe("Relay Delivery Integration", () => {
       });
 
       // Ensure document exists before updating
-      let messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      let messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       expect(messageDoc.exists).toBe(true);
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).update({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "failed",
         failedAt: admin.firestore.FieldValue.serverTimestamp(),
         error: "Target not reachable",
       });
 
-      messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       const data = messageDoc.data();
 
       expect(data?.status).toBe("failed");
@@ -177,7 +177,7 @@ describe("Relay Delivery Integration", () => {
         createdAt.toMillis() + ttlSeconds * 1000
       );
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).set({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
         source: "orchestrator",
         target: "builder",
         message: "TTL test",
@@ -188,7 +188,7 @@ describe("Relay Delivery Integration", () => {
         expiresAt,
       });
 
-      const messageDoc = await db.collection(`users/${userId}/relay`).doc(messageId).get();
+      const messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
       const data = messageDoc.data();
 
       expect(data?.expiresAt).toBeDefined();
@@ -203,7 +203,7 @@ describe("Relay Delivery Integration", () => {
         new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
       );
 
-      await db.collection(`users/${userId}/relay`).doc(messageId).set({
+      await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
         source: "orchestrator",
         target: "builder",
         message: "Expired message",
@@ -215,7 +215,7 @@ describe("Relay Delivery Integration", () => {
 
       const now = admin.firestore.Timestamp.now();
       const expiredMessages = await db
-        .collection(`users/${userId}/relay`)
+        .collection(`tenants/${userId}/relay`)
         .where("expiresAt", "<", now)
         .get();
 
@@ -231,7 +231,7 @@ describe("Relay Delivery Integration", () => {
 
       for (let i = 0; i < targets.length; i++) {
         const messageId = `${baseMessageId}-${targets[i]}`;
-        await db.collection(`users/${userId}/relay`).doc(messageId).set({
+        await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
           source: "orchestrator",
           target: targets[i],
           message: "Multicast message",
@@ -244,7 +244,7 @@ describe("Relay Delivery Integration", () => {
 
       // Verify all messages created
       const multicastMessages = await db
-        .collection(`users/${userId}/relay`)
+        .collection(`tenants/${userId}/relay`)
         .where("threadId", "==", baseMessageId)
         .get();
 
@@ -263,7 +263,7 @@ describe("Relay Delivery Integration", () => {
       for (const [group, members] of Object.entries(groupTargets)) {
         for (const member of members) {
           const messageId = `msg-group-${group}-${member}`;
-          await db.collection(`users/${userId}/relay`).doc(messageId).set({
+          await db.collection(`tenants/${userId}/relay`).doc(messageId).set({
             source: "orchestrator",
             target: member,
             message: `Message to ${group} group`,
@@ -276,7 +276,7 @@ describe("Relay Delivery Integration", () => {
       }
 
       const buildersMessages = await db
-        .collection(`users/${userId}/relay`)
+        .collection(`tenants/${userId}/relay`)
         .where("groupTarget", "==", "builders")
         .get();
 
@@ -298,11 +298,11 @@ describe("Relay Delivery Integration", () => {
       };
 
       // First message
-      await db.collection(`users/${userId}/relay`).doc("msg-007").set(messageData);
+      await db.collection(`tenants/${userId}/relay`).doc("msg-007").set(messageData);
 
       // Check for existing message with same idempotency key
       const existingMessages = await db
-        .collection(`users/${userId}/relay`)
+        .collection(`tenants/${userId}/relay`)
         .where("idempotency_key", "==", idempotencyKey)
         .get();
 
@@ -310,7 +310,7 @@ describe("Relay Delivery Integration", () => {
 
       // Attempt to send duplicate (should be detected)
       const duplicateCheck = await db
-        .collection(`users/${userId}/relay`)
+        .collection(`tenants/${userId}/relay`)
         .where("idempotency_key", "==", idempotencyKey)
         .limit(1)
         .get();
@@ -326,7 +326,7 @@ describe("Relay Delivery Integration", () => {
       ];
 
       for (const msg of messages) {
-        await db.collection(`users/${userId}/relay`).doc(msg.id).set({
+        await db.collection(`tenants/${userId}/relay`).doc(msg.id).set({
           source: "orchestrator",
           target: "builder",
           message: `Message ${msg.id}`,
@@ -337,7 +337,7 @@ describe("Relay Delivery Integration", () => {
         });
       }
 
-      const allMessages = await db.collection(`users/${userId}/relay`).get();
+      const allMessages = await db.collection(`tenants/${userId}/relay`).get();
       const uniqueKeys = new Set(
         allMessages.docs.map((doc) => doc.data().idempotency_key)
       );
