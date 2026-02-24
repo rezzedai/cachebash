@@ -16,7 +16,6 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
-import { useSprints } from '../hooks/useSprints';
 import { useConnectivity } from '../contexts/ConnectivityContext';
 import { theme } from '../theme';
 import type { Program } from '../types';
@@ -28,7 +27,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type ExpandedCard = 'programs' | 'tasks' | 'messages' | null;
+type ExpandedCard = 'programs' | 'sessions' | 'tasks' | 'messages' | null;
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -39,7 +38,6 @@ export default function HomeScreen({ navigation }: Props) {
   const { sessions, programs, isLoading, refetch, error, isCached } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
-  const { sprints } = useSprints();
   const { isConnected, isInternetReachable } = useConnectivity();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -59,6 +57,12 @@ export default function HomeScreen({ navigation }: Props) {
 
   // Total fleet programs count
   const programCount = useMemo(() => programs.length, [programs]);
+
+  // Active sessions count (non-complete)
+  const activeSessions = useMemo(
+    () => sessions.filter((s) => s.state !== 'complete' && s.state !== 'done'),
+    [sessions]
+  );
 
   // Find most recent update time across all sessions
   const lastUpdateTime = useMemo(() => {
@@ -82,12 +86,6 @@ export default function HomeScreen({ navigation }: Props) {
   const pendingQuestions = useMemo(
     () => tasks.filter((t) => t.type === 'question' && t.status === 'created'),
     [tasks]
-  );
-
-  // Filter active sprints (status not 'complete')
-  const activeSprints = useMemo(
-    () => sprints.filter((s) => s.status !== 'complete'),
-    [sprints]
   );
 
   // Filter received messages (exclude orchestrator/admin as source)
@@ -184,46 +182,7 @@ export default function HomeScreen({ navigation }: Props) {
 
           {expandedCard === 'programs' && (
             <View style={styles.expandedContent}>
-              {/* Active Sprints (integrated) */}
-              {activeSprints.length > 0 && (
-                <View style={styles.expandedSubsection}>
-                  <Text style={styles.expandedSubheader}>Active Sprints</Text>
-                  {activeSprints.map((sprint) => {
-                    const totalCount = sprint.stories.length;
-                    const completedCount = sprint.stories.filter((s) => s.status === 'complete').length;
-                    const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-                    return (
-                      <TouchableOpacity
-                        key={sprint.id}
-                        style={styles.expandedItem}
-                        onPress={() => {
-                          haptic.light();
-                          navigation.navigate('SprintDetail', { sprintId: sprint.id, sprint });
-                        }}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.expandedItemTitle}>{sprint.projectName}</Text>
-                        <Text style={styles.expandedItemMeta}>
-                          {completedCount}/{totalCount} stories
-                        </Text>
-                        <View style={styles.progressBar}>
-                          <View
-                            style={[
-                              styles.progressFill,
-                              { width: `${pct}%`, backgroundColor: theme.colors.primary },
-                            ]}
-                          />
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
               {/* Program List */}
-              <Text style={styles.expandedSubheader}>Fleet</Text>
               {programs.length === 0 ? (
                 <Text style={styles.expandedEmptyText}>No programs online</Text>
               ) : (
@@ -277,6 +236,86 @@ export default function HomeScreen({ navigation }: Props) {
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+            </View>
+          )}
+
+          {/* Sessions Card */}
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              expandedCard === 'sessions' && styles.statCardExpanded,
+            ]}
+            onPress={() => toggleCard('sessions')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${activeSessions.length} Sessions, tap to ${expandedCard === 'sessions' ? 'collapse' : 'expand'}`}
+          >
+            <View style={styles.statCardHeader}>
+              <View style={styles.statCardLeft}>
+                <Text style={styles.statValue}>{activeSessions.length}</Text>
+                <Text style={styles.statLabel}>Sessions</Text>
+              </View>
+              <Text style={styles.expandArrow}>
+                {expandedCard === 'sessions' ? '\u25B2' : '\u25BC'}
+              </Text>
+            </View>
+            <View style={[styles.statIndicator, { backgroundColor: '#6366f1' }]} />
+          </TouchableOpacity>
+
+          {expandedCard === 'sessions' && (
+            <View style={styles.expandedContent}>
+              {sessions.length === 0 ? (
+                <Text style={styles.expandedEmptyText}>No sessions</Text>
+              ) : (
+                sessions.slice(0, 10).map((session) => (
+                  <View key={session.id} style={styles.expandedItem}>
+                    <View style={styles.expandedItemRow}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: getStateColor(session.state) },
+                        ]}
+                      />
+                      <Text style={styles.expandedItemTitle} numberOfLines={1}>
+                        {session.name}
+                      </Text>
+                      <View style={[styles.sessionStateBadge, { backgroundColor: getStateColor(session.state) + '25' }]}>
+                        <Text style={[styles.sessionStateText, { color: getStateColor(session.state) }]}>
+                          {session.state}
+                        </Text>
+                      </View>
+                    </View>
+                    {session.status && (
+                      <Text style={styles.expandedItemMeta} numberOfLines={1}>
+                        {session.status}
+                      </Text>
+                    )}
+                    <View style={styles.sessionMetaRow}>
+                      {session.programId && (
+                        <Text style={styles.expandedItemMeta}>
+                          {session.programId.toUpperCase()}
+                        </Text>
+                      )}
+                      <Text style={styles.expandedItemMeta}>
+                        {timeAgo(session.lastUpdate || session.createdAt)}
+                      </Text>
+                    </View>
+                    {session.progress !== undefined && session.progress > 0 && (
+                      <View style={styles.progressBar}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${session.progress}%`,
+                              backgroundColor: getStateColor(session.state),
+                            },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ))
               )}
             </View>
           )}
@@ -566,17 +605,6 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     gap: theme.spacing.sm,
   },
-  expandedSubsection: {
-    marginBottom: theme.spacing.sm,
-  },
-  expandedSubheader: {
-    fontSize: theme.fontSize.xs,
-    fontWeight: '700',
-    color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: theme.spacing.sm,
-  },
   expandedItem: {
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.borderRadius.sm,
@@ -624,6 +652,22 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  sessionStateBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.borderRadius.sm,
+  },
+  sessionStateText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sessionMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.xxs,
   },
 
   // Program Grid
