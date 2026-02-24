@@ -5,6 +5,9 @@ admin.initializeApp();
 // Auth triggers
 export { onUserCreate } from "./auth/onUserCreate";
 
+// Key management (callable)
+export { createUserKey, revokeUserKey, updateKeyLabel } from "./auth/keyManagement";
+
 // Notification triggers (new collection paths)
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";

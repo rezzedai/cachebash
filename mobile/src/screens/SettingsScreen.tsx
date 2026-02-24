@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, Alert, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -11,6 +13,18 @@ export default function SettingsScreen() {
   const { signOut, user } = useAuth();
   const { error: sessionsError } = useSessions();
   const { permissionStatus, preferences, updatePreferences, requestPermissions } = useNotifications();
+
+  const [activeKeyCount, setActiveKeyCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(
+      collection(db, 'keyIndex'),
+      where('userId', '==', user.uid),
+      where('active', '==', true)
+    );
+    getDocs(q).then((snap) => setActiveKeyCount(snap.size)).catch(() => {});
+  }, [user?.uid]);
 
   const handleDisconnect = () => {
     Alert.alert(
@@ -49,6 +63,28 @@ export default function SettingsScreen() {
             accessibilityLabel="Sign out of CacheBash"
           >
             <Text style={styles.disconnectText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* API Keys Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle} accessibilityRole="header">API Keys</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate('KeyManagement')}
+            activeOpacity={0.7}
+            accessibilityLabel="Manage API keys"
+            accessibilityRole="button"
+          >
+            <Text style={styles.rowLabel}>Manage Keys</Text>
+            <View style={styles.statusRow}>
+              {activeKeyCount !== null && (
+                <Text style={styles.rowValue}>{activeKeyCount} key{activeKeyCount !== 1 ? 's' : ''}</Text>
+              )}
+              <Text style={[styles.rowValue, { color: theme.colors.primary, marginLeft: 8 }]}>→</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
