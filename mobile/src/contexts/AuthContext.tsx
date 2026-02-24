@@ -13,10 +13,17 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  signInWithCredential,
   User,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import CacheBashAPI, { CacheBashAPIError } from '../services/api';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthState {
   user: User | null;
@@ -28,6 +35,8 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<boolean>;
   signUp: (email: string, password: string) => Promise<boolean>;
+  signInWithGoogle: () => Promise<boolean>;
+  signInWithGitHub: () => Promise<boolean>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   error: string | null;
@@ -47,6 +56,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: false,
   });
   const [error, setError] = useState<string | null>(null);
+
+  // OAuth configuration
+  const googleDiscovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
+
+  // GitHub OAuth endpoints
+  const githubDiscovery: AuthSession.DiscoveryDocument = {
+    authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+    tokenEndpoint: 'https://github.com/login/oauth/access_token',
+  };
 
   // Set up Firebase auth state listener
   useEffect(() => {
@@ -188,6 +206,81 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setState((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      const redirectUri = AuthSession.makeRedirectUri({ scheme: 'cachebash' });
+
+      const request = new AuthSession.AuthRequest({
+        clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+        scopes: ['openid', 'profile', 'email'],
+        redirectUri,
+        responseType: AuthSession.ResponseType.IdToken,
+        usePKCE: false,
+      });
+
+      const result = await request.promptAsync(googleDiscovery!);
+
+      if (result.type === 'success' && result.params.id_token) {
+        const credential = GoogleAuthProvider.credential(result.params.id_token);
+        await signInWithCredential(auth, credential);
+        return true;
+      }
+
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return false;
+    } catch (error: any) {
+      const errorMessage = error.message || 'Google sign-in failed';
+      setError(errorMessage);
+      setState({
+        user: null,
+        api: null,
+        isLoading: false,
+        isAuthenticated: false,
+      });
+      return false;
+    }
+  }, [googleDiscovery]);
+
+  const signInWithGitHub = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setState((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      const redirectUri = AuthSession.makeRedirectUri({ scheme: 'cachebash' });
+
+      const request = new AuthSession.AuthRequest({
+        clientId: process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID || '',
+        scopes: ['read:user', 'user:email'],
+        redirectUri,
+      });
+
+      const result = await request.promptAsync(githubDiscovery);
+
+      if (result.type === 'success' && result.params.code) {
+        // Exchange code for token via Firebase's GitHub provider
+        const credential = GithubAuthProvider.credential(result.params.code);
+        await signInWithCredential(auth, credential);
+        return true;
+      }
+
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return false;
+    } catch (error: any) {
+      const errorMessage = error.message || 'GitHub sign-in failed';
+      setError(errorMessage);
+      setState({
+        user: null,
+        api: null,
+        isLoading: false,
+        isAuthenticated: false,
+      });
+      return false;
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await firebaseSignOut(auth);
@@ -231,6 +324,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     signIn,
     signUp,
+    signInWithGoogle,
+    signInWithGitHub,
     signOut,
     resetPassword,
   };
