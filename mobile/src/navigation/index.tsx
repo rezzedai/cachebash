@@ -17,6 +17,7 @@ import SprintsScreen from '../screens/SprintsScreen';
 import SprintDetailScreen from '../screens/SprintDetailScreen';
 import FleetHealthScreen from '../screens/FleetHealthScreen';
 import UsageScreen from '../screens/UsageScreen';
+import KeyManagementScreen from '../screens/KeyManagementScreen';
 import ComposeMessageScreen from '../screens/ComposeMessageScreen';
 import { navigationRef } from '../utils/navigationRef';
 import { useTasks } from '../hooks/useTasks';
@@ -206,6 +207,7 @@ function SettingsStackScreen() {
     >
       <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings' }} />
       <SettingsStack.Screen name="Usage" component={UsageScreen} options={{ title: 'Usage' }} />
+      <SettingsStack.Screen name="KeyManagement" component={KeyManagementScreen} options={{ title: 'API Keys' }} />
     </SettingsStack.Navigator>
   );
 }

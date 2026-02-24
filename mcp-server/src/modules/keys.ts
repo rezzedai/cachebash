@@ -137,7 +137,7 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
   const { includeRevoked } = args || {};
 
   // Query all apiKeys docs for this user
-  let query = db.collection("apiKeys").where("userId", "==", auth.userId);
+  let query = db.collection("keyIndex").where("userId", "==", auth.userId);
 
   const snapshot = await query.get();
 
