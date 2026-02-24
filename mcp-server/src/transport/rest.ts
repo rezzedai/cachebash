@@ -389,14 +389,20 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
     const method = req.method || "GET";
 
     // Auth
-    const token = extractBearerToken(req.headers.authorization);
-    if (!token) return restResponse(res, false, { code: "UNAUTHORIZED", message: "Missing Authorization header" }, 401);
-    const auth = await validateAuth(token);
-    if (!auth) return restResponse(res, false, { code: "UNAUTHORIZED", message: "Invalid API key" }, 401);
-
     const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-    if (!checkAuthRateLimit(clientIp)) {
-      return restResponse(res, false, { code: "RATE_LIMITED", message: "Too many authentication attempts" }, 429);
+
+    const token = extractBearerToken(req.headers.authorization);
+    if (!token) {
+      checkAuthRateLimit(clientIp);
+      return restResponse(res, false, { code: "UNAUTHORIZED", message: "Missing Authorization header" }, 401);
+    }
+    const auth = await validateAuth(token);
+    if (!auth) {
+      // Only count FAILED auth attempts against IP rate limit
+      if (!checkAuthRateLimit(clientIp)) {
+        return restResponse(res, false, { code: "RATE_LIMITED", message: "Too many authentication attempts" }, 429);
+      }
+      return restResponse(res, false, { code: "UNAUTHORIZED", message: "Invalid API key" }, 401);
     }
 
     // Route matching

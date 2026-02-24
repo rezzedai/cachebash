@@ -203,7 +203,8 @@ async function main() {
         session_expires_in_ms: Math.max(0, remainingMs),
       });
     }
-    if (url?.startsWith("/v1/") && url !== "/v1/mcp" && url !== "/v1/iso/mcp") {
+    // REST API — but NOT internal endpoints (those are handled below without auth)
+    if (url?.startsWith("/v1/") && url !== "/v1/mcp" && url !== "/v1/iso/mcp" && !url?.startsWith("/v1/internal/")) {
       return restRouter(req, res);
     }
 
@@ -382,14 +383,19 @@ async function main() {
 
     // Admin MCP endpoint (Bearer auth)
     if (url === "/v1/iso/mcp") {
-      const token = extractBearerToken(req.headers.authorization);
-      if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateAuth(token);
-      if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
-
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-      if (!checkAuthRateLimit(clientIp)) {
-        return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+
+      const token = extractBearerToken(req.headers.authorization);
+      if (!token) {
+        checkAuthRateLimit(clientIp);
+        return sendJson(res, 401, { error: "Missing Authorization header" });
+      }
+      const auth = await validateAuth(token);
+      if (!auth) {
+        if (!checkAuthRateLimit(clientIp)) {
+          return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+        }
+        return sendJson(res, 401, { error: "Invalid API key" });
       }
 
       const isoMcpSessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -449,14 +455,20 @@ async function main() {
 
     // Main MCP endpoint
     if (url === "/v1/mcp" || url === "/mcp") {
-      const token = extractBearerToken(req.headers.authorization);
-      if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateAuth(token);
-      if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
-
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-      if (!checkAuthRateLimit(clientIp)) {
-        return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+
+      const token = extractBearerToken(req.headers.authorization);
+      if (!token) {
+        checkAuthRateLimit(clientIp); // Count missing-token as failed attempt
+        return sendJson(res, 401, { error: "Missing Authorization header" });
+      }
+      const auth = await validateAuth(token);
+      if (!auth) {
+        // Only count FAILED auth attempts against IP rate limit
+        if (!checkAuthRateLimit(clientIp)) {
+          return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
+        }
+        return sendJson(res, 401, { error: "Invalid API key" });
       }
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
