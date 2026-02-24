@@ -10,7 +10,7 @@ const db = admin.firestore();
  * using atomic increment — no read-before-write.
  */
 export const onAnalyticsEventCreate = functions.firestore
-  .document("users/{userId}/analytics_events/{eventId}")
+  .document("tenants/{userId}/analytics_events/{eventId}")
   .onCreate(async (snapshot, context) => {
     const { userId } = context.params;
     const data = snapshot.data();
@@ -42,7 +42,7 @@ export const onAnalyticsEventCreate = functions.firestore
 
     const keys = buildAggregateKeys(date);
     const increment = admin.firestore.FieldValue.increment(1);
-    const aggregatesRef = db.collection(`users/${userId}/analytics_aggregates`);
+    const aggregatesRef = db.collection(`tenants/${userId}/analytics_aggregates`);
 
     // Build the update payload — same shape for all three periods
     const update: Record<string, admin.firestore.FieldValue> = {

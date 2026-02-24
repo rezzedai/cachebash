@@ -94,7 +94,7 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
     archived: false,
   };
 
-  const ref = await db.collection(`users/${auth.userId}/tasks`).add(taskData);
+  const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
 
   return jsonResult({
     success: true,
@@ -108,7 +108,7 @@ export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): P
   const args = GetResponseSchema.parse(rawArgs);
   const db = getFirestore();
 
-  const doc = await db.doc(`users/${auth.userId}/tasks/${args.questionId}`).get();
+  const doc = await db.doc(`tenants/${auth.userId}/tasks/${args.questionId}`).get();
   if (!doc.exists) {
     return jsonResult({ success: false, error: "Question not found" });
   }
@@ -185,10 +185,10 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
     createdAt: serverTimestamp(),
   };
 
-  const ref = await db.collection(`users/${auth.userId}/relay`).add(alertData);
+  const ref = await db.collection(`tenants/${auth.userId}/relay`).add(alertData);
 
   // Also write to tasks for mobile visibility
-  await db.collection(`users/${auth.userId}/tasks`).doc(ref.id).set({
+  await db.collection(`tenants/${auth.userId}/tasks`).doc(ref.id).set({
     schemaVersion: '2.2' as const,
     type: "task",
     title: `[Alert: ${args.alertType}] ${preview}`,

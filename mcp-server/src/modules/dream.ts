@@ -1,6 +1,6 @@
 /**
  * Dream Module — Dream Mode lifecycle.
- * Dreams are tasks with type: "dream" in users/{uid}/tasks
+ * Dreams are tasks with type: "dream" in tenants/{uid}/tasks
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
@@ -21,7 +21,7 @@ function jsonResult(data: unknown): ToolResult {
 export async function dreamPeekHandler(auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
   const db = getFirestore();
   const snapshot = await db
-    .collection(`users/${auth.userId}/tasks`)
+    .collection(`tenants/${auth.userId}/tasks`)
     .where("type", "==", "dream")
     .where("status", "==", "created")
     .limit(1)
@@ -55,7 +55,7 @@ export async function dreamPeekHandler(auth: AuthContext, _rawArgs: unknown): Pr
 export async function dreamActivateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = z.object({ dreamId: z.string() }).parse(rawArgs);
   const db = getFirestore();
-  const dreamRef = db.doc(`users/${auth.userId}/tasks/${args.dreamId}`);
+  const dreamRef = db.doc(`tenants/${auth.userId}/tasks/${args.dreamId}`);
 
   try {
     const result = await db.runTransaction(async (tx) => {

@@ -24,7 +24,7 @@ export class SessionManager {
     const session: SessionInfo = { sessionId, userId, authContext, lastActivity: now, createdAt: now };
 
     const db = getFirestore();
-    await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).set({
+    await db.doc(`tenants/${userId}/mcp_sessions/${sessionId}`).set({
       sessionId, userId, lastActivity: now, createdAt: now,
     });
 
@@ -33,7 +33,7 @@ export class SessionManager {
 
   async validateSession(sessionId: string, userId: string): Promise<SessionValidation> {
     const db = getFirestore();
-    const doc = await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).get();
+    const doc = await db.doc(`tenants/${userId}/mcp_sessions/${sessionId}`).get();
 
     if (!doc.exists) return { valid: false, error: "Session not found" };
 
@@ -41,11 +41,11 @@ export class SessionManager {
     const age = Date.now() - data.lastActivity;
 
     if (age > this.sessionTimeout) {
-      await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).delete();
+      await db.doc(`tenants/${userId}/mcp_sessions/${sessionId}`).delete();
       return { valid: false, error: "Session expired" };
     }
 
-    await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).update({ lastActivity: Date.now() });
+    await db.doc(`tenants/${userId}/mcp_sessions/${sessionId}`).update({ lastActivity: Date.now() });
 
     return {
       valid: true,
@@ -61,14 +61,14 @@ export class SessionManager {
 
   async deleteSession(sessionId: string, userId: string): Promise<void> {
     const db = getFirestore();
-    await db.doc(`users/${userId}/mcp_sessions/${sessionId}`).delete();
+    await db.doc(`tenants/${userId}/mcp_sessions/${sessionId}`).delete();
   }
 
   async cleanupExpiredSessions(userId: string): Promise<{ expired: number; cleaned: number }> {
     const db = getFirestore();
     const threshold = Date.now() - this.sessionTimeout;
     const snapshot = await db
-      .collection(`users/${userId}/mcp_sessions`)
+      .collection(`tenants/${userId}/mcp_sessions`)
       .where("lastActivity", "<", threshold)
       .get();
 
