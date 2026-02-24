@@ -55,6 +55,18 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       retrieved: false,
     });
 
+    // 6. Create billing config (free tier default)
+    await db.doc(`tenants/${uid}/config/billing`).set({
+      tier: "free",
+      limits: {
+        programs: 3,
+        tasksPerMonth: 500,
+        concurrentSessions: 1,
+      },
+      softWarnOnly: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     functions.logger.info(
       `Tenant provisioned for ${uid} (${email}), provider: ${provider}`
     );
