@@ -117,9 +117,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // API keys: no client access at all (sensitive auth material)
+    // API keys: read own keys for key management screen, no client writes
     match /keyIndex/{hash} {
-      allow read, write: if false;
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
 
     // Default deny
