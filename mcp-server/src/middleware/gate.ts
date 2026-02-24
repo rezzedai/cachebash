@@ -63,8 +63,8 @@ export function logAudit(entry: AuditEntry): void {
       console.error("[Audit] Failed to persist audit entry:", err);
     });
 
-    // Emit telemetry event
-    emitEvent(entry.userId, {
+    // Emit telemetry event — filter undefined values (Firestore rejects them)
+    const eventData: Record<string, unknown> = {
       event_type: "GUARDIAN_CHECK",
       program_id: entry.programId,
       session_id: entry.correlationId,
@@ -72,9 +72,12 @@ export function logAudit(entry: AuditEntry): void {
       decision: entry.allowed ? "ALLOW" : "BLOCK",
       reason_class: classifyGuardianReason(entry),
       source: entry.source,
-      claimed_source: entry.claimedSource,
       endpoint: entry.endpoint,
-    });
+    };
+    if (entry.claimedSource !== undefined) {
+      eventData.claimed_source = entry.claimedSource;
+    }
+    emitEvent(entry.userId, eventData as import("../modules/events.js").EventData);
   }
 }
 
