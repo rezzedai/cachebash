@@ -7,7 +7,7 @@
 
 import { FirestoreTimestamp } from "./envelope.js";
 
-/** The LedgerEntry document — lives in users/{uid}/ledger/{id} */
+/** The LedgerEntry document — lives in tenants/{uid}/ledger/{id} */
 export interface LedgerEntry {
   id: string;
 

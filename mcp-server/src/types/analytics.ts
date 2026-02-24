@@ -22,7 +22,7 @@ export type AnalyticsEventType =
 
 /**
  * The full analytics event as stored in Firestore.
- * Collection: users/{uid}/analytics_events
+ * Collection: tenants/{uid}/analytics_events
  */
 export interface AnalyticsEvent {
   // Identity

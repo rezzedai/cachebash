@@ -1,6 +1,6 @@
 /**
  * Trace Module — Execution tracing for debugging sprints.
- * Collection: users/{uid}/ledger (type: trace)
+ * Collection: tenants/{uid}/ledger (type: trace)
  * Fire-and-forget writes — never blocks the response.
  */
 
@@ -59,7 +59,7 @@ export function traceToolCall(
   const context = extractContext(tool, args);
   const truncatedResult = resultSummary.length > 500 ? resultSummary.substring(0, 500) + "..." : resultSummary;
 
-  db.collection(`users/${userId}/ledger`).add({
+  db.collection(`tenants/${userId}/ledger`).add({
     type: "trace",
     tool,
     programId,
@@ -98,7 +98,7 @@ export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): P
 
   const args = QueryTracesSchema.parse(rawArgs || {});
   const db = getFirestore();
-  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/ledger`).where("type", "==", "trace");
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/ledger`).where("type", "==", "trace");
 
   if (args.sprintId) {
     query = query.where("context.sprintId", "==", args.sprintId);

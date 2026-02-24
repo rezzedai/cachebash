@@ -42,7 +42,7 @@ export async function runHealthCheck(
 
   // 1. Task failure rate (failed / total in last hour)
   const recentTasks = await firestore
-    .collection(`users/${userId}/tasks`)
+    .collection(`tenants/${userId}/tasks`)
     .where("completedAt", ">=", oneHourAgo)
     .get();
 
@@ -61,7 +61,7 @@ export async function runHealthCheck(
 
   // 2. Session death count (SESSION_DEATH events in last hour)
   const deathEvents = await firestore
-    .collection(`users/${userId}/events`)
+    .collection(`tenants/${userId}/events`)
     .where("event_type", "==", "SESSION_DEATH")
     .where("timestamp", ">=", oneHourAgo)
     .get();
@@ -75,7 +75,7 @@ export async function runHealthCheck(
 
   // 3. Stale task count (tasks in created status > 30 min)
   const staleTasks = await firestore
-    .collection(`users/${userId}/tasks`)
+    .collection(`tenants/${userId}/tasks`)
     .where("status", "==", "created")
     .where("createdAt", "<=", thirtyMinAgo)
     .get();
@@ -89,7 +89,7 @@ export async function runHealthCheck(
 
   // 4. Relay queue depth (pending relay messages)
   const pendingRelay = await firestore
-    .collection(`users/${userId}/relay`)
+    .collection(`tenants/${userId}/relay`)
     .where("status", "==", "pending")
     .get();
 
@@ -102,7 +102,7 @@ export async function runHealthCheck(
 
   // 5. Wake failure rate (failed wake attempts in last hour)
   const wakeEvents = await firestore
-    .collection(`users/${userId}/events`)
+    .collection(`tenants/${userId}/events`)
     .where("event_type", "==", "PROGRAM_WAKE")
     .where("timestamp", ">=", oneHourAgo)
     .get();
@@ -120,7 +120,7 @@ export async function runHealthCheck(
 
   // 6. Cleanup backlog (expired but uncleaned relay messages)
   const expiredRelay = await firestore
-    .collection(`users/${userId}/relay`)
+    .collection(`tenants/${userId}/relay`)
     .where("status", "==", "pending")
     .where("expiresAt", "<=", now)
     .get();
@@ -161,10 +161,10 @@ export async function runHealthCheck(
       };
 
       // Write to relay for alert feed
-      await firestore.collection(`users/${userId}/relay`).add(alertDoc);
+      await firestore.collection(`tenants/${userId}/relay`).add(alertDoc);
 
       // Mirror to tasks for mobile visibility
-      await firestore.collection(`users/${userId}/tasks`).add({
+      await firestore.collection(`tenants/${userId}/tasks`).add({
         ...alertDoc,
         title: "[GRIDBOT] Health Critical Alert",
         instructions: alertMessage,
@@ -192,7 +192,7 @@ export async function runHealthCheck(
         .map((i) => `${i.name}=${i.value}`)
         .join(", ")}`;
 
-      await firestore.collection(`users/${userId}/relay`).add({
+      await firestore.collection(`tenants/${userId}/relay`).add({
         message: warningMessage,
         source: "gridbot",
         target: "orchestrator",
@@ -228,7 +228,7 @@ export async function runHealthCheck(
   };
 
   try {
-    await firestore.collection(`users/${userId}/health_checks`).add({
+    await firestore.collection(`tenants/${userId}/health_checks`).add({
       ...result,
       timestamp: now,
     });

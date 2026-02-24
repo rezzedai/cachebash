@@ -70,7 +70,7 @@ export interface SprintData {
   }>;
 }
 
-/** The Task document — lives in users/{uid}/tasks/{id} */
+/** The Task document — lives in tenants/{uid}/tasks/{id} */
 export interface Task extends Envelope {
   id: string;
   type: TaskType;
