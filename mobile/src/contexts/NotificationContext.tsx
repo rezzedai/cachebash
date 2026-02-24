@@ -110,7 +110,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       try {
         // Use a stable device ID based on platform
         const deviceId = `${Platform.OS}-${tokenData.slice(-12)}`;
-        await setDoc(doc(db, `users/${uid}/devices/${deviceId}`), {
+        await setDoc(doc(db, `tenants/${uid}/devices/${deviceId}`), {
           fcmToken: tokenData,
           platform: Platform.OS,
           lastUpdated: serverTimestamp(),
