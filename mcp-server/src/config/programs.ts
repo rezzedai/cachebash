@@ -4,11 +4,15 @@
  */
 
 export const REGISTERED_PROGRAMS = [
+  // Generic roles (backward compat)
   'orchestrator', 'builder', 'architect', 'reviewer', 'designer', 'auditor',
   'planner', 'analyzer', 'growth', 'ops', 'monitor', 'enforcer',
   'coordinator', 'renderer', 'broker', 'memory', 'scribe',
   'sage', 'link', 'gateway', 'healthbot', 'bit', 'byte',
-  'tester', 'admin-mirror', 'council', 'codex', 'strategist'
+  'tester', 'admin-mirror', 'council', 'codex', 'strategist',
+  // Grid program names
+  'iso', 'basher', 'alan', 'quorra', 'radia', 'sark',
+  'castor', 'able', 'beck', 'ram', 'vector', 'casp',
 ] as const;
 
 export type ProgramId = typeof REGISTERED_PROGRAMS[number];
@@ -29,11 +33,33 @@ export function isValidProgram(id: string): id is ValidProgramId {
   return isRegisteredProgram(id) || (SPECIAL_PROGRAMS as readonly string[]).includes(id);
 }
 
+/** Grid name → generic role mapping for backward compatibility */
+export const PROGRAM_ALIASES: Record<string, ProgramId> = {
+  iso: 'orchestrator',
+  basher: 'builder',
+  alan: 'architect',
+  quorra: 'planner',
+  radia: 'designer',
+  sark: 'auditor',
+  castor: 'scribe',
+  able: 'builder',
+  beck: 'builder',
+  ram: 'memory',
+  vector: 'strategist',
+  casp: 'reviewer',
+};
+
+/** Resolve a program name to its canonical role (or itself if already canonical) */
+export function resolveAlias(id: string): string {
+  return PROGRAM_ALIASES[id] ?? id;
+}
+
 /** Named groups for multicast routing */
 export const PROGRAM_GROUPS: Record<string, readonly ProgramId[]> = {
-  council: ['orchestrator', 'architect', 'reviewer', 'auditor', 'planner', 'designer', 'strategist'],
-  builders: ['builder', 'growth', 'ops'],
-  intelligence: ['analyzer', 'ops', 'scribe'],
+  council: ['orchestrator', 'architect', 'reviewer', 'auditor', 'planner', 'designer', 'strategist',
+            'iso', 'alan', 'casp', 'sark', 'quorra', 'radia', 'vector'],
+  builders: ['builder', 'growth', 'ops', 'basher', 'able', 'beck'],
+  intelligence: ['analyzer', 'ops', 'scribe', 'alan', 'castor'],
   all: [...REGISTERED_PROGRAMS].filter(p => p !== 'council'),
 };
 
@@ -68,6 +94,16 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
   designer:     { displayName: "Designer",      color: "#E8E0D0", role: "Vision" },
   codex:        { displayName: "Codex",         color: "#10A37F", role: "Cross-Model Builder" },
   strategist:   { displayName: "Strategist",    color: "#C4A052", role: "Strategic Counsel" },
+  // Grid program names
+  iso:        { displayName: "ISO",        color: "#6FC3DF", role: "Grid Orchestrator" },
+  basher:     { displayName: "BASHER",     color: "#E87040", role: "Execution Engine" },
+  alan:       { displayName: "ALAN",       color: "#4A8ED4", role: "Architecture" },
+  quorra:     { displayName: "QUORRA",     color: "#9B6FC0", role: "Pragmatist" },
+  radia:      { displayName: "RADIA",      color: "#E8E0D0", role: "Vision & Design" },
+  sark:       { displayName: "SARK",       color: "#C44040", role: "Security & Audit" },
+  castor:     { displayName: "CASTOR",     color: "#B8A080", role: "Content Strategy" },
+  vector:     { displayName: "VECTOR",     color: "#C4A052", role: "Strategic Counsel" },
+  casp:       { displayName: "CASP",       color: "#6B8E6B", role: "Product Viability" },
 };
 
 /** Default budget caps for sessions and dreams */
