@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { Sprint, SprintStory, SprintStoryStatus } from '../types';
@@ -99,13 +99,23 @@ export default function SprintDetailScreen({ route, navigation }: Props) {
     return grouped;
   }, [sprint]);
 
+  const [expandedStory, setExpandedStory] = useState<string | null>(null);
+
   const renderStoryCard = (story: SprintStory) => {
     const statusColor = getStatusColor(story.status);
+    const isExpanded = expandedStory === story.id;
 
     return (
-      <View key={story.id} style={styles.storyCard}>
+      <TouchableOpacity
+        key={story.id}
+        style={styles.storyCard}
+        activeOpacity={0.7}
+        onPress={() => setExpandedStory(isExpanded ? null : story.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`${story.title}, ${story.status}`}
+      >
         <View style={styles.storyHeader}>
-          <Text style={styles.storyTitle} numberOfLines={2}>
+          <Text style={styles.storyTitle} numberOfLines={isExpanded ? undefined : 2}>
             {story.title}
           </Text>
           <View style={[styles.storyStatusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -130,11 +140,32 @@ export default function SprintDetailScreen({ route, navigation }: Props) {
         )}
 
         {story.currentAction && (
-          <Text style={styles.currentAction} numberOfLines={2}>
+          <Text style={styles.currentAction} numberOfLines={isExpanded ? undefined : 2}>
             {story.currentAction}
           </Text>
         )}
-      </View>
+
+        {isExpanded && (
+          <View style={styles.storyDetail}>
+            <View style={styles.storyDetailRow}>
+              <Text style={styles.storyDetailLabel}>ID</Text>
+              <Text style={styles.storyDetailValue}>{story.id}</Text>
+            </View>
+            {story.wave !== undefined && (
+              <View style={styles.storyDetailRow}>
+                <Text style={styles.storyDetailLabel}>Wave</Text>
+                <Text style={styles.storyDetailValue}>{story.wave}</Text>
+              </View>
+            )}
+            {story.progress !== undefined && (
+              <View style={styles.storyDetailRow}>
+                <Text style={styles.storyDetailLabel}>Progress</Text>
+                <Text style={styles.storyDetailValue}>{story.progress}%</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -388,5 +419,29 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
     fontStyle: 'italic',
+  },
+  storyDetail: {
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    gap: theme.spacing.xs,
+  },
+  storyDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  storyDetailLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  storyDetailValue: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
 });

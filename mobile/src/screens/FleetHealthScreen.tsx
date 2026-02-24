@@ -4,8 +4,10 @@ import {
   Text,
   ScrollView,
   RefreshControl,
+  TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleetHealth } from '../hooks/useFleetHealth';
 import { theme } from '../theme';
@@ -23,7 +25,9 @@ function getHeartbeatColor(seconds: number): string {
   return theme.colors.error;                           // red
 }
 
-export default function FleetHealthScreen() {
+type Props = NativeStackScreenProps<any, 'FleetHealth'>;
+
+export default function FleetHealthScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const {
     programs,
@@ -136,12 +140,16 @@ export default function FleetHealthScreen() {
               const isUnhealthy = !program.isHealthy;
 
               return (
-                <View
+                <TouchableOpacity
                   key={program.programId}
                   style={[
                     styles.programCard,
                     isUnhealthy && styles.programCardUnhealthy,
                   ]}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('ProgramDetail', { programId: program.programId })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${program.programId} details`}
                 >
                   {/* Program Name + Health Dot */}
                   <View style={styles.programHeader}>
@@ -181,7 +189,7 @@ export default function FleetHealthScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
