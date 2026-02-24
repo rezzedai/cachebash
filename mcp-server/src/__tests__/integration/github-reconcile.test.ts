@@ -64,7 +64,7 @@ describe("GitHub Reconciliation Integration", () => {
       await seedTestData(userId, "sync_queue", queueItems);
 
       const syncQueue = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "pending")
         .get();
 
@@ -107,7 +107,7 @@ describe("GitHub Reconciliation Integration", () => {
       await seedTestData(userId, "sync_queue", queueItems);
 
       const createIssueItems = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("operation", "==", "create_issue")
         .get();
 
@@ -118,7 +118,7 @@ describe("GitHub Reconciliation Integration", () => {
   describe("Retry Logic", () => {
     it("should increment retry count on failure", async () => {
       const syncId = "sync-006";
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).set({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).set({
         operation: "create_issue",
         status: "pending",
         retryCount: 0,
@@ -127,17 +127,17 @@ describe("GitHub Reconciliation Integration", () => {
       });
 
       // Ensure document exists before updating
-      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      let syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       expect(syncDoc.exists).toBe(true);
 
       // Simulate retry
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
         retryCount: admin.firestore.FieldValue.increment(1),
         lastRetryAt: admin.firestore.FieldValue.serverTimestamp(),
         lastError: "GitHub API timeout",
       });
 
-      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(1);
@@ -149,7 +149,7 @@ describe("GitHub Reconciliation Integration", () => {
       const syncId = "sync-007";
       const baseDelayMs = 1000; // 1 second
 
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).set({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).set({
         operation: "update_project_item",
         status: "pending",
         retryCount: 0,
@@ -157,7 +157,7 @@ describe("GitHub Reconciliation Integration", () => {
       });
 
       // Ensure document exists before updating
-      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      let syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       expect(syncDoc.exists).toBe(true);
 
       // Simulate multiple retries with exponential backoff
@@ -167,14 +167,14 @@ describe("GitHub Reconciliation Integration", () => {
           new Date(Date.now() + delayMs)
         );
 
-        await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
+        await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
           retryCount: i,
           nextRetryAt,
           lastRetryAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
 
-      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.retryCount).toBe(3);
@@ -227,7 +227,7 @@ describe("GitHub Reconciliation Integration", () => {
 
       // Query items ready for retry
       const readyForRetry = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "pending")
         .where("nextRetryAt", "<=", now)
         .get();
@@ -241,7 +241,7 @@ describe("GitHub Reconciliation Integration", () => {
       const syncId = "sync-008";
       const MAX_RETRY_COUNT = 5;
 
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).set({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).set({
         operation: "create_issue",
         status: "pending",
         retryCount: MAX_RETRY_COUNT,
@@ -250,20 +250,20 @@ describe("GitHub Reconciliation Integration", () => {
       });
 
       // Check if should be abandoned
-      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      let syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       expect(syncDoc.exists).toBe(true);
       const shouldAbandon = syncDoc.data()?.retryCount >= MAX_RETRY_COUNT;
 
       expect(shouldAbandon).toBe(true);
 
       // Mark as abandoned
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
         status: "abandoned",
         abandonedAt: admin.firestore.FieldValue.serverTimestamp(),
         abandonReason: `Max retries (${MAX_RETRY_COUNT}) exceeded`,
       });
 
-      const abandonedDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      const abandonedDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       const data = abandonedDoc.data();
 
       expect(data?.status).toBe("abandoned");
@@ -307,7 +307,7 @@ describe("GitHub Reconciliation Integration", () => {
       await seedTestData(userId, "sync_queue", queueItems);
 
       const abandonedItems = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "abandoned")
         .get();
 
@@ -319,7 +319,7 @@ describe("GitHub Reconciliation Integration", () => {
     it("should mark item as completed on success", async () => {
       const syncId = "sync-012";
 
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).set({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).set({
         operation: "create_issue",
         status: "pending",
         retryCount: 0,
@@ -328,11 +328,11 @@ describe("GitHub Reconciliation Integration", () => {
       });
 
       // Ensure document exists before updating
-      let syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      let syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       expect(syncDoc.exists).toBe(true);
 
       // Mark as completed
-      await db.collection(`users/${userId}/sync_queue`).doc(syncId).update({
+      await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
         status: "completed",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         githubResponse: {
@@ -341,7 +341,7 @@ describe("GitHub Reconciliation Integration", () => {
         },
       });
 
-      syncDoc = await db.collection(`users/${userId}/sync_queue`).doc(syncId).get();
+      syncDoc = await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).get();
       const data = syncDoc.data();
 
       expect(data?.status).toBe("completed");
@@ -376,14 +376,14 @@ describe("GitHub Reconciliation Integration", () => {
 
       // Ensure all documents exist before batch update
       for (const item of queueItems) {
-        const doc = await db.collection(`users/${userId}/sync_queue`).doc(item.id).get();
+        const doc = await db.collection(`tenants/${userId}/sync_queue`).doc(item.id).get();
         expect(doc.exists).toBe(true);
       }
 
       // Mark all as completed
       const batch = db.batch();
       for (const item of queueItems) {
-        const ref = db.collection(`users/${userId}/sync_queue`).doc(item.id);
+        const ref = db.collection(`tenants/${userId}/sync_queue`).doc(item.id);
         batch.update(ref, {
           status: "completed",
           completedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -392,7 +392,7 @@ describe("GitHub Reconciliation Integration", () => {
       await batch.commit();
 
       const completedItems = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "completed")
         .get();
 
@@ -439,7 +439,7 @@ describe("GitHub Reconciliation Integration", () => {
 
       // Query high priority items first
       const highPriorityItems = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "pending")
         .where("priority", "==", "high")
         .get();
@@ -483,7 +483,7 @@ describe("GitHub Reconciliation Integration", () => {
       );
 
       const oldCompleted = await db
-        .collection(`users/${userId}/sync_queue`)
+        .collection(`tenants/${userId}/sync_queue`)
         .where("status", "==", "completed")
         .where("completedAt", "<", thirtyDaysAgo)
         .get();

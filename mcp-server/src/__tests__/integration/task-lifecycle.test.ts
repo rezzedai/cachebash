@@ -43,9 +43,9 @@ describe("Task Lifecycle Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set(taskData);
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set(taskData);
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      const taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
 
       expect(taskDoc.exists).toBe(true);
       const data = taskDoc.data();
@@ -72,9 +72,9 @@ describe("Task Lifecycle Integration", () => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set(taskData);
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set(taskData);
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      const taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.projectId).toBe("test-project");
@@ -87,7 +87,7 @@ describe("Task Lifecycle Integration", () => {
       const taskId = "task-003";
 
       // Create task
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set({
         title: "Claimable Task",
         type: "task",
         status: "created",
@@ -97,17 +97,17 @@ describe("Task Lifecycle Integration", () => {
       });
 
       // Ensure document exists before updating
-      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      let taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       expect(taskDoc.exists).toBe(true);
 
       // Claim task
-      await db.collection(`users/${userId}/tasks`).doc(taskId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "active",
         claimedAt: admin.firestore.FieldValue.serverTimestamp(),
         sessionId: "session-123",
       });
 
-      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("active");
@@ -119,7 +119,7 @@ describe("Task Lifecycle Integration", () => {
       const taskId = "task-004";
 
       // Create task
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set({
         title: "Contentious Task",
         type: "task",
         status: "created",
@@ -129,7 +129,7 @@ describe("Task Lifecycle Integration", () => {
       });
 
       // Simulate two concurrent claim attempts
-      const taskRef = db.collection(`users/${userId}/tasks`).doc(taskId);
+      const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);
 
       const claim1 = db.runTransaction(async (t) => {
         const doc = await t.get(taskRef);
@@ -170,7 +170,7 @@ describe("Task Lifecycle Integration", () => {
       const taskId = "task-005";
 
       // Create and claim task
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set({
         title: "Completable Task",
         type: "task",
         status: "active",
@@ -182,11 +182,11 @@ describe("Task Lifecycle Integration", () => {
       });
 
       // Ensure document exists before updating
-      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      let taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       expect(taskDoc.exists).toBe(true);
 
       // Complete task
-      await db.collection(`users/${userId}/tasks`).doc(taskId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "done",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         completed_status: "SUCCESS",
@@ -197,7 +197,7 @@ describe("Task Lifecycle Integration", () => {
         provider: "anthropic",
       });
 
-      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("done");
@@ -212,7 +212,7 @@ describe("Task Lifecycle Integration", () => {
     it("should handle failed task completion", async () => {
       const taskId = "task-006";
 
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set({
         title: "Failing Task",
         type: "task",
         status: "active",
@@ -223,10 +223,10 @@ describe("Task Lifecycle Integration", () => {
       });
 
       // Ensure document exists before updating
-      let taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      let taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       expect(taskDoc.exists).toBe(true);
 
-      await db.collection(`users/${userId}/tasks`).doc(taskId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "failed",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         completed_status: "FAILED",
@@ -234,7 +234,7 @@ describe("Task Lifecycle Integration", () => {
         error_class: "TRANSIENT",
       });
 
-      taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.status).toBe("failed");
@@ -251,7 +251,7 @@ describe("Task Lifecycle Integration", () => {
         new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
       );
 
-      await db.collection(`users/${userId}/tasks`).doc(taskId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(taskId).set({
         title: "Expired Task",
         type: "task",
         status: "created",
@@ -261,7 +261,7 @@ describe("Task Lifecycle Integration", () => {
         expiresAt: pastTimestamp,
       });
 
-      const taskDoc = await db.collection(`users/${userId}/tasks`).doc(taskId).get();
+      const taskDoc = await db.collection(`tenants/${userId}/tasks`).doc(taskId).get();
       const data = taskDoc.data();
 
       expect(data?.expiresAt).toBeDefined();
@@ -281,7 +281,7 @@ describe("Task Lifecycle Integration", () => {
       ];
 
       for (const task of tasks) {
-        await db.collection(`users/${userId}/tasks`).doc(task.id).set({
+        await db.collection(`tenants/${userId}/tasks`).doc(task.id).set({
           title: `Budget Task ${task.id}`,
           type: "task",
           status: "done",
@@ -296,7 +296,7 @@ describe("Task Lifecycle Integration", () => {
 
       // Query all completed tasks
       const completedTasks = await db
-        .collection(`users/${userId}/tasks`)
+        .collection(`tenants/${userId}/tasks`)
         .where("status", "==", "done")
         .get();
 
