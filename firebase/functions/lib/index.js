@@ -33,12 +33,21 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onAnalyticsEventCreate = exports.onRelayCreate = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.onUserCreate = void 0;
+exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onAnalyticsEventCreate = exports.onRelayCreate = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.cliAuthStatus = exports.cliAuthApprove = exports.updateKeyLabel = exports.revokeUserKey = exports.createUserKey = exports.onUserCreate = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Auth triggers
 var onUserCreate_1 = require("./auth/onUserCreate");
 Object.defineProperty(exports, "onUserCreate", { enumerable: true, get: function () { return onUserCreate_1.onUserCreate; } });
+// Key management (callable)
+var keyManagement_1 = require("./auth/keyManagement");
+Object.defineProperty(exports, "createUserKey", { enumerable: true, get: function () { return keyManagement_1.createUserKey; } });
+Object.defineProperty(exports, "revokeUserKey", { enumerable: true, get: function () { return keyManagement_1.revokeUserKey; } });
+Object.defineProperty(exports, "updateKeyLabel", { enumerable: true, get: function () { return keyManagement_1.updateKeyLabel; } });
+// CLI auth (HTTP)
+var cliAuth_1 = require("./auth/cliAuth");
+Object.defineProperty(exports, "cliAuthApprove", { enumerable: true, get: function () { return cliAuth_1.cliAuthApprove; } });
+Object.defineProperty(exports, "cliAuthStatus", { enumerable: true, get: function () { return cliAuth_1.cliAuthStatus; } });
 // Notification triggers (new collection paths)
 var onTaskCreate_1 = require("./notifications/onTaskCreate");
 Object.defineProperty(exports, "onTaskCreate", { enumerable: true, get: function () { return onTaskCreate_1.onTaskCreate; } });
