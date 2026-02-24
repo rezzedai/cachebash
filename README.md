@@ -166,6 +166,18 @@ gcloud run deploy cachebash-mcp \
 
 See [docs/deployment.md](docs/deployment.md) for the full guide including Firestore setup, Firebase Auth, and API key configuration.
 
+## Client Setup Guides
+
+Step-by-step configuration for each supported MCP client:
+
+| Client | Guide | Auth |
+|--------|-------|------|
+| Claude Code | [docs/guides/claude-code.md](docs/guides/claude-code.md) | Bearer token |
+| Cursor | [docs/guides/cursor.md](docs/guides/cursor.md) | Bearer token |
+| VS Code | [docs/guides/vscode.md](docs/guides/vscode.md) | Bearer token |
+| Gemini CLI | [docs/guides/gemini-cli.md](docs/guides/gemini-cli.md) | Bearer token |
+| ChatGPT | [docs/guides/chatgpt.md](docs/guides/chatgpt.md) | OAuth 2.1 (not yet supported) |
+
 ## Documentation
 
 - [Architecture](docs/architecture.md) — System design, data model, security
