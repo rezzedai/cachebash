@@ -12,7 +12,7 @@ const messaging = admin.messaging();
  * - Lifecycle transition notifications (status changes)
  */
 export const onTaskUpdate = functions.firestore
-  .document("users/{userId}/tasks/{taskId}")
+  .document("tenants/{userId}/tasks/{taskId}")
   .onUpdate(async (change, context) => {
     const { userId, taskId } = context.params;
     const before = change.before.data();
@@ -42,7 +42,7 @@ async function handleDreamTransition(
   if (!terminalStatuses.includes(after.status)) return;
 
   try {
-    const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+    const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
     if (devicesSnapshot.empty) return;
 
     const tokens: string[] = [];
@@ -122,7 +122,7 @@ async function handleSprintStoryCascade(
   try {
     // Get all stories for this sprint
     const storiesSnapshot = await db
-      .collection(`users/${userId}/tasks`)
+      .collection(`tenants/${userId}/tasks`)
       .where("type", "==", "sprint-story")
       .where("sprint.parentId", "==", parentId)
       .get();
@@ -172,7 +172,7 @@ async function handleSprintStoryCascade(
       update.status = "completing";
     }
 
-    await db.doc(`users/${userId}/tasks/${parentId}`).update(update);
+    await db.doc(`tenants/${userId}/tasks/${parentId}`).update(update);
 
     functions.logger.info(
       `Sprint ${parentId} cascade: ${sprintStatus} (${sprintProgress}%)`

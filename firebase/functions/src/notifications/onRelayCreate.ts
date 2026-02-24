@@ -39,7 +39,7 @@ const ALWAYS_NOTIFY_TYPES = ["DIRECTIVE", "QUERY"];
  * were silently written to Firestore with no push delivery.
  */
 export const onRelayCreate = functions.firestore
-  .document("users/{userId}/relay/{relayId}")
+  .document("tenants/{userId}/relay/{relayId}")
   .onCreate(async (snapshot, context) => {
     const { userId, relayId } = context.params;
     const relay = snapshot.data();
@@ -73,7 +73,7 @@ export const onRelayCreate = functions.firestore
     }
 
     try {
-      const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+      const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
       if (devicesSnapshot.empty) {
         functions.logger.warn(`No devices registered for user ${userId}`);
         return;

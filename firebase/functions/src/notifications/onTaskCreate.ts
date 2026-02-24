@@ -32,7 +32,7 @@ function truncate(str: string, maxLength: number): string {
  * Replaces v1 onMessageCreate + onQuestionCreate.
  */
 export const onTaskCreate = functions.firestore
-  .document("users/{userId}/tasks/{taskId}")
+  .document("tenants/{userId}/tasks/{taskId}")
   .onCreate(async (snapshot, context) => {
     const { userId, taskId } = context.params;
     const task = snapshot.data();
@@ -57,7 +57,7 @@ export const onTaskCreate = functions.firestore
     }
 
     try {
-      const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+      const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
       if (devicesSnapshot.empty) {
         functions.logger.warn(`No devices registered for user ${userId}`);
         return;
@@ -105,7 +105,7 @@ export const onTaskCreate = functions.firestore
 
       // Badge count: pending questions
       const pendingCount = await db
-        .collection(`users/${userId}/tasks`)
+        .collection(`tenants/${userId}/tasks`)
         .where("type", "==", "question")
         .where("status", "==", "created")
         .count()
