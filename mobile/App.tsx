@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
@@ -8,17 +8,46 @@ import ConnectionBanner from './src/components/ConnectionBanner';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
+import FirstKeyScreen from './src/screens/FirstKeyScreen';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './src/config/firebase';
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [showFirstKey, setShowFirstKey] = useState(false);
+  const [checkingFirstKey, setCheckingFirstKey] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    async function checkFirstKey() {
+      if (!isAuthenticated || !user) return;
+
+      setCheckingFirstKey(true);
+      try {
+        const keyDoc = await getDoc(doc(db, `tenants/${user.uid}/config/firstKey`));
+        if (keyDoc.exists() && !keyDoc.data().retrieved) {
+          setShowFirstKey(true);
+        }
+      } catch (error) {
+        console.error('Failed to check first key:', error);
+      } finally {
+        setCheckingFirstKey(false);
+      }
+    }
+
+    checkFirstKey();
+  }, [isAuthenticated, user]);
+
+  if (isLoading || checkingFirstKey) {
     return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
     return <SignInScreen />;
+  }
+
+  if (showFirstKey) {
+    return <FirstKeyScreen onComplete={() => setShowFirstKey(false)} />;
   }
 
   return (

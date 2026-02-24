@@ -85,7 +85,14 @@ service cloud.firestore {
     match /tenants/{userId}/devices/{deviceId} {
       allow read, write: if isOwner(userId);
     }
-    
+
+    // Config: read for owner, limited update for firstKey retrieval marking
+    match /tenants/{userId}/config/{configDoc} {
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId) && configDoc == 'firstKey'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['retrieved']);
+    }
+
     // User root document: read-only
     match /tenants/{userId} {
       allow read: if isOwner(userId);
