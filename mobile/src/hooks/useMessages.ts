@@ -14,17 +14,18 @@ export function useMessages() {
     fetcher: async () => {
       if (!api) return [];
 
-      // Fetch messages both TO and FROM orchestrator (the hub) for full visibility
-      const [toOrch, fromOrch] = await Promise.all([
+      // Fetch messages: to/from orchestrator (hub) + user-sent (admin) for full visibility
+      const [toOrch, fromOrch, fromAdmin] = await Promise.all([
         api.queryMessageHistory({ target: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
         api.queryMessageHistory({ source: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
+        api.queryMessageHistory({ source: 'admin', limit: 30 }).catch(() => ({ messages: [] })),
       ]);
 
       // Merge and deduplicate by message id
       const seen = new Set<string>();
       const allMessages: RelayMessage[] = [];
 
-      for (const m of [...(toOrch.messages || []), ...(fromOrch.messages || [])]) {
+      for (const m of [...(toOrch.messages || []), ...(fromOrch.messages || []), ...(fromAdmin.messages || [])]) {
         const id = m.id || m.messageId;
         if (seen.has(id)) continue;
         seen.add(id);
