@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,8 +20,15 @@ import { useSprints } from '../hooks/useSprints';
 import { useConnectivity } from '../contexts/ConnectivityContext';
 import { theme } from '../theme';
 import type { Program } from '../types';
-import { timeAgo, getStateColor } from '../utils';
+import { timeAgo, getStateColor, getStatusColor, getMessageTypeColor } from '../utils';
 import { haptic } from '../utils/haptics';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+type ExpandedCard = 'programs' | 'tasks' | 'messages' | null;
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -32,13 +42,20 @@ export default function HomeScreen({ navigation }: Props) {
   const { sprints } = useSprints();
   const { isConnected, isInternetReachable } = useConnectivity();
 
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  const toggleCard = (card: ExpandedCard) => {
+    haptic.light();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedCard(expandedCard === card ? null : card);
+  };
 
   // Total fleet programs count
   const programCount = useMemo(() => programs.length, [programs]);
@@ -55,6 +72,12 @@ export default function HomeScreen({ navigation }: Props) {
     ? timeAgo(new Date(lastUpdateTime).toISOString())
     : 'never';
 
+  // Filter pending tasks
+  const pendingTasks = useMemo(
+    () => tasks.filter((t) => t.status === 'created'),
+    [tasks]
+  );
+
   // Filter pending questions (tasks of type 'question' with status 'created')
   const pendingQuestions = useMemo(
     () => tasks.filter((t) => t.type === 'question' && t.status === 'created'),
@@ -65,6 +88,12 @@ export default function HomeScreen({ navigation }: Props) {
   const activeSprints = useMemo(
     () => sprints.filter((s) => s.status !== 'complete'),
     [sprints]
+  );
+
+  // Filter received messages (exclude orchestrator/admin as source)
+  const receivedMessages = useMemo(
+    () => messages.filter((m) => m.source !== 'orchestrator' && m.source !== 'admin').slice(0, 10),
+    [messages]
   );
 
   const handleProgramPress = (program: Program) => {
@@ -127,152 +156,241 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Quick Stats Row */}
-        <View style={styles.statsRow}>
-          <View
-            style={styles.statCard}
-            accessibilityLabel={`${programCount} Programs`}
-          >
-            <Text style={styles.statValue}>{programCount}</Text>
-            <Text style={styles.statLabel}>Programs</Text>
-            <View
-              style={[
-                styles.statIndicator,
-                { backgroundColor: theme.colors.success },
-              ]}
-            />
-          </View>
+        {/* Expandable Stat Cards */}
+        <View style={styles.statsColumn}>
 
-          <View
-            style={styles.statCard}
-            accessibilityLabel={`${pendingCount} Pending Tasks`}
+          {/* Programs Card */}
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              expandedCard === 'programs' && styles.statCardExpanded,
+            ]}
+            onPress={() => toggleCard('programs')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${programCount} Programs, tap to ${expandedCard === 'programs' ? 'collapse' : 'expand'}`}
           >
-            <Text style={styles.statValue}>{pendingCount}</Text>
-            <Text style={styles.statLabel}>Pending Tasks</Text>
-            <View
-              style={[
-                styles.statIndicator,
-                { backgroundColor: theme.colors.warning },
-              ]}
-            />
-          </View>
-
-          <View
-            style={styles.statCard}
-            accessibilityLabel={`${unreadCount} Messages`}
-          >
-            <Text style={styles.statValue}>{unreadCount}</Text>
-            <Text style={styles.statLabel}>Messages</Text>
-            <View
-              style={[
-                styles.statIndicator,
-                { backgroundColor: theme.colors.primary },
-              ]}
-            />
-          </View>
-        </View>
-
-        {/* Active Sprints */}
-        {activeSprints.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeader}>Active Sprints</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{activeSprints.length}</Text>
+            <View style={styles.statCardHeader}>
+              <View style={styles.statCardLeft}>
+                <Text style={styles.statValue}>{programCount}</Text>
+                <Text style={styles.statLabel}>Programs</Text>
               </View>
+              <Text style={styles.expandArrow}>
+                {expandedCard === 'programs' ? '\u25B2' : '\u25BC'}
+              </Text>
             </View>
-            {activeSprints.map((sprint) => {
-              const totalCount = sprint.stories.length;
-              const completedCount = sprint.stories.filter((s) => s.status === 'complete').length;
-              const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.success }]} />
+          </TouchableOpacity>
 
-              return (
-                <TouchableOpacity
-                  key={sprint.id}
-                  style={styles.questionCard}
-                  onPress={() => {
-                    haptic.light();
-                    navigation.navigate('SprintDetail', { sprintId: sprint.id, sprint });
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Sprint ${sprint.projectName}, ${completedCount} of ${totalCount} stories complete`}
-                >
-                  <Text style={styles.questionTitle}>{sprint.projectName}</Text>
-                  <Text style={styles.questionTime}>
-                    {completedCount}/{totalCount} stories • {sprint.branch}
-                  </Text>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${pct}%`, backgroundColor: theme.colors.primary },
-                      ]}
-                    />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+          {expandedCard === 'programs' && (
+            <View style={styles.expandedContent}>
+              {/* Active Sprints (integrated) */}
+              {activeSprints.length > 0 && (
+                <View style={styles.expandedSubsection}>
+                  <Text style={styles.expandedSubheader}>Active Sprints</Text>
+                  {activeSprints.map((sprint) => {
+                    const totalCount = sprint.stories.length;
+                    const completedCount = sprint.stories.filter((s) => s.status === 'complete').length;
+                    const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-        {/* Program Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionHeader}>Fleet Status</Text>
-          {programs.length === 0 && !isLoading && !error ? (
-            <View style={styles.emptyFleet}>
-              <Text style={styles.emptyFleetText}>⬡ No programs online</Text>
-              <Text style={styles.emptyFleetHint}>Pull down to refresh</Text>
+                    return (
+                      <TouchableOpacity
+                        key={sprint.id}
+                        style={styles.expandedItem}
+                        onPress={() => {
+                          haptic.light();
+                          navigation.navigate('SprintDetail', { sprintId: sprint.id, sprint });
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                      >
+                        <Text style={styles.expandedItemTitle}>{sprint.projectName}</Text>
+                        <Text style={styles.expandedItemMeta}>
+                          {completedCount}/{totalCount} stories
+                        </Text>
+                        <View style={styles.progressBar}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${pct}%`, backgroundColor: theme.colors.primary },
+                            ]}
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Program List */}
+              <Text style={styles.expandedSubheader}>Fleet</Text>
+              {programs.length === 0 ? (
+                <Text style={styles.expandedEmptyText}>No programs online</Text>
+              ) : (
+                <View style={styles.programGrid}>
+                  {programs.map((program) => (
+                    <TouchableOpacity
+                      key={program.id}
+                      style={styles.programCard}
+                      onPress={() => handleProgramPress(program)}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`View ${program.name || program.id} details`}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.programHeader}>
+                        <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
+                          {(program.name || program.id || '?').toUpperCase()}
+                        </Text>
+                        <View
+                          style={[
+                            styles.stateDot,
+                            {
+                              backgroundColor: program.state !== 'offline'
+                                ? getStateColor(program.state)
+                                : 'transparent',
+                              borderWidth: program.state !== 'offline' ? 0 : 1.5,
+                              borderColor: getStateColor(program.state),
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      {program.status && (
+                        <Text style={styles.programStatus} numberOfLines={2} ellipsizeMode="tail">
+                          {program.status}
+                        </Text>
+                      )}
+
+                      {program.progress !== undefined && program.progress > 0 && (
+                        <View style={styles.progressBar}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              {
+                                width: `${program.progress}%`,
+                                backgroundColor: getStateColor(program.state),
+                              },
+                            ]}
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
-          ) : (
-            <View style={styles.programGrid}>
-              {programs.map((program) => (
-                <TouchableOpacity
-                  key={program.id}
-                  style={styles.programCard}
-                  onPress={() => handleProgramPress(program)}
-                  activeOpacity={0.7}
-                  accessibilityLabel={`View ${program.name || program.id} details`}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.programHeader}>
-                    <Text style={styles.programName} numberOfLines={1} ellipsizeMode="tail">
-                      {(program.name || program.id || '?').toUpperCase()}
-                    </Text>
-                    <View
-                      style={[
-                        styles.stateDot,
-                        {
-                          backgroundColor: program.state !== 'offline'
-                            ? getStateColor(program.state)
-                            : 'transparent',
-                          borderWidth: program.state !== 'offline' ? 0 : 1.5,
-                          borderColor: getStateColor(program.state),
-                        },
-                      ]}
-                    />
-                  </View>
+          )}
 
-                  {program.status && (
-                    <Text style={styles.programStatus} numberOfLines={2} ellipsizeMode="tail">
-                      {program.status}
-                    </Text>
-                  )}
+          {/* Pending Tasks Card */}
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              expandedCard === 'tasks' && styles.statCardExpanded,
+            ]}
+            onPress={() => toggleCard('tasks')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${pendingCount} Pending Tasks, tap to ${expandedCard === 'tasks' ? 'collapse' : 'expand'}`}
+          >
+            <View style={styles.statCardHeader}>
+              <View style={styles.statCardLeft}>
+                <Text style={styles.statValue}>{pendingCount}</Text>
+                <Text style={styles.statLabel}>Pending Tasks</Text>
+              </View>
+              <Text style={styles.expandArrow}>
+                {expandedCard === 'tasks' ? '\u25B2' : '\u25BC'}
+              </Text>
+            </View>
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.warning }]} />
+          </TouchableOpacity>
 
-                  {program.progress !== undefined && program.progress > 0 && (
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${program.progress}%`,
-                            backgroundColor: getStateColor(program.state),
-                          },
-                        ]}
-                      />
+          {expandedCard === 'tasks' && (
+            <View style={styles.expandedContent}>
+              {pendingTasks.length === 0 ? (
+                <Text style={styles.expandedEmptyText}>No pending tasks</Text>
+              ) : (
+                pendingTasks.slice(0, 8).map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
+                    style={styles.expandedItem}
+                    onPress={() => {
+                      haptic.light();
+                      navigation.navigate('TaskDetail', { task });
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.expandedItemRow}>
+                      <View style={[styles.statusDot, { backgroundColor: getStatusColor(task.status) }]} />
+                      <Text style={styles.expandedItemTitle} numberOfLines={1}>
+                        {task.title}
+                      </Text>
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text style={styles.expandedItemMeta}>
+                      {task.source || 'unknown'} {'\u2192'} {task.target || 'unknown'} {'\u00B7'} {timeAgo(task.createdAt)}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          )}
+
+          {/* Messages Card */}
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              expandedCard === 'messages' && styles.statCardExpanded,
+            ]}
+            onPress={() => toggleCard('messages')}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${unreadCount} Messages, tap to ${expandedCard === 'messages' ? 'collapse' : 'expand'}`}
+          >
+            <View style={styles.statCardHeader}>
+              <View style={styles.statCardLeft}>
+                <Text style={styles.statValue}>{unreadCount}</Text>
+                <Text style={styles.statLabel}>Messages</Text>
+              </View>
+              <Text style={styles.expandArrow}>
+                {expandedCard === 'messages' ? '\u25B2' : '\u25BC'}
+              </Text>
+            </View>
+            <View style={[styles.statIndicator, { backgroundColor: theme.colors.primary }]} />
+          </TouchableOpacity>
+
+          {expandedCard === 'messages' && (
+            <View style={styles.expandedContent}>
+              {receivedMessages.length === 0 ? (
+                <Text style={styles.expandedEmptyText}>No messages received</Text>
+              ) : (
+                receivedMessages.map((msg) => (
+                  <TouchableOpacity
+                    key={msg.id}
+                    style={styles.expandedItem}
+                    onPress={() => {
+                      haptic.light();
+                      navigation.navigate('ChannelDetail', {
+                        channelId: msg.source,
+                        channelName: msg.source,
+                      });
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.expandedItemRow}>
+                      <View style={[styles.msgTypeBadge, { backgroundColor: getMessageTypeColor(msg.message_type) + '25' }]}>
+                        <Text style={[styles.msgTypeText, { color: getMessageTypeColor(msg.message_type) }]}>
+                          {msg.source?.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.expandedItemMeta}>{timeAgo(msg.createdAt)}</Text>
+                    </View>
+                    <Text style={styles.expandedItemMessage} numberOfLines={2}>
+                      {msg.message}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
         </View>
@@ -388,14 +506,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
 
-  // Stats Row
-  statsRow: {
-    flexDirection: 'row',
+  // Stats Column (expandable cards stacked vertically)
+  statsColumn: {
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.lg,
   },
   statCard: {
-    flex: 1,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
@@ -404,18 +520,34 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
+  statCardExpanded: {
+    borderColor: theme.colors.primary,
+  },
+  statCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: theme.spacing.sm,
+  },
   statValue: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '700',
     color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
   },
   statLabel: {
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     fontWeight: '500',
     color: theme.colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  expandArrow: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
   },
   statIndicator: {
     position: 'absolute',
@@ -425,35 +557,73 @@ const styles = StyleSheet.create({
     height: 3,
   },
 
-  // Section
-  section: {
-    marginBottom: theme.spacing.xl,
+  // Expanded Content
+  expandedContent: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  sectionHeader: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
+  expandedSubsection: {
+    marginBottom: theme.spacing.sm,
   },
-  sectionHeaderRow: {
+  expandedSubheader: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: theme.spacing.sm,
+  },
+  expandedItem: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  expandedItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.xxs,
   },
-  badge: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.sm,
+  expandedItemTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  expandedItemMeta: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+  },
+  expandedItemMessage: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xxs,
+  },
+  expandedEmptyText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: theme.spacing.md,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  msgTypeBadge: {
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.borderRadius.sm,
   },
-  badgeText: {
+  msgTypeText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '700',
-    color: theme.colors.background,
+    letterSpacing: 0.5,
   },
 
   // Program Grid
@@ -464,12 +634,12 @@ const styles = StyleSheet.create({
   },
   programCard: {
     width: programCardWidth,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.md,
-    minHeight: 100,
+    minHeight: 80,
   },
   programHeader: {
     flexDirection: 'row',
@@ -506,6 +676,37 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 1.5,
+  },
+
+  // Section
+  section: {
+    marginBottom: theme.spacing.xl,
+  },
+  sectionHeader: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  badge: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: theme.colors.background,
   },
 
   // Question List
@@ -571,22 +772,5 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
     fontWeight: '600',
-  },
-
-  // Empty Fleet State
-  emptyFleet: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xl,
-  },
-  emptyFleetText: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.textMuted,
-    textAlign: 'center',
-    marginVertical: theme.spacing.xl,
-  },
-  emptyFleetHint: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
-    textAlign: 'center',
   },
 });
