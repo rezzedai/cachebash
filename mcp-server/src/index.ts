@@ -6,6 +6,7 @@
  */
 
 import http from "http";
+import * as admin from "firebase-admin";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
@@ -23,7 +24,10 @@ import { handleGithubWebhook } from "./modules/github-webhook.js";
 import { SessionManager } from "./transport/SessionManager.js";
 import { emitEvent } from "./modules/events.js";
 import { reconcileGitHub } from "./modules/github-reconcile.js";
+import { detectStaleSessions } from "./modules/stale-session-detector.js";
 import { checkSessionCompliance } from "./middleware/sessionCompliance.js";
+import { checkPricing } from "./middleware/pricingEnforce.js";
+import { incrementUsage } from "./middleware/usage.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -55,6 +59,28 @@ async function nodeToWebRequest(req: http.IncomingMessage): Promise<Request> {
     headers: req.headers as Record<string, string>,
     body: body && req.method !== "GET" && req.method !== "HEAD" ? body : undefined,
   });
+}
+
+async function getActiveUserIds(): Promise<string[]> {
+  try {
+    const db = getFirestore();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const keysSnapshot = await db
+      .collection("apiKeys")
+      .where("lastUsedAt", ">=", sevenDaysAgo)
+      .get();
+
+    const activeUserIds = new Set<string>();
+    for (const doc of keysSnapshot.docs) {
+      const userId = doc.data().userId;
+      if (userId) activeUserIds.add(userId);
+    }
+    return Array.from(activeUserIds);
+  } catch (err) {
+    console.error("[Internal] Failed to resolve active users:", err);
+    return [];
+  }
 }
 
 async function main() {
@@ -122,6 +148,27 @@ async function main() {
       console.error("[Compliance] Check failed, failing open:", err);
     }
 
+    let pricingWarning: string | undefined;
+    try {
+      const pricingResult = await checkPricing(auth, name);
+      if (!pricingResult.allowed) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              error: pricingResult.reason,
+              code: "PRICING_LIMIT_REACHED",
+            }),
+          }],
+          isError: true,
+        };
+      }
+      pricingWarning = pricingResult.warning;
+    } catch (err) {
+      console.error("[Pricing] Check failed, failing open:", err);
+    }
+
     const handler = TOOL_HANDLERS[name];
     if (!handler) {
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
@@ -129,15 +176,22 @@ async function main() {
 
     try {
       const result = await handler(auth, args);
-      if (complianceWarning && result?.content?.[0]?.text) {
+      if ((complianceWarning || pricingWarning) && result?.content?.[0]?.text) {
         try {
           const parsed = JSON.parse(result.content[0].text);
-          parsed._compliance = { warning: complianceWarning };
+          if (complianceWarning) parsed._compliance = { warning: complianceWarning };
+          if (pricingWarning) parsed._pricing = { warning: pricingWarning };
           result.content[0].text = JSON.stringify(parsed);
         } catch {
           // Not JSON payload; skip warning injection.
         }
       }
+      // Usage counters (fire-and-forget)
+      incrementUsage(auth.userId, "total_tool_calls");
+      if (name === "create_task") incrementUsage(auth.userId, "tasks_created");
+      if (name === "send_message") incrementUsage(auth.userId, "messages_sent");
+      if (name === "create_session") incrementUsage(auth.userId, "sessions_started");
+
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
       traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
         JSON.stringify(result).substring(0, 500), Date.now() - startTime, true);
@@ -185,6 +239,7 @@ async function main() {
           cleanup: "/v1/internal/cleanup",
           wake: "/v1/internal/wake",
           healthCheck: "/v1/internal/health-check",
+          staleSessions: "/v1/internal/stale-sessions",
         },
         restFallback: {
           description: "If MCP session dies, use REST endpoints with the same Bearer auth",
@@ -248,22 +303,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const db = getFirestore();
-
-        // Find active users (API keys used in last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const keysSnapshot = await db
-          .collection("apiKeys")
-          .where("lastUsedAt", ">=", sevenDaysAgo)
-          .get();
-
-        const activeUserIds = new Set<string>();
-        for (const doc of keysSnapshot.docs) {
-          const userId = doc.data().userId;
-          if (userId) activeUserIds.add(userId);
-        }
+        const activeUserIds = await getActiveUserIds();
 
         let totalRelayExpired = 0;
         let totalRelayCleaned = 0;
@@ -295,7 +335,7 @@ async function main() {
 
         return sendJson(res, 200, {
           success: true,
-          activeUsers: activeUserIds.size,
+          activeUsers: activeUserIds.length,
           relay: {
             expired: totalRelayExpired,
             cleaned: totalRelayCleaned,
@@ -320,21 +360,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const db = getFirestore();
-
-        // Find active user (same pattern as cleanup)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const keysSnapshot = await db
-          .collection("apiKeys")
-          .where("lastUsedAt", ">=", sevenDaysAgo)
-          .get();
-
-        const activeUserIds = new Set<string>();
-        for (const doc of keysSnapshot.docs) {
-          const userId = doc.data().userId;
-          if (userId) activeUserIds.add(userId);
-        }
+        const activeUserIds = await getActiveUserIds();
 
         const { pollAndWake } = await import("./lifecycle/wake-daemon.js");
         const results = [];
@@ -347,7 +373,7 @@ async function main() {
         const duration = Date.now() - startTime;
         return sendJson(res, 200, {
           success: true,
-          activeUsers: activeUserIds.size,
+          activeUsers: activeUserIds.length,
           results,
           duration_ms: duration,
         });
@@ -365,21 +391,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const db = getFirestore();
-
-        // Find active users (same pattern as cleanup/wake)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const keysSnapshot = await db
-          .collection("apiKeys")
-          .where("lastUsedAt", ">=", sevenDaysAgo)
-          .get();
-
-        const activeUserIds = new Set<string>();
-        for (const doc of keysSnapshot.docs) {
-          const userId = doc.data().userId;
-          if (userId) activeUserIds.add(userId);
-        }
+        const activeUserIds = await getActiveUserIds();
 
         const results: any[] = [];
         for (const userId of activeUserIds) {
@@ -402,7 +414,7 @@ async function main() {
         const duration = Date.now() - startTime;
         return sendJson(res, 200, {
           success: true,
-          activeUsers: activeUserIds.size,
+          activeUsers: activeUserIds.length,
           results,
           duration_ms: duration,
         });
@@ -448,22 +460,8 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const db = getFirestore();
         const { runHealthCheck } = await import("./modules/gridbot-monitor.js");
-
-        // Find active users (same pattern as cleanup/wake)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const keysSnapshot = await db
-          .collection("apiKeys")
-          .where("lastUsedAt", ">=", sevenDaysAgo)
-          .get();
-
-        const activeUserIds = new Set<string>();
-        for (const doc of keysSnapshot.docs) {
-          const userId = doc.data().userId;
-          if (userId) activeUserIds.add(userId);
-        }
+        const activeUserIds = await getActiveUserIds();
 
         const results = [];
         for (const userId of activeUserIds) {
@@ -474,7 +472,7 @@ async function main() {
         const duration = Date.now() - startTime;
         return sendJson(res, 200, {
           success: true,
-          activeUsers: activeUserIds.size,
+          activeUsers: activeUserIds.length,
           results,
           duration_ms: duration,
         });
@@ -484,6 +482,67 @@ async function main() {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // Stale session detection endpoint (scheduled job)
+    if (url === "/v1/internal/stale-sessions" && req.method === "POST") {
+      try {
+        const db = getFirestore();
+        const activeUserIds = await getActiveUserIds();
+        const results: Record<string, any> = {};
+        let totalStale = 0;
+        let totalArchived = 0;
+
+        for (const userId of activeUserIds) {
+          const result = await detectStaleSessions(userId);
+          if (result.stale.length === 0) continue;
+
+          results[userId] = result;
+          totalStale += result.stale.length;
+          totalArchived += result.archived;
+
+          for (const session of result.stale) {
+            const alertType = session.action === "archived" ? "error" : "warning";
+            const message = session.action === "archived"
+              ? `${session.programId} session archived (no heartbeat for ${session.ageMinutes}min)`
+              : `${session.programId} may be hanging (no heartbeat for ${session.ageMinutes}min)`;
+
+            const alertDoc = {
+              source: "system",
+              target: "admin",
+              message_type: "STATUS",
+              message,
+              alertType,
+              priority: session.action === "archived" ? "high" : "normal",
+              status: "pending",
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 3600000)),
+            };
+
+            try {
+              await db.collection(`tenants/${userId}/relay`).add(alertDoc);
+              await db.collection(`tenants/${userId}/tasks`).add({
+                ...alertDoc,
+                type: "task",
+                title: `[Alert: ${alertType}] ${session.programId} stale`,
+              });
+            } catch (err) {
+              console.error(`[Stale Sessions] Failed alert write for ${userId}/${session.sessionId}:`, err);
+            }
+          }
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          totalStale,
+          totalArchived,
+          activeUsers: activeUserIds.length,
+          results,
+        });
+      } catch (error) {
+        console.error("[Stale Sessions] Detection failed:", error);
+        return sendJson(res, 500, { error: "Stale session detection failed" });
       }
     }
 

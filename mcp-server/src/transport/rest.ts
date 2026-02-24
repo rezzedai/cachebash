@@ -13,6 +13,8 @@ import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js"
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError, checkToolRateLimit, getToolRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance } from "../middleware/sessionCompliance.js";
+import { checkPricing } from "../middleware/pricingEnforce.js";
+import { incrementUsage } from "../middleware/usage.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -29,6 +31,13 @@ class ComplianceError extends Error {
     super(message);
     this.name = "ComplianceError";
     this.code = code;
+  }
+}
+
+class PricingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PricingError";
   }
 }
 
@@ -157,6 +166,18 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   }
   complianceWarning = complianceResult.warning;
 
+  let pricingWarning: string | undefined;
+  try {
+    const pricingResult = await checkPricing(auth, toolName);
+    if (!pricingResult.allowed) {
+      throw new PricingError(pricingResult.reason);
+    }
+    pricingWarning = pricingResult.warning;
+  } catch (err) {
+    if (err instanceof PricingError) throw err;
+    console.error("[Pricing] Check failed, failing open:", err);
+  }
+
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
@@ -175,6 +196,15 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
     if (complianceWarning && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       (parsed as Record<string, unknown>)._compliance = { warning: complianceWarning };
     }
+    if (pricingWarning && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      (parsed as Record<string, unknown>)._pricing = { warning: pricingWarning };
+    }
+    // Usage counters (fire-and-forget)
+    incrementUsage(auth.userId, "total_tool_calls");
+    if (toolName === "create_task") incrementUsage(auth.userId, "tasks_created");
+    if (toolName === "send_message") incrementUsage(auth.userId, "messages_sent");
+    if (toolName === "create_session") incrementUsage(auth.userId, "sessions_started");
+
     return parsed;
   } catch (err) {
     if (err instanceof ZodError) {
@@ -461,6 +491,12 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             code: err.code,
             message: err.message,
           }, err.code === "SESSION_TERMINATED" ? 410 : 403);
+        }
+        if (err instanceof PricingError) {
+          return restResponse(res, false, {
+            code: "PRICING_LIMIT_REACHED",
+            message: err.message,
+          }, 402);
         }
         return restResponse(res, false, {
           code: "INTERNAL_ERROR",
