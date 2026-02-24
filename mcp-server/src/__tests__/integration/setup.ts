@@ -79,7 +79,7 @@ export async function seedTestUser(userId: string): Promise<{
   });
 
   // Create API key document
-  await db.collection(`users/${userId}/apiKeys`).doc(apiKeyHash).set({
+  await db.collection(`tenants/${userId}/apiKeys`).doc(apiKeyHash).set({
     programId: "orchestrator",
     label: "Test Key",
     keyHash: apiKeyHash,
@@ -108,7 +108,7 @@ export async function seedTestData(
   const batch = db.batch();
 
   for (const doc of docs) {
-    const ref = db.collection(`users/${userId}/${collection}`).doc(doc.id);
+    const ref = db.collection(`tenants/${userId}/${collection}`).doc(doc.id);
     batch.set(ref, doc.data);
   }
 

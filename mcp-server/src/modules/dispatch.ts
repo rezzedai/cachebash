@@ -1,6 +1,6 @@
 /**
  * Dispatch Module — Task CRUD.
- * Collection: users/{uid}/tasks
+ * Collection: tenants/{uid}/tasks
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
@@ -87,7 +87,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const args = GetTasksSchema.parse(rawArgs);
   const db = getFirestore();
 
-  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/tasks`);
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`);
 
   if (args.status !== "all") {
     query = query.where("status", "==", args.status);
@@ -197,7 +197,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + args.ttl * 1000);
   }
 
-  const ref = await db.collection(`users/${auth.userId}/tasks`).add(taskData);
+  const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
 
   // Emit telemetry event
   emitEvent(auth.userId, {
@@ -246,7 +246,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
 export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = ClaimTaskSchema.parse(rawArgs);
   const db = getFirestore();
-  const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
+  const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
   try {
     const result = await db.runTransaction(async (tx) => {
@@ -329,7 +329,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CompleteTaskSchema.parse(rawArgs);
   const db = getFirestore();
-  const taskRef = db.doc(`users/${auth.userId}/tasks/${args.taskId}`);
+  const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
   // Capture task data for provenance hashing and budget tracking
   let taskData: { 
@@ -391,7 +391,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       // Check if task is a sprint story that belongs to a dream sprint
       else if (taskData.sprintParentId) {
         try {
-          const sprintDoc = await db.doc(`users/${auth.userId}/tasks/${taskData.sprintParentId}`).get();
+          const sprintDoc = await db.doc(`tenants/${auth.userId}/tasks/${taskData.sprintParentId}`).get();
           if (sprintDoc.exists) {
             const sprintData = sprintDoc.data()!;
             dreamId = sprintData.dreamId as string | undefined;
@@ -428,7 +428,7 @@ Consumed: $${budgetCheck.consumed.toFixed(4)}
 Cap: $${budgetCheck.cap.toFixed(4)}
 Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
             
-            db.collection(`users/${auth.userId}/relay`).add({
+            db.collection(`tenants/${auth.userId}/relay`).add({
               schemaVersion: '2.2' as const,
               source: "system",
               target: "user",

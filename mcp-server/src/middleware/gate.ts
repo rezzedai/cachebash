@@ -55,7 +55,7 @@ export function logAudit(entry: AuditEntry): void {
     const clean = Object.fromEntries(
       Object.entries(entry).filter(([_, v]) => v !== undefined)
     );
-    db.collection(`users/${entry.userId}/ledger`).add({
+    db.collection(`tenants/${entry.userId}/ledger`).add({
       ...clean,
       type: "audit",
       timestamp: serverTimestamp(),

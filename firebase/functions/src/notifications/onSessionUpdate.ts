@@ -13,7 +13,7 @@ const MAX_UPDATES_PER_WINDOW = 20;
  * Updated for v2 lifecycle statuses.
  */
 export const onSessionUpdate = functions.firestore
-  .document("users/{userId}/sessions/{sessionId}")
+  .document("tenants/{userId}/sessions/{sessionId}")
   .onUpdate(async (change, context) => {
     const { userId, sessionId } = context.params;
     const before = change.before.data();
@@ -24,13 +24,13 @@ export const onSessionUpdate = functions.firestore
 
     try {
       // Check notification preferences
-      const userDoc = await db.doc(`users/${userId}`).get();
+      const userDoc = await db.doc(`tenants/${userId}`).get();
       const prefs = userDoc.data()?.notificationPreferences;
       if (prefs?.sessionUpdates === false) return;
 
       // Rate limit
       const now = Date.now();
-      const rateLimitRef = db.doc(`users/${userId}/rateLimits/sessionUpdates`);
+      const rateLimitRef = db.doc(`tenants/${userId}/rateLimits/sessionUpdates`);
       const rateLimitDoc = await rateLimitRef.get();
       const rateLimitData = rateLimitDoc.data();
 
@@ -50,7 +50,7 @@ export const onSessionUpdate = functions.firestore
         await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
       }
 
-      const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+      const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
       if (devicesSnapshot.empty) return;
 
       const tokens: string[] = [];

@@ -48,11 +48,11 @@ export const processDeadLetters = functions.pubsub
 
         if (attempts >= maxAttempts) {
           // Move to dead letter queue
-          // Extract userId from doc path: users/{uid}/relay/{id}
+          // Extract userId from doc path: tenants/{uid}/relay/{id}
           const pathParts = doc.ref.path.split("/");
           const userId = pathParts[1];
 
-          const deadLetterRef = db.doc(`users/${userId}/dead_letters/${doc.id}`);
+          const deadLetterRef = db.doc(`tenants/${userId}/dead_letters/${doc.id}`);
           batch.set(deadLetterRef, {
             ...data,
             status: "dead_letter",

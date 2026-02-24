@@ -8,7 +8,7 @@
 import { FirestoreTimestamp } from "./envelope.js";
 import type { LifecycleStatus } from "../lifecycle/engine.js";
 
-/** The Session document — lives in users/{uid}/sessions/{id} */
+/** The Session document — lives in tenants/{uid}/sessions/{id} */
 export interface Session {
   id: string;
   programId?: string;

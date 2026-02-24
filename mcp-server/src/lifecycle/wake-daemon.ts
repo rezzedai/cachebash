@@ -1,7 +1,7 @@
 /**
  * Wake Daemon — Polls for orphaned tasks and spawns idle programs.
  * Phase 1: HTTP POST to host listener for tmux spawn.
- * Collection: users/{uid}/tasks (read), users/{uid}/sessions (read)
+ * Collection: tenants/{uid}/tasks (read), tenants/{uid}/sessions (read)
  */
 
 import { getFirestore } from "../firebase/client.js";
@@ -99,11 +99,11 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
 
   // Step 1: Find all created tasks AND pending relay messages
   const [tasksSnapshot, relaySnapshot] = await Promise.all([
-    db.collection(`users/${userId}/tasks`)
+    db.collection(`tenants/${userId}/tasks`)
       .where("status", "==", "created")
       .limit(200)
       .get(),
-    db.collection(`users/${userId}/relay`)
+    db.collection(`tenants/${userId}/relay`)
       .where("status", "==", "pending")
       .limit(200)
       .get(),
@@ -188,7 +188,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
 
     // Check for active session
     const sessionsSnapshot = await db
-      .collection(`users/${userId}/sessions`)
+      .collection(`tenants/${userId}/sessions`)
       .where("programId", "==", programId)
       .where("state", "in", ["working", "blocked"])
       .limit(1)
@@ -260,7 +260,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
         const preview = alertMessage.substring(0, 47) + "...";
 
         try {
-          const alertRef = await db.collection(`users/${userId}/relay`).add({
+          const alertRef = await db.collection(`tenants/${userId}/relay`).add({
             message: alertMessage,
             source: "wake-daemon",
             target: "admin",
@@ -274,7 +274,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
           });
 
           // Also write to tasks for mobile visibility
-          await db.collection(`users/${userId}/tasks`).doc(alertRef.id).set({
+          await db.collection(`tenants/${userId}/tasks`).doc(alertRef.id).set({
             type: "task",
             title: `[Alert: error] ${preview}`,
             instructions: alertMessage,

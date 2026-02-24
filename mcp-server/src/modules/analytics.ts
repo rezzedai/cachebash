@@ -2,7 +2,7 @@
  * Analytics Module — G-33 Tier 1-A
  *
  * Product analytics event emitter. Fire-and-forget.
- * Writes stripped metadata events to users/{uid}/analytics_events.
+ * Writes stripped metadata events to tenants/{uid}/analytics_events.
  *
  * PRIVACY BY DESIGN: This function's signature physically cannot
  * accept message body, task instructions, question text, or any
@@ -94,7 +94,7 @@ export function emitAnalyticsEvent(userId: string, params: EmitAnalyticsParams):
     if (params.messageDeliveredAt) event.messageDeliveredAt = params.messageDeliveredAt;
     if (params.messageReadAt) event.messageReadAt = params.messageReadAt;
 
-    db.collection(`users/${userId}/analytics_events`).add(event).catch((err) => {
+    db.collection(`tenants/${userId}/analytics_events`).add(event).catch((err) => {
       console.error("[Analytics] Failed to write event:", err);
     });
   } catch (err) {

@@ -64,7 +64,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
     active: true,
   };
 
-  await db.doc(`apiKeys/${keyHash}`).set(keyDoc);
+  await db.doc(`keyIndex/${keyHash}`).set(keyDoc);
 
   return {
     content: [{
@@ -95,7 +95,7 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
   }
 
   const db = getFirestore();
-  const keyRef = db.doc(`apiKeys/${keyHash}`);
+  const keyRef = db.doc(`keyIndex/${keyHash}`);
   const keyDoc = await keyRef.get();
 
   if (!keyDoc.exists) {

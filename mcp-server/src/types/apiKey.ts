@@ -5,7 +5,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { ValidProgramId } from "../config/programs.js";
 
-/** Firestore document at apiKeys/{sha256(key)} */
+/** Firestore document at keyIndex/{sha256(key)} */
 export interface ApiKeyDoc {
   userId: string;
   programId: ValidProgramId;

@@ -69,7 +69,7 @@ export function computeHash(content: string): string {
 export function emitEvent(userId: string, data: EventData): void {
   try {
     const db = getFirestore();
-    db.collection(`users/${userId}/events`).add({
+    db.collection(`tenants/${userId}/events`).add({
       ...data,
       timestamp: serverTimestamp(),
     }).catch((err) => {

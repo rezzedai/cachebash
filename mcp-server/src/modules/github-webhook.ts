@@ -34,7 +34,7 @@ async function getAdminUserId(): Promise<string | null> {
 async function findTaskByIssueNumber(userId: string, issueNumber: number): Promise<{ id: string; data: FirebaseFirestore.DocumentData } | null> {
   const db = getFirestore();
   const snapshot = await db
-    .collection(`users/${userId}/tasks`)
+    .collection(`tenants/${userId}/tasks`)
     .where("githubIssueNumber", "==", issueNumber)
     .limit(1)
     .get();
@@ -47,7 +47,7 @@ async function findTaskByIssueNumber(userId: string, issueNumber: number): Promi
 /** Complete a task by ID */
 async function completeTask(userId: string, taskId: string): Promise<void> {
   const db = getFirestore();
-  const taskRef = db.doc(`users/${userId}/tasks/${taskId}`);
+  const taskRef = db.doc(`tenants/${userId}/tasks/${taskId}`);
   const doc = await taskRef.get();
   if (!doc.exists) return;
 

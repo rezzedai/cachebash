@@ -71,7 +71,7 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
   const start = periodStart(args.period);
 
   // Query relay messages
-  let relayQuery: admin.firestore.Query = db.collection(`users/${auth.userId}/relay`);
+  let relayQuery: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
   if (start) {
     relayQuery = relayQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start));
   }
@@ -128,7 +128,7 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
 export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CostSummarySchema.parse(rawArgs || {});
   const db = getFirestore();
-  const tasksRef = db.collection(`users/${auth.userId}/tasks`);
+  const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
 
   // Build query: status == "done", optionally filtered by completedAt and source
   let query: admin.firestore.Query = tasksRef.where("status", "==", "done");
@@ -214,7 +214,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   const db = getFirestore();
   const start = periodStart(args.period);
 
-  let query: admin.firestore.Query = db.collection(`users/${auth.userId}/events`);
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/events`);
   if (start) {
     query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start));
   }
