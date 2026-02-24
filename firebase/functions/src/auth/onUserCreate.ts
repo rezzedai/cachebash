@@ -11,7 +11,7 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
   const { uid, email } = user;
 
   try {
-    await db.doc(`users/${uid}`).set({
+    await db.doc(`tenants/${uid}`).set({
       email: email || null,
       apiKeyHash: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
