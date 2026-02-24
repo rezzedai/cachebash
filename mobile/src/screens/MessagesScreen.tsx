@@ -26,10 +26,16 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     const channelMap = new Map<string, Channel>();
 
     messages.forEach((message) => {
-      // Group by conversation partner — the program that isn't orchestrator/admin
-      const programId = (message.source === 'orchestrator' || message.source === 'admin')
-        ? message.target
-        : message.source;
+      // Group by conversation partner — the party that isn't the user (admin)
+      let programId: string;
+      if (message.source === 'admin') {
+        programId = message.target;
+      } else if (message.target === 'admin') {
+        programId = message.source;
+      } else {
+        // Messages between programs — group by the non-orchestrator party
+        programId = message.source === 'orchestrator' ? message.target : message.source;
+      }
 
       // Skip empty programId
       if (!programId) return;
