@@ -8,7 +8,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/apiKeyValidator.js";
 import { z } from "zod";
-import { syncSprintCreated, syncSprintCompleted } from "./github-sync.js";
+import { syncSprintCreated, syncSprintCompleted, syncStoryUpdated } from "./github-sync.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 
 const StorySchema = z.object({
@@ -281,6 +281,14 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
   }
 
   await storyDoc.ref.update(updateData);
+
+  if (args.status) {
+    (async () => {
+      await syncStoryUpdated(auth.userId, args.sprintId, storyDoc.id, args.status);
+    })().catch((err) => {
+      console.error("[GH Sync] Story update failed:", err);
+    });
+  }
 
   return jsonResult({
     success: true,
