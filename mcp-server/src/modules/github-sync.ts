@@ -138,7 +138,9 @@ async function queueFailedSync(
       operation,
       payload,
       error,
+      createdAt: serverTimestamp(),
       timestamp: serverTimestamp(),
+      attempts: 0,
       retryCount: 0,
       status: "pending",
     });
@@ -398,4 +400,224 @@ export function syncSprintCompleted(userId: string, sprintId: string): void {
     console.error("[GitHub Sync] syncSprintCompleted failed:", err);
     queueFailedSync(userId, "syncSprintCompleted", { sprintId }, err instanceof Error ? err.message : String(err));
   });
+}
+
+export function syncStoryUpdated(userId: string, sprintId: string, storyId: string, status?: string): void {
+  const ok = getOctokit();
+  if (!ok) return;
+
+  (async () => {
+    await retrySyncOperation(userId, "syncStoryUpdated", { sprintId, storyId, status });
+  })().catch((err) => {
+    console.error("[GitHub Sync] syncStoryUpdated failed:", err);
+    queueFailedSync(
+      userId,
+      "syncStoryUpdated",
+      { sprintId, storyId, status },
+      err instanceof Error ? err.message : String(err)
+    );
+  });
+}
+
+function mapStoryStatusToProjectStatus(status?: string): string {
+  switch (status) {
+    case "active":
+      return STATUS_IN_PROGRESS;
+    case "complete":
+      return STATUS_DONE;
+    case "failed":
+    case "skipped":
+      return STATUS_DONE;
+    case "queued":
+    default:
+      return STATUS_TODO;
+  }
+}
+
+export async function retrySyncOperation(
+  userId: string,
+  operation: string,
+  payload: Record<string, any>
+): Promise<void> {
+  const ok = getOctokit();
+  if (!ok) {
+    throw new Error("GitHub token not configured");
+  }
+
+  const db = getFirestore();
+
+  switch (operation) {
+    case "syncTaskCreated": {
+      const { taskId, taskData } = payload;
+      const { title, instructions, action, priority, projectId, type } = taskData || {};
+      const repo = mapRepo(projectId);
+      const enrichedBody = `> **Task ID:** \`${taskId}\` | **Priority:** ${priority || "medium"} | **Action:** ${action || "queue"}
+---
+${instructions || ""}`;
+
+      const labels = ["grid-task", `priority:${priority || "medium"}`, `action:${action || "queue"}`];
+      if (type) labels.push(`type:${type}`);
+
+      const issue = await ok.issues.create({
+        owner: REPO_OWNER,
+        repo,
+        title: title || `Task ${taskId}`,
+        body: enrichedBody,
+        labels,
+      });
+
+      const projectItemId = await addItemToProject(ok, issue.data.node_id);
+      if (projectItemId) {
+        await Promise.all([
+          setProjectField(ok, projectItemId, FIELD_STATUS, STATUS_TODO),
+          setProjectField(ok, projectItemId, FIELD_PRIORITY, mapPriority(priority || "medium", action)),
+          setProjectField(ok, projectItemId, FIELD_PRODUCT, mapProduct(projectId)),
+          setProjectField(ok, projectItemId, FIELD_KIND, mapKind(type || "task", action)),
+        ]);
+      }
+
+      await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
+        githubIssueNumber: issue.data.number,
+        githubProjectItemId: projectItemId || null,
+      });
+      return;
+    }
+
+    case "syncTaskClaimed": {
+      const { taskId } = payload;
+      const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
+      const data = doc.data();
+      if (!data?.githubProjectItemId) throw new Error("Task has no githubProjectItemId");
+      await setProjectField(ok, data.githubProjectItemId, FIELD_STATUS, STATUS_IN_PROGRESS);
+      return;
+    }
+
+    case "syncTaskCompleted": {
+      const { taskId } = payload;
+      const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
+      const data = doc.data();
+      if (!data?.githubIssueNumber) throw new Error("Task has no githubIssueNumber");
+
+      await ok.issues.update({
+        owner: REPO_OWNER,
+        repo: mapRepo(data.projectId),
+        issue_number: data.githubIssueNumber,
+        state: "closed",
+      });
+      if (data.githubProjectItemId) {
+        await setProjectField(ok, data.githubProjectItemId, FIELD_STATUS, STATUS_DONE);
+      }
+      return;
+    }
+
+    case "syncSprintCreated": {
+      const { sprintId, sprintData } = payload;
+      const { projectName, stories, projectId } = sprintData || {};
+      const repo = mapRepo(projectId);
+
+      const milestone = await ok.issues.createMilestone({
+        owner: REPO_OWNER,
+        repo,
+        title: `Sprint: ${projectName}`,
+      });
+
+      const sprintIssue = await ok.issues.create({
+        owner: REPO_OWNER,
+        repo,
+        title: `[Sprint: ${projectName}]`,
+        body: `> **Sprint ID:** \`${sprintId}\` | **Project:** ${projectName}
+> **Stories:** ${(stories || []).length}
+---
+Sprint tracking issue for ${projectName}`,
+        labels: ["grid-task", "sprint"],
+        milestone: milestone.data.number,
+      });
+
+      const sprintProjectItemId = await addItemToProject(ok, sprintIssue.data.node_id);
+      if (sprintProjectItemId) {
+        await Promise.all([
+          setProjectField(ok, sprintProjectItemId, FIELD_STATUS, STATUS_IN_PROGRESS),
+          setProjectField(ok, sprintProjectItemId, FIELD_KIND, KIND_CHORE),
+          setProjectField(ok, sprintProjectItemId, FIELD_PRODUCT, mapProduct(projectId)),
+          setProjectField(ok, sprintProjectItemId, FIELD_PRIORITY, PRIORITY_MAP.p1),
+        ]);
+      }
+
+      for (const story of stories || []) {
+        const storyIssue = await ok.issues.create({
+          owner: REPO_OWNER,
+          repo,
+          title: story.title,
+          body: `> **Sprint:** \`${sprintId}\` | **Story:** \`${story.id}\` | **Wave:** ${story.wave || 1}
+---
+${story.title}`,
+          labels: ["grid-task", "sprint-story", `sprint:${sprintId}`, "type:sprint-story"],
+          milestone: milestone.data.number,
+        });
+
+        const projectItemId = await addItemToProject(ok, storyIssue.data.node_id);
+        if (projectItemId) {
+          await Promise.all([
+            setProjectField(ok, projectItemId, FIELD_STATUS, STATUS_TODO),
+            setProjectField(ok, projectItemId, FIELD_KIND, KIND_CHORE),
+            setProjectField(ok, projectItemId, FIELD_PRODUCT, mapProduct(projectId)),
+            setProjectField(ok, projectItemId, FIELD_PRIORITY, PRIORITY_MAP.p2),
+          ]);
+        }
+      }
+
+      await db.doc(`tenants/${userId}/tasks/${sprintId}`).update({
+        githubMilestoneNumber: milestone.data.number,
+        githubIssueNumber: sprintIssue.data.number,
+        githubProjectItemId: sprintProjectItemId || null,
+      });
+      return;
+    }
+
+    case "syncSprintCompleted": {
+      const { sprintId } = payload;
+      const doc = await db.doc(`tenants/${userId}/tasks/${sprintId}`).get();
+      const data = doc.data();
+      if (!data?.githubMilestoneNumber) throw new Error("Sprint has no githubMilestoneNumber");
+      await ok.issues.updateMilestone({
+        owner: REPO_OWNER,
+        repo: mapRepo(data.sprint?.projectId),
+        milestone_number: data.githubMilestoneNumber,
+        state: "closed",
+      });
+      return;
+    }
+
+    case "syncStoryUpdated": {
+      const { sprintId, storyId, status } = payload;
+      const storyRef = db.doc(`tenants/${userId}/tasks/${storyId}`);
+      const storyDoc = await storyRef.get();
+      let storyData = storyDoc.data();
+
+      if (!storyData || storyData.type !== "sprint-story") {
+        const fallback = await db
+          .collection(`tenants/${userId}/tasks`)
+          .where("type", "==", "sprint-story")
+          .where("sprint.parentId", "==", sprintId)
+          .limit(50)
+          .get();
+        const match = fallback.docs.find((doc) => {
+          const data = doc.data();
+          return doc.id === storyId || data.title?.includes(storyId);
+        });
+        if (!match) throw new Error("Sprint story not found for syncStoryUpdated");
+        storyData = match.data();
+      }
+
+      if (!storyData?.githubProjectItemId) {
+        throw new Error("Sprint story has no githubProjectItemId");
+      }
+
+      await setProjectField(ok, storyData.githubProjectItemId, FIELD_STATUS, mapStoryStatusToProjectStatus(status));
+      return;
+    }
+
+    default:
+      throw new Error(`Unknown sync operation: ${operation}`);
+  }
 }

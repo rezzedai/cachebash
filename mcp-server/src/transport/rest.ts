@@ -12,6 +12,7 @@ import { traceToolCall } from "../modules/trace.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError, checkToolRateLimit, getToolRateLimitResetIn } from "../middleware/rateLimiter.js";
+import { checkSessionCompliance } from "../middleware/sessionCompliance.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -19,6 +20,15 @@ export class ValidationError extends Error {
     super(message);
     this.name = 'ValidationError';
     this.issues = issues;
+  }
+}
+
+class ComplianceError extends Error {
+  code: "SESSION_TERMINATED" | "COMPLIANCE_BLOCKED";
+  constructor(message: string, code: "SESSION_TERMINATED" | "COMPLIANCE_BLOCKED") {
+    super(message);
+    this.name = "ComplianceError";
+    this.code = code;
   }
 }
 
@@ -115,7 +125,7 @@ function route(method: string, path: string, handler: RouteHandler): Route {
   return { method, pattern, handler, paramNames };
 }
 
-async function callTool(auth: AuthContext, toolName: string, args: unknown): Promise<unknown> {
+async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: string, args: unknown): Promise<unknown> {
   if (!checkRateLimit(auth.userId, toolName)) {
     const resetIn = getRateLimitResetIn(auth.userId, toolName);
     throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
@@ -136,6 +146,17 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
     );
   }
 
+  let complianceWarning: string | undefined;
+  const mcpSessionId = req.headers["mcp-session-id"] as string | undefined;
+  const complianceResult = await checkSessionCompliance(auth, toolName, (args || {}) as Record<string, unknown>, {
+    sessionId: mcpSessionId,
+    endpoint: "rest",
+  });
+  if (!complianceResult.allowed) {
+    throw new ComplianceError(complianceResult.reason, complianceResult.code);
+  }
+  complianceWarning = complianceResult.warning;
+
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
@@ -149,7 +170,12 @@ async function callTool(auth: AuthContext, toolName: string, args: unknown): Pro
     audit.log(toolName, { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
-    return text ? JSON.parse(text) : result;
+    if (!text) return result;
+    const parsed = JSON.parse(text);
+    if (complianceWarning && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      (parsed as Record<string, unknown>)._compliance = { warning: complianceWarning };
+    }
+    return parsed;
   } catch (err) {
     if (err instanceof ZodError) {
       const issues = err.issues.map(i => ({
@@ -175,107 +201,107 @@ const routes: Route[] = [
   // Dispatch
   route("GET", "/v1/tasks", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_tasks", query);
+    const data = await callTool(auth, req, "get_tasks", query);
     restResponse(res, true, data);
   }),
   route("POST", "/v1/tasks", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "create_task", body);
+    const data = await callTool(auth, req, "create_task", body);
     restResponse(res, true, data, 201);
   }),
   route("POST", "/v1/tasks/:id/claim", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "claim_task", { taskId: p.id, ...body });
+    const data = await callTool(auth, req, "claim_task", { taskId: p.id, ...body });
     restResponse(res, true, data);
   }),
   route("POST", "/v1/tasks/:id/complete", async (auth, req, res, p) => {
-    const data = await callTool(auth, "complete_task", { taskId: p.id });
+    const data = await callTool(auth, req, "complete_task", { taskId: p.id });
     restResponse(res, true, data);
   }),
   // Relay
   route("GET", "/v1/messages", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_messages", { sessionId: query.sessionId || "rest", ...query });
+    const data = await callTool(auth, req, "get_messages", { sessionId: query.sessionId || "rest", ...query });
     restResponse(res, true, data);
   }),
   route("POST", "/v1/messages", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "send_message", body);
+    const data = await callTool(auth, req, "send_message", body);
     restResponse(res, true, data, 201);
   }),
   route("GET", "/v1/dead-letters", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_dead_letters", query);
+    const data = await callTool(auth, req, "get_dead_letters", query);
     restResponse(res, true, data);
   }),
   route("GET", "/v1/relay/groups", async (auth, req, res) => {
-    const data = await callTool(auth, "list_groups", {});
+    const data = await callTool(auth, req, "list_groups", {});
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/sent", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_sent_messages", query);
+    const data = await callTool(auth, req, "get_sent_messages", query);
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/history", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "query_message_history", query);
+    const data = await callTool(auth, req, "query_message_history", query);
     restResponse(res, true, data);
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "list_sessions", query);
+    const data = await callTool(auth, req, "list_sessions", query);
     restResponse(res, true, data);
   }),
   route("POST", "/v1/sessions", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "create_session", body);
+    const data = await callTool(auth, req, "create_session", body);
     restResponse(res, true, data, 201);
   }),
   route("PATCH", "/v1/sessions/:id", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "update_session", { sessionId: p.id, ...body });
+    const data = await callTool(auth, req, "update_session", { sessionId: p.id, ...body });
     restResponse(res, true, data);
   }),
   // Signal
   route("POST", "/v1/questions", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "ask_question", body);
+    const data = await callTool(auth, req, "ask_question", body);
     restResponse(res, true, data, 201);
   }),
   route("GET", "/v1/questions/:id/response", async (auth, req, res, p) => {
-    const data = await callTool(auth, "get_response", { questionId: p.id });
+    const data = await callTool(auth, req, "get_response", { questionId: p.id });
     restResponse(res, true, data);
   }),
   route("POST", "/v1/alerts", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "send_alert", body);
+    const data = await callTool(auth, req, "send_alert", body);
     restResponse(res, true, data, 201);
   }),
   // Sprint
   route("POST", "/v1/sprints", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "create_sprint", body);
+    const data = await callTool(auth, req, "create_sprint", body);
     restResponse(res, true, data, 201);
   }),
   route("PATCH", "/v1/sprints/:id/stories/:sid", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "update_sprint_story", { sprintId: p.id, storyId: p.sid, ...body });
+    const data = await callTool(auth, req, "update_sprint_story", { sprintId: p.id, storyId: p.sid, ...body });
     restResponse(res, true, data);
   }),
   route("POST", "/v1/sprints/:id/stories", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "add_story_to_sprint", { sprintId: p.id, ...body });
+    const data = await callTool(auth, req, "add_story_to_sprint", { sprintId: p.id, ...body });
     restResponse(res, true, data, 201);
   }),
   route("POST", "/v1/sprints/:id/complete", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "complete_sprint", { sprintId: p.id, ...body });
+    const data = await callTool(auth, req, "complete_sprint", { sprintId: p.id, ...body });
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sprints/:id", async (auth, req, res, p) => {
-    const data = await callTool(auth, "get_sprint", { sprintId: p.id });
+    const data = await callTool(auth, req, "get_sprint", { sprintId: p.id });
     restResponse(res, true, data);
   }),
   // Budget
@@ -289,25 +315,25 @@ const routes: Route[] = [
   // Metrics
   route("GET", "/v1/metrics/cost-summary", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_cost_summary", query);
+    const data = await callTool(auth, req, "get_cost_summary", query);
     restResponse(res, true, data);
   }),
 
   // Metrics
   route("GET", "/v1/metrics/comms", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_comms_metrics", query);
+    const data = await callTool(auth, req, "get_comms_metrics", query);
     restResponse(res, true, data);
   }),
 
   route("GET", "/v1/metrics/operational", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_operational_metrics", query);
+    const data = await callTool(auth, req, "get_operational_metrics", query);
     restResponse(res, true, data);
   }),
   // Fleet
   route("GET", "/v1/fleet/health", async (auth, req, res) => {
-    const data = await callTool(auth, "get_fleet_health", {});
+    const data = await callTool(auth, req, "get_fleet_health", {});
     restResponse(res, true, data);
   }),
   // Dream
@@ -325,42 +351,42 @@ const routes: Route[] = [
 
   // Program State
   route("GET", "/v1/program-state/:programId", async (auth, req, res, p) => {
-    const data = await callTool(auth, "get_program_state", { programId: p.programId });
+    const data = await callTool(auth, req, "get_program_state", { programId: p.programId });
     restResponse(res, true, data);
   }),
   route("PATCH", "/v1/program-state/:programId", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "update_program_state", { programId: p.programId, ...body });
+    const data = await callTool(auth, req, "update_program_state", { programId: p.programId, ...body });
     restResponse(res, true, data);
   }),
 
   // Keys
   route("POST", "/v1/keys", async (auth, req, res) => {
     const body = await readBody(req);
-    const data = await callTool(auth, "create_key", body);
+    const data = await callTool(auth, req, "create_key", body);
     restResponse(res, true, data, 201);
   }),
   route("DELETE", "/v1/keys/:hash", async (auth, req, res, p) => {
-    const data = await callTool(auth, "revoke_key", { keyHash: p.hash });
+    const data = await callTool(auth, req, "revoke_key", { keyHash: p.hash });
     restResponse(res, true, data);
   }),
   route("GET", "/v1/keys", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "list_keys", query);
+    const data = await callTool(auth, req, "list_keys", query);
     restResponse(res, true, data);
   }),
 
   // Audit
   route("GET", "/v1/audit", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_audit", query);
+    const data = await callTool(auth, req, "get_audit", query);
     restResponse(res, true, data);
   }),
 
   // Legacy redirects
   route("GET", "/v1/interrupts/peek", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "get_messages", { sessionId: query.sessionId || "peek", markAsRead: false });
+    const data = await callTool(auth, req, "get_messages", { sessionId: query.sessionId || "peek", markAsRead: false });
     restResponse(res, true, data);
   }),
   route("GET", "/v1/dreams/peek", async (auth, req, res) => {
@@ -378,7 +404,7 @@ const routes: Route[] = [
   // Traces
   route("GET", "/v1/traces", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const data = await callTool(auth, "query_traces", query);
+    const data = await callTool(auth, req, "query_traces", query);
     restResponse(res, true, data);
   }),
 ];
@@ -429,6 +455,12 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             code: "RATE_LIMITED",
             message: err.message,
           }, 429);
+        }
+        if (err instanceof ComplianceError) {
+          return restResponse(res, false, {
+            code: err.code,
+            message: err.message,
+          }, err.code === "SESSION_TERMINATED" ? 410 : 403);
         }
         return restResponse(res, false, {
           code: "INTERNAL_ERROR",
