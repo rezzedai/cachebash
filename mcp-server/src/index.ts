@@ -23,6 +23,7 @@ import { handleGithubWebhook } from "./modules/github-webhook.js";
 import { SessionManager } from "./transport/SessionManager.js";
 import { emitEvent } from "./modules/events.js";
 import { reconcileGitHub } from "./modules/github-reconcile.js";
+import { checkSessionCompliance } from "./middleware/sessionCompliance.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -97,6 +98,30 @@ async function main() {
       return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
     }
 
+    let complianceWarning: string | undefined;
+    try {
+      const complianceResult = await checkSessionCompliance(auth, name, (args || {}) as Record<string, unknown>, {
+        sessionId,
+        endpoint: "mcp",
+      });
+      if (!complianceResult.allowed) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              error: complianceResult.reason,
+              code: complianceResult.code,
+            }),
+          }],
+          isError: true,
+        };
+      }
+      complianceWarning = complianceResult.warning;
+    } catch (err) {
+      console.error("[Compliance] Check failed, failing open:", err);
+    }
+
     const handler = TOOL_HANDLERS[name];
     if (!handler) {
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
@@ -104,6 +129,15 @@ async function main() {
 
     try {
       const result = await handler(auth, args);
+      if (complianceWarning && result?.content?.[0]?.text) {
+        try {
+          const parsed = JSON.parse(result.content[0].text);
+          parsed._compliance = { warning: complianceWarning };
+          result.content[0].text = JSON.stringify(parsed);
+        } catch {
+          // Not JSON payload; skip warning injection.
+        }
+      }
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
       traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
         JSON.stringify(result).substring(0, 500), Date.now() - startTime, true);
