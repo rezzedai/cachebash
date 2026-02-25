@@ -27,3 +27,6 @@ export { cleanupExpiredRelay } from "./cleanup/cleanupExpiredRelay";
 export { cleanupLedger } from "./cleanup/cleanupLedger";
 export { processDeadLetters } from "./cleanup/processDeadLetters";
 export { cleanupAudit } from "./cleanup/cleanupAudit";
+
+// Feedback
+export { submitFeedback } from "./feedback/submitFeedback";
