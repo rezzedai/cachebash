@@ -1,6 +1,6 @@
 import admin from "firebase-admin";
 import * as crypto from "crypto";
-import type { AuthContext } from "./apiKeyValidator.js";
+import type { AuthContext } from "./authValidator.js";
 
 /**
  * Validate a Firebase ID token and return an AuthContext.

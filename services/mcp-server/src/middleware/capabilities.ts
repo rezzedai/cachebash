@@ -112,6 +112,10 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   strategist: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read"],
+  // OAuth external clients — standard operational access, no admin
+  oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+    "pulse.read", "pulse.write", "signal.read", "signal.write",
+    "state.read", "state.write", "sprint.read"],
 };
 
 /**

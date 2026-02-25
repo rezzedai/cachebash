@@ -63,14 +63,25 @@ export async function validateApiKey(
 export { hashApiKey };
 
 import { validateFirebaseToken, isFirebaseToken } from "./firebaseAuthValidator.js";
+import { validateOAuthToken, isOAuthToken } from "./oauthTokenValidator.js";
 
 /**
- * Combined auth validator — tries Firebase token first (if JWT),
- * then falls back to API key validation.
+ * Combined auth validator — detection order:
+ * 1. Firebase JWT (eyJ prefix)
+ * 2. API key (cb_ prefix)
+ * 3. OAuth access token (cbo_ prefix)
+ * Unknown prefixes rejected immediately (SARK F-6).
  */
 export async function validateAuth(token: string): Promise<AuthContext | null> {
   if (isFirebaseToken(token)) {
     return validateFirebaseToken(token);
   }
-  return validateApiKey(token);
+  if (token.startsWith("cb_")) {
+    return validateApiKey(token);
+  }
+  if (isOAuthToken(token)) {
+    return validateOAuthToken(token);
+  }
+  // Unknown prefix — reject immediately, no database round-trip
+  return null;
 }

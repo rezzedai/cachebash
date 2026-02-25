@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 

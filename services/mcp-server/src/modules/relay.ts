@@ -6,7 +6,7 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { verifySource } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
 import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
 import { validatePayload } from "../types/relay-schemas.js";

@@ -1,4 +1,4 @@
-import type { AuthContext } from "../auth/apiKeyValidator";
+import type { AuthContext } from "../auth/authValidator";
 import { checkPricing } from "../middleware/pricingEnforce";
 
 // Mock Firestore documents
