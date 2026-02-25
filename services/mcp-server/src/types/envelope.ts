@@ -47,6 +47,11 @@ export interface Envelope {
 
   /** Ordered fallback targets if primary is unreachable */
   fallback?: string[];
+
+  /** Agent Trace L1 — correlation across task/relay/ledger boundaries */
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
 }
 
 /** Firestore timestamp type alias for cleaner signatures */
