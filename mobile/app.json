@@ -42,6 +42,12 @@
         }
       ],
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e8a338b2-d08c-4088-a567-c36008d85229"
+      }
+    },
+    "owner": "bourlier.dev"
   }
 }
