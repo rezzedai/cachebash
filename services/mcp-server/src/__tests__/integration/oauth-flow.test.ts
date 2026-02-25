@@ -280,13 +280,10 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(firebasePage).toContain("Sign in to continue");
       expect(firebasePage).toContain("/authorize/callback");
 
-      // Step 6: Simulate Firebase callback (mock ID token verification)
+      // Step 6: Simulate Firebase callback
       // In real flow, user authenticates with Firebase and gets redirected to /authorize/callback
-      // For testing, we'll manually verify the token and generate the code
-      const mockIdToken = await admin.auth().createCustomToken(userId);
-
-      // Note: In real flow, this would be a Firebase ID token from client-side auth
-      // For emulator testing, we'll create auth code directly
+      // For integration testing, we bypass Firebase Auth and create the auth code directly in Firestore
+      // (CI doesn't have Auth emulator, only Firestore emulator)
       const authCode = crypto.randomBytes(32).toString("hex");
       const codeHash = crypto.createHash("sha256").update(authCode).digest("hex");
       const now = new Date();
