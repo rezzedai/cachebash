@@ -7,6 +7,8 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "22.x",
+      "installCommand": "cd ../.. && npm install",
       "ios": {
         "simulator": true
       }
@@ -14,6 +16,8 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "node": "22.x",
+      "installCommand": "cd ../.. && npm install",
       "ios": {
         "buildConfiguration": "Release"
       },
@@ -23,6 +27,8 @@
     },
     "production": {
       "channel": "production",
+      "node": "22.x",
+      "installCommand": "cd ../.. && npm install",
       "ios": {
         "buildConfiguration": "Release",
         "autoIncrement": true
