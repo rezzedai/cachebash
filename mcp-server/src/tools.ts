@@ -105,6 +105,7 @@ export const TOOL_DEFINITIONS = [
         source: { type: "string", maxLength: 100 },
         target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
+        boardItemId: { type: "string", description: "Existing GitHub Projects board item ID to link instead of creating a new issue" },
         ttl: { type: "number", description: "Seconds until expiry" },
         replyTo: { type: "string", description: "Task ID this responds to" },
         threadId: { type: "string", description: "Conversation thread grouping" },

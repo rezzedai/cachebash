@@ -31,6 +31,7 @@ const CreateTaskSchema = z.object({
   source: z.string().max(100).optional(),
   target: z.string().max(100),
   projectId: z.string().optional(),
+  boardItemId: z.string().optional(),
   ttl: z.number().positive().optional(),
   replyTo: z.string().optional(),
   threadId: z.string().optional(),
@@ -177,6 +178,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     action: args.action,
     status: "created",
     projectId: args.projectId || null,
+    boardItemId: args.boardItemId || undefined,
     createdAt: now,
     encrypted: false,
     archived: false,
@@ -231,7 +233,8 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     args.action,
     args.priority,
     args.projectId,
-    args.type
+    args.type,
+    args.boardItemId
   );
 
   return jsonResult({
