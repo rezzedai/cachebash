@@ -79,6 +79,9 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       combined = combined.filter(msg => msg.message.toLowerCase().includes(query));
     }
 
+    // Sort ascending (oldest first, newest at bottom) for chat-like display
+    combined.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
     return combined;
   }, [allMessages, programId, optimisticMessages, typeFilter, searchText]);
 
