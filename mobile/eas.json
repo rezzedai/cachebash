@@ -32,7 +32,6 @@
     "production": {
       "ios": {
         "appleId": "christianbourlier@gmail.com",
-        "ascAppId": "com.cachebash.app",
         "appleTeamId": "FKFQ6KS8ZA"
       }
     }
