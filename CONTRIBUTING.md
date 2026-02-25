@@ -26,12 +26,12 @@ cp .env.example .env
 npm run dev
 
 # CLI Tool
-cd ../cli
+cd ../../packages/cli
 npm install
 npm run dev
 
 # Cloud Functions
-cd ../firebase/functions
+cd ../../services/functions
 npm install
 ```
 
