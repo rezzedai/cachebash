@@ -43,6 +43,7 @@
     "production": {
       "ios": {
         "appleId": "christianbourlier@gmail.com",
+        "ascAppId": "6758489389",
         "appleTeamId": "FKFQ6KS8ZA"
       }
     }
