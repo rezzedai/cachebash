@@ -143,7 +143,7 @@ firebase deploy --only firestore:indexes
 ### 1. Build and Test Locally
 
 ```bash
-cd mcp-server
+cd services/mcp-server
 npm install
 npm run build
 
@@ -270,7 +270,7 @@ Add API key to `.mcp.json` or `~/.claude.json`:
 ### 1. Configure Functions
 
 ```bash
-cd firebase/functions
+cd services/functions
 npm install
 npm run build
 ```

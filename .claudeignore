@@ -21,15 +21,12 @@ tmp/
 *.svg
 
 # Expo / React Native generated
-mobile/.expo/
-mobile/ios/
-mobile/android/
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
 
 # Firebase generated
-firebase/functions/lib/
+services/functions/lib/
 
-# Legacy app directories (not active development)
-app/ios/
-app/android/
-app/macos/
-app/web/
+# Turborepo
+.turbo/
