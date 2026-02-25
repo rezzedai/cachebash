@@ -38,3 +38,6 @@ export { cleanupAudit } from "./cleanup/cleanupAudit";
 
 // Feedback
 export { submitFeedback } from "./feedback/submitFeedback";
+
+// Webhooks (HTTP)
+export { onEasBuild } from "./webhooks/onEasBuild";
