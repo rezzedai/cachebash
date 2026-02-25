@@ -1,30 +1,16 @@
-const API_URL = 'https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp';
+const BASE_URL = 'https://cachebash-mcp-922749444863.us-central1.run.app/v1';
 
-interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  id: number;
-  method: string;
-  params: Record<string, unknown>;
-}
-
-interface JsonRpcResponse<T = unknown> {
-  jsonrpc: '2.0';
-  id: number;
-  result?: T;
-  error?: { code: number; message: string };
-}
-
-interface McpToolResult {
-  content: Array<{
-    type: string;
-    text: string;
-  }>;
+interface RestResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string; issues?: unknown[] };
+  meta?: { timestamp: string };
 }
 
 export class CacheBashAPIError extends Error {
   constructor(
     message: string,
-    public code?: number,
+    public code?: number | string,
     public details?: unknown
   ) {
     super(message);
@@ -35,128 +21,35 @@ export class CacheBashAPIError extends Error {
 class CacheBashAPI {
   private apiKey: string;
   private baseUrl: string;
-  private sessionId: string | null = null;
-  private initPromise: Promise<void> | null = null;
-  private requestQueue: Promise<unknown> = Promise.resolve();
 
-  constructor(apiKey: string, baseUrl: string = API_URL) {
+  constructor(apiKey: string, baseUrl: string = BASE_URL) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
   }
 
-  private async initialize(): Promise<void> {
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id: 0,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-03-26',
-        capabilities: {},
-        clientInfo: { name: 'cachebash-mobile', version: '1.0.0' },
-      },
-    };
-
-    try {
-      const resp = await this.sendXHR(JSON.stringify(request));
-
-      const mcpSessionId = resp.headers['mcp-session-id'];
-      if (!mcpSessionId) {
-        throw new CacheBashAPIError('Server did not return Mcp-Session-Id header');
-      }
-
-      this.sessionId = mcpSessionId;
-    } catch (error) {
-      this.sessionId = null;
-      if (error instanceof CacheBashAPIError) throw error;
-      throw new CacheBashAPIError(
-        error instanceof Error ? error.message : 'Unknown initialization error',
-        undefined,
-        error
-      );
-    }
-  }
-
-  private async ensureInitialized(): Promise<void> {
-    // If already initialized, return immediately
-    if (this.sessionId) {
-      return;
-    }
-
-    // If initialization is in progress, wait for it
-    if (this.initPromise) {
-      await this.initPromise;
-      return;
-    }
-
-    // Start initialization
-    this.initPromise = this.initialize();
-    try {
-      await this.initPromise;
-    } finally {
-      this.initPromise = null;
-    }
-  }
-
-  private async call<T>(
-    toolName: string,
-    args: Record<string, unknown>
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: Record<string, unknown>
   ): Promise<T> {
-    // Serialize all requests — concurrent requests on the same MCP session
-    // cause the server to mix up responses
-    return new Promise<T>((resolve, reject) => {
-      this.requestQueue = this.requestQueue.then(async () => {
-        try {
-          const result = await this.executeCall<T>(toolName, args);
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-  }
-
-  private sendXHR(body: string): Promise<{ status: number; text: string; headers: Record<string, string> }> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', this.baseUrl, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', `Bearer ${this.apiKey}`);
-      if (this.sessionId) {
-        xhr.setRequestHeader('Mcp-Session-Id', this.sessionId);
-      }
-      xhr.onload = () => {
-        const headers: Record<string, string> = {};
-        const sessionHeader = xhr.getResponseHeader('mcp-session-id');
-        if (sessionHeader) headers['mcp-session-id'] = sessionHeader;
-        resolve({ status: xhr.status, text: xhr.responseText, headers });
-      };
-      xhr.onerror = () => reject(new CacheBashAPIError('Network error'));
-      xhr.ontimeout = () => reject(new CacheBashAPIError('Request timeout'));
-      xhr.timeout = 15000;
-      xhr.send(body);
-    });
-  }
-
-  private async executeCall<T>(
-    toolName: string,
-    args: Record<string, unknown>
-  ): Promise<T> {
-    await this.ensureInitialized();
-
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'tools/call',
-      params: { name: toolName, arguments: args },
+    const url = `${this.baseUrl}${path}`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
     };
+    if (body) {
+      headers['Content-Type'] = 'application/json';
+    }
 
-    // Retry up to 3 times
     const MAX_RETRIES = 3;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const resp = await this.sendXHR(JSON.stringify(request));
+        const resp = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
 
-        if (resp.status === 204 || !resp.text || resp.text.trim() === '') {
+        if (resp.status === 204 || resp.headers.get('content-length') === '0') {
           if (attempt < MAX_RETRIES - 1) {
             await new Promise((r) => setTimeout(r, 500));
             continue;
@@ -164,30 +57,26 @@ class CacheBashAPI {
           throw new CacheBashAPIError('Empty response', resp.status);
         }
 
-        if (resp.status >= 400) {
-          throw new CacheBashAPIError(`HTTP ${resp.status}`, resp.status);
-        }
+        const json: RestResponse<T> = await resp.json();
 
-        const jsonResponse: JsonRpcResponse<McpToolResult> = JSON.parse(resp.text);
-
-        if (jsonResponse.error) {
-          throw new CacheBashAPIError(jsonResponse.error.message, jsonResponse.error.code);
-        }
-
-        if (!jsonResponse.result?.content?.[0]?.text) {
-          if (attempt < MAX_RETRIES - 1) {
-            await new Promise((r) => setTimeout(r, 500));
-            continue;
-          }
-          throw new CacheBashAPIError('No result in response');
-        }
-
-        return JSON.parse(jsonResponse.result.content[0].text) as T;
-      } catch (error) {
-        if (attempt === MAX_RETRIES - 1) {
-          if (error instanceof CacheBashAPIError) throw error;
+        if (!resp.ok || !json.success) {
           throw new CacheBashAPIError(
-            error instanceof Error ? error.message : 'Unknown error',
+            json.error?.message || `HTTP ${resp.status}`,
+            json.error?.code || resp.status,
+            json.error?.issues
+          );
+        }
+
+        return json.data as T;
+      } catch (error) {
+        if (error instanceof CacheBashAPIError) {
+          if (attempt === MAX_RETRIES - 1) throw error;
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+        if (attempt === MAX_RETRIES - 1) {
+          throw new CacheBashAPIError(
+            error instanceof Error ? error.message : 'Network error',
             undefined,
             error
           );
@@ -199,6 +88,28 @@ class CacheBashAPI {
     throw new CacheBashAPIError('Max retries exceeded');
   }
 
+  private get<T>(path: string): Promise<T> {
+    return this.request<T>('GET', path);
+  }
+
+  private post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    return this.request<T>('POST', path, body);
+  }
+
+  private patch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    return this.request<T>('PATCH', path, body);
+  }
+
+  private queryString(params: Record<string, unknown>): string {
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) {
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+      }
+    }
+    return parts.length > 0 ? `?${parts.join('&')}` : '';
+  }
+
   // Sessions
   async listSessions(params?: {
     state?: 'working' | 'blocked' | 'pinned' | 'complete' | 'all';
@@ -206,7 +117,7 @@ class CacheBashAPI {
     programId?: string;
     includeArchived?: boolean;
   }): Promise<any> {
-    return this.call('list_sessions', params || {});
+    return this.get(`/sessions${this.queryString(params || {})}`);
   }
 
   async createSession(params: {
@@ -217,7 +128,7 @@ class CacheBashAPI {
     status?: string;
     progress?: number;
   }): Promise<any> {
-    return this.call('create_session', params);
+    return this.post('/sessions', params);
   }
 
   async updateSession(params: {
@@ -228,7 +139,9 @@ class CacheBashAPI {
     projectName?: string;
     lastHeartbeat?: boolean;
   }): Promise<any> {
-    return this.call('update_session', params);
+    const { sessionId, ...body } = params;
+    const id = sessionId || 'default';
+    return this.patch(`/sessions/${encodeURIComponent(id)}`, body);
   }
 
   // Tasks
@@ -238,7 +151,11 @@ class CacheBashAPI {
     limit?: number;
     type?: 'task' | 'question' | 'dream' | 'sprint' | 'sprint-story' | 'all';
   }): Promise<any> {
-    return this.call('get_tasks', params || {});
+    return this.get(`/tasks${this.queryString(params || {})}`);
+  }
+
+  async getTaskStats(): Promise<any> {
+    return this.get('/tasks/stats');
   }
 
   async createTask(params: {
@@ -252,14 +169,16 @@ class CacheBashAPI {
     threadId?: string;
     replyTo?: string;
   }): Promise<any> {
-    return this.call('create_task', params);
+    return this.post('/tasks', params);
   }
 
   async claimTask(
     taskId: string,
     sessionId?: string
   ): Promise<any> {
-    return this.call('claim_task', { taskId, sessionId });
+    return this.post(`/tasks/${encodeURIComponent(taskId)}/claim`, {
+      ...(sessionId ? { sessionId } : {}),
+    });
   }
 
   async completeTask(
@@ -268,11 +187,10 @@ class CacheBashAPI {
     tokens_out?: number,
     cost_usd?: number
   ): Promise<any> {
-    return this.call('complete_task', {
-      taskId,
-      tokens_in,
-      tokens_out,
-      cost_usd,
+    return this.post(`/tasks/${encodeURIComponent(taskId)}/complete`, {
+      ...(tokens_in !== undefined ? { tokens_in } : {}),
+      ...(tokens_out !== undefined ? { tokens_out } : {}),
+      ...(cost_usd !== undefined ? { cost_usd } : {}),
     });
   }
 
@@ -294,7 +212,15 @@ class CacheBashAPI {
       markAsRead?: boolean;
     }
   ): Promise<any> {
-    return this.call('get_messages', { sessionId, ...params });
+    return this.get(`/messages${this.queryString({ sessionId, ...params })}`);
+  }
+
+  async getUnreadMessages(sessionId?: string): Promise<any> {
+    return this.get(`/messages/unread${this.queryString({ sessionId: sessionId || 'rest' })}`);
+  }
+
+  async markMessagesRead(messageIds: string[]): Promise<any> {
+    return this.post('/messages/mark_read', { messageIds });
   }
 
   async sendMessage(params: {
@@ -318,7 +244,16 @@ class CacheBashAPI {
     reply_to?: string;
     payload?: Record<string, unknown>;
   }): Promise<any> {
-    return this.call('send_message', params);
+    return this.post('/messages', params);
+  }
+
+  async getSentMessages(params?: {
+    target?: string;
+    status?: string;
+    threadId?: string;
+    limit?: number;
+  }): Promise<any> {
+    return this.get(`/messages/sent${this.queryString(params || {})}`);
   }
 
   async queryMessageHistory(params: {
@@ -339,7 +274,7 @@ class CacheBashAPI {
     until?: string;
     limit?: number;
   }): Promise<any> {
-    return this.call('query_message_history', params);
+    return this.get(`/messages/history${this.queryString(params)}`);
   }
 
   // Questions
@@ -352,11 +287,11 @@ class CacheBashAPI {
     inReplyTo?: string;
     encrypt?: boolean;
   }): Promise<any> {
-    return this.call('ask_question', params);
+    return this.post('/questions', params);
   }
 
   async getResponse(questionId: string): Promise<any> {
-    return this.call('get_response', { questionId });
+    return this.get(`/questions/${encodeURIComponent(questionId)}/response`);
   }
 
   // Alerts
@@ -367,18 +302,18 @@ class CacheBashAPI {
     context?: string;
     sessionId?: string;
   }): Promise<any> {
-    return this.call('send_alert', params);
+    return this.post('/alerts', params);
   }
 
   // Fleet
   async getFleetHealth(): Promise<any> {
-    return this.call('get_fleet_health', {});
+    return this.get('/fleet/health');
   }
 
   async getCommsMetrics(params?: {
     period?: 'today' | 'this_week' | 'this_month' | 'all';
   }): Promise<any> {
-    return this.call('get_comms_metrics', params || {});
+    return this.get(`/metrics/comms${this.queryString(params || {})}`);
   }
 
   async getCostSummary(params?: {
@@ -386,12 +321,16 @@ class CacheBashAPI {
     groupBy?: 'program' | 'type' | 'none';
     programFilter?: string;
   }): Promise<any> {
-    return this.call('get_cost_summary', params || {});
+    return this.get(`/metrics/cost-summary${this.queryString(params || {})}`);
   }
 
   // Sprints
   async getSprint(sprintId: string): Promise<any> {
-    return this.call('get_sprint', { sprintId });
+    return this.get(`/sprints/${encodeURIComponent(sprintId)}`);
+  }
+
+  async getActiveSprints(): Promise<any> {
+    return this.get('/sprints/active');
   }
 
   async createSprint(params: {
@@ -413,7 +352,7 @@ class CacheBashAPI {
       subagentModel?: string;
     };
   }): Promise<any> {
-    return this.call('create_sprint', params);
+    return this.post('/sprints', params);
   }
 
   async updateSprintStory(params: {
@@ -424,7 +363,11 @@ class CacheBashAPI {
     currentAction?: string;
     model?: string;
   }): Promise<any> {
-    return this.call('update_sprint_story', params);
+    const { sprintId, storyId, ...body } = params;
+    return this.patch(
+      `/sprints/${encodeURIComponent(sprintId)}/stories/${encodeURIComponent(storyId)}`,
+      body
+    );
   }
 
   async addStoryToSprint(params: {
@@ -437,7 +380,8 @@ class CacheBashAPI {
     };
     insertionMode?: 'current_wave' | 'next_wave' | 'backlog';
   }): Promise<any> {
-    return this.call('add_story_to_sprint', params);
+    const { sprintId, ...body } = params;
+    return this.post(`/sprints/${encodeURIComponent(sprintId)}/stories`, body);
   }
 
   async completeSprint(
@@ -449,12 +393,26 @@ class CacheBashAPI {
       duration?: number;
     }
   ): Promise<any> {
-    return this.call('complete_sprint', { sprintId, summary });
+    return this.post(`/sprints/${encodeURIComponent(sprintId)}/complete`, {
+      ...(summary ? { summary } : {}),
+    });
   }
 
   // Groups
   async listGroups(): Promise<any> {
-    return this.call('list_groups', {});
+    return this.get('/relay/groups');
+  }
+
+  // Program State
+  async getProgramState(programId: string): Promise<any> {
+    return this.get(`/program-state/${encodeURIComponent(programId)}`);
+  }
+
+  async updateProgramState(
+    programId: string,
+    state: Record<string, unknown>
+  ): Promise<any> {
+    return this.patch(`/program-state/${encodeURIComponent(programId)}`, state);
   }
 }
 
