@@ -23,6 +23,10 @@ export function extractContext(tool: string, args: unknown): Record<string, stri
     if (typeof a.sprintId === "string") ctx.sprintId = a.sprintId;
     if (typeof a.taskId === "string") ctx.taskId = a.taskId;
     if (typeof a.storyId === "string") ctx.storyId = a.storyId;
+    // Agent Trace L1
+    if (typeof a.traceId === "string") ctx.traceId = a.traceId;
+    if (typeof a.spanId === "string") ctx.spanId = a.spanId;
+    if (typeof a.parentSpanId === "string") ctx.parentSpanId = a.parentSpanId;
   }
   return ctx;
 }
