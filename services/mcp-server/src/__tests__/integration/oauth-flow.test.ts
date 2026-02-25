@@ -26,19 +26,28 @@ import { Readable } from "stream";
 import type http from "http";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
 import { handleOAuthMetadata } from "../../oauth/metadata";
-import { handleOAuthRegister } from "../../oauth/register";
+import { handleOAuthRegister, cleanupDcrRateLimits } from "../../oauth/register";
 import { handleOAuthAuthorize } from "../../oauth/authorize";
 import { handleOAuthConsent } from "../../oauth/consent";
 import { handleOAuthCallback } from "../../oauth/callback";
 import { handleOAuthToken } from "../../oauth/token";
 import { handleOAuthRevoke } from "../../oauth/revoke";
 import { validateAuth } from "../../auth/authValidator";
+import { initializeFirebase } from "../../firebase/client";
 
 describe("OAuth 2.1 End-to-End Flow", () => {
   let db: admin.firestore.Firestore;
   let userId: string;
 
   beforeAll(() => {
+    // Ensure FIRESTORE_EMULATOR_HOST is set before Firebase initialization
+    if (!process.env.FIRESTORE_EMULATOR_HOST) {
+      process.env.FIRESTORE_EMULATOR_HOST = "localhost:8080";
+    }
+
+    // Initialize production Firebase client to use emulator
+    initializeFirebase();
+
     db = getTestFirestore();
   });
 
@@ -46,14 +55,18 @@ describe("OAuth 2.1 End-to-End Flow", () => {
     await clearFirestoreData();
     const testUser = await seedTestUser("oauth-test-user");
     userId = testUser.userId;
+
+    // Clean up rate limit state to prevent test bleed
+    cleanupDcrRateLimits();
   });
 
-  /** Helper: Create mock HTTP request */
+  /** Helper: Create mock HTTP request with unique IP per test to avoid rate limit bleed */
   function createMockRequest(
     method: string,
     url: string,
     body?: string | object,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    uniqueIp?: string
   ): http.IncomingMessage {
     const bodyStr = typeof body === "object" ? JSON.stringify(body) : (body || "");
     const req = new Readable() as http.IncomingMessage;
@@ -63,7 +76,9 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       host: "localhost:3001",
       ...headers,
     };
-    req.socket = { remoteAddress: "127.0.0.1" } as any;
+    // Use unique IP per test to avoid rate limit conflicts
+    const testIp = uniqueIp || `127.0.0.${Math.floor(Math.random() * 255)}`;
+    req.socket = { remoteAddress: testIp } as any;
 
     // Push body data
     if (bodyStr) {
@@ -170,27 +185,6 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       const clientDoc = await db.doc(`oauthClients/${response.client_id}`).get();
       expect(clientDoc.exists).toBe(true);
       expect(clientDoc.data()?.clientName).toBe("ChatGPT Desktop Test");
-    });
-
-    it("should enforce DCR rate limiting (11th registration should fail)", async () => {
-      const promises = [];
-      for (let i = 0; i < 11; i++) {
-        const req = createMockRequest("POST", "/register", {
-          client_name: `Test Client ${i}`,
-          redirect_uris: ["https://test.local"],
-        });
-        const { res, getStatus, getBody } = createMockResponse();
-        promises.push(
-          handleOAuthRegister(req, res).then(() => ({ status: getStatus(), body: getBody() }))
-        );
-      }
-
-      const results = await Promise.all(promises);
-      const successCount = results.filter((r) => r.status === 201).length;
-      const rateLimitedCount = results.filter((r) => r.status === 429).length;
-
-      expect(successCount).toBe(10);
-      expect(rateLimitedCount).toBe(1);
     });
 
     it("should reject invalid redirect_uri", async () => {
@@ -878,6 +872,39 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(authContext).toBeNull();
 
       // Should not have made any Firestore lookups (immediate rejection)
+    });
+  });
+
+  // IMPORTANT: This test MUST be last to avoid rate limit bleed into other tests
+  describe("11. DCR Rate Limiting (LAST TEST)", () => {
+    it("should enforce DCR rate limiting (11th registration should fail)", async () => {
+      // Use a specific IP for this test to isolate rate limiting
+      const rateLimitTestIp = "192.168.99.99";
+
+      const promises = [];
+      for (let i = 0; i < 11; i++) {
+        const req = createMockRequest(
+          "POST",
+          "/register",
+          {
+            client_name: `Rate Limit Test Client ${i}`,
+            redirect_uris: ["https://ratelimit-test.local"],
+          },
+          {},
+          rateLimitTestIp // Use same IP for all requests to trigger rate limit
+        );
+        const { res, getStatus, getBody } = createMockResponse();
+        promises.push(
+          handleOAuthRegister(req, res).then(() => ({ status: getStatus(), body: getBody() }))
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const successCount = results.filter((r) => r.status === 201).length;
+      const rateLimitedCount = results.filter((r) => r.status === 429).length;
+
+      expect(successCount).toBe(10);
+      expect(rateLimitedCount).toBe(1);
     });
   });
 });
