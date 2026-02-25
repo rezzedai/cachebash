@@ -3,7 +3,7 @@
  * 34 tools across 10 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit, programState, metrics, trace).
  */
 
-import { AuthContext } from "./auth/apiKeyValidator.js";
+import { AuthContext } from "./auth/authValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";

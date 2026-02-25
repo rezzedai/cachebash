@@ -11,7 +11,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
-import { validateAuth, type AuthContext } from "./auth/apiKeyValidator.js";
+import { validateAuth, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits, checkToolRateLimit, getToolRateLimitResetIn } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
@@ -28,6 +28,8 @@ import { detectStaleSessions } from "./modules/stale-session-detector.js";
 import { checkSessionCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
+import { handleOAuthMetadata } from "./oauth/metadata.js";
+import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -252,6 +254,14 @@ async function main() {
     // GitHub webhook (no API key auth — uses HMAC signature verification)
     if (url === "/v1/webhooks/github" && req.method === "POST") {
       return handleGithubWebhook(req, res);
+    }
+
+    // OAuth endpoints (public — no Bearer auth required)
+    if (url === "/.well-known/oauth-authorization-server" && req.method === "GET") {
+      return handleOAuthMetadata(req, res);
+    }
+    if (url === "/register" && req.method === "POST") {
+      return handleOAuthRegister(req, res);
     }
 
     // REST API
@@ -549,19 +559,25 @@ async function main() {
     // Main MCP endpoint
     if (url === "/v1/mcp" || url === "/mcp") {
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+      const proto = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host || "localhost";
+      const wwwAuth = `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-authorization-server"`;
 
       const token = extractBearerToken(req.headers.authorization);
       if (!token) {
-        checkAuthRateLimit(clientIp); // Count missing-token as failed attempt
-        return sendJson(res, 401, { error: "Missing Authorization header" });
+        checkAuthRateLimit(clientIp);
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": wwwAuth });
+        res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
+        return;
       }
       const auth = await validateAuth(token);
       if (!auth) {
-        // Only count FAILED auth attempts against IP rate limit
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
         }
-        return sendJson(res, 401, { error: "Invalid API key" });
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": wwwAuth });
+        res.end(JSON.stringify({ error: "unauthorized", error_description: "Invalid or expired token" }));
+        return;
       }
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -588,6 +604,7 @@ async function main() {
     }
     cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
+    cleanupDcrRateLimits();
     // TTL cleanup for expired relay messages (uses admin UID from first active session)
     for (const [, info] of sessions.entries()) {
       cleanupExpiredRelayMessages(info.authContext.userId).catch((err) => {

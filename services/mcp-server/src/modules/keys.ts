@@ -8,7 +8,7 @@
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue } from "firebase-admin/firestore";
-import type { AuthContext } from "../auth/apiKeyValidator.js";
+import type { AuthContext } from "../auth/authValidator.js";
 import { isValidProgram } from "../config/programs.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 

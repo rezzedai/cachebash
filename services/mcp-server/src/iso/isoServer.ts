@@ -9,7 +9,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "../transport/CustomHTTPTransport.js";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "../modules/dispatch.js";
 import { getMessagesHandler, sendMessageHandler, getDeadLettersHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "../modules/relay.js";
 import { updateSessionHandler, getFleetHealthHandler } from "../modules/pulse.js";
