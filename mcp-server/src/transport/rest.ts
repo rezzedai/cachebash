@@ -9,6 +9,8 @@ import { validateAuth, type AuthContext } from "../auth/apiKeyValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
+import { getFirestore } from "../firebase/client.js";
+import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError, checkToolRateLimit, getToolRateLimitResetIn } from "../middleware/rateLimiter.js";
@@ -229,6 +231,23 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
 
 const routes: Route[] = [
   // Dispatch
+  route("GET", "/v1/tasks/stats", async (auth, req, res) => {
+    const db = getFirestore();
+    const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
+    const [created, active, done, failed] = await Promise.all([
+      tasksRef.where("lifecycle", "==", "created").count().get(),
+      tasksRef.where("lifecycle", "==", "active").count().get(),
+      tasksRef.where("lifecycle", "==", "done").count().get(),
+      tasksRef.where("lifecycle", "==", "failed").count().get(),
+    ]);
+    restResponse(res, true, {
+      created: created.data().count,
+      active: active.data().count,
+      done: done.data().count,
+      failed: failed.data().count,
+      total: created.data().count + active.data().count + done.data().count + failed.data().count,
+    });
+  }),
   route("GET", "/v1/tasks", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "get_tasks", query);
@@ -245,10 +264,40 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("POST", "/v1/tasks/:id/complete", async (auth, req, res, p) => {
-    const data = await callTool(auth, req, "complete_task", { taskId: p.id });
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "complete_task", { taskId: p.id, ...body });
     restResponse(res, true, data);
   }),
   // Relay
+  route("GET", "/v1/messages/unread", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const db = getFirestore();
+    const relayRef = db.collection(`tenants/${auth.userId}/relay`);
+    let q: admin.firestore.Query = relayRef.where("status", "==", "pending");
+    if (query.sessionId) {
+      q = q.where("target", "==", query.sessionId);
+    }
+    const snap = await q.orderBy("createdAt", "desc").limit(50).get();
+    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    restResponse(res, true, { messages, count: messages.length });
+  }),
+  route("POST", "/v1/messages/mark_read", async (auth, req, res) => {
+    const body = await readBody(req);
+    const messageIds = body.messageIds as string[];
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must be a non-empty array" }, 400);
+    }
+    const db = getFirestore();
+    const batch = db.batch();
+    for (const id of messageIds.slice(0, 100)) {
+      batch.update(db.doc(`tenants/${auth.userId}/relay/${id}`), {
+        status: "read",
+        readAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    restResponse(res, true, { updated: Math.min(messageIds.length, 100) });
+  }),
   route("GET", "/v1/messages", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "get_messages", { sessionId: query.sessionId || "rest", ...query });
@@ -329,6 +378,18 @@ const routes: Route[] = [
     const body = await readBody(req);
     const data = await callTool(auth, req, "complete_sprint", { sprintId: p.id, ...body });
     restResponse(res, true, data);
+  }),
+  route("GET", "/v1/sprints/active", async (auth, req, res) => {
+    const db = getFirestore();
+    const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
+    const snap = await tasksRef
+      .where("type", "==", "sprint")
+      .where("lifecycle", "in", ["created", "active"])
+      .orderBy("createdAt", "desc")
+      .limit(10)
+      .get();
+    const sprints = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    restResponse(res, true, { sprints });
   }),
   route("GET", "/v1/sprints/:id", async (auth, req, res, p) => {
     const data = await callTool(auth, req, "get_sprint", { sprintId: p.id });

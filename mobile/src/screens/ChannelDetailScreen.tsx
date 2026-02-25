@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useMessages } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
+import { useConnectivity } from '../contexts/ConnectivityContext';
+import { enqueueMessage, drainQueue, getQueuedMessages, QueuedMessage } from '../services/offlineQueue';
 import { theme } from '../theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RelayMessage, RelayMessageType } from '../types';
@@ -39,6 +41,8 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
   const { programId } = route.params || {};
   const { api } = useAuth();
   const { messages: allMessages, refetch, isLoading } = useMessages();
+  const { isConnected, isInternetReachable } = useConnectivity();
+  const isOffline = !isConnected || isInternetReachable === false;
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -99,8 +103,48 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
     }
   }, [programId, navigation]);
 
+  // Mark unread messages as read when channel is opened
+  useEffect(() => {
+    if (!api || !programId) return;
+
+    const unreadIds = allMessages
+      .filter(
+        (msg) =>
+          (msg.source === programId || msg.target === programId) &&
+          msg.status !== 'read' &&
+          msg.status !== 'archived' &&
+          msg.source !== 'admin'
+      )
+      .map((msg) => msg.id);
+
+    if (unreadIds.length > 0) {
+      api.markMessagesRead(unreadIds).catch(() => {});
+    }
+  }, [api, programId, allMessages]);
+
+  // Drain offline queue when connectivity returns
+  useEffect(() => {
+    if (isOffline || !api) return;
+
+    drainQueue(async (msg) => {
+      await api.sendMessage({
+        source: msg.source,
+        target: msg.target,
+        message: msg.message,
+        message_type: msg.message_type as any,
+        priority: msg.priority as any,
+      });
+    }).then((sent) => {
+      if (sent > 0) {
+        refetch();
+        // Clear optimistic queued messages
+        setOptimisticMessages(prev => prev.filter(m => m.status !== 'queued'));
+      }
+    }).catch(() => {});
+  }, [isOffline, api, refetch]);
+
   const handleSend = async () => {
-    if (!inputText.trim() || !api || !programId) return;
+    if (!inputText.trim() || !programId) return;
 
     // Prevent double-send via ref (synchronous check)
     if (sendingRef.current) return;
@@ -125,7 +169,7 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
       message: messageText,
       message_type: 'DIRECTIVE',
       priority: 'normal',
-      status: 'sending',
+      status: isOffline ? 'queued' : 'sending',
       createdAt: new Date().toISOString(),
       isOptimistic: true,
     };
@@ -135,6 +179,23 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
 
     haptic.medium();
     setSendError(null);
+
+    // If offline, queue the message for later
+    if (isOffline || !api) {
+      await enqueueMessage({
+        source: 'admin',
+        target: programId,
+        message: messageText,
+        message_type: 'DIRECTIVE',
+        priority: 'normal',
+      });
+      haptic.light();
+      setSendError('Queued — will send when online');
+      setTimeout(() => setSendError(null), 3000);
+      sendingRef.current = false;
+      return;
+    }
+
     setIsSending(true);
 
     try {
@@ -379,13 +440,13 @@ export default function ChannelDetailScreen({ route, navigation }: Props) {
           onPress={handleSend}
           disabled={!inputText.trim() || isSending}
           activeOpacity={0.7}
-          accessibilityLabel="Send message"
+          accessibilityLabel={isOffline ? "Queue message for sending when online" : "Send message"}
           accessibilityRole="button"
         >
           {isSending ? (
             <ActivityIndicator size="small" color={theme.colors.text} />
           ) : (
-            <Text style={styles.sendButtonText}>Send</Text>
+            <Text style={styles.sendButtonText}>{isOffline ? 'Queue' : 'Send'}</Text>
           )}
         </TouchableOpacity>
       </View>
