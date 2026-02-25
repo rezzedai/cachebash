@@ -6,7 +6,6 @@ import {
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -16,9 +15,10 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
+import { useSprints } from '../hooks/useSprints';
 import { useConnectivity } from '../contexts/ConnectivityContext';
 import { theme } from '../theme';
-import type { Program } from '../types';
+import type { Program, Sprint, SprintStoryStatus } from '../types';
 import { timeAgo, getStateColor, getStatusColor, getMessageTypeColor } from '../utils';
 import { haptic } from '../utils/haptics';
 import EmptyState from '../components/EmptyState';
@@ -39,6 +39,7 @@ export default function HomeScreen({ navigation }: Props) {
   const { sessions, programs, isLoading, refetch, error, isCached } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
+  const { sprints } = useSprints();
   const { isConnected, isInternetReachable } = useConnectivity();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -279,7 +280,19 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text style={styles.expandedEmptyText}>No sessions</Text>
               ) : (
                 sessions.slice(0, 10).map((session) => (
-                  <View key={session.id} style={styles.expandedItem}>
+                  <TouchableOpacity
+                    key={session.id}
+                    style={styles.expandedItem}
+                    onPress={() => {
+                      haptic.light();
+                      if (session.programId) {
+                        navigation.navigate('ProgramDetail', { programId: session.programId });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Session: ${session.name}`}
+                  >
                     <View style={styles.expandedItemRow}>
                       <View
                         style={[
@@ -324,7 +337,7 @@ export default function HomeScreen({ navigation }: Props) {
                         />
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </View>
@@ -444,7 +457,89 @@ export default function HomeScreen({ navigation }: Props) {
           )}
         </View>
 
-        {/* Pending Questions */}
+        {/* Active Sprint Card */}
+        {sprints.filter(s => s.status !== 'complete' && s.status !== 'done').length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Active Sprint</Text>
+            {sprints
+              .filter(s => s.status !== 'complete' && s.status !== 'done')
+              .slice(0, 1)
+              .map((sprint) => {
+                const completed = sprint.stories.filter(s => s.status === 'complete').length;
+                const total = sprint.stories.length;
+                const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                return (
+                  <TouchableOpacity
+                    key={sprint.id}
+                    style={styles.sprintCard}
+                    onPress={() => {
+                      haptic.light();
+                      navigation.navigate('SprintDetail', { sprint });
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`Sprint: ${sprint.projectName}, ${completed} of ${total} stories complete`}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.sprintHeader}>
+                      <Text style={styles.sprintName} numberOfLines={1}>{sprint.projectName}</Text>
+                      <Text style={styles.sprintProgress}>{completed}/{total}</Text>
+                    </View>
+                    {sprint.branch ? (
+                      <Text style={styles.sprintBranch} numberOfLines={1}>{sprint.branch}</Text>
+                    ) : null}
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.colors.primary }]} />
+                    </View>
+                    <View style={styles.sprintStories}>
+                      {sprint.stories.slice(0, 5).map((story) => (
+                        <View key={story.id} style={styles.storyRow}>
+                          <View style={[styles.storyDot, {
+                            backgroundColor:
+                              story.status === 'complete' ? theme.colors.success :
+                              story.status === 'active' ? theme.colors.primary :
+                              story.status === 'failed' ? theme.colors.error :
+                              theme.colors.textMuted,
+                          }]} />
+                          <Text style={styles.storyTitle} numberOfLines={1}>{story.title}</Text>
+                        </View>
+                      ))}
+                      {sprint.stories.length > 5 && (
+                        <Text style={styles.expandedItemMeta}>+{sprint.stories.length - 5} more</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+          </View>
+        )}
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => {
+              haptic.light();
+              navigation.navigate('ChannelDetail', { programId: 'iso' });
+            }}
+            activeOpacity={0.7}
+            accessibilityLabel="Send a message"
+            accessibilityRole="button"
+          >
+            <Text style={styles.quickActionText}>Message</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => {
+              haptic.light();
+              navigation.navigate('Sprints');
+            }}
+            activeOpacity={0.7}
+            accessibilityLabel="View sprints"
+            accessibilityRole="button"
+          >
+            <Text style={styles.quickActionText}>Sprints</Text>
+          </TouchableOpacity>
+        </View>
         </>
         )}
 
@@ -495,10 +590,6 @@ export default function HomeScreen({ navigation }: Props) {
   );
 }
 
-const { width } = Dimensions.get('window');
-const cardPadding = theme.spacing.md;
-const cardGap = theme.spacing.sm;
-const programCardWidth = (width - cardPadding * 2 - cardGap) / 2;
 
 const styles = StyleSheet.create({
   container: {
@@ -686,18 +777,17 @@ const styles = StyleSheet.create({
 
   // Program Grid
   programGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: theme.spacing.sm,
   },
   programCard: {
-    width: programCardWidth,
+    width: '100%',
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.md,
-    minHeight: 80,
+    minHeight: 64,
   },
   programHeader: {
     flexDirection: 'row',
@@ -807,6 +897,78 @@ const styles = StyleSheet.create({
   questionTime: {
     fontSize: theme.fontSize.xs,
     color: theme.colors.textMuted,
+  },
+
+  // Sprint Card
+  sprintCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  sprintHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  sprintName: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: theme.colors.text,
+    flex: 1,
+  },
+  sprintProgress: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginLeft: theme.spacing.sm,
+  },
+  sprintBranch: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.sm,
+  },
+  sprintStories: {
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  storyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  storyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  storyTitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textSecondary,
+    flex: 1,
+  },
+
+  // Quick Actions
+  quickActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '40',
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  quickActionText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
 
   // Error Banner

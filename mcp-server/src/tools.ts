@@ -15,6 +15,7 @@ import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { queryTracesHandler } from "./modules/trace.js";
+import { submitFeedbackHandler } from "./modules/feedback.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -70,6 +71,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Trace
   query_traces: queryTracesHandler,
+
+  // Feedback
+  submit_feedback: submitFeedbackHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -101,6 +105,7 @@ export const TOOL_DEFINITIONS = [
         source: { type: "string", maxLength: 100 },
         target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
+        boardItemId: { type: "string", description: "Existing GitHub Projects board item ID to link instead of creating a new issue" },
         ttl: { type: "number", description: "Seconds until expiry" },
         replyTo: { type: "string", description: "Task ID this responds to" },
         threadId: { type: "string", description: "Conversation thread grouping" },
@@ -646,6 +651,23 @@ export const TOOL_DEFINITIONS = [
         until: { type: "string", description: "End date (ISO 8601)" },
         limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
       },
+    },
+  },
+  // === Feedback ===
+  {
+    name: "submit_feedback",
+    description: "Submit feedback (bug report, feature request, or general) which creates a GitHub Issue",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        type: { type: "string", enum: ["bug", "feature_request", "general"], default: "general", description: "Feedback type" },
+        message: { type: "string", maxLength: 2000, description: "Feedback message (required, 1-2000 chars)" },
+        platform: { type: "string", enum: ["ios", "android", "cli"], default: "cli", description: "Submitting platform" },
+        appVersion: { type: "string", description: "App version string", maxLength: 50 },
+        osVersion: { type: "string", description: "OS version", maxLength: 50 },
+        deviceModel: { type: "string", description: "Device model", maxLength: 100 },
+      },
+      required: ["message"],
     },
   },
 ];

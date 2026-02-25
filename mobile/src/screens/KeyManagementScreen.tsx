@@ -15,7 +15,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { theme } from '../theme';
-import KeyGenerationModal from '../components/KeyGenerationModal';
+import { KeyGenerationModal } from '../components/KeyGenerationModal';
 
 interface ApiKey {
   keyHash: string;
