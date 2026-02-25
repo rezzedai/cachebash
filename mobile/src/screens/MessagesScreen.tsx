@@ -6,6 +6,7 @@ import { theme } from '../theme';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RelayMessage, RelayMessageType } from '../types';
 import { timeAgo, getMessageTypeColor, haptic } from '../utils';
+import EmptyState from '../components/EmptyState';
 
 type MessagesScreenProps = {
   navigation: NativeStackNavigationProp<any>;
@@ -137,10 +138,11 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   if (messages.length === 0 && !isLoading) {
     return (
       <View style={styles.container}>
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>◈ No messages yet</Text>
-          <Text style={styles.emptyHintText}>Pull down to refresh</Text>
-        </View>
+        <EmptyState
+          icon="💬"
+          title="No Messages Yet"
+          description="Messages from your connected agents will appear here."
+        />
       </View>
     );
   }
