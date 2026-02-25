@@ -6,7 +6,6 @@ import {
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -279,7 +278,19 @@ export default function HomeScreen({ navigation }: Props) {
                 <Text style={styles.expandedEmptyText}>No sessions</Text>
               ) : (
                 sessions.slice(0, 10).map((session) => (
-                  <View key={session.id} style={styles.expandedItem}>
+                  <TouchableOpacity
+                    key={session.id}
+                    style={styles.expandedItem}
+                    onPress={() => {
+                      haptic.light();
+                      if (session.programId) {
+                        navigation.navigate('ProgramDetail', { programId: session.programId });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Session: ${session.name}`}
+                  >
                     <View style={styles.expandedItemRow}>
                       <View
                         style={[
@@ -324,7 +335,7 @@ export default function HomeScreen({ navigation }: Props) {
                         />
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </View>
@@ -495,10 +506,6 @@ export default function HomeScreen({ navigation }: Props) {
   );
 }
 
-const { width } = Dimensions.get('window');
-const cardPadding = theme.spacing.md;
-const cardGap = theme.spacing.sm;
-const programCardWidth = (width - cardPadding * 2 - cardGap) / 2;
 
 const styles = StyleSheet.create({
   container: {
@@ -686,18 +693,17 @@ const styles = StyleSheet.create({
 
   // Program Grid
   programGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: theme.spacing.sm,
   },
   programCard: {
-    width: programCardWidth,
+    width: '100%',
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: theme.borderRadius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.md,
-    minHeight: 80,
+    minHeight: 64,
   },
   programHeader: {
     flexDirection: 'row',
