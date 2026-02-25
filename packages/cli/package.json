@@ -22,7 +22,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/rezzedai/cachebash.git",
-    "directory": "cli"
+    "directory": "packages/cli"
   },
   "homepage": "https://rezzed.ai/cachebash",
   "bugs": "https://github.com/rezzedai/cachebash/issues",

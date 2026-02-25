@@ -1,5 +1,5 @@
 {
-  "name": "cachebash-functions",
+  "name": "@cachebash/functions",
   "version": "2.0.0",
   "description": "Cloud Functions for CacheBash v2",
   "main": "lib/index.js",
