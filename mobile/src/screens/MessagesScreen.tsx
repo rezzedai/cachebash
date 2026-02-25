@@ -97,7 +97,9 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           <Text style={styles.timestamp}>{timeAgo(item.lastMessage.createdAt)}</Text>
           {item.unreadCount > 0 && (
             <View style={styles.unreadBadge}>
-              <View style={styles.unreadDot} />
+              <Text style={styles.unreadBadgeText}>
+                {item.unreadCount > 99 ? '99+' : item.unreadCount}
+              </Text>
             </View>
           )}
         </View>
@@ -306,12 +308,18 @@ const styles = StyleSheet.create({
   },
   unreadBadge: {
     marginTop: theme.spacing.xs,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
     backgroundColor: theme.colors.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.background,
   },
   emptyState: {
     flex: 1,

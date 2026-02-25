@@ -29,12 +29,15 @@ const PRIORITY_MAP: Record<string, string> = {
 
 const FIELD_PRODUCT = "PVTSSF_lADOD5cSAM4BPj-ezg973JA";
 const PRODUCT_MAP: Record<string, string> = {
-  cachebash: "1f3a1721",
-  grid: "6f9c9d45",
-  reach: "ac2a6b94",
-  drivehub: "c360cc97",
-  "cb.com": "045c3d2e",
-  optimeasure: "7c0dbeb8",
+  cachebash: "13f8350f",
+  grid: "c06291cd",
+  reach: "f61fd67f",
+  drivehub: "405f0e3f",
+  "cb.com": "9a213e62",
+  optimeasure: "edb10355",
+  arsenal: "9b538111",
+  "grid-portal": "03da32ef",
+  "client-work": "9a316f85",
 };
 
 const FIELD_KIND = "PVTSSF_lADOD5cSAM4BPj-ezg974YI";

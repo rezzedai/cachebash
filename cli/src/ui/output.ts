@@ -21,6 +21,12 @@ ${bold("Commands:")}
   init          Set up CacheBash MCP connection
   init --key    Use an existing API key
   ping          Test MCP connectivity
+  feedback      Submit feedback (bug report, feature request, or general)
+
+${bold("Feedback:")}
+  cachebash feedback "your message"
+  cachebash feedback --type bug "description of the issue"
+  cachebash feedback -t feature "I'd like to see..."
 
 ${bold("Options:")}
   --help        Show this help message

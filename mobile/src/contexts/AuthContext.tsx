@@ -21,6 +21,7 @@ import {
 import { auth } from '../config/firebase';
 import CacheBashAPI, { CacheBashAPIError } from '../services/api';
 import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -58,7 +59,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [error, setError] = useState<string | null>(null);
 
   // OAuth configuration
-  const googleDiscovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
+  const googleRedirectUri = 'com.googleusercontent.apps.922749444863-4g3prl9dm17ho82975ur3c9209r36s5q:/oauthredirect';
+
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    redirectUri: googleRedirectUri,
+  });
 
   // GitHub OAuth endpoints
   const githubDiscovery: AuthSession.DiscoveryDocument = {
@@ -103,6 +110,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => unsubscribe();
   }, []);
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const { id_token } = googleResponse.params;
+      if (id_token) {
+        const credential = GoogleAuthProvider.credential(id_token);
+        signInWithCredential(auth, credential).catch((error) => {
+          setError(error.message || 'Google sign-in failed');
+          setState((prev) => ({ ...prev, isLoading: false }));
+        });
+      }
+    } else if (googleResponse?.type === 'error') {
+      setError(googleResponse.error?.message || 'Google sign-in failed');
+      setState((prev) => ({ ...prev, isLoading: false }));
+    } else if (googleResponse?.type === 'dismiss') {
+      setState((prev) => ({ ...prev, isLoading: false }));
+    }
+  }, [googleResponse]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
@@ -211,26 +237,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      const redirectUri = AuthSession.makeRedirectUri({ scheme: 'cachebash' });
-
-      const request = new AuthSession.AuthRequest({
-        clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
-        scopes: ['openid', 'profile', 'email'],
-        redirectUri,
-        responseType: AuthSession.ResponseType.IdToken,
-        usePKCE: false,
-      });
-
-      const result = await request.promptAsync(googleDiscovery!);
-
-      if (result.type === 'success' && result.params.id_token) {
-        const credential = GoogleAuthProvider.credential(result.params.id_token);
-        await signInWithCredential(auth, credential);
-        return true;
+      const result = await googlePromptAsync();
+      // Response handling happens in the useEffect above
+      // Return false here — the useEffect will update state on success
+      if (result?.type !== 'success') {
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return false;
       }
-
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return false;
+      return true;
     } catch (error: any) {
       const errorMessage = error.message || 'Google sign-in failed';
       setError(errorMessage);
@@ -242,7 +256,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       return false;
     }
-  }, [googleDiscovery]);
+  }, [googlePromptAsync]);
 
   const signInWithGitHub = useCallback(async (): Promise<boolean> => {
     setError(null);
@@ -260,8 +274,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const result = await request.promptAsync(githubDiscovery);
 
       if (result.type === 'success' && result.params.code) {
-        // Exchange code for token via Firebase's GitHub provider
-        const credential = GithubAuthProvider.credential(result.params.code);
+        // Exchange authorization code for access token via Cloud Function
+        // (GitHub OAuth requires server-side exchange — client secret cannot be in mobile code)
+        const tokenResponse = await fetch(
+          'https://us-central1-cachebash-app.cloudfunctions.net/exchangeGithubCode',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: result.params.code, redirectUri }),
+          }
+        );
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenResponse.ok || !tokenData.access_token) {
+          throw new Error(tokenData.error || 'Failed to exchange GitHub authorization code');
+        }
+
+        const credential = GithubAuthProvider.credential(tokenData.access_token);
         await signInWithCredential(auth, credential);
         return true;
       }

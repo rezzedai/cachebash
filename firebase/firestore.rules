@@ -93,6 +93,12 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['retrieved']);
     }
 
+    // Feedback: read own, write via Admin SDK only
+    match /tenants/{userId}/feedback/{feedbackId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
     // User root document: read-only
     match /tenants/{userId} {
       allow read: if isOwner(userId);
