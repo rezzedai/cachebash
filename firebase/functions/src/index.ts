@@ -23,8 +23,9 @@ export { onRelayCreate } from "./notifications/onRelayCreate";
 // Analytics aggregation
 export { onAnalyticsEventCreate } from "./analytics/onAnalyticsEventCreate";
 
-// Pattern promotion
+// Pattern promotion and gap detection
 export { onProgramStateWrite } from "./patterns/onProgramStateWrite";
+export { onTaskCompleteFailed } from "./patterns/onTaskComplete";
 
 // Scheduled cleanup
 export { cleanupExpiredSessions } from "./cleanup/cleanupExpiredSessions";
