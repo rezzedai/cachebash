@@ -41,7 +41,7 @@ export function getCurrentPeriod(): string {
 export function incrementUsage(userId: string, field: UsageField): void {
   const db = getFirestore();
   const period = getCurrentPeriod();
-  const docRef = db.collection("usage").doc(userId).collection("periods").doc(period);
+  const docRef = db.doc(`tenants/${userId}/usage/${period}`);
 
   docRef.set(
     { [field]: FieldValue.increment(1) },
@@ -61,7 +61,7 @@ export function incrementUsage(userId: string, field: UsageField): void {
 export async function getUsage(userId: string): Promise<UsageCounters> {
   const db = getFirestore();
   const period = getCurrentPeriod();
-  const docRef = db.collection("usage").doc(userId).collection("periods").doc(period);
+  const docRef = db.doc(`tenants/${userId}/usage/${period}`);
 
   const snapshot = await docRef.get();
 

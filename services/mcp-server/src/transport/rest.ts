@@ -517,7 +517,8 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
     if (!auth) {
       // Only count FAILED auth attempts against IP rate limit
       if (!checkAuthRateLimit(clientIp)) {
-        return restResponse(res, false, { code: "RATE_LIMITED", message: "Too many authentication attempts" }, 429);
+        res.setHeader("Retry-After", "60");
+        return restResponse(res, false, { code: "RATE_LIMITED", message: "Too many authentication attempts", retryAfter: 60 }, 429);
       }
       return restResponse(res, false, { code: "UNAUTHORIZED", message: "Invalid API key" }, 401);
     }
@@ -542,9 +543,11 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
           }, 400);
         }
         if (err instanceof RateLimitError) {
+          res.setHeader("Retry-After", String(err.resetIn));
           return restResponse(res, false, {
             code: "RATE_LIMITED",
             message: err.message,
+            retryAfter: err.resetIn,
           }, 429);
         }
         if (err instanceof ComplianceError) {
