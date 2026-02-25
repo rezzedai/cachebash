@@ -1,4 +1,4 @@
-import type { AuthContext } from "../auth/apiKeyValidator";
+import type { AuthContext } from "../auth/authValidator";
 import { checkSessionCompliance, COMPLIANCE_EXEMPT_TOOLS } from "../middleware/sessionCompliance";
 import { emitEvent } from "../modules/events";
 

@@ -6,7 +6,7 @@
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 import { encryptQuestionData, decrypt, isEncrypted } from "../encryption/crypto.js";
 import { z } from "zod";
 

@@ -6,7 +6,7 @@
  * Fails open on errors to avoid blocking legitimate requests.
  */
 
-import type { AuthContext } from "../auth/apiKeyValidator.js";
+import type { AuthContext } from "../auth/authValidator.js";
 import { getFirestore } from "../firebase/client.js";
 import type { BillingConfig } from "../types/billing.js";
 import { DEFAULT_BILLING_CONFIG, PRO_BILLING_CONFIG, TEAM_BILLING_CONFIG } from "../types/billing.js";

@@ -5,7 +5,7 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
 const GetAuditSchema = z.object({

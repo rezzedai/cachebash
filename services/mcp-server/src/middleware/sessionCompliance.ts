@@ -1,4 +1,4 @@
-import type { AuthContext } from "../auth/apiKeyValidator.js";
+import type { AuthContext } from "../auth/authValidator.js";
 import { getFirestore } from "../firebase/client.js";
 import { emitEvent } from "../modules/events.js";
 import type { ComplianceState } from "../types/session.js";

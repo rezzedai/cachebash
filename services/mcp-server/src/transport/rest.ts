@@ -5,7 +5,7 @@
 
 import http from "http";
 import { ZodError } from "zod";
-import { validateAuth, type AuthContext } from "../auth/apiKeyValidator.js";
+import { validateAuth, type AuthContext } from "../auth/authValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
