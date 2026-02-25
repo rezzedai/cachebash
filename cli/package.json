@@ -1,7 +1,7 @@
 {
   "name": "cachebash",
   "version": "0.1.0",
-  "description": "CacheBash CLI — MCP agent coordination",
+  "description": "CacheBash CLI — MCP agent coordination for AI workflows",
   "bin": { "cachebash": "./bin/cachebash.js" },
   "main": "dist/index.js",
   "type": "module",
@@ -18,5 +18,22 @@
   },
   "engines": { "node": ">=18.0.0" },
   "files": ["bin/", "dist/"],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rezzedai/cachebash.git",
+    "directory": "cli"
+  },
+  "homepage": "https://rezzed.ai/cachebash",
+  "bugs": "https://github.com/rezzedai/cachebash/issues",
+  "keywords": [
+    "mcp",
+    "ai",
+    "agents",
+    "claude",
+    "cursor",
+    "orchestration",
+    "coordination",
+    "model-context-protocol"
+  ]
 }
