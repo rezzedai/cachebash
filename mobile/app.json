@@ -17,7 +17,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cachebash.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -43,6 +47,12 @@
       ],
       "expo-web-browser"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/e8a338b2-d08c-4088-a567-c36008d85229"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "e8a338b2-d08c-4088-a567-c36008d85229"
