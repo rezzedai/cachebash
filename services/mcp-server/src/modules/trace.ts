@@ -81,6 +81,106 @@ export function traceToolCall(
   });
 }
 
+const QueryTraceSchema = z.object({
+  traceId: z.string(),
+});
+
+/** Fan-out query: find all tasks, messages, and ledger entries for a traceId */
+export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  // Admin only gate
+  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+    return jsonResult({ success: false, error: "query_trace is only accessible by admin." });
+  }
+
+  const args = QueryTraceSchema.parse(rawArgs);
+  const db = getFirestore();
+  const basePath = `tenants/${auth.userId}`;
+
+  // Fan-out query: tasks + relay + ledger in parallel
+  const [tasksSnap, relaySnap, ledgerSnap] = await Promise.all([
+    db.collection(`${basePath}/tasks`)
+      .where("traceId", "==", args.traceId)
+      .orderBy("createdAt")
+      .get(),
+    db.collection(`${basePath}/relay`)
+      .where("traceId", "==", args.traceId)
+      .orderBy("createdAt")
+      .get(),
+    db.collection(`${basePath}/ledger`)
+      .where("context.traceId", "==", args.traceId)
+      .orderBy("createdAt")
+      .get(),
+  ]);
+
+  const tasks = tasksSnap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      type: "task",
+      title: d.title,
+      status: d.status,
+      source: d.source,
+      target: d.target,
+      spanId: d.spanId || null,
+      parentSpanId: d.parentSpanId || null,
+      createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  const messages = relaySnap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      type: "message",
+      source: d.source,
+      target: d.target,
+      message_type: d.message_type,
+      status: d.status,
+      spanId: d.spanId || null,
+      parentSpanId: d.parentSpanId || null,
+      createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  const spans = ledgerSnap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      id: doc.id,
+      type: "span",
+      tool: d.tool,
+      programId: d.programId,
+      durationMs: d.durationMs,
+      success: d.success,
+      error: d.error,
+      spanId: d.context?.spanId || null,
+      parentSpanId: d.context?.parentSpanId || null,
+      createdAt: d.createdAt?.toDate?.()?.toISOString() || null,
+    };
+  });
+
+  // Reconstruct span tree: build parent→children index
+  const allNodes = [...tasks, ...messages, ...spans];
+  const childrenMap: Record<string, string[]> = {};
+  const roots: string[] = [];
+
+  for (const node of allNodes) {
+    if (node.parentSpanId && node.spanId) {
+      if (!childrenMap[node.parentSpanId]) childrenMap[node.parentSpanId] = [];
+      childrenMap[node.parentSpanId].push(node.spanId);
+    } else if (node.spanId) {
+      roots.push(node.spanId);
+    }
+  }
+
+  return jsonResult({
+    success: true,
+    traceId: args.traceId,
+    trace: { tasks, messages, spans },
+    tree: { roots, children: childrenMap },
+    totals: { tasks: tasks.length, messages: messages.length, spans: spans.length },
+  });
+}
+
 const QueryTracesSchema = z.object({
   sprintId: z.string().optional(),
   taskId: z.string().optional(),

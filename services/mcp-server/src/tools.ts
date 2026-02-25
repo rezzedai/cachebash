@@ -14,7 +14,7 @@ import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/k
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
-import { queryTracesHandler } from "./modules/trace.js";
+import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -71,6 +71,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Trace
   query_traces: queryTracesHandler,
+  query_trace: queryTraceHandler,
 
   // Feedback
   submit_feedback: submitFeedbackHandler,
@@ -651,6 +652,17 @@ export const TOOL_DEFINITIONS = [
         until: { type: "string", description: "End date (ISO 8601)" },
         limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
       },
+    },
+  },
+  {
+    name: "query_trace",
+    description: "Query a complete agent trace by traceId. Fan-out query across tasks, relay messages, and ledger spans. Reconstructs span tree. Admin only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        traceId: { type: "string", description: "The trace ID to query" },
+      },
+      required: ["traceId"],
     },
   },
   // === Feedback ===
