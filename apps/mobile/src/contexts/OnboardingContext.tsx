@@ -15,6 +15,7 @@ interface OnboardingState {
 interface OnboardingContextType extends OnboardingState {
   completeStep: (step: OnboardingStep) => Promise<void>;
   skipOnboarding: () => Promise<void>;
+  resetOnboarding: () => Promise<void>;
   goToStep: (step: OnboardingStep) => void;
 }
 
@@ -114,6 +115,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setIsFirstRun(false);
   }, [user]);
 
+  const resetOnboarding = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      await setDoc(doc(db, `tenants/${user.uid}/config/onboarding`), {
+        completed: false,
+        skipped: false,
+        completedSteps: [],
+        completedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to reset onboarding:', error);
+      return;
+    }
+
+    setIsFirstRun(true);
+    setCurrentStep('welcome');
+    setCompletedSteps([]);
+  }, [user]);
+
   const goToStep = useCallback((step: OnboardingStep) => {
     setCurrentStep(step);
   }, []);
@@ -127,6 +149,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         completedSteps,
         completeStep,
         skipOnboarding,
+        resetOnboarding,
         goToStep,
       }}
     >

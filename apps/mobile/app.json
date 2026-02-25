@@ -2,12 +2,15 @@
   "expo": {
     "name": "CacheBash",
     "slug": "cachebash",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "cachebash",
+    "scheme": [
+      "cachebash",
+      "com.googleusercontent.apps.922749444863-4g3prl9dm17ho82975ur3c9209r36s5q"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,12 +19,18 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cachebash.app",
+      "buildNumber": "2",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
       "package": "com.cachebash.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -43,6 +52,12 @@
       ],
       "expo-web-browser"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/e8a338b2-d08c-4088-a567-c36008d85229"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "e8a338b2-d08c-4088-a567-c36008d85229"

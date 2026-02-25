@@ -149,29 +149,29 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       // Push notifications from FCM have a remote trigger
       const trigger = notification.request.trigger;
       const isPush = trigger && 'type' in trigger && trigger.type === 'push';
-      
+
       if (isPush) {
-        // For push notifications in foreground, check tier and display if appropriate
         const data = notification.request.content.data || {};
         const tier = classifyNotificationTier({
           type: data.type as string,
           priority: data.priority as string,
+          message_type: data.message_type as string,
         });
-        
-        if (tier === 'critical') {
-          // Re-schedule as local notification so it appears
+
+        // Show foreground notification for all allowed tiers (not just critical)
+        if (shouldNotify(tier, preferences)) {
           scheduleLocalNotification(
             notification.request.content.title || 'CacheBash',
             notification.request.content.body || '',
             data as Record<string, unknown>,
-            'critical'
+            tier
           );
         }
       }
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [preferences]);
 
   const updatePreferences = useCallback(async (updates: Partial<NotificationPreferences>) => {
     const newPrefs = { ...preferences, ...updates, critical: true }; // Critical always true
