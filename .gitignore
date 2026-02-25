@@ -8,8 +8,7 @@ dist/
 *.log
 .DS_Store
 
-# Firebase config with real credentials
-mobile/src/config/firebase.ts
+# Firebase native config (generated, platform-specific)
 **/google-services.json
 **/GoogleService-Info.plist
 
