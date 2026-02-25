@@ -11,6 +11,9 @@ export { createUserKey, revokeUserKey, updateKeyLabel } from "./auth/keyManageme
 // CLI auth (HTTP)
 export { cliAuthApprove, cliAuthStatus } from "./auth/cliAuth";
 
+// GitHub OAuth token exchange (HTTP)
+export { exchangeGithubCode } from "./auth/githubOAuthExchange";
+
 // Notification triggers (new collection paths)
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";

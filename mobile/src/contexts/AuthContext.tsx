@@ -274,8 +274,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const result = await request.promptAsync(githubDiscovery);
 
       if (result.type === 'success' && result.params.code) {
-        // Exchange code for token via Firebase's GitHub provider
-        const credential = GithubAuthProvider.credential(result.params.code);
+        // Exchange authorization code for access token via Cloud Function
+        // (GitHub OAuth requires server-side exchange — client secret cannot be in mobile code)
+        const tokenResponse = await fetch(
+          'https://us-central1-cachebash-app.cloudfunctions.net/exchangeGithubCode',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: result.params.code, redirectUri }),
+          }
+        );
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenResponse.ok || !tokenData.access_token) {
+          throw new Error(tokenData.error || 'Failed to exchange GitHub authorization code');
+        }
+
+        const credential = GithubAuthProvider.credential(tokenData.access_token);
         await signInWithCredential(auth, credential);
         return true;
       }
