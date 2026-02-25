@@ -111,7 +111,7 @@ function defaultState(programId: string, sessionId: string): ProgramState {
  */
 function canRead(auth: AuthContext, targetProgramId: string): boolean {
   if (auth.programId === "legacy" || auth.programId === "mobile") return true;
-  if (auth.programId === "orchestrator" || auth.programId === "auditor") return true;
+  if (auth.programId === "orchestrator" || auth.programId === "iso" || auth.programId === "auditor") return true;
   return auth.programId === targetProgramId;
 }
 

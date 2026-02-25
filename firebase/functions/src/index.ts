@@ -11,6 +11,9 @@ export { createUserKey, revokeUserKey, updateKeyLabel } from "./auth/keyManageme
 // CLI auth (HTTP)
 export { cliAuthApprove, cliAuthStatus } from "./auth/cliAuth";
 
+// GitHub OAuth token exchange (HTTP)
+export { exchangeGithubCode } from "./auth/githubOAuthExchange";
+
 // Notification triggers (new collection paths)
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";
@@ -21,6 +24,7 @@ export { onRelayCreate } from "./notifications/onRelayCreate";
 export { onAnalyticsEventCreate } from "./analytics/onAnalyticsEventCreate";
 
 // Pattern promotion and gap detection
+export { onProgramStateWrite } from "./patterns/onProgramStateWrite";
 export { onTaskCompleteFailed } from "./patterns/onTaskComplete";
 
 // Scheduled cleanup
@@ -30,3 +34,6 @@ export { cleanupExpiredRelay } from "./cleanup/cleanupExpiredRelay";
 export { cleanupLedger } from "./cleanup/cleanupLedger";
 export { processDeadLetters } from "./cleanup/processDeadLetters";
 export { cleanupAudit } from "./cleanup/cleanupAudit";
+
+// Feedback
+export { submitFeedback } from "./feedback/submitFeedback";

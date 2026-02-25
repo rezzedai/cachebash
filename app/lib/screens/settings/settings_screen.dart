@@ -138,6 +138,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('My Feedback'),
+            subtitle: const Text('View past submissions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              HapticService.light();
+              context.push('/feedback/history');
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('About'),
             subtitle: Text('Version $_appVersion'),
