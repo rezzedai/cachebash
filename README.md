@@ -98,7 +98,7 @@ git clone https://github.com/rezzedai/cachebash.git
 cd cachebash
 
 # 2. Install dependencies
-cd mcp-server && npm install
+cd services/mcp-server && npm install
 
 # 3. Set up Firebase
 # Create a Firebase project, enable Firestore
@@ -164,22 +164,18 @@ npm start
 
 ```
 cachebash/
-├── mcp-server/        # MCP server (TypeScript, Cloud Run)
-│   ├── src/
-│   │   ├── modules/   # Core business logic (dispatch, relay, pulse, etc.)
-│   │   ├── middleware/ # Auth, rate limiting, usage tracking
-│   │   ├── transport/  # MCP + REST protocol handlers
-│   │   └── types/     # TypeScript type definitions
-│   └── package.json
-├── firebase/
-│   ├── functions/     # Cloud Functions (auth, notifications, cleanup)
-│   ├── firestore.rules
-│   └── firestore.indexes.json
-├── mobile/            # Mobile app (React Native + Expo)
-│   └── src/
-├── cli/               # CLI tool (npx cachebash)
-│   └── src/
-└── app/               # Mobile app (Flutter, legacy)
+├── apps/
+│   └── mobile/          # Mobile app (React Native + Expo)
+├── services/
+│   ├── mcp-server/      # MCP server (TypeScript, Cloud Run)
+│   └── functions/       # Cloud Functions (auth, notifications, cleanup)
+├── packages/
+│   ├── cli/             # CLI tool (npx cachebash)
+│   └── types/           # Shared TypeScript types
+├── infra/               # Firebase rules and indexes
+├── docs/                # Documentation
+├── turbo.json           # Turborepo build orchestration
+└── package.json         # npm workspaces root
 ```
 
 ---
@@ -206,8 +202,8 @@ CacheBash MCP server is MIT licensed. Contributions welcome.
 ```bash
 # Set up development environment
 git clone https://github.com/rezzedai/cachebash.git
-cd cachebash/mcp-server
-npm install
+cd cachebash
+npm install          # installs all workspaces
 npm run dev
 ```
 
