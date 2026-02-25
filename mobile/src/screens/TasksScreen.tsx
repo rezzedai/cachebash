@@ -6,6 +6,7 @@ import { Task } from '../types';
 import { theme } from '../theme';
 import { timeAgo, getStatusColor } from '../utils';
 import { haptic } from '../utils/haptics';
+import EmptyState from '../components/EmptyState';
 
 type Props = NativeStackScreenProps<any, 'Tasks'>;
 
@@ -119,10 +120,13 @@ export default function TasksScreen({ navigation }: Props) {
       );
     }
     return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyStateText}>☰ No tasks found</Text>
-        <Text style={styles.emptyHintText}>Pull down to refresh</Text>
-      </View>
+      <EmptyState
+        icon="📋"
+        title="No Tasks Yet"
+        description="Create your first task to coordinate your AI agents."
+        ctaLabel="Create Task"
+        onCta={() => navigation.navigate('CreateTask')}
+      />
     );
   };
 

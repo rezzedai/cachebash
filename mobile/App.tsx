@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { OnboardingProvider, useOnboarding } from './src/contexts/OnboardingContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
 import { ConnectivityProvider } from './src/contexts/ConnectivityContext';
+import OnboardingNavigator from './src/navigation/OnboardingNavigator';
 import ConnectionBanner from './src/components/ConnectionBanner';
 import AppNavigation from './src/navigation';
 import SignInScreen from './src/screens/SignInScreen';
@@ -48,6 +50,24 @@ function AppContent() {
 
   if (showFirstKey) {
     return <FirstKeyScreen onComplete={() => setShowFirstKey(false)} />;
+  }
+
+  return (
+    <OnboardingProvider>
+      <AppContentWithOnboarding />
+    </OnboardingProvider>
+  );
+}
+
+function AppContentWithOnboarding() {
+  const { isFirstRun, isLoading } = useOnboarding();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (isFirstRun) {
+    return <OnboardingNavigator />;
   }
 
   return (

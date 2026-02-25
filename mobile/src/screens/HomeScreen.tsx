@@ -21,6 +21,7 @@ import { theme } from '../theme';
 import type { Program } from '../types';
 import { timeAgo, getStateColor, getStatusColor, getMessageTypeColor } from '../utils';
 import { haptic } from '../utils/haptics';
+import EmptyState from '../components/EmptyState';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -154,6 +155,15 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
+        {/* Empty State when no sessions and programs */}
+        {!isLoading && sessions.length === 0 && programs.length === 0 ? (
+          <EmptyState
+            icon="📡"
+            title="No Active Sessions"
+            description="Connect an agent from your IDE to see it appear here. Run npx cachebash init to get started."
+          />
+        ) : (
+          <>
         {/* Expandable Stat Cards */}
         <View style={styles.statsColumn}>
 
@@ -435,6 +445,10 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
 
         {/* Pending Questions */}
+        </>
+        )}
+
+        {/* Questions Section (shown regardless of empty state) */}
         {pendingQuestions.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
