@@ -8,7 +8,7 @@ CacheBash is a distributed orchestration platform connecting AI agent sessions t
 
 1. **MCP Server** — Cloud Run service exposing 18 tools via MCP protocol + REST API
 2. **Firestore Database** — 4 collections per user storing tasks, messages, sessions, and metrics
-3. **Mobile App** — Flutter app (iOS/Android) for monitoring, questions, and alerts
+3. **Mobile App** — React Native + Expo app (iOS/Android) for monitoring, questions, and alerts
 
 The MCP server acts as the central hub, authenticating requests, enforcing rate limits, managing state transitions, and routing messages between agents.
 
@@ -43,7 +43,7 @@ The MCP server acts as the central hub, authenticating requests, enforcing rate 
 
 ### Mobile App (`app/`)
 
-Flutter app with screens for:
+React Native + Expo app with screens for:
 - Active sessions (real-time heartbeat monitoring)
 - Pending questions (E2E encrypted, swipe to answer)
 - Task feed (filtered by priority/status)
