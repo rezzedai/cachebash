@@ -30,6 +30,9 @@ import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
 import { handleOAuthMetadata } from "./oauth/metadata.js";
 import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
+import { handleOAuthAuthorize } from "./oauth/authorize.js";
+import { handleOAuthConsent } from "./oauth/consent.js";
+import { handleOAuthCallback } from "./oauth/callback.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -262,6 +265,15 @@ async function main() {
     }
     if (url === "/register" && req.method === "POST") {
       return handleOAuthRegister(req, res);
+    }
+    if (url === "/authorize" && req.method === "GET") {
+      return handleOAuthAuthorize(req, res);
+    }
+    if (url?.startsWith("/oauth/consent")) {
+      return handleOAuthConsent(req, res);
+    }
+    if (url === "/authorize/callback" && req.method === "GET") {
+      return handleOAuthCallback(req, res);
     }
 
     // REST API
