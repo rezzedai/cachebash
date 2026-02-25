@@ -22,6 +22,7 @@ import 'screens/sprints/add_to_sprint_screen.dart';
 import 'screens/dreams/activate_dream_screen.dart';
 import 'screens/dreams/dream_detail_screen.dart';
 import 'screens/feedback/feedback_screen.dart';
+import 'screens/feedback/feedback_history_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/main_shell.dart';
 
@@ -173,6 +174,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/feedback',
             builder: (context, state) => const FeedbackScreen(),
+          ),
+          GoRoute(
+            path: '/feedback/history',
+            builder: (context, state) => const FeedbackHistoryScreen(),
           ),
         ],
       ),
