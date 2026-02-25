@@ -29,12 +29,15 @@ const PRIORITY_MAP: Record<string, string> = {
 
 const FIELD_PRODUCT = "PVTSSF_lADOD5cSAM4BPj-ezg973JA";
 const PRODUCT_MAP: Record<string, string> = {
-  cachebash: "1f3a1721",
-  grid: "6f9c9d45",
-  reach: "ac2a6b94",
-  drivehub: "c360cc97",
-  "cb.com": "045c3d2e",
-  optimeasure: "7c0dbeb8",
+  cachebash: "13f8350f",
+  grid: "c06291cd",
+  reach: "f61fd67f",
+  drivehub: "405f0e3f",
+  "cb.com": "9a213e62",
+  optimeasure: "edb10355",
+  arsenal: "9b538111",
+  "grid-portal": "03da32ef",
+  "client-work": "9a316f85",
 };
 
 const FIELD_KIND = "PVTSSF_lADOD5cSAM4BPj-ezg974YI";
@@ -168,12 +171,32 @@ export function syncTaskCreated(
   action?: string,
   priority?: string,
   projectId?: string | null,
-  type?: string
+  type?: string,
+  boardItemId?: string
 ): void {
   const ok = getOctokit();
   if (!ok) return;
 
   (async () => {
+    const db = getFirestore();
+
+    // If boardItemId is provided, update existing board item instead of creating an issue
+    if (boardItemId) {
+      await Promise.all([
+        setProjectField(ok, boardItemId, FIELD_STATUS, STATUS_TODO),
+        setProjectField(ok, boardItemId, FIELD_PRIORITY, mapPriority(priority || "medium", action)),
+        setProjectField(ok, boardItemId, FIELD_PRODUCT, mapProduct(projectId)),
+        setProjectField(ok, boardItemId, FIELD_KIND, mapKind(type || "task", action)),
+      ]);
+
+      await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
+        githubProjectItemId: boardItemId,
+      });
+
+      console.log(`[GitHub Sync] Task ${taskId} → existing board item ${boardItemId}`);
+      return;
+    }
+
     const repo = mapRepo(projectId);
 
     // Include program routing metadata
@@ -212,7 +235,6 @@ ${instructions}`;
     ]);
 
     // Store GitHub refs in Firestore task doc
-    const db = getFirestore();
     await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
       githubIssueNumber: issueNumber,
       githubProjectItemId: projectItemId,
@@ -223,7 +245,7 @@ ${instructions}`;
     console.error("[GitHub Sync] syncTaskCreated failed:", err);
     queueFailedSync(userId, "syncTaskCreated", {
       taskId,
-      taskData: { title, instructions, action, priority, projectId, type },
+      taskData: { title, instructions, action, priority, projectId, type, boardItemId },
     }, err instanceof Error ? err.message : String(err));
   });
 }
@@ -236,9 +258,10 @@ export function syncTaskClaimed(userId: string, taskId: string): void {
     const db = getFirestore();
     const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
     const data = doc.data();
-    if (!data?.githubProjectItemId) return;
+    const itemId = data?.githubProjectItemId || data?.boardItemId;
+    if (!itemId) return;
 
-    await setProjectField(ok, data.githubProjectItemId, FIELD_STATUS, STATUS_IN_PROGRESS);
+    await setProjectField(ok, itemId, FIELD_STATUS, STATUS_IN_PROGRESS);
     console.log(`[GitHub Sync] Task ${taskId} → InProgress`);
   })().catch((err) => {
     console.error("[GitHub Sync] syncTaskClaimed failed:", err);
@@ -449,7 +472,22 @@ export async function retrySyncOperation(
   switch (operation) {
     case "syncTaskCreated": {
       const { taskId, taskData } = payload;
-      const { title, instructions, action, priority, projectId, type } = taskData || {};
+      const { title, instructions, action, priority, projectId, type, boardItemId } = taskData || {};
+
+      // If boardItemId provided, update existing board item
+      if (boardItemId) {
+        await Promise.all([
+          setProjectField(ok, boardItemId, FIELD_STATUS, STATUS_TODO),
+          setProjectField(ok, boardItemId, FIELD_PRIORITY, mapPriority(priority || "medium", action)),
+          setProjectField(ok, boardItemId, FIELD_PRODUCT, mapProduct(projectId)),
+          setProjectField(ok, boardItemId, FIELD_KIND, mapKind(type || "task", action)),
+        ]);
+        await db.doc(`tenants/${userId}/tasks/${taskId}`).update({
+          githubProjectItemId: boardItemId,
+        });
+        return;
+      }
+
       const repo = mapRepo(projectId);
       const enrichedBody = `> **Task ID:** \`${taskId}\` | **Priority:** ${priority || "medium"} | **Action:** ${action || "queue"}
 ---
@@ -487,8 +525,9 @@ ${instructions || ""}`;
       const { taskId } = payload;
       const doc = await db.doc(`tenants/${userId}/tasks/${taskId}`).get();
       const data = doc.data();
-      if (!data?.githubProjectItemId) throw new Error("Task has no githubProjectItemId");
-      await setProjectField(ok, data.githubProjectItemId, FIELD_STATUS, STATUS_IN_PROGRESS);
+      const itemId = data?.githubProjectItemId || data?.boardItemId;
+      if (!itemId) throw new Error("Task has no githubProjectItemId or boardItemId");
+      await setProjectField(ok, itemId, FIELD_STATUS, STATUS_IN_PROGRESS);
       return;
     }
 
