@@ -10,7 +10,7 @@
 import { generateCorrelationId } from "./correlationId.js";
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { emitEvent } from "../modules/events.js";
-import type { AuthContext } from "../auth/apiKeyValidator.js";
+import type { AuthContext } from "../auth/authValidator.js";
 
 export interface AuditEntry {
   timestamp: string;

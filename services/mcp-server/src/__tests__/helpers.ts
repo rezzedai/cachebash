@@ -1,4 +1,4 @@
-import { AuthContext } from "../auth/apiKeyValidator";
+import { AuthContext } from "../auth/authValidator";
 
 export function mockAuth(overrides?: Partial<AuthContext>): AuthContext {
   return {

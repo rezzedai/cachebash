@@ -4,7 +4,7 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { AuthContext } from "../auth/apiKeyValidator.js";
+import { AuthContext } from "../auth/authValidator.js";
 import { isRegisteredProgram } from "../config/programs.js";
 import { verifySource } from "../middleware/gate.js";
 import { z } from "zod";
