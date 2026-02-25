@@ -1,5 +1,6 @@
 node_modules/
 dist/
+lib/
 *.js.map
 *.d.ts
 !jest.config.js
@@ -8,9 +9,17 @@ dist/
 *.log
 .DS_Store
 
+# Turborepo
+.turbo/
+
 # Firebase native config (generated, platform-specific)
 **/google-services.json
 **/GoogleService-Info.plist
 
 # MCP config with API keys
 .mcp.json
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
