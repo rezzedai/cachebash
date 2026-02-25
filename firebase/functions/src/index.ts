@@ -20,6 +20,9 @@ export { onRelayCreate } from "./notifications/onRelayCreate";
 // Analytics aggregation
 export { onAnalyticsEventCreate } from "./analytics/onAnalyticsEventCreate";
 
+// Pattern promotion
+export { onProgramStateWrite } from "./patterns/onProgramStateWrite";
+
 // Scheduled cleanup
 export { cleanupExpiredSessions } from "./cleanup/cleanupExpiredSessions";
 export { cleanupOrphanedTasks } from "./cleanup/cleanupOrphanedTasks";
