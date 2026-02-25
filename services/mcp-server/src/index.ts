@@ -33,6 +33,8 @@ import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
 import { handleOAuthAuthorize } from "./oauth/authorize.js";
 import { handleOAuthConsent } from "./oauth/consent.js";
 import { handleOAuthCallback } from "./oauth/callback.js";
+import { handleOAuthToken } from "./oauth/token.js";
+import { handleOAuthRevoke } from "./oauth/revoke.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -274,6 +276,12 @@ async function main() {
     }
     if (url === "/authorize/callback" && req.method === "GET") {
       return handleOAuthCallback(req, res);
+    }
+    if (url === "/token" && req.method === "POST") {
+      return handleOAuthToken(req, res);
+    }
+    if (url === "/revoke" && req.method === "POST") {
+      return handleOAuthRevoke(req, res);
     }
 
     // REST API
