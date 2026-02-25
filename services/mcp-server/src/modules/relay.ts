@@ -12,6 +12,7 @@ import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/program
 import { validatePayload } from "../types/relay-schemas.js";
 import { emitEvent } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
+import { generateSpanId } from "../utils/trace.js";
 import { z } from "zod";
 
 const SendMessageSchema = z.object({
@@ -135,6 +136,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     provenance: args.provenance || null,
     structuredPayload: structuredPayload,
     schemaValid: schemaValid,
+    // Agent Trace L1
+    traceId: args.traceId || null,
+    spanId: args.spanId || generateSpanId(),
+    parentSpanId: args.parentSpanId || null,
     createdAt: serverTimestamp(),
   };
 
@@ -150,6 +155,8 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
         target,
         multicastId,
         multicastSource: args.target,
+        // Agent Trace L1: each fan-out message gets unique spanId
+        spanId: generateSpanId(),
       });
       refs.push(ref.id);
     }

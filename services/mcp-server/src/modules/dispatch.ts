@@ -15,6 +15,7 @@ import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sy
 import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "./budget.js";
+import { generateSpanId } from "../utils/trace.js";
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
@@ -192,6 +193,10 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     threadId: args.threadId || null,
     provenance: args.provenance || null,
     fallback: args.fallback || null,
+    // Agent Trace L1
+    traceId: args.traceId || null,
+    spanId: args.spanId || generateSpanId(),
+    parentSpanId: args.parentSpanId || null,
   };
 
     // Telemetry: classify task
