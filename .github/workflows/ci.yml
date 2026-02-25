@@ -20,10 +20,8 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: services/mcp-server/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./services/mcp-server
         run: npm ci
 
       - name: Run unit tests
