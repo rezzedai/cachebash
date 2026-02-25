@@ -77,7 +77,7 @@ describe("pricingEnforce", () => {
   it("blocks free tier at 100% tasks_created", async () => {
     const userId = "user-free-100";
     firestoreDocs.set(`tenants/${userId}/config/billing`, { tier: "free" });
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 500,
       sessions_started: 0,
       messages_sent: 0,
@@ -92,7 +92,7 @@ describe("pricingEnforce", () => {
   it("allows pro tier with no warnings (infinity limit)", async () => {
     const userId = "user-pro-unlimited";
     firestoreDocs.set(`tenants/${userId}/config/billing`, { tier: "pro" });
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 10000,
       sessions_started: 0,
       messages_sent: 0,
@@ -109,7 +109,7 @@ describe("pricingEnforce", () => {
   it("allows team tier with no warnings (infinity limit)", async () => {
     const userId = "user-team-unlimited";
     firestoreDocs.set(`tenants/${userId}/config/billing`, { tier: "team" });
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 10000,
       sessions_started: 0,
       messages_sent: 0,
@@ -126,7 +126,7 @@ describe("pricingEnforce", () => {
   it("returns 80% warning", async () => {
     const userId = "user-free-80";
     firestoreDocs.set(`tenants/${userId}/config/billing`, { tier: "free" });
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 400,
       sessions_started: 0,
       messages_sent: 0,
@@ -143,7 +143,7 @@ describe("pricingEnforce", () => {
   it("returns 95% warning", async () => {
     const userId = "user-free-95";
     firestoreDocs.set(`tenants/${userId}/config/billing`, { tier: "free" });
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 480,
       sessions_started: 0,
       messages_sent: 0,
@@ -180,7 +180,7 @@ describe("pricingEnforce", () => {
 
   it("uses default free config for new tenants without billing doc", async () => {
     const userId = "user-new-tenant";
-    firestoreDocs.set(`usage/${userId}/periods/${getCurrentPeriod()}`, {
+    firestoreDocs.set(`tenants/${userId}/usage/${getCurrentPeriod()}`, {
       tasks_created: 500,
       sessions_started: 0,
       messages_sent: 0,
