@@ -32,6 +32,10 @@ const SendMessageSchema = z.object({
   }).optional(),
   payload: z.record(z.string(), z.unknown()).optional(),
   idempotency_key: z.string().max(100).optional(),
+  // Agent Trace L1
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const GetMessagesSchema = z.object({

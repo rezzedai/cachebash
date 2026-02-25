@@ -41,6 +41,10 @@ const CreateTaskSchema = z.object({
     confidence: z.number().optional(),
   }).optional(),
   fallback: z.array(z.string()).optional(),
+  // Agent Trace L1
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const ClaimTaskSchema = z.object({
