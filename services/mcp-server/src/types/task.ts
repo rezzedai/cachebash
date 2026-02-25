@@ -91,6 +91,9 @@ export interface Task extends Envelope {
     retryHistory: Array<{ attempt: number; failedAt: string }>;
   };
 
+  // GitHub Projects board link
+  boardItemId?: string;
+
   // Lifecycle
   status: LifecycleStatus;
   blockedBy?: string[];

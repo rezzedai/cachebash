@@ -6,6 +6,7 @@ import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useOnboarding } from '../contexts/OnboardingContext';
 import { theme } from '../theme';
 
 export default function SettingsScreen() {
@@ -13,6 +14,7 @@ export default function SettingsScreen() {
   const { signOut, user } = useAuth();
   const { error: sessionsError } = useSessions();
   const { permissionStatus, preferences, updatePreferences, requestPermissions } = useNotifications();
+  const { resetOnboarding } = useOnboarding();
 
   const [activeKeyCount, setActiveKeyCount] = useState<number | null>(null);
 
@@ -216,6 +218,31 @@ export default function SettingsScreen() {
             <Text style={styles.rowLabel}>Build</Text>
             <Text style={styles.rowValue}>Expo SDK 54</Text>
           </View>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.buttonRow}
+            onPress={() => {
+              Alert.alert(
+                'Replay Walkthrough',
+                'This will reset the onboarding walkthrough so you can view it again.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Replay',
+                    onPress: async () => {
+                      await resetOnboarding();
+                      navigation.navigate('Home');
+                    },
+                  },
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+            accessibilityLabel="Replay onboarding walkthrough"
+            accessibilityRole="button"
+          >
+            <Text style={styles.replayText}>Replay Walkthrough</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -298,6 +325,11 @@ const styles = StyleSheet.create({
   disconnectText: {
     fontSize: theme.fontSize.md,
     color: theme.colors.error,
+    fontWeight: '600',
+  },
+  replayText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   statusRow: {

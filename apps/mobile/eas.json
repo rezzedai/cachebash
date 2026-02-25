@@ -13,11 +13,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
+      "channel": "production",
       "ios": {
         "buildConfiguration": "Release",
         "autoIncrement": true

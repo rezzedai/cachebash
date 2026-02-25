@@ -4,13 +4,23 @@ import { NotificationTier, NotificationPreferences, RelayMessageType } from '../
 
 // Configure notification handler (how notifications appear when app is in foreground)
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false,
-    shouldPlaySound: false,
-    shouldSetBadge: true,
-    shouldShowBanner: false,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data || {};
+    const tier = classifyNotificationTier({
+      type: data.type as string,
+      priority: data.priority as string,
+      message_type: data.message_type as string,
+    });
+    const isCritical = tier === 'critical';
+
+    return {
+      shouldShowAlert: isCritical,
+      shouldPlaySound: isCritical,
+      shouldSetBadge: true,
+      shouldShowBanner: isCritical,
+      shouldShowList: true,
+    };
+  },
 });
 
 // Request notification permissions

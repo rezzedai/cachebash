@@ -6,6 +6,20 @@
   "functions": {
     "source": "services/functions"
   },
+  "hosting": {
+    "public": "services/functions/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/cli-auth",
+        "destination": "/cli-auth.html"
+      }
+    ]
+  },
   "emulators": {
     "firestore": {
       "port": 8080
