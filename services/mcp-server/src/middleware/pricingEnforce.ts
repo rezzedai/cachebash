@@ -55,6 +55,20 @@ async function getBillingConfig(userId: string): Promise<BillingConfig> {
   }
 }
 
+/**
+ * Count active (non-done, non-archived) sessions for a user.
+ * Used to enforce concurrentSessions billing limit.
+ */
+async function countActiveSessions(userId: string): Promise<number> {
+  const db = getFirestore();
+  const snap = await db.collection(`tenants/${userId}/sessions`)
+    .where("archived", "==", false)
+    .where("status", "in", ["active", "blocked"])
+    .count()
+    .get();
+  return snap.data().count;
+}
+
 export async function checkPricing(auth: AuthContext, toolName: string): Promise<PricingResult> {
   try {
     // Only check write operations
@@ -63,6 +77,21 @@ export async function checkPricing(auth: AuthContext, toolName: string): Promise
     }
 
     const config = await getBillingConfig(auth.userId);
+
+    // Session concurrency check for create_session
+    if (toolName === "create_session" && config.limits.concurrentSessions !== Infinity) {
+      const activeCount = await countActiveSessions(auth.userId);
+      if (activeCount >= config.limits.concurrentSessions) {
+        if (config.softWarnOnly) {
+          return { allowed: true, warning: `Over session limit (${activeCount}/${config.limits.concurrentSessions})` };
+        }
+        return {
+          allowed: false,
+          reason: `Concurrent session limit reached (${activeCount}/${config.limits.concurrentSessions}). Upgrade to Pro for more sessions.`,
+        };
+      }
+    }
+
     const usage = await getUsage(auth.userId);
 
     // Check tasks_created against tasksPerMonth limit
