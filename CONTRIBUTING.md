@@ -19,7 +19,7 @@ git clone https://github.com/rezzedai/cachebash.git
 cd cachebash
 
 # MCP Server
-cd mcp-server
+cd services/mcp-server
 npm install
 cp .env.example .env
 # Edit .env with your Firebase credentials
@@ -39,7 +39,7 @@ npm install
 
 ```bash
 # MCP Server tests
-cd mcp-server
+cd services/mcp-server
 npm test
 
 # Cloud Functions tests
@@ -127,8 +127,8 @@ mcp-server/src/
 5. Update the tool count in README if needed
 
 **Adding a Cloud Function:**
-1. Create the function in `firebase/functions/src/`
-2. Export it from `firebase/functions/src/index.ts`
+1. Create the function in `services/functions/src/`
+2. Export it from `services/functions/src/index.ts`
 3. Add tests
 4. Document any new Firestore collections or security rules
 
