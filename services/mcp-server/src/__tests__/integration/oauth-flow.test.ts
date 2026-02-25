@@ -843,7 +843,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(authContext!.userId).toBe(userId);
       expect(authContext!.programId).toBe("oauth");
       expect(authContext!.encryptionKey).toBeDefined();
-      expect(authContext!.capabilities).toContain("*"); // Default OAuth capabilities
+      expect(authContext!.capabilities.length).toBeGreaterThan(0); // OAuth gets granular capabilities
     });
 
     it("should reject revoked OAuth token with 401", async () => {
