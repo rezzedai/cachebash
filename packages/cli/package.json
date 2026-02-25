@@ -10,13 +10,13 @@
     "test": "node --test dist/__tests__/*.test.js"
   },
   "dependencies": {
-    "open": "^10.0.0"
+    "open": "~10.1.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
     "@types/node": "^20.0.0"
   },
-  "engines": { "node": ">=18.0.0" },
+  "engines": { "node": ">=20.0.0" },
   "files": ["bin/", "dist/"],
   "license": "MIT",
   "repository": {
