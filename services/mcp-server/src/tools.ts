@@ -4,7 +4,7 @@
  */
 
 import { AuthContext } from "./auth/authValidator.js";
-import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler } from "./modules/dispatch.js";
+import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler } from "./modules/dispatch.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
@@ -25,6 +25,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   create_task: createTaskHandler,
   claim_task: claimTaskHandler,
   complete_task: completeTaskHandler,
+  batch_claim_tasks: batchClaimTasksHandler,
+  batch_complete_tasks: batchCompleteTasksHandler,
   // Relay
   send_message: sendMessageHandler,
   get_messages: getMessagesHandler,
@@ -147,6 +149,33 @@ export const TOOL_DEFINITIONS = [
         error_class: { type: "string", enum: ["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"], description: "Error classification" },
       },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "batch_claim_tasks",
+    description: "Claim multiple pending tasks in a single call. Each task claims independently (not all-or-nothing).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskIds: { type: "array", items: { type: "string" }, description: "Array of task IDs to claim", minItems: 1, maxItems: 50 },
+        sessionId: { type: "string" },
+      },
+      required: ["taskIds"],
+    },
+  },
+  {
+    name: "batch_complete_tasks",
+    description: "Complete multiple tasks in a single call. Each task completes independently (not all-or-nothing).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskIds: { type: "array", items: { type: "string" }, description: "Array of task IDs to complete", minItems: 1, maxItems: 50 },
+        completed_status: { type: "string", enum: ["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"], default: "SUCCESS", description: "Completion outcome (applied to all)" },
+        result: { type: "string", maxLength: 4000, description: "Completion summary (applied to all)" },
+        model: { type: "string", description: "Model used" },
+        provider: { type: "string", description: "Provider" },
+      },
+      required: ["taskIds"],
     },
   },
   // === Relay ===
