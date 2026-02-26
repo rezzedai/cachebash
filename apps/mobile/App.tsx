@@ -29,10 +29,23 @@ function AppContent() {
 
       setCheckingFirstKey(true);
       try {
-        const keyDoc = await getDoc(doc(db, `tenants/${user.uid}/config/firstKey`));
-        if (keyDoc.exists() && !keyDoc.data().retrieved) {
-          setShowFirstKey(true);
+        // Poll for firstKey doc — Cloud Function may still be provisioning
+        const maxAttempts = 15;
+        const delayMs = 2000;
+        for (let i = 0; i < maxAttempts; i++) {
+          const keyDoc = await getDoc(doc(db, `tenants/${user.uid}/config/firstKey`));
+          if (keyDoc.exists()) {
+            if (!keyDoc.data().retrieved) {
+              setShowFirstKey(true);
+            }
+            return;
+          }
+          // Doc doesn't exist yet — wait and retry
+          if (i < maxAttempts - 1) {
+            await new Promise(r => setTimeout(r, delayMs));
+          }
         }
+        // Timed out — proceed without showing first key
       } catch (error) {
         console.error('Failed to check first key:', error);
       } finally {
