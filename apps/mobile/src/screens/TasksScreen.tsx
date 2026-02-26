@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useTasks } from '../hooks/useTasks';
 import { Task } from '../types';
 import { theme } from '../theme';
@@ -14,7 +15,7 @@ type FilterType = 'all' | 'created' | 'active' | 'done';
 
 export default function TasksScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<FilterType>('all');
-  const { tasks, isLoading, refetch, error, isCached } = useTasks();
+  const { tasks, isLoading, refetch, error, isCached, pendingCount, dismissTask, dismissAllPending } = useTasks();
 
   const filteredTasks = useMemo(() => {
     if (filter === 'all') return tasks;
@@ -54,47 +55,81 @@ export default function TasksScreen({ navigation }: Props) {
     );
   };
 
-  const renderTaskCard = ({ item: task }: { item: Task }) => (
+  const renderDismissAction = () => (
     <TouchableOpacity
-      style={[
-        styles.taskCard,
-        task.priority === 'high' && styles.taskCardHighPriority,
-        task.type === 'question' && task.status === 'created' && styles.taskCardQuestion,
-      ]}
-      onPress={() => navigation.navigate('TaskDetail', { task })}
-      activeOpacity={0.7}
-      accessibilityLabel={`${task.title}, ${task.status}, ${task.priority} priority`}
-      accessibilityRole="button"
+      style={styles.dismissAction}
+      onPress={() => {}}
+      accessibilityLabel="Dismiss task"
     >
-      <View style={styles.taskCardHeader}>
-        <View style={[styles.statusDot, { backgroundColor: getStatusColor(task.status) }]} />
-        <Text style={styles.taskTitle} numberOfLines={1} ellipsizeMode="tail">
-          {task.title}
-        </Text>
-      </View>
-
-      {(task.source || task.target) && (
-        <View style={styles.taskMeta}>
-          <Text style={styles.taskMetaText}>
-            {task.source || 'unknown'} → {task.target || 'unknown'}
-          </Text>
-          <Text style={styles.taskMetaText}>•</Text>
-          <Text style={styles.taskMetaText}>{timeAgo(task.createdAt)}</Text>
-        </View>
-      )}
-
-      <View style={styles.taskBadges}>
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeBadgeText}>{task.type}</Text>
-        </View>
-        {task.priority === 'high' && (
-          <View style={[styles.typeBadge, styles.priorityBadge]}>
-            <Text style={styles.typeBadgeText}>high priority</Text>
-          </View>
-        )}
-      </View>
+      <Text style={styles.dismissActionText}>Dismiss</Text>
     </TouchableOpacity>
   );
+
+  const renderTaskCard = ({ item: task }: { item: Task }) => {
+    const card = (
+      <TouchableOpacity
+        style={[
+          styles.taskCard,
+          task.priority === 'high' && styles.taskCardHighPriority,
+          task.type === 'question' && task.status === 'created' && styles.taskCardQuestion,
+        ]}
+        onPress={() => navigation.navigate('TaskDetail', { task })}
+        activeOpacity={0.7}
+        accessibilityLabel={`${task.title}, ${task.status}, ${task.priority} priority`}
+        accessibilityRole="button"
+      >
+        <View style={styles.taskCardHeader}>
+          <View style={[styles.statusDot, { backgroundColor: getStatusColor(task.status) }]} />
+          <Text style={styles.taskTitle} numberOfLines={1} ellipsizeMode="tail">
+            {task.title}
+          </Text>
+        </View>
+
+        {(task.source || task.target) && (
+          <View style={styles.taskMeta}>
+            <Text style={styles.taskMetaText}>
+              {task.source || 'unknown'} → {task.target || 'unknown'}
+            </Text>
+            <Text style={styles.taskMetaText}>•</Text>
+            <Text style={styles.taskMetaText}>{timeAgo(task.createdAt)}</Text>
+          </View>
+        )}
+
+        <View style={styles.taskBadges}>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{task.type}</Text>
+          </View>
+          {task.priority === 'high' && (
+            <View style={[styles.typeBadge, styles.priorityBadge]}>
+              <Text style={styles.typeBadgeText}>high priority</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+
+    if (task.status === 'created') {
+      return (
+        <Swipeable
+          renderRightActions={renderDismissAction}
+          onSwipeableOpen={async () => {
+            haptic.medium();
+            try {
+              await dismissTask(task.id);
+              haptic.success();
+            } catch {
+              haptic.error();
+            }
+          }}
+          overshootRight={false}
+        >
+          {card}
+        </Swipeable>
+      );
+    }
+
+    return card;
+  };
 
   const renderEmpty = () => {
     if (isLoading) {
@@ -139,6 +174,32 @@ export default function TasksScreen({ navigation }: Props) {
             <View style={styles.cachedBadge}>
               <Text style={styles.cachedBadgeText}>CACHED</Text>
             </View>
+          )}
+          {filter === 'created' && pendingCount > 0 && (
+            <TouchableOpacity
+              style={styles.clearAllButton}
+              onPress={() => {
+                Alert.alert(
+                  'Clear All Pending',
+                  `Dismiss ${pendingCount} pending task${pendingCount !== 1 ? 's' : ''}? They will be marked as skipped.`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Clear All',
+                      style: 'destructive',
+                      onPress: async () => {
+                        haptic.medium();
+                        await dismissAllPending();
+                      },
+                    },
+                  ]
+                );
+              }}
+              accessibilityLabel={`Clear all ${pendingCount} pending tasks`}
+              accessibilityRole="button"
+            >
+              <Text style={styles.clearAllText}>Clear All</Text>
+            </TouchableOpacity>
           )}
           <TouchableOpacity
             style={styles.createButton}
@@ -365,5 +426,33 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+  clearAllButton: {
+    marginLeft: 'auto',
+    marginRight: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.error + '15',
+    borderWidth: 1,
+    borderColor: theme.colors.error + '40',
+  },
+  clearAllText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  dismissAction: {
+    backgroundColor: theme.colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
+  },
+  dismissActionText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
   },
 });
