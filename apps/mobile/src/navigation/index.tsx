@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { ParamListBase } from '@react-navigation/native';
@@ -19,7 +18,6 @@ import FleetHealthScreen from '../screens/FleetHealthScreen';
 import UsageScreen from '../screens/UsageScreen';
 import KeyManagementScreen from '../screens/KeyManagementScreen';
 import ComposeMessageScreen from '../screens/ComposeMessageScreen';
-import { navigationRef } from '../utils/navigationRef';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
 
@@ -217,31 +215,29 @@ export default function AppNavigation() {
   const { unreadCount } = useMessages();
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          tabBarIcon: ({ focused }) => {
-            let badge: number | undefined;
-            if (route.name === 'Messages') badge = unreadCount;
-            if (route.name === 'Tasks') badge = pendingCount;
-            return <TabIcon routeName={route.name} focused={focused} badge={badge} />;
-          },
-          tabBarShowLabel: true,
-          tabBarStyle: {
-            backgroundColor: '#0a0a0f',
-            borderTopColor: '#1a1a24',
-            paddingTop: 8,
-          },
-          tabBarActiveTintColor: '#00d4ff',
-          tabBarInactiveTintColor: '#6b7280',
-          headerShown: false,
-        })}
-      >
-        <Tab.Screen name="Home" component={HomeStackScreen} />
-        <Tab.Screen name="Messages" component={MessagesStackScreen} />
-        <Tab.Screen name="Tasks" component={TasksStackScreen} />
-        <Tab.Screen name="Settings" component={SettingsStackScreen} />
-      </Tab.Navigator>
-    </NavigationContainer>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused }) => {
+          let badge: number | undefined;
+          if (route.name === 'Messages') badge = unreadCount;
+          if (route.name === 'Tasks') badge = pendingCount;
+          return <TabIcon routeName={route.name} focused={focused} badge={badge} />;
+        },
+        tabBarShowLabel: true,
+        tabBarStyle: {
+          backgroundColor: '#0a0a0f',
+          borderTopColor: '#1a1a24',
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: '#00d4ff',
+        tabBarInactiveTintColor: '#6b7280',
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeStackScreen} />
+      <Tab.Screen name="Messages" component={MessagesStackScreen} />
+      <Tab.Screen name="Tasks" component={TasksStackScreen} />
+      <Tab.Screen name="Settings" component={SettingsStackScreen} />
+    </Tab.Navigator>
   );
 }
