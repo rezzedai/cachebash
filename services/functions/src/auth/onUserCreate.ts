@@ -56,10 +56,8 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
     await db.doc(`tenants/${uid}/config/firstKey`).set({
       key: Buffer.from(rawKey).toString("base64"),
       keyHash,
-      expiresAt: admin.firestore.Timestamp.fromDate(
-        new Date(Date.now() + 24 * 60 * 60 * 1000)
-      ),
       retrieved: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // 6. Create billing config (free tier default)
