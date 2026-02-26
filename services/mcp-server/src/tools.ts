@@ -92,6 +92,8 @@ export const TOOL_DEFINITIONS = [
         type: { type: "string", enum: ["task", "question", "dream", "sprint", "sprint-story", "all"], default: "all" },
         target: { type: "string", description: "Filter by target program ID", maxLength: 100 },
         limit: { type: "number", minimum: 1, maximum: 50, default: 10 },
+        requires_action: { type: "boolean", description: "Filter by actionability (true = actionable, false = informational)" },
+        include_archived: { type: "boolean", default: false, description: "Include auto-archived informational tasks" },
       },
     },
   },
