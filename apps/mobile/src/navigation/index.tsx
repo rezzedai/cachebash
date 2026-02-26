@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useNavigation, type ParamListBase } from '@react-navigation/native';
@@ -127,14 +127,23 @@ const iconStyles = StyleSheet.create({
 function ComposeButton() {
   const navigation = useNavigation<any>();
   return (
-    <View style={{ flexDirection: 'row', gap: 12, marginRight: 4 }}>
-      <Text
-        style={{ fontSize: 22, color: '#00d4ff', fontWeight: '600' }}
-        onPress={() => navigation.navigate('ComposeMessage')}
-        accessibilityLabel="New message"
-        accessibilityRole="button"
-      >+</Text>
-    </View>
+    <TouchableOpacity
+      onPress={() => navigation.navigate('ComposeMessage')}
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(0, 212, 255, 0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 4,
+      }}
+      activeOpacity={0.6}
+      accessibilityLabel="New message"
+      accessibilityRole="button"
+    >
+      <Text style={{ fontSize: 24, color: '#00d4ff', fontWeight: '600', lineHeight: 26 }}>+</Text>
+    </TouchableOpacity>
   );
 }
 
