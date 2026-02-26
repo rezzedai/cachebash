@@ -1,189 +1,232 @@
 /**
- * Rate limiter — Sliding window implementation.
- * Enforces per-user read/write limits and per-IP auth limits.
+ * Rate limiter — Fixed-window, per-key + per-tenant enforcement.
+ * SPEC 2 (Hardening Sprint).
+ *
+ * Architecture:
+ * - In-memory fixed-window counters as fast-path enforcement (0ms latency)
+ * - Firestore counters for cross-instance persistence + audit trail (async writes)
+ * - Counter docs have expiresAt for Firestore TTL auto-cleanup
+ *
+ * Firestore path: tenants/{uid}/usage/rate/{scope}/{windowKey}
+ *   scope = keyHash (per-key) | "_tenant" (aggregate) | "tool:{name}:{keyHash}"
+ *   windowKey = "min-YYYY-MM-DDTHH:mm"
  */
 
-// Read operations (120 req/min)
-export const READ_TOOLS = new Set([
-  "get_tasks",
-  "get_messages",
-  "list_sessions",
-  "get_fleet_health",
-  "query_message_history",
-  "get_sent_messages",
-  "list_groups",
-  "get_dead_letters",
-  "get_sprint",
-  "get_response",
-  "get_program_state",
-  "get_audit",
-  "get_cost_summary",
-  "get_comms_metrics",
-  "query_traces",
-  "list_keys",
-  "dream_peek",
-]);
+import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import { FieldValue } from "firebase-admin/firestore";
+import {
+  KEY_GLOBAL,
+  TOOL_LIMITS,
+  TENANT_AGGREGATE,
+  AUTH_ATTEMPT,
+  COUNTER_TTL_MS,
+} from "../config/rateLimits.js";
 
-const READ_LIMIT = 120; // requests per minute
-const WRITE_LIMIT = 60; // requests per minute
-const AUTH_LIMIT = 60; // attempts per minute per IP (raised from 10 for fleet-scale ops)
-const WINDOW_MS = 60 * 1000; // 1 minute
-const CLEANUP_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+// --- In-memory fixed-window counters ---
 
-interface RateLimitEntry {
-  timestamps: number[];
+interface WindowCounter {
+  count: number;
+  windowKey: string;
 }
 
-const rateLimits = new Map<string, RateLimitEntry>();
+const counters = new Map<string, WindowCounter>();
 
-export class RateLimitError extends Error {
-  resetIn: number;
-  constructor(message: string, resetIn: number) {
-    super(message);
-    this.name = "RateLimitError";
-    this.resetIn = resetIn;
+function getWindowKey(): string {
+  return `min-${new Date().toISOString().substring(0, 16)}`;
+}
+
+function getWindowResetAt(): Date {
+  const reset = new Date();
+  reset.setSeconds(0, 0);
+  reset.setMinutes(reset.getMinutes() + 1);
+  return reset;
+}
+
+function incrementCounter(cacheKey: string, limit: number): { allowed: boolean; count: number } {
+  const windowKey = getWindowKey();
+  const entry = counters.get(cacheKey);
+
+  if (entry && entry.windowKey === windowKey) {
+    if (entry.count >= limit) {
+      return { allowed: false, count: entry.count };
+    }
+    entry.count++;
+    return { allowed: true, count: entry.count };
+  }
+
+  // New window
+  counters.set(cacheKey, { count: 1, windowKey });
+  return { allowed: true, count: 1 };
+}
+
+// --- Firestore persistence (fire-and-forget) ---
+
+function persistCounter(
+  userId: string,
+  scope: string,
+  windowKey: string,
+): void {
+  try {
+    const db = getFirestore();
+    const ref = db.doc(`tenants/${userId}/usage/rate/${scope}/${windowKey}`);
+    const expiresAt = new Date(Date.now() + COUNTER_TTL_MS);
+    ref.set(
+      { count: FieldValue.increment(1), expiresAt, updatedAt: serverTimestamp() },
+      { merge: true },
+    ).catch(() => {});
+  } catch {
+    // Fire-and-forget — don't block request
   }
 }
 
-/**
- * Check if a user is within their rate limit for a specific tool.
- * @param userId - The user ID
- * @param tool - The tool name
- * @returns true if allowed, false if rate limited
- */
-export function checkRateLimit(userId: string, tool: string): boolean {
-  const category = READ_TOOLS.has(tool) ? "read" : "write";
-  const limit = category === "read" ? READ_LIMIT : WRITE_LIMIT;
-  const key = `${userId}:${category}`;
+// --- Rate limit result ---
 
-  const now = Date.now();
-  const entry = rateLimits.get(key) || { timestamps: [] };
-
-  // Remove timestamps outside the window (sliding window)
-  entry.timestamps = entry.timestamps.filter(ts => now - ts < WINDOW_MS);
-
-  if (entry.timestamps.length >= limit) {
-    return false;
-  }
-
-  // Add current timestamp
-  entry.timestamps.push(now);
-  rateLimits.set(key, entry);
-
-  return true;
+export interface RateLimitResult {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  resetAt: Date;
+  retryAfter?: number;
+  /** Which limit was hit: "key" | "tenant" | "tool:{name}" */
+  scope?: string;
 }
 
-/**
- * Get the number of seconds until the rate limit resets for a user/tool.
- * @param userId - The user ID
- * @param tool - The tool name
- * @returns seconds until reset (0 if not rate limited)
- */
-export function getRateLimitResetIn(userId: string, tool: string): number {
-  const category = READ_TOOLS.has(tool) ? "read" : "write";
-  const key = `${userId}:${category}`;
+// --- Per-request rate limit headers storage ---
+// Keyed by MCP sessionId, set during tool handler, read after HTTP response
 
-  const entry = rateLimits.get(key);
-  if (!entry || entry.timestamps.length === 0) return 0;
+const pendingHeaders = new Map<string, RateLimitResult>();
 
-  const now = Date.now();
-  const oldestTimestamp = entry.timestamps[0];
-  const resetMs = oldestTimestamp + WINDOW_MS - now;
-
-  return Math.ceil(resetMs / 1000);
+export function setRateLimitResult(sessionId: string, result: RateLimitResult): void {
+  pendingHeaders.set(sessionId, result);
 }
 
-/**
- * Check if an IP address is within the auth attempt rate limit.
- * @param ip - The IP address
- * @returns true if allowed, false if rate limited
- */
-export function checkAuthRateLimit(ip: string): boolean {
-  const key = `auth:${ip}`;
-
-  const now = Date.now();
-  const entry = rateLimits.get(key) || { timestamps: [] };
-
-  // Remove timestamps outside the window (sliding window)
-  entry.timestamps = entry.timestamps.filter(ts => now - ts < WINDOW_MS);
-
-  if (entry.timestamps.length >= AUTH_LIMIT) {
-    return false;
-  }
-
-  // Add current timestamp
-  entry.timestamps.push(now);
-  rateLimits.set(key, entry);
-
-  return true;
+export function consumeRateLimitResult(sessionId: string): RateLimitResult | undefined {
+  const result = pendingHeaders.get(sessionId);
+  pendingHeaders.delete(sessionId);
+  return result;
 }
 
+// --- Main enforcement ---
+
 /**
- * Clean up rate limit entries with no recent activity.
- * Called every 5 minutes to prevent memory growth.
+ * Check all rate limits for a request. Returns the most restrictive result.
+ * Checks in order: per-tool → per-key global → per-tenant aggregate.
+ * First failure short-circuits.
  */
-export function cleanupRateLimits(): void {
-  const now = Date.now();
+export function enforceRateLimit(
+  userId: string,
+  keyHash: string,
+  tool: string,
+): RateLimitResult {
+  const windowKey = getWindowKey();
+  const resetAt = getWindowResetAt();
 
-  for (const [key, entry] of rateLimits.entries()) {
-    // Remove timestamps outside the cleanup window
-    entry.timestamps = entry.timestamps.filter(ts => now - ts < CLEANUP_WINDOW_MS);
-
-    // Delete entry if no recent timestamps
-    if (entry.timestamps.length === 0) {
-      rateLimits.delete(key);
+  // 1. Per-key tool-specific limit
+  const toolConfig = TOOL_LIMITS[tool];
+  if (toolConfig) {
+    const toolScope = `tool:${tool}:${keyHash}`;
+    const toolResult = incrementCounter(toolScope, toolConfig.limit);
+    if (toolResult.allowed) {
+      persistCounter(userId, toolScope, windowKey);
+    }
+    if (!toolResult.allowed) {
+      const retryAfter = Math.ceil((resetAt.getTime() - Date.now()) / 1000);
+      return {
+        allowed: false,
+        limit: toolConfig.limit,
+        remaining: 0,
+        resetAt,
+        retryAfter,
+        scope: `tool:${tool}`,
+      };
     }
   }
-}
 
-// Per-tool rate limits (overrides generic category limit)
-// Key: tool name, Value: { limit: requests per minute, scope: "user" | "program" }
-const TOOL_RATE_LIMITS: Record<string, { limit: number; scope: string }> = {
-  update_program_state: { limit: 10, scope: "program" }, // 10 writes/min per program
-};
-
-/**
- * Check tool-specific rate limit (tighter than category limit).
- * Returns true if allowed, false if rate limited.
- * Only applies to tools in TOOL_RATE_LIMITS table.
- */
-export function checkToolRateLimit(userId: string, tool: string, programId: string): boolean {
-  const toolLimit = TOOL_RATE_LIMITS[tool];
-  if (!toolLimit) return true; // No tool-specific limit
-
-  const key = toolLimit.scope === "program"
-    ? `${userId}:tool:${tool}:${programId}`
-    : `${userId}:tool:${tool}`;
-
-  const now = Date.now();
-  const entry = rateLimits.get(key) || { timestamps: [] };
-  entry.timestamps = entry.timestamps.filter(ts => now - ts < WINDOW_MS);
-
-  if (entry.timestamps.length >= toolLimit.limit) {
-    return false;
+  // 2. Per-key global limit
+  const keyResult = incrementCounter(`key:${keyHash}`, KEY_GLOBAL.limit);
+  if (keyResult.allowed) {
+    persistCounter(userId, keyHash, windowKey);
+  }
+  if (!keyResult.allowed) {
+    const retryAfter = Math.ceil((resetAt.getTime() - Date.now()) / 1000);
+    return {
+      allowed: false,
+      limit: KEY_GLOBAL.limit,
+      remaining: 0,
+      resetAt,
+      retryAfter,
+      scope: "key",
+    };
   }
 
-  entry.timestamps.push(now);
-  rateLimits.set(key, entry);
-  return true;
+  // 3. Per-tenant aggregate limit
+  const tenantResult = incrementCounter(`tenant:${userId}`, TENANT_AGGREGATE.limit);
+  if (tenantResult.allowed) {
+    persistCounter(userId, "_tenant", windowKey);
+  }
+  if (!tenantResult.allowed) {
+    const retryAfter = Math.ceil((resetAt.getTime() - Date.now()) / 1000);
+    return {
+      allowed: false,
+      limit: TENANT_AGGREGATE.limit,
+      remaining: 0,
+      resetAt,
+      retryAfter,
+      scope: "tenant",
+    };
+  }
+
+  // All checks passed — return the most restrictive remaining count
+  const keyRemaining = KEY_GLOBAL.limit - keyResult.count;
+  const tenantRemaining = TENANT_AGGREGATE.limit - tenantResult.count;
+  const remaining = Math.min(keyRemaining, tenantRemaining);
+
+  return {
+    allowed: true,
+    limit: KEY_GLOBAL.limit,
+    remaining: Math.max(0, remaining),
+    resetAt,
+  };
 }
 
-/**
- * Get seconds until tool-specific rate limit resets.
- */
-export function getToolRateLimitResetIn(userId: string, tool: string, programId: string): number {
-  const toolLimit = TOOL_RATE_LIMITS[tool];
-  if (!toolLimit) return 0;
+// --- Auth rate limiting (per-IP, in-memory only) ---
 
-  const key = toolLimit.scope === "program"
-    ? `${userId}:tool:${tool}:${programId}`
-    : `${userId}:tool:${tool}`;
+export function checkAuthRateLimit(ip: string): boolean {
+  const result = incrementCounter(`auth:${ip}`, AUTH_ATTEMPT.limit);
+  return result.allowed;
+}
 
-  const entry = rateLimits.get(key);
-  if (!entry || entry.timestamps.length === 0) return 0;
+// --- Cleanup (called every 5 min) ---
 
-  const now = Date.now();
-  const oldestTimestamp = entry.timestamps[0];
-  const resetMs = oldestTimestamp + WINDOW_MS - now;
-  return Math.ceil(resetMs / 1000);
+export function cleanupRateLimits(): void {
+  const currentWindowKey = getWindowKey();
+  for (const [key, entry] of counters.entries()) {
+    if (entry.windowKey !== currentWindowKey) {
+      counters.delete(key);
+    }
+  }
+  // Clean stale pending headers
+  pendingHeaders.clear();
+}
+
+// --- Legacy exports (backward compat for existing index.ts imports) ---
+
+/** @deprecated Use enforceRateLimit instead */
+export function checkRateLimit(userId: string, _tool: string): boolean {
+  return true; // Replaced by enforceRateLimit
+}
+
+/** @deprecated Use enforceRateLimit instead */
+export function getRateLimitResetIn(_userId: string, _tool: string): number {
+  return 0;
+}
+
+/** @deprecated Use enforceRateLimit instead */
+export function checkToolRateLimit(_userId: string, _tool: string, _programId: string): boolean {
+  return true; // Replaced by enforceRateLimit
+}
+
+/** @deprecated Use enforceRateLimit instead */
+export function getToolRateLimitResetIn(_userId: string, _tool: string, _programId: string): number {
+  return 0;
 }

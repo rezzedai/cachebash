@@ -184,7 +184,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     action: args.action,
     status: "created",
     projectId: args.projectId || null,
-    boardItemId: args.boardItemId || undefined,
+    boardItemId: args.boardItemId || null,
     createdAt: now,
     encrypted: false,
     archived: false,
