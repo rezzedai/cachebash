@@ -61,9 +61,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // OAuth configuration
   const googleRedirectUri = 'com.googleusercontent.apps.922749444863-4g3prl9dm17ho82975ur3c9209r36s5q:/oauthredirect';
 
+  // Defensive: Check if Google OAuth env vars are defined before using them
+  // If undefined in production, provide empty strings to prevent app crash
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+  const hasGoogleOAuthConfig = googleIosClientId !== '' && googleWebClientId !== '';
+
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: googleIosClientId,
+    webClientId: googleWebClientId,
     redirectUri: googleRedirectUri,
   });
 
@@ -236,6 +242,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     setState((prev) => ({ ...prev, isLoading: true }));
 
+    // Defensive: If Google OAuth is not configured, fail gracefully
+    if (!hasGoogleOAuthConfig) {
+      setError('Google sign-in is not configured');
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return false;
+    }
+
     try {
       const result = await googlePromptAsync();
       // Response handling happens in the useEffect above
@@ -256,7 +269,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       return false;
     }
-  }, [googlePromptAsync]);
+  }, [googlePromptAsync, hasGoogleOAuthConfig]);
 
   const signInWithGitHub = useCallback(async (): Promise<boolean> => {
     setError(null);
