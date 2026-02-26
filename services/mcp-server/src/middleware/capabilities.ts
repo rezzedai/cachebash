@@ -116,6 +116,18 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read"],
+  // Grid programs — full operational access
+  iso: ["*"],
+  basher: ["*"],
+  alan: ["*"],
+  sark: ["*"],
+  quorra: ["*"],
+  casp: ["*"],
+  ram: ["*"],
+  radia: ["*"],
+  castor: ["*"],
+  vector: ["*"],
+  bit: ["*"],
   // External users — restricted, no admin/audit/keys/state-write
   default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "signal.read", "signal.write",
