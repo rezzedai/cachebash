@@ -1,7 +1,7 @@
-const useColor = !process.env.NO_COLOR && process.stdout.isTTY;
+import { colorLevel, ColorLevel, fg } from "./color-support.js";
 
 function color(code: number, text: string): string {
-  return useColor ? `\x1b[${code}m${text}\x1b[0m` : text;
+  return colorLevel >= ColorLevel.Basic ? `\x1b[${code}m${text}\x1b[0m` : text;
 }
 
 export const green = (t: string) => color(32, t);
@@ -35,7 +35,7 @@ ${bold("Options:")}
 }
 
 export function printSuccess(msg: string): void {
-  console.log(`${green("✓")} ${msg}`);
+  console.log(`${green("\u2713")} ${msg}`);
 }
 
 export function printWarning(msg: string): void {
@@ -43,15 +43,15 @@ export function printWarning(msg: string): void {
 }
 
 export function printError(msg: string): void {
-  console.error(`${red("✗")} ${msg}`);
+  console.error(`${red("\u2717")} ${msg}`);
 }
 
 export function printStep(msg: string): void {
-  console.log(`${dim("→")} ${msg}`);
+  console.log(`${dim("\u2192")} ${msg}`);
 }
 
 export class Spinner {
-  private frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  private frames = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
   private interval: ReturnType<typeof setInterval> | null = null;
   private i = 0;
 
@@ -77,3 +77,6 @@ export class Spinner {
     if (msg) console.log(msg);
   }
 }
+
+// Re-export color utilities for consumers that need RGB support
+export { colorLevel, ColorLevel, fg, fgRgb, bgRgb } from "./color-support.js";
