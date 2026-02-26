@@ -20,6 +20,7 @@ export function printHelp(): void {
 ${bold("Commands:")}
   init          Set up CacheBash MCP connection
   init --key    Use an existing API key
+  rotate        Rotate your API key (atomic replace)
   ping          Test MCP connectivity
   feedback      Submit feedback (bug report, feature request, or general)
 

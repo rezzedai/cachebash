@@ -10,7 +10,7 @@ import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFle
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
-import { createKeyHandler, revokeKeyHandler, listKeysHandler } from "./modules/keys.js";
+import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
@@ -53,6 +53,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Keys
   create_key: createKeyHandler,
   revoke_key: revokeKeyHandler,
+  rotate_key: rotateKeyHandler,
   list_keys: listKeysHandler,
 
   // Audit
@@ -479,6 +480,14 @@ export const TOOL_DEFINITIONS = [
         keyHash: { type: "string", description: "SHA-256 hash of the key to revoke" },
       },
       required: ["keyHash"],
+    },
+  },
+  {
+    name: "rotate_key",
+    description: "Rotate the calling API key. Atomically creates a new key and grace-expires the old one (30s window).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
     },
   },
   {

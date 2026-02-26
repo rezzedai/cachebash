@@ -37,6 +37,12 @@ export async function validateApiKey(
     // Phase 2: Check revocation
     if (data.revokedAt) return null;
 
+    // Grace window: rotated keys stay valid until expiresAt
+    if (data.expiresAt) {
+      const expiresAt = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+      if (expiresAt < new Date()) return null;
+    }
+
     // Determine programId — v1 keys won't have it, default to "legacy"
     const programId: ValidProgramId = data.programId || "legacy";
 

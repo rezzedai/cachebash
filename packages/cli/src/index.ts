@@ -2,6 +2,7 @@
 
 import { runInit } from "./commands/init.js";
 import { runPing } from "./commands/ping.js";
+import { runRotate } from "./commands/rotate.js";
 import { runFeedback } from "./commands/feedback.js";
 import { printBanner, printHelp, printError } from "./ui/output.js";
 
@@ -25,6 +26,9 @@ async function main(): Promise<void> {
     }
     case "ping":
       await runPing();
+      break;
+    case "rotate":
+      await runRotate();
       break;
     case "feedback": {
       // Parse --type/-t flag, default to "general"
