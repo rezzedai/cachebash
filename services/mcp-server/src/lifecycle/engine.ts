@@ -29,7 +29,7 @@ export type EntityType = "task" | "session" | "dream" | "sprint-story";
 export const TRANSITIONS: Record<EntityType, Record<LifecycleStatus, LifecycleStatus[]>> = {
   task: {
     created: ["active", "failed", "archived"],
-    active: ["blocked", "completing", "done", "failed"],
+    active: ["created", "blocked", "completing", "done", "failed"],
     blocked: ["active", "failed", "archived"],
     completing: ["done", "failed"],
     done: ["archived"],
