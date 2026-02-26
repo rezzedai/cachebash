@@ -116,6 +116,10 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read"],
+  // OAuth service accounts (client_credentials) — same as oauth
+  "oauth-service": ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+    "pulse.read", "pulse.write", "signal.read", "signal.write",
+    "state.read", "state.write", "sprint.read"],
   // Grid programs — full operational access
   iso: ["*"],
   basher: ["*"],

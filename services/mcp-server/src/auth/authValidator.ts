@@ -10,6 +10,8 @@ export interface AuthContext {
   encryptionKey: Buffer;
   programId: ValidProgramId;
   capabilities: string[];
+  /** OAuth granted scopes — only present for OAuth tokens */
+  oauthScopes?: string[];
 }
 
 function hashApiKey(apiKey: string): string {

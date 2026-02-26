@@ -155,10 +155,10 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(metadata.registration_endpoint).toBe(`${metadata.issuer}/register`);
       expect(metadata.revocation_endpoint).toBe(`${metadata.issuer}/revoke`);
       expect(metadata.response_types_supported).toEqual(["code"]);
-      expect(metadata.grant_types_supported).toEqual(["authorization_code", "refresh_token"]);
+      expect(metadata.grant_types_supported).toEqual(["authorization_code", "refresh_token", "client_credentials"]);
       expect(metadata.code_challenge_methods_supported).toEqual(["S256"]);
       expect(metadata.token_endpoint_auth_methods_supported).toEqual(["none"]);
-      expect(metadata.scopes_supported).toEqual(["mcp:full"]);
+      expect(metadata.scopes_supported).toEqual(["mcp:full", "mcp:read", "mcp:write", "mcp:admin"]);
     });
   });
 
