@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { usePolling } from './usePolling';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -60,6 +60,7 @@ export function useTasks(filter?: UseTasksOptions) {
   });
 
   const tasks = result.data || [];
+  const refetch = result.refetch;
 
   // Detect new tasks and fire notifications
   useEffect(() => {
@@ -94,13 +95,41 @@ export function useTasks(filter?: UseTasksOptions) {
   const pendingCount = tasks.filter((t) => t.status === 'created').length;
   const activeCount = tasks.filter((t) => t.status === 'active').length;
 
+  const dismissTask = useCallback(async (taskId: string) => {
+    if (!api) return;
+    try {
+      await api.claimTask(taskId);
+      await api.completeTask(taskId, { completed_status: 'SKIPPED' });
+      refetch();
+    } catch (err) {
+      console.error('Failed to dismiss task:', err);
+      throw err;
+    }
+  }, [api, refetch]);
+
+  const dismissAllPending = useCallback(async () => {
+    if (!api) return;
+    const pending = tasks.filter(t => t.status === 'created');
+    for (const task of pending) {
+      try {
+        await api.claimTask(task.id);
+        await api.completeTask(task.id, { completed_status: 'SKIPPED' });
+      } catch (err) {
+        console.error(`Failed to dismiss task ${task.id}:`, err);
+      }
+    }
+    refetch();
+  }, [api, tasks, refetch]);
+
   return {
     tasks,
     pendingCount,
     activeCount,
+    dismissTask,
+    dismissAllPending,
     error: result.error,
     isLoading: result.isLoading,
-    refetch: result.refetch,
+    refetch,
     lastUpdated: result.lastUpdated,
     isCached: result.isCached,
   };

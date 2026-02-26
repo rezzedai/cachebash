@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { OnboardingProvider, useOnboarding } from './src/contexts/OnboardingContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
@@ -80,15 +81,17 @@ function AppContentWithOnboarding() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ConnectivityProvider>
-        <AuthProvider>
-          <ErrorBoundary>
-            <StatusBar style="light" />
-            <AppContent />
-          </ErrorBoundary>
-        </AuthProvider>
-      </ConnectivityProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ConnectivityProvider>
+          <AuthProvider>
+            <ErrorBoundary>
+              <StatusBar style="light" />
+              <AppContent />
+            </ErrorBoundary>
+          </AuthProvider>
+        </ConnectivityProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
