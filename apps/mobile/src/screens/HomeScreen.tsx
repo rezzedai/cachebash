@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   ScrollView,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
 import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
@@ -36,6 +38,7 @@ type Props = {
 
 export default function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { api } = useAuth();
   const { sessions, programs, isLoading, refetch, error, isCached } = useSessions();
   const { tasks, pendingCount } = useTasks();
   const { messages, unreadCount } = useMessages();
@@ -487,6 +490,27 @@ export default function HomeScreen({ navigation }: Props) {
                     onPress={() => {
                       haptic.light();
                       navigation.navigate('SprintDetail', { sprint });
+                    }}
+                    onLongPress={() => {
+                      haptic.medium();
+                      Alert.alert(
+                        'Complete Sprint',
+                        `Mark "${sprint.projectName}" as complete?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Complete',
+                            onPress: async () => {
+                              try {
+                                await api?.completeSprint(sprint.id);
+                                refetch();
+                              } catch {
+                                Alert.alert('Error', 'Failed to complete sprint');
+                              }
+                            },
+                          },
+                        ]
+                      );
                     }}
                     activeOpacity={0.7}
                     accessibilityLabel={`Sprint: ${sprint.projectName}, ${completed} of ${total} stories complete`}
