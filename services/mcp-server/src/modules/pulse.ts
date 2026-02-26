@@ -130,7 +130,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     status: lifecycleStatus,
     progress: args.progress ?? null,
     lastUpdate: now,
-    archived: false,
+    archived: lifecycleStatus === "done",
   };
 
   if (args.projectName) updateData.projectName = args.projectName;
