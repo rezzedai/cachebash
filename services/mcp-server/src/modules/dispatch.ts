@@ -68,6 +68,11 @@ const CompleteTaskSchema = z.object({
   error_class: z.enum(["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"]).optional(),
 });
 
+const UnclaimTaskSchema = z.object({
+  taskId: z.string(),
+  reason: z.enum(["stale_recovery", "manual", "timeout"]).optional(),
+});
+
 const BatchClaimTasksSchema = z.object({
   taskIds: z.array(z.string()).min(1).max(50),
   sessionId: z.string().optional(),
@@ -414,6 +419,103 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     return jsonResult({
       success: false,
       error: `Failed to claim task: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = UnclaimTaskSchema.parse(rawArgs);
+  const db = getFirestore();
+  const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(taskRef);
+      if (!doc.exists) return { error: "Task not found" };
+
+      const data = doc.data()!;
+
+      if (data.status !== "active") {
+        return { error: `Task not unclaimable (status: ${data.status}). Only active tasks can be unclaimed.` };
+      }
+
+      // Authorization: callable by the claiming session, any program with 'iso' identity, or admin/legacy key
+      const claimingSession = data.sessionId as string | undefined;
+      const isClaimingSession = claimingSession && claimingSession === auth.programId;
+      const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
+      const isAdmin = auth.programId === "legacy";
+      if (!isClaimingSession && !isIso && !isAdmin) {
+        return { error: `Unauthorized: only the claiming session, ISO, or admin can unclaim this task.` };
+      }
+
+      // Validate lifecycle transition: active -> created
+      transition("task", "active", "created");
+
+      // Compute new unclaimCount
+      const currentUnclaimCount = (data.unclaimCount as number) || 0;
+      const newUnclaimCount = currentUnclaimCount + 1;
+
+      const updateFields: Record<string, unknown> = {
+        status: "created",
+        sessionId: null,
+        startedAt: null,
+        lastHeartbeat: null,
+        unclaimCount: newUnclaimCount,
+        lastUnclaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastUnclaimReason: args.reason || "manual",
+      };
+
+      // Circuit breaker: flag task for manual review at 3+ unclaims
+      if (newUnclaimCount >= 3) {
+        updateFields.requires_action = true;
+        updateFields.flagged = true;
+      }
+
+      tx.update(taskRef, updateFields);
+
+      return {
+        data,
+        newUnclaimCount,
+        flagged: newUnclaimCount >= 3,
+      };
+    });
+
+    if ("error" in result) return jsonResult({ success: false, error: result.error });
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: "TASK_UNCLAIMED",
+      program_id: auth.programId,
+      task_id: args.taskId,
+      reason: args.reason || "manual",
+      unclaim_count: result.newUnclaimCount,
+      flagged: result.flagged,
+    });
+
+    // Analytics: task_lifecycle unclaim
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "task_lifecycle",
+      programId: auth.programId,
+      toolName: "unclaim_task",
+      taskType: result.data!.type as string,
+      priority: result.data!.priority as string,
+      action: result.data!.action as string,
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      taskId: args.taskId,
+      unclaimCount: result.newUnclaimCount,
+      flagged: result.flagged || false,
+      message: result.flagged
+        ? "Task unclaimed and flagged for manual review (3+ unclaims)."
+        : "Task unclaimed and re-queued.",
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to unclaim task: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 }
