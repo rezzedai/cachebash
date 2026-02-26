@@ -66,6 +66,19 @@ const CompleteTaskSchema = z.object({
   error_class: z.enum(["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"]).optional(),
 });
 
+const BatchClaimTasksSchema = z.object({
+  taskIds: z.array(z.string()).min(1).max(50),
+  sessionId: z.string().optional(),
+});
+
+const BatchCompleteTasksSchema = z.object({
+  taskIds: z.array(z.string()).min(1).max(50),
+  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
+  result: z.string().max(4000).optional(),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+});
+
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
@@ -515,5 +528,174 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       error: `Failed to complete task: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
+}
+
+export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = BatchClaimTasksSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  const results: Array<{ taskId: string; success: boolean; error?: string; title?: string }> = [];
+
+  for (const taskId of args.taskIds) {
+    const taskRef = db.doc(`tenants/${auth.userId}/tasks/${taskId}`);
+    try {
+      const txResult = await db.runTransaction(async (tx) => {
+        const doc = await tx.get(taskRef);
+        if (!doc.exists) return { error: "Task not found" };
+
+        const data = doc.data()!;
+
+        // Idempotent: already claimed by this session
+        if (data.status === "active" && data.sessionId === args.sessionId) {
+          return { alreadyClaimed: true, data };
+        }
+
+        if (data.status !== "created") {
+          return { error: `Task not claimable (status: ${data.status})` };
+        }
+
+        transition("task", "created", "active");
+
+        tx.update(taskRef, {
+          status: "active",
+          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+          sessionId: args.sessionId || null,
+          lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+          attempt_count: admin.firestore.FieldValue.increment(1),
+        });
+
+        return { data };
+      });
+
+      if ("error" in txResult) {
+        results.push({ taskId, success: false, error: txResult.error as string });
+        continue;
+      }
+
+      // Fire-and-forget: sync + telemetry per task
+      if (!txResult.alreadyClaimed) {
+        syncTaskClaimed(auth.userId, taskId);
+        emitEvent(auth.userId, {
+          event_type: "TASK_CLAIMED",
+          program_id: auth.programId,
+          session_id: args.sessionId || undefined,
+          task_id: taskId,
+        });
+        emitAnalyticsEvent(auth.userId, {
+          eventType: "task_lifecycle",
+          programId: auth.programId,
+          sessionId: args.sessionId,
+          toolName: "batch_claim_tasks",
+          taskType: txResult.data!.type as string,
+          priority: txResult.data!.priority as string,
+          action: txResult.data!.action as string,
+          success: true,
+        });
+      }
+
+      const decrypted = decryptTaskFields(txResult.data!, auth.encryptionKey);
+      results.push({ taskId, success: true, title: decrypted.title });
+    } catch (error) {
+      results.push({ taskId, success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const claimed = results.filter(r => r.success).length;
+  const failed = results.filter(r => !r.success).length;
+
+  return jsonResult({ success: true, results, claimed, failed });
+}
+
+export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = BatchCompleteTasksSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  // Soft telemetry validation
+  const missingFields: string[] = [];
+  if (!args.model) missingFields.push("model");
+  if (!args.provider) missingFields.push("provider");
+  if (missingFields.length > 0) {
+    db.collection(`tenants/${auth.userId}/telemetryGaps`).add({
+      taskIds: args.taskIds,
+      programId: auth.programId,
+      missingFields,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((err: unknown) => console.error("[Telemetry] Failed to log gap:", err));
+  }
+
+  const results: Array<{ taskId: string; success: boolean; error?: string }> = [];
+
+  for (const taskId of args.taskIds) {
+    const taskRef = db.doc(`tenants/${auth.userId}/tasks/${taskId}`);
+    try {
+      let taskData: { instructions?: string; source?: string; target?: string; dreamId?: string } = {};
+
+      await db.runTransaction(async (tx) => {
+        const doc = await tx.get(taskRef);
+        if (!doc.exists) throw new Error("Task not found");
+
+        const data = doc.data()!;
+        const current = data.status as LifecycleStatus;
+        taskData = { instructions: data.instructions, source: data.source, target: data.target, dreamId: data.dreamId };
+
+        const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
+        transition("task", current, lifecycleTarget as LifecycleStatus);
+
+        const updateFields: Record<string, unknown> = {
+          status: args.completed_status === "FAILED" ? "failed" : "done",
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastHeartbeat: null,
+          completed_status: args.completed_status,
+        };
+        if (args.result) updateFields.result = args.result;
+        if (args.model) updateFields.model = args.model;
+        if (args.provider) updateFields.provider = args.provider;
+
+        tx.update(taskRef, updateFields);
+      });
+
+      // Fire-and-forget: sync + telemetry per task
+      syncTaskCompleted(auth.userId, taskId);
+
+      emitEvent(auth.userId, {
+        event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
+        program_id: auth.programId,
+        task_id: taskId,
+        model: args.model,
+        prompt_hash: taskData.instructions ? computeHash(taskData.instructions) : undefined,
+        config_hash: taskData.source ? computeHash(`${taskData.source}:${taskData.target}:${args.model}`) : undefined,
+      });
+
+      emitAnalyticsEvent(auth.userId, {
+        eventType: "task_lifecycle",
+        programId: auth.programId,
+        toolName: "batch_complete_tasks",
+        success: args.completed_status !== "FAILED",
+      });
+
+      // Budget tracking per task
+      if (taskData.dreamId) {
+        try {
+          const budgetCheck = await checkDreamBudget(auth.userId, taskData.dreamId);
+          if (!budgetCheck.withinBudget) {
+            emitEvent(auth.userId, {
+              event_type: "BUDGET_EXCEEDED",
+              program_id: auth.programId,
+              task_id: taskId,
+            });
+          }
+        } catch { /* budget check is best-effort */ }
+      }
+
+      results.push({ taskId, success: true });
+    } catch (error) {
+      results.push({ taskId, success: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const completed = results.filter(r => r.success).length;
+  const failed = results.filter(r => !r.success).length;
+
+  return jsonResult({ success: true, results, completed, failed });
 }
 
