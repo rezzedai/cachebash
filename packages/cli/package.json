@@ -1,5 +1,5 @@
 {
-  "name": "cachebash",
+  "name": "@rezzed.ai/cachebash",
   "version": "0.1.0",
   "description": "CacheBash CLI — MCP agent coordination for AI workflows",
   "bin": { "cachebash": "./bin/cachebash.js" },
