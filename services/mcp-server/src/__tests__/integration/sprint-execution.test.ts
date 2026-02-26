@@ -29,6 +29,7 @@ describe("Sprint Execution Integration", () => {
     it("should create a sprint document with correct structure", async () => {
       const sprintId = "sprint-001";
       const sprintData = {
+        type: "sprint",
         projectName: "Test Project",
         branch: "feature/test",
         status: "active",
@@ -57,9 +58,9 @@ describe("Sprint Execution Integration", () => {
         },
       };
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set(sprintData);
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set(sprintData);
 
-      const sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const data = sprintDoc.data();
 
       expect(sprintDoc.exists).toBe(true);
@@ -79,7 +80,8 @@ describe("Sprint Execution Integration", () => {
         { id: "s4", title: "Wave 2 Story 1", wave: 2 },
       ];
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Multi-Wave Sprint",
         branch: "feature/multi-wave",
         status: "active",
@@ -92,7 +94,7 @@ describe("Sprint Execution Integration", () => {
         })),
       });
 
-      const sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const data = sprintDoc.data();
 
       const wave0Stories = data?.stories.filter((s: any) => s.wave === 0);
@@ -111,7 +113,8 @@ describe("Sprint Execution Integration", () => {
       const storyId = "story-1";
 
       // Create sprint
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Test Project",
         branch: "feature/test",
         status: "active",
@@ -129,11 +132,11 @@ describe("Sprint Execution Integration", () => {
       });
 
       // Ensure document is fully committed before updating
-      let sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      let sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.exists).toBe(true);
 
       // Transition to active
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         stories: [
           {
             id: storyId,
@@ -148,7 +151,7 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
-      sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       let story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("active");
@@ -156,7 +159,7 @@ describe("Sprint Execution Integration", () => {
       expect(story.progress).toBe(50);
 
       // Transition to complete
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         stories: [
           {
             id: storyId,
@@ -171,7 +174,7 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
-      sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("complete");
@@ -183,7 +186,8 @@ describe("Sprint Execution Integration", () => {
       const sprintId = "sprint-004";
       const storyId = "story-fail";
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Test Project",
         branch: "feature/test",
         status: "active",
@@ -202,18 +206,18 @@ describe("Sprint Execution Integration", () => {
       });
 
       // Ensure document exists before updating
-      let sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      let sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.exists).toBe(true);
 
       // Mark as failed
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         "stories.0.status": "failed",
         "stories.0.failedAt": admin.firestore.FieldValue.serverTimestamp(),
         "stories.0.error": "Build failed",
         "stories.0.retryCount": 1,
       });
 
-      sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("failed");
@@ -225,7 +229,8 @@ describe("Sprint Execution Integration", () => {
     it("should handle skipped story status", async () => {
       const sprintId = "sprint-005";
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Test Project",
         branch: "feature/test",
         status: "active",
@@ -243,7 +248,7 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
-      const sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const story = sprintDoc.data()?.stories[0];
 
       expect(story.status).toBe("skipped");
@@ -256,7 +261,8 @@ describe("Sprint Execution Integration", () => {
       const sprintId = "sprint-006";
 
       // Create sprint with two waves
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Wave Test",
         branch: "feature/waves",
         status: "active",
@@ -270,7 +276,7 @@ describe("Sprint Execution Integration", () => {
       });
 
       // Check wave 0 is complete
-      let sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      let sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.exists).toBe(true);
       let data = sprintDoc.data();
       const wave0Stories = data?.stories.filter((s: any) => s.wave === 0);
@@ -279,18 +285,19 @@ describe("Sprint Execution Integration", () => {
       expect(allWave0Complete).toBe(true);
 
       // Advance to wave 1
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         currentWave: 1,
       });
 
-      sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.data()?.currentWave).toBe(1);
     });
 
     it("should handle concurrent story execution within a wave", async () => {
       const sprintId = "sprint-007";
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Concurrent Test",
         branch: "feature/concurrent",
         status: "active",
@@ -307,7 +314,7 @@ describe("Sprint Execution Integration", () => {
         ],
       });
 
-      const sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const activeStories = sprintDoc.data()?.stories.filter((s: any) => s.status === "active");
 
       expect(activeStories).toHaveLength(3);
@@ -319,7 +326,8 @@ describe("Sprint Execution Integration", () => {
     it("should complete sprint with summary stats", async () => {
       const sprintId = "sprint-008";
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Complete Test",
         branch: "feature/complete",
         status: "active",
@@ -334,7 +342,7 @@ describe("Sprint Execution Integration", () => {
       });
 
       // Calculate summary
-      const sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.exists).toBe(true);
       const stories = sprintDoc.data()?.stories || [];
       const summary = {
@@ -345,13 +353,13 @@ describe("Sprint Execution Integration", () => {
       };
 
       // Complete sprint
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         status: "complete",
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         summary,
       });
 
-      const completedSprint = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      const completedSprint = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const data = completedSprint.data();
 
       expect(data?.status).toBe("complete");
@@ -366,7 +374,8 @@ describe("Sprint Execution Integration", () => {
       const sprintId = "sprint-009";
       const createdAt = admin.firestore.Timestamp.now();
 
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).set({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
+        type: "sprint",
         projectName: "Duration Test",
         branch: "feature/duration",
         status: "active",
@@ -378,19 +387,19 @@ describe("Sprint Execution Integration", () => {
       });
 
       // Ensure document exists
-      let sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      let sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       expect(sprintDoc.exists).toBe(true);
 
       // Simulate some time passing
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const completedAt = admin.firestore.Timestamp.now();
-      await db.collection(`tenants/${userId}/sprints`).doc(sprintId).update({
+      await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         status: "complete",
         completedAt,
       });
 
-      sprintDoc = await db.collection(`tenants/${userId}/sprints`).doc(sprintId).get();
+      sprintDoc = await db.collection(`tenants/${userId}/tasks`).doc(sprintId).get();
       const data = sprintDoc.data();
 
       const durationMs = data?.completedAt.toMillis() - data?.createdAt.toMillis();
