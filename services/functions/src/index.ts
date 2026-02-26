@@ -6,7 +6,7 @@ admin.initializeApp();
 export { onUserCreate } from "./auth/onUserCreate";
 
 // Key management (callable)
-export { createUserKey, revokeUserKey, updateKeyLabel } from "./auth/keyManagement";
+export { createUserKey, revokeUserKey, rotateApiKey, updateKeyLabel } from "./auth/keyManagement";
 
 // CLI auth (HTTP)
 export { cliAuthApprove, cliAuthStatus } from "./auth/cliAuth";
