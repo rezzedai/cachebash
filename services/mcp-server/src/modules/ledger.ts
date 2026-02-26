@@ -29,6 +29,7 @@ const BASE_COSTS: Record<string, number> = {
   complete_sprint: 0.001,
   create_key: 0.001,
   revoke_key: 0.001,
+  rotate_key: 0.001,
   list_keys: 0.0005,
   get_audit: 0.0005,
   get_program_state: 0.0005,
