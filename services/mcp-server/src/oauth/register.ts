@@ -54,7 +54,7 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-export async function handleOAuthRegister(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+export async function handleOAuthRegister(req: http.IncomingMessage, res: http.ServerResponse, authenticatedUserId?: string): Promise<void> {
   const clientIp = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 
   if (!checkDcrRateLimit(clientIp)) {
@@ -79,48 +79,83 @@ export async function handleOAuthRegister(req: http.IncomingMessage, res: http.S
     return sendJson(res, 400, { error: "invalid_client_metadata", error_description: "client_name must be 256 characters or fewer" });
   }
 
-  // Validate redirect_uris
-  if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0) {
-    return sendJson(res, 400, { error: "invalid_redirect_uri", error_description: "redirect_uris must be a non-empty array" });
-  }
-  for (const uri of body.redirect_uris) {
-    if (typeof uri !== "string" || !validateRedirectUri(uri)) {
-      return sendJson(res, 400, { error: "invalid_redirect_uri", error_description: `Invalid redirect_uri: ${uri}. Must be localhost or HTTPS.` });
+  // Validate redirect_uris (if provided)
+  if (body.redirect_uris && Array.isArray(body.redirect_uris)) {
+    for (const uri of body.redirect_uris) {
+      if (typeof uri !== "string" || !validateRedirectUri(uri)) {
+        return sendJson(res, 400, { error: "invalid_redirect_uri", error_description: `Invalid redirect_uri: ${uri}. Must be localhost or HTTPS.` });
+      }
     }
   }
 
   // Validate grant_types
-  const grantTypes = body.grant_types || ["authorization_code"];
-  if (!Array.isArray(grantTypes) || !grantTypes.includes("authorization_code")) {
-    return sendJson(res, 400, { error: "invalid_client_metadata", error_description: "grant_types must include authorization_code" });
+  const grantTypes: string[] = body.grant_types || ["authorization_code"];
+  if (!Array.isArray(grantTypes)) {
+    return sendJson(res, 400, { error: "invalid_client_metadata", error_description: "grant_types must be an array" });
+  }
+
+  const isServiceAccount = grantTypes.includes("client_credentials");
+  const isPublicClient = grantTypes.includes("authorization_code");
+
+  if (!isServiceAccount && !isPublicClient) {
+    return sendJson(res, 400, { error: "invalid_client_metadata", error_description: "grant_types must include authorization_code or client_credentials" });
+  }
+
+  // Service accounts require authenticated user (tenant scoping)
+  if (isServiceAccount && !authenticatedUserId) {
+    return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required to register service accounts" });
+  }
+
+  // Service accounts (client_credentials) don't need redirect_uris
+  if (isPublicClient && (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0)) {
+    return sendJson(res, 400, { error: "invalid_redirect_uri", error_description: "redirect_uris required for authorization_code grant" });
   }
 
   const clientId = crypto.randomUUID();
-  const responseTypes = body.response_types || ["code"];
-  const tokenEndpointAuthMethod = body.token_endpoint_auth_method || "none";
+  const responseTypes = isPublicClient ? (body.response_types || ["code"]) : [];
+  const tokenEndpointAuthMethod = isServiceAccount ? "client_secret_post" : (body.token_endpoint_auth_method || "none");
 
   const db = getFirestore();
   const now = FieldValue.serverTimestamp();
 
-  await db.collection("oauthClients").doc(clientId).set({
+  const clientDoc: Record<string, unknown> = {
     clientId,
     clientName: body.client_name,
-    redirectUris: body.redirect_uris,
+    redirectUris: isPublicClient ? body.redirect_uris : [],
     grantTypes,
     responseTypes,
     tokenEndpointAuthMethod,
     createdAt: now,
     lastUsedAt: now,
-  });
+  };
 
-  sendJson(res, 201, {
+  // For service accounts, generate and store a client secret
+  let clientSecret: string | undefined;
+  if (isServiceAccount) {
+    clientSecret = "cbs_" + crypto.randomBytes(32).toString("hex");
+    const secretHash = crypto.createHash("sha256").update(clientSecret).digest("hex");
+    clientDoc.clientSecretHash = secretHash;
+    clientDoc.isServiceAccount = true;
+    clientDoc.userId = authenticatedUserId;
+  }
+
+  await db.collection("oauthClients").doc(clientId).set(clientDoc);
+
+  const response: Record<string, unknown> = {
     client_id: clientId,
     client_name: body.client_name,
-    redirect_uris: body.redirect_uris,
+    redirect_uris: isPublicClient ? body.redirect_uris : [],
     grant_types: grantTypes,
     response_types: responseTypes,
     token_endpoint_auth_method: tokenEndpointAuthMethod,
-  });
+  };
+
+  // Return secret only once
+  if (clientSecret) {
+    response.client_secret = clientSecret;
+  }
+
+  sendJson(res, 201, response);
 }
 
 /** Cleanup stale DCR rate limit entries (call periodically) */

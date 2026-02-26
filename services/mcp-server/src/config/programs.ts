@@ -22,8 +22,8 @@ export function isRegisteredProgram(id: string): id is ProgramId {
   return (REGISTERED_PROGRAMS as readonly string[]).includes(id);
 }
 
-/** Special program IDs for backward compat, mobile, and OAuth */
-export const SPECIAL_PROGRAMS = ['legacy', 'mobile', 'oauth'] as const;
+/** Special program IDs for backward compat, mobile, OAuth, and service accounts */
+export const SPECIAL_PROGRAMS = ['legacy', 'mobile', 'oauth', 'oauth-service'] as const;
 export type SpecialProgramId = typeof SPECIAL_PROGRAMS[number];
 
 /** All valid program IDs including special ones */

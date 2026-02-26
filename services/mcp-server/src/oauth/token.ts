@@ -51,8 +51,11 @@ export async function handleOAuthToken(req: http.IncomingMessage, res: http.Serv
   if (grantType === "refresh_token") {
     return handleRefreshTokenGrant(params, res);
   }
+  if (grantType === "client_credentials") {
+    return handleClientCredentialsGrant(params, res);
+  }
 
-  return sendJson(res, 400, { error: "unsupported_grant_type", error_description: "Supported: authorization_code, refresh_token" });
+  return sendJson(res, 400, { error: "unsupported_grant_type", error_description: "Supported: authorization_code, refresh_token, client_credentials" });
 }
 
 async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.ServerResponse): Promise<void> {
@@ -266,6 +269,123 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
   } catch (error) {
     console.error("[OAuth] Refresh token exchange failed:", error);
     return sendJson(res, 400, { error: "invalid_grant" });
+  }
+}
+
+// In-memory rate limit for client_credentials: 10 req/min/client_id
+const ccRateLimits = new Map<string, number[]>();
+const CC_LIMIT = 10;
+const CC_WINDOW_MS = 60 * 1000;
+
+function checkCcRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const timestamps = ccRateLimits.get(clientId) || [];
+  const filtered = timestamps.filter((ts) => now - ts < CC_WINDOW_MS);
+  if (filtered.length >= CC_LIMIT) {
+    ccRateLimits.set(clientId, filtered);
+    return false;
+  }
+  filtered.push(now);
+  ccRateLimits.set(clientId, filtered);
+  return true;
+}
+
+async function handleClientCredentialsGrant(params: URLSearchParams, res: http.ServerResponse): Promise<void> {
+  const clientId = params.get("client_id");
+  const clientSecret = params.get("client_secret");
+  const scope = params.get("scope") || "mcp:full";
+
+  if (!clientId || !clientSecret) {
+    return sendJson(res, 400, { error: "invalid_request", error_description: "client_id and client_secret are required" });
+  }
+
+  // Prefix check
+  if (!clientSecret.startsWith("cbs_")) {
+    return sendJson(res, 400, { error: "invalid_client" });
+  }
+
+  // Rate limit
+  if (!checkCcRateLimit(clientId)) {
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+    res.end(JSON.stringify({ error: "too_many_requests", error_description: "Token request rate limit exceeded. Try again in 1 minute." }));
+    return;
+  }
+
+  const db = getFirestore();
+
+  try {
+    const clientDoc = await db.doc(`oauthClients/${clientId}`).get();
+    if (!clientDoc.exists) {
+      return sendJson(res, 400, { error: "invalid_client" });
+    }
+
+    const clientData = clientDoc.data()!;
+
+    // Verify this is a service account client
+    if (!clientData.isServiceAccount || !clientData.grantTypes?.includes("client_credentials")) {
+      return sendJson(res, 400, { error: "unauthorized_client", error_description: "Client is not authorized for client_credentials grant" });
+    }
+
+    // Verify client secret
+    const secretHash = crypto.createHash("sha256").update(clientSecret).digest("hex");
+    if (secretHash !== clientData.clientSecretHash) {
+      return sendJson(res, 400, { error: "invalid_client" });
+    }
+
+    // Service account must have a creating user (tenant scoping)
+    // Look up the tenant from the client's userId
+    const userId = clientData.userId;
+    if (!userId) {
+      return sendJson(res, 400, { error: "invalid_client", error_description: "Service account not associated with a tenant" });
+    }
+
+    const grantedScopes = scope.split(" ").filter(Boolean);
+
+    // Generate access token only (no refresh token for client_credentials)
+    const accessToken = generateToken("cbo_");
+    const accessHash = hashToken(accessToken);
+    const now = new Date();
+    const accessExpiresAt = new Date(now.getTime() + 3600 * 1000);
+
+    await db.doc(`oauthTokens/${accessHash}`).set({
+      tokenHash: accessHash,
+      tokenPrefix: "cbo_",
+      type: "access",
+      clientId,
+      userId,
+      scope,
+      grantedScopes,
+      programId: "oauth-service",
+      familyId: null,
+      createdAt: Timestamp.fromDate(now),
+      expiresAt: Timestamp.fromDate(accessExpiresAt),
+      revokedAt: null,
+      active: true,
+      parentRefreshTokenHash: null,
+    });
+
+    // Update lastUsedAt on client
+    db.doc(`oauthClients/${clientId}`).update({ lastUsedAt: Timestamp.fromDate(now) }).catch(() => {});
+
+    return sendJson(res, 200, {
+      access_token: accessToken,
+      token_type: "Bearer",
+      expires_in: 3600,
+      scope,
+    });
+  } catch (error) {
+    console.error("[OAuth] Client credentials grant failed:", error);
+    return sendJson(res, 400, { error: "invalid_client" });
+  }
+}
+
+/** Cleanup stale client_credentials rate limit entries */
+export function cleanupCcRateLimits(): void {
+  const now = Date.now();
+  for (const [id, timestamps] of ccRateLimits.entries()) {
+    const filtered = timestamps.filter((ts) => now - ts < CC_WINDOW_MS);
+    if (filtered.length === 0) ccRateLimits.delete(id);
+    else ccRateLimits.set(id, filtered);
   }
 }
 

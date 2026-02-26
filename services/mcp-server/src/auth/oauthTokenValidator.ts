@@ -47,8 +47,9 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Fire-and-forget: update lastUsedAt
     db.doc(`oauthTokens/${tokenHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
 
-    // Load capabilities
+    // Load capabilities — use token's programId (oauth or oauth-service)
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+    const programId = data.programId === "oauth-service" ? "oauth-service" : "oauth";
 
     // Pass granted scopes through capabilities for scope enforcement
     const grantedScopes = data.grantedScopes || (data.scope ? data.scope.split(" ") : ["mcp:full"]);
@@ -57,8 +58,8 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
-      programId: "oauth",
-      capabilities: getDefaultCapabilities("oauth"),
+      programId: programId as import("../config/programs.js").ValidProgramId,
+      capabilities: getDefaultCapabilities(programId),
       oauthScopes: grantedScopes,
     };
   } catch (error) {

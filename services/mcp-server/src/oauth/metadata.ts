@@ -27,7 +27,7 @@ export function handleOAuthMetadata(req: http.IncomingMessage, res: http.ServerR
     registration_endpoint: `${issuer}/register`,
     revocation_endpoint: `${issuer}/revoke`,
     response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
+    grant_types_supported: ["authorization_code", "refresh_token", "client_credentials"],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
     scopes_supported: ["mcp:full", "mcp:read", "mcp:write", "mcp:admin"],

@@ -33,8 +33,9 @@ import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
 import { handleOAuthAuthorize } from "./oauth/authorize.js";
 import { handleOAuthConsent } from "./oauth/consent.js";
 import { handleOAuthCallback } from "./oauth/callback.js";
-import { handleOAuthToken } from "./oauth/token.js";
+import { handleOAuthToken, cleanupCcRateLimits } from "./oauth/token.js";
 import { handleOAuthRevoke } from "./oauth/revoke.js";
+import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -286,7 +287,14 @@ async function main() {
       return handleOAuthMetadata(req, res);
     }
     if (url === "/register" && req.method === "POST") {
-      return handleOAuthRegister(req, res);
+      // Pass optional Bearer auth for service account registration
+      const regToken = extractBearerToken(req.headers.authorization);
+      let regUserId: string | undefined;
+      if (regToken) {
+        const regAuth = await validateAuth(regToken);
+        if (regAuth) regUserId = regAuth.userId;
+      }
+      return handleOAuthRegister(req, res, regUserId);
     }
     if (url === "/authorize" && req.method === "GET") {
       return handleOAuthAuthorize(req, res);
@@ -302,6 +310,15 @@ async function main() {
     }
     if (url === "/revoke" && req.method === "POST") {
       return handleOAuthRevoke(req, res);
+    }
+
+    // Service account management (requires Bearer auth)
+    if (url?.startsWith("/oauth/service-accounts")) {
+      const saToken = extractBearerToken(req.headers.authorization);
+      if (!saToken) return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required" });
+      const saAuth = await validateAuth(saToken);
+      if (!saAuth) return sendJson(res, 401, { error: "unauthorized", error_description: "Invalid token" });
+      return handleServiceAccounts(req, res, saAuth);
     }
 
     // REST API
@@ -656,6 +673,7 @@ async function main() {
     cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
     cleanupDcrRateLimits();
+    cleanupCcRateLimits();
     // TTL cleanup for expired relay messages — run per distinct tenant
     const cleanedUserIds = new Set<string>();
     for (const [, info] of sessions.entries()) {
