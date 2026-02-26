@@ -358,7 +358,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       }
 
       if (data.status !== "created") {
-        return { error: `Task not claimable (status: ${data.status})` };
+        return { contention: true, error: `Task not claimable (status: ${data.status})`, data };
       }
 
       // Validate lifecycle transition
@@ -375,7 +375,13 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       return { data };
     });
 
-    if ("error" in result) return jsonResult({ success: false, error: result.error });
+    if ("error" in result) {
+      // Story 2D: Emit contention claim event (fire-and-forget)
+      if (result.contention) {
+        emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || auth.programId, "contention");
+      }
+      return jsonResult({ success: false, error: result.error });
+    }
 
     // Fire-and-forget: sync claim to GitHub Project board (outside transaction)
     if (!result.alreadyClaimed) {
@@ -402,6 +408,9 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         action: result.data!.action as string,
         success: true,
       });
+
+      // Story 2D: Emit successful claim event (fire-and-forget)
+      emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || auth.programId, "claimed");
     }
 
     const decrypted = decryptTaskFields(result.data!, auth.encryptionKey);
@@ -867,3 +876,146 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
   return jsonResult({ success: true, results, completed, failed });
 }
 
+// === Story 2D: Claim Contention Telemetry ===
+
+const CLAIM_EVENT_TTL_DAYS = 7;
+
+/**
+ * Fire-and-forget: emit a claim event to the claim_events collection.
+ * Called on every claim attempt (success or contention).
+ */
+function emitClaimEvent(
+  db: admin.firestore.Firestore,
+  userId: string,
+  taskId: string,
+  sessionId: string,
+  outcome: "claimed" | "contention",
+): void {
+  const ttl = admin.firestore.Timestamp.fromMillis(
+    Date.now() + CLAIM_EVENT_TTL_DAYS * 24 * 60 * 60 * 1000,
+  );
+  db.collection(`tenants/${userId}/claim_events`).add({
+    taskId,
+    sessionId,
+    outcome,
+    timestamp: serverTimestamp(),
+    ttl,
+  }).catch((err) => {
+    console.error("[ClaimTelemetry] Failed to write claim event:", err);
+  });
+}
+
+const GetContentionMetricsSchema = z.object({
+  period: z.enum(["today", "this_week", "this_month", "all"]).default("this_month"),
+});
+
+function claimPeriodStart(period: string): Date | null {
+  const now = new Date();
+  switch (period) {
+    case "today": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    case "this_week": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+    case "this_month": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(1);
+      return d;
+    }
+    case "all":
+      return null;
+    default:
+      return null;
+  }
+}
+
+export async function getContentionMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GetContentionMetricsSchema.parse(rawArgs || {});
+  const db = getFirestore();
+
+  const start = claimPeriodStart(args.period);
+
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/claim_events`);
+  if (start) {
+    query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start));
+  }
+
+  const snapshot = await query.get();
+
+  let claimsAttempted = 0;
+  let claimsWon = 0;
+  let contentionEvents = 0;
+
+  // For mean time to claim: collect taskIds from claimed events, then compute average
+  const claimedTaskIds: string[] = [];
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    claimsAttempted++;
+
+    if (data.outcome === "claimed") {
+      claimsWon++;
+      if (data.taskId) claimedTaskIds.push(data.taskId as string);
+    } else if (data.outcome === "contention") {
+      contentionEvents++;
+    }
+  }
+
+  // Compute mean time to claim: for each claimed task, find task createdAt vs claim event timestamp
+  let meanTimeToClaimMs: number | null = null;
+  if (claimedTaskIds.length > 0) {
+    // Batch-fetch task docs to get createdAt timestamps
+    const uniqueTaskIds = [...new Set(claimedTaskIds)].slice(0, 100); // cap at 100 lookups
+    let totalClaimLatencyMs = 0;
+    let latencySamples = 0;
+
+    // Fetch tasks in batches of 10 (Firestore getAll limit per call is reasonable)
+    const taskRefs = uniqueTaskIds.map((id) => db.doc(`tenants/${auth.userId}/tasks/${id}`));
+    const taskDocs = await db.getAll(...taskRefs);
+
+    const taskCreatedMap = new Map<string, number>();
+    for (const taskDoc of taskDocs) {
+      if (taskDoc.exists) {
+        const data = taskDoc.data()!;
+        const createdAt = data.createdAt?.toDate?.()?.getTime();
+        if (createdAt) taskCreatedMap.set(taskDoc.id, createdAt);
+      }
+    }
+
+    // Match claim events with their task's createdAt
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (data.outcome === "claimed" && data.taskId && data.timestamp) {
+        const taskCreatedMs = taskCreatedMap.get(data.taskId as string);
+        const claimTimestamp = data.timestamp?.toDate?.()?.getTime();
+        if (taskCreatedMs && claimTimestamp && claimTimestamp > taskCreatedMs) {
+          totalClaimLatencyMs += claimTimestamp - taskCreatedMs;
+          latencySamples++;
+        }
+      }
+    }
+
+    if (latencySamples > 0) {
+      meanTimeToClaimMs = Math.round(totalClaimLatencyMs / latencySamples);
+    }
+  }
+
+  return jsonResult({
+    success: true,
+    period: args.period,
+    claimsAttempted,
+    claimsWon,
+    contentionEvents,
+    contentionRate: claimsAttempted > 0
+      ? Math.round((contentionEvents / claimsAttempted) * 10000) / 100
+      : 0,
+    meanTimeToClaimMs,
+  });
+}

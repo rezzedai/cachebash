@@ -1,12 +1,12 @@
 /**
  * Tool Registry — Maps tool names to handlers + JSON schema definitions.
- * 34 tools across 10 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit, programState, metrics, trace).
+ * 39 tools across 11 modules (dispatch, relay, pulse, signal, dream, sprint, keys, audit, programState, metrics, trace, rateLimits).
  */
 
 import { AuthContext } from "./auth/authValidator.js";
-import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler } from "./modules/dispatch.js";
+import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler } from "./modules/dispatch.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
-import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";
+import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler, getContextUtilizationHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
 import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
@@ -17,6 +17,7 @@ import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHan
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
 import { getFleetTimelineHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
+import { logRateLimitEventHandler, getRateLimitEventsHandler } from "./modules/rate-limits.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -81,6 +82,16 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Feedback
   submit_feedback: submitFeedbackHandler,
+
+  // Rate Limits (Story 2C)
+  log_rate_limit_event: logRateLimitEventHandler,
+  get_rate_limit_events: getRateLimitEventsHandler,
+
+  // Claim Contention (Story 2D)
+  get_contention_metrics: getContentionMetricsHandler,
+
+  // Context Utilization (Story 2E)
+  get_context_utilization: getContextUtilizationHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -747,6 +758,56 @@ export const TOOL_DEFINITIONS = [
         deviceModel: { type: "string", description: "Device model", maxLength: 100 },
       },
       required: ["message"],
+    },
+  },
+  // === Rate Limits (Story 2C) ===
+  {
+    name: "log_rate_limit_event",
+    description: "Log a rate limit/throttle event from a session. Written to rate_limit_events collection with 7-day TTL.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sessionId: { type: "string", maxLength: 100, description: "Session that encountered the rate limit" },
+        modelTier: { type: "string", maxLength: 50, description: "Model tier being rate-limited (e.g., opus, sonnet)" },
+        endpoint: { type: "string", maxLength: 200, description: "API endpoint that was throttled" },
+        backoffMs: { type: "number", minimum: 0, description: "Backoff duration in milliseconds" },
+        cascaded: { type: "boolean", default: false, description: "Whether this rate limit cascaded from another session" },
+      },
+      required: ["sessionId", "modelTier", "endpoint", "backoffMs"],
+    },
+  },
+  {
+    name: "get_rate_limit_events",
+    description: "Query rate limit events with optional period and session filtering. Returns events ordered by timestamp desc.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month"], default: "this_month", description: "Time period to query" },
+        sessionId: { type: "string", maxLength: 100, description: "Filter by session ID" },
+      },
+    },
+  },
+  // === Claim Contention (Story 2D) ===
+  {
+    name: "get_contention_metrics",
+    description: "Get task claim contention metrics. Shows claims attempted, won, contention events, and mean time to claim.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
+      },
+    },
+  },
+  // === Context Utilization (Story 2E) ===
+  {
+    name: "get_context_utilization",
+    description: "Query context window utilization time-series. Returns contextHistory from session docs. If sessionId provided, returns that session; otherwise aggregates across active sessions.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sessionId: { type: "string", maxLength: 100, description: "Specific session to query" },
+        period: { type: "string", enum: ["today", "this_week", "this_month"], default: "today", description: "Time period to filter context history" },
+      },
     },
   },
 ];
