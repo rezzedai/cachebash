@@ -86,11 +86,15 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Config: read for owner, limited update for firstKey retrieval marking
+    // Config: read for owner, scoped writes per document
     match /tenants/{userId}/config/{configDoc} {
       allow read: if isOwner(userId);
+      // firstKey: mark as retrieved
       allow update: if isOwner(userId) && configDoc == 'firstKey'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['retrieved']);
+      // onboarding: mobile client creates and updates progress
+      allow create: if isOwner(userId) && configDoc == 'onboarding';
+      allow update: if isOwner(userId) && configDoc == 'onboarding';
     }
 
     // Feedback: read own, write via Admin SDK only
