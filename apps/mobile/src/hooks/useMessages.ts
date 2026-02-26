@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { usePolling } from './usePolling';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -103,9 +103,19 @@ export function useMessages() {
       msg.status !== 'archived'
   ).length;
 
+  const markAsRead = useCallback(async () => {
+    if (!api) return;
+    try {
+      await api.getMessages({ sessionId: 'admin', markAsRead: true });
+    } catch (e) {
+      // Silent fail — badge will clear on next successful fetch
+    }
+  }, [api]);
+
   return {
     messages,
     unreadCount,
+    markAsRead,
     error: result.error,
     isLoading: result.isLoading,
     refetch: result.refetch,
