@@ -61,6 +61,7 @@ const CompleteTaskSchema = z.object({
   completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
   model: z.string().optional(),
   provider: z.string().optional(),
+  result: z.string().max(4000).optional(),
   error_code: z.string().optional(),
   error_class: z.enum(["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"]).optional(),
 });
@@ -343,6 +344,21 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
+  // Soft telemetry validation — log gaps, never block completion
+  const missingFields: string[] = [];
+  if (!args.model) missingFields.push("model");
+  if (!args.provider) missingFields.push("provider");
+  if (!args.completed_status) missingFields.push("completed_status");
+  if (!args.result) missingFields.push("result");
+  if (missingFields.length > 0) {
+    db.collection(`tenants/${auth.userId}/telemetryGaps`).add({
+      taskId: args.taskId,
+      programId: auth.programId,
+      missingFields,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch((err) => console.error("[Telemetry] Failed to log gap:", err));
+  }
+
   // Capture task data for provenance hashing and budget tracking
   let taskData: { 
     instructions?: string; 
@@ -384,6 +400,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (args.cost_usd !== undefined) updateFields.cost_usd = args.cost_usd;
       if (args.model) updateFields.model = args.model;
       if (args.provider) updateFields.provider = args.provider;
+      if (args.result) updateFields.result = args.result;
       if (args.error_code) updateFields.last_error_code = args.error_code;
       if (args.error_class) updateFields.last_error_class = args.error_class;
       tx.update(taskRef, updateFields);

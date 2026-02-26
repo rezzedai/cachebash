@@ -25,7 +25,7 @@ Create `.vscode/mcp.json` in your project root:
   "servers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${input:cachebash-api-key}"
       }
@@ -45,7 +45,7 @@ If you prefer not to use the interactive prompt (e.g., for automation):
   "servers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer cb_your_key_here"
       }

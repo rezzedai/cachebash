@@ -116,7 +116,7 @@ export default function FirstKeyScreen({ onComplete }: FirstKeyScreenProps) {
           <Text style={styles.codeText} selectable>{`{
   "mcpServers": {
     "cachebash": {
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_KEY_HERE"
       }

@@ -182,14 +182,14 @@ gcloud run services describe cachebash-mcp --region us-central1 --format 'value(
 
 Expected output:
 ```
-https://cachebash-mcp-922749444863.us-central1.run.app
+https://api.cachebash.dev
 ```
 
 ### 4. Test Deployment
 
 ```bash
 # Health check
-curl https://cachebash-mcp-922749444863.us-central1.run.app/v1/health
+curl https://api.cachebash.dev/v1/health
 
 # Expected: {"status":"healthy","timestamp":"2026-02-20T..."}
 ```
@@ -236,7 +236,7 @@ Once deployed, create API keys for your programs using the MCP server's `create_
 # Fields: { userId: "YOUR_UID", programId: "iso", active: true, createdAt: <timestamp> }
 
 # Then use the bootstrap key to create program keys
-curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/keys \
+curl -X POST https://api.cachebash.dev/v1/keys \
   -H "Authorization: Bearer YOUR_BOOTSTRAP_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -256,7 +256,7 @@ Add API key to `.mcp.json` or `~/.claude.json`:
 {
   "mcpServers": {
     "cachebash": {
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer cb_live_..."
       }
@@ -342,7 +342,7 @@ claude-code test-mcp cachebash get_tasks
 
 ```bash
 # Create task
-curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks \
+curl -X POST https://api.cachebash.dev/v1/tasks \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -352,7 +352,7 @@ curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks \
   }'
 
 # Get tasks
-curl https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks \
+curl https://api.cachebash.dev/v1/tasks \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 

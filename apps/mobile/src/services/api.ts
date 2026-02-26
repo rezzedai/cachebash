@@ -1,4 +1,4 @@
-const BASE_URL = 'https://cachebash-mcp-922749444863.us-central1.run.app/v1';
+const BASE_URL = 'https://api.cachebash.dev/v1';
 
 interface RestResponse<T = unknown> {
   success: boolean;

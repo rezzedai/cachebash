@@ -47,7 +47,7 @@ describe("MCP server entry format", () => {
     const key = "cb_test_abc";
     const entry = {
       type: "http",
-      url: "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      url: "https://api.cachebash.dev/v1/mcp",
       headers: { Authorization: `Bearer ${key}` },
     };
     assert.equal(entry.type, "http");

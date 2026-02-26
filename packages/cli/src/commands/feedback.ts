@@ -3,7 +3,7 @@ import os from "node:os";
 import { detectConfigs } from "../config/writer.js";
 import { Spinner, printSuccess, printError, printStep } from "../ui/output.js";
 
-const MCP_URL = "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp";
+const MCP_URL = process.env.CACHEBASH_MCP_URL || "https://api.cachebash.dev/v1/mcp";
 
 export async function runFeedback(type: string, message: string): Promise<void> {
   // 1. Validate message

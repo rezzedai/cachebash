@@ -1,7 +1,7 @@
 # CacheBash MCP — Cross-Platform Client Testing Results
 
 **Date:** 2026-02-23
-**Endpoint:** `https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp`
+**Endpoint:** `https://api.cachebash.dev/v1/mcp`
 **Transport:** Streamable HTTP (MCP spec 2025-06-18)
 **Auth:** Bearer token (`Authorization: Bearer <api-key>`)
 
@@ -36,7 +36,7 @@
   "mcpServers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
       }
@@ -71,7 +71,7 @@
   "mcpServers": {
     "cachebash": {
       "type": "streamable-http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
       }
@@ -86,7 +86,7 @@
   "mcpServers": {
     "cachebash": {
       "type": "streamable-http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${env:CACHEBASH_API_KEY}"
       }
@@ -107,7 +107,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
       "args": [
         "-y",
         "mcp-remote",
-        "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+        "https://api.cachebash.dev/v1/mcp",
         "--header",
         "Authorization: Bearer ${CACHEBASH_API_KEY}"
       ],
@@ -155,7 +155,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
   "servers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${input:cachebash-api-key}"
       }
@@ -172,7 +172,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
   "servers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${env:CACHEBASH_API_KEY}"
       }
@@ -188,7 +188,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
     "servers": {
       "cachebash": {
         "type": "http",
-        "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+        "url": "https://api.cachebash.dev/v1/mcp",
         "headers": {
           "Authorization": "Bearer ${env:CACHEBASH_API_KEY}"
         }
@@ -223,7 +223,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
 {
   "mcpServers": {
     "cachebash": {
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "type": "http",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
@@ -240,7 +240,7 @@ Some Cursor versions have a known bug where the `cursor-agent` CLI silently drop
 {
   "mcpServers": {
     "cachebash": {
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "type": "http",
       "headers": {
         "Authorization": "Bearer $CACHEBASH_API_KEY"
@@ -288,7 +288,7 @@ CacheBash uses static API key authentication (`Authorization: Bearer <key>`). Ch
    - Redirect URIs for `chatgpt.com/oauth/callback` and `chat.openai.com/oauth/callback`
 
 2. OR use an insecure query-parameter workaround (dev-only, not recommended):
-   `https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp?api_key=TOKEN`
+   `https://api.cachebash.dev/v1/mcp?api_key=TOKEN`
 
 **Additional ChatGPT limitations:**
 - No stdio support — remote HTTPS only

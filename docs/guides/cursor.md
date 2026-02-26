@@ -15,7 +15,7 @@ Create or edit `.cursor/mcp.json` in your project root:
 {
   "mcpServers": {
     "cachebash": {
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${env:CACHEBASH_API_KEY}"
       }

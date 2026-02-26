@@ -15,7 +15,7 @@
 
    - **Name**: `cachebash`
    - **Type**: `http`
-   - **URL**: `https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp`
+   - **URL**: `https://api.cachebash.dev/v1/mcp`
 
 4. Alternatively, create a `.cursor/mcp.json` file in your project root:
 
@@ -24,7 +24,7 @@
   "mcpServers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer CACHEBASH_API_KEY"
       }
