@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useMessages } from '../hooks/useMessages';
 import { useGroups } from '../hooks/useGroups';
 import { theme } from '../theme';
@@ -19,8 +20,14 @@ interface Channel {
 }
 
 export default function MessagesScreen({ navigation }: MessagesScreenProps) {
-  const { messages, unreadCount, isLoading, refetch, error } = useMessages();
+  const { messages, unreadCount, isLoading, refetch, error, markAsRead } = useMessages();
   const { groups } = useGroups();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      markAsRead();
+    }, [markAsRead])
+  );
 
   // Group messages by source (program) and get the latest message per channel
   const channels = useMemo(() => {
