@@ -14,7 +14,7 @@ import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
-import { checkSessionCompliance } from "../middleware/sessionCompliance.js";
+import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
 
@@ -333,6 +333,9 @@ const routes: Route[] = [
   route("POST", "/v1/sessions", async (auth, req, res) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "create_session", body);
+    // Reset compliance so DEREZED transport sessions can start fresh
+    const mcpSessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (mcpSessionId) resetTransportCompliance(auth.userId, mcpSessionId);
     restResponse(res, true, data, 201);
   }),
   route("PATCH", "/v1/sessions/:id", async (auth, req, res, p) => {

@@ -25,7 +25,7 @@ import { SessionManager } from "./transport/SessionManager.js";
 import { emitEvent } from "./modules/events.js";
 import { reconcileGitHub } from "./modules/github-reconcile.js";
 import { detectStaleSessions } from "./modules/stale-session-detector.js";
-import { checkSessionCompliance } from "./middleware/sessionCompliance.js";
+import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
 import { handleOAuthMetadata } from "./oauth/metadata.js";
@@ -218,7 +218,12 @@ async function main() {
       incrementUsage(auth.userId, "total_tool_calls");
       if (name === "create_task") incrementUsage(auth.userId, "tasks_created");
       if (name === "send_message") incrementUsage(auth.userId, "messages_sent");
-      if (name === "create_session") incrementUsage(auth.userId, "sessions_started");
+      if (name === "create_session") {
+        incrementUsage(auth.userId, "sessions_started");
+        // Reset compliance for this MCP transport session so a DEREZED
+        // session can start fresh without requiring a new MCP connection
+        if (sessionId) resetTransportCompliance(auth.userId, sessionId);
+      }
 
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
       traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
