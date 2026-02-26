@@ -172,12 +172,10 @@ export const rotateApiKey = functions.https.onCall(async (data, context) => {
     const capabilities = oldData.capabilities || ["*"];
     const programId = oldData.programId || "default";
 
-    // Revoke old key
+    // Grace-expire old key (stays valid for 30s, then authValidator rejects)
     tx.update(oldKeyRef, {
-      active: false,
-      revokedAt: admin.firestore.FieldValue.serverTimestamp(),
-      revokedReason: "rotation",
       rotatedTo: newKeyHash,
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 30_000),
     });
 
     // Create new key with same capabilities/programId

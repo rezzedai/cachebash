@@ -7,7 +7,7 @@
 
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
 import { isValidProgram } from "../config/programs.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
@@ -123,6 +123,67 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
         success: true,
         keyHash,
         message: "Key revoked. It will no longer authenticate.",
+      }),
+    }],
+  };
+}
+
+/**
+ * Rotate the calling key — atomic create-new + grace-expire-old.
+ * Old key stays valid for 30s to allow config swap.
+ * Returns the new raw key (only time it's visible).
+ */
+export async function rotateKeyHandler(auth: AuthContext, _args: any) {
+  const db = getFirestore();
+  const oldKeyHash = auth.apiKeyHash;
+  const oldKeyRef = db.doc(`keyIndex/${oldKeyHash}`);
+
+  const rawKey = generateApiKey();
+  const newKeyHash = hashKey(rawKey);
+  const newKeyRef = db.doc(`keyIndex/${newKeyHash}`);
+
+  let label: string;
+
+  await db.runTransaction(async (tx) => {
+    const oldDoc = await tx.get(oldKeyRef);
+
+    if (!oldDoc.exists) {
+      throw new Error("Current key not found in keyIndex");
+    }
+
+    const oldData = oldDoc.data()!;
+    label = oldData.label || "API Key";
+    const capabilities = oldData.capabilities || ["*"];
+    const programId = oldData.programId || "default";
+
+    // Create new key with same identity
+    tx.set(newKeyRef, {
+      userId: auth.userId,
+      programId,
+      label,
+      capabilities,
+      active: true,
+      createdAt: FieldValue.serverTimestamp(),
+      rotatedFrom: oldKeyHash,
+    });
+
+    // Grace-expire old key (stays valid for 30s, then authValidator rejects)
+    tx.update(oldKeyRef, {
+      rotatedTo: newKeyHash,
+      expiresAt: Timestamp.fromMillis(Date.now() + 30_000),
+    });
+  });
+
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        success: true,
+        key: rawKey,
+        keyHash: newKeyHash,
+        label: label!,
+        graceWindowSeconds: 30,
+        message: "Key rotated. Old key expires in 30 seconds.",
       }),
     }],
   };

@@ -56,6 +56,7 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   // Keys
   create_key: "keys.write",
   revoke_key: "keys.write",
+  rotate_key: "keys.write",
   list_keys: "keys.read",
   // Audit
   get_audit: "audit.read",
