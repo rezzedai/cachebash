@@ -116,6 +116,10 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read"],
+  // External users — restricted, no admin/audit/keys/state-write
+  default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+    "pulse.read", "signal.read", "signal.write",
+    "sprint.read", "metrics.read", "fleet.read"],
 };
 
 /**
@@ -148,8 +152,13 @@ export function checkToolCapability(
 
 /**
  * Get default capabilities for a program.
- * Returns ["*"] for unknown programs (fail-open for now, tighten in Phase 5).
+ * Fail-closed: unknown programs get no capabilities.
  */
 export function getDefaultCapabilities(programId: string): Capability[] {
-  return DEFAULT_CAPABILITIES[programId] || ["*"];
+  const caps = DEFAULT_CAPABILITIES[programId];
+  if (!caps) {
+    console.warn(`[Capabilities] Unknown programId "${programId}" — returning empty capabilities`);
+    return [];
+  }
+  return caps;
 }

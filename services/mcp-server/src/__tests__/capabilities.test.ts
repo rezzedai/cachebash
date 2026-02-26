@@ -130,8 +130,8 @@ describe('Capability System', () => {
       expect(getDefaultCapabilities('builder')).toContain('dispatch.read');
     });
 
-    it('returns wildcard for unknown programs (fail-open)', () => {
-      expect(getDefaultCapabilities('unknown_program')).toEqual(['*']);
+    it('returns empty capabilities for unknown programs (fail-closed)', () => {
+      expect(getDefaultCapabilities('unknown_program')).toEqual([]);
     });
   });
 });
