@@ -42,7 +42,7 @@ const SendMessageSchema = z.object({
 const GetMessagesSchema = z.object({
   sessionId: z.string(),
   target: z.string().max(100).optional(),
-  markAsRead: z.boolean().default(true),
+  markAsRead: z.boolean().default(false),
   message_type: z.enum(["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"]).optional(),
   priority: z.enum(["low", "normal", "high"]).optional(),
 });
