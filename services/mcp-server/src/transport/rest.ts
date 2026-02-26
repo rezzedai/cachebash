@@ -384,7 +384,7 @@ const routes: Route[] = [
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
     const snap = await tasksRef
       .where("type", "==", "sprint")
-      .where("lifecycle", "in", ["created", "active"])
+      .where("status", "in", ["created", "active"])
       .orderBy("createdAt", "desc")
       .limit(10)
       .get();
