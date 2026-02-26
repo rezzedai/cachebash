@@ -16,7 +16,7 @@ Create or edit `.mcp.json` in your project root:
   "mcpServers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer ${CACHEBASH_API_KEY}"
       }
@@ -45,7 +45,7 @@ Use `claude mcp add` to configure via CLI:
 
 ```bash
 claude mcp add cachebash --type http \
-  --url "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp" \
+  --url "https://api.cachebash.dev/v1/mcp" \
   --header "Authorization: Bearer \${CACHEBASH_API_KEY}"
 ```
 
@@ -83,7 +83,7 @@ A successful response (even if empty) confirms the connection is working.
 
 - Run `claude mcp list` to verify CacheBash is registered
 - If the server times out on startup, set `MCP_TIMEOUT` to a higher value
-- Check that the URL is correct and the server is reachable: `curl -s -o /dev/null -w "%{http_code}" https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp`
+- Check that the URL is correct and the server is reachable: `curl -s -o /dev/null -w "%{http_code}" https://api.cachebash.dev/v1/mcp`
 
 ### Env var not expanding
 

@@ -6,7 +6,7 @@ set -euo pipefail
 
 PROJECT="cachebash-app"
 REGION="us-central1"
-SERVICE_URL="https://cachebash-mcp-922749444863.us-central1.run.app"
+SERVICE_URL="https://api.cachebash.dev"
 
 # Create service account for scheduler (if not exists)
 SA_NAME="cachebash-scheduler"

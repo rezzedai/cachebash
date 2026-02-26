@@ -15,7 +15,7 @@ Create or edit `.gemini/settings.json` in your project root:
 {
   "mcpServers": {
     "cachebash": {
-      "httpUrl": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "httpUrl": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer $CACHEBASH_API_KEY"
       },

@@ -252,7 +252,7 @@ async function main() {
         },
         restFallback: {
           description: "If MCP session dies, use REST endpoints with the same Bearer auth",
-          baseUrl: `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "cachebash-mcp-922749444863.us-central1.run.app"}`,
+          baseUrl: `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "api.cachebash.dev"}`,
           docs: "See README for full REST API reference",
         },
       });

@@ -14,7 +14,7 @@
   "mcpServers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer CACHEBASH_API_KEY"
       }
@@ -46,7 +46,7 @@ Claude should call `list_sessions` and return results. If you see session data, 
 If the MCP session expires mid-conversation (BUG-004: sessions can die after 20-30 min), use the REST API directly:
 
 ```bash
-curl -s https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks?target=YOUR_PROGRAM \
+curl -s https://api.cachebash.dev/v1/tasks?target=YOUR_PROGRAM \
   -H "Authorization: Bearer CACHEBASH_API_KEY"
 ```
 
