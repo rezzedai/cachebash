@@ -231,7 +231,6 @@ export default function SettingsScreen() {
                     text: 'Replay',
                     onPress: async () => {
                       await resetOnboarding();
-                      navigation.navigate('Home');
                     },
                   },
                 ]
