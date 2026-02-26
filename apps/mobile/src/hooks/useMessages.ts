@@ -16,33 +16,41 @@ export function useMessages() {
 
       // Fetch messages: to/from orchestrator (hub) + user-sent (admin) + replies to admin
       const [toOrch, fromOrch, fromAdmin, toAdmin] = await Promise.all([
-        api.queryMessageHistory({ target: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
-        api.queryMessageHistory({ source: 'orchestrator', limit: 30 }).catch(() => ({ messages: [] })),
-        api.queryMessageHistory({ source: 'admin', limit: 30 }).catch(() => ({ messages: [] })),
-        api.queryMessageHistory({ target: 'admin', limit: 30 }).catch(() => ({ messages: [] })),
+        api.queryMessageHistory({ target: 'orchestrator', limit: 30 }).catch(() => null),
+        api.queryMessageHistory({ source: 'orchestrator', limit: 30 }).catch(() => null),
+        api.queryMessageHistory({ source: 'admin', limit: 30 }).catch(() => null),
+        api.queryMessageHistory({ target: 'admin', limit: 30 }).catch(() => null),
       ]);
+
+      const results = [toOrch, fromOrch, fromAdmin, toAdmin];
+      if (results.every(r => r === null)) {
+        throw new Error('All message queries failed');
+      }
 
       // Merge and deduplicate by message id
       const seen = new Set<string>();
       const allMessages: RelayMessage[] = [];
 
-      for (const m of [...(toOrch.messages || []), ...(fromOrch.messages || []), ...(fromAdmin.messages || []), ...(toAdmin.messages || [])]) {
-        const id = m.id || m.messageId;
-        if (seen.has(id)) continue;
-        seen.add(id);
+      for (const result of results) {
+        if (!result) continue;
+        for (const m of (result.messages || [])) {
+          const id = m.id || m.messageId;
+          if (seen.has(id)) continue;
+          seen.add(id);
 
-        allMessages.push({
-          id,
-          source: m.source || '',
-          target: m.target || '',
-          message: m.message || '',
-          message_type: m.message_type || 'STATUS',
-          priority: m.priority || 'normal',
-          status: m.status || 'delivered',
-          createdAt: m.createdAt,
-          threadId: m.threadId,
-          context: m.context,
-        });
+          allMessages.push({
+            id,
+            source: m.source || '',
+            target: m.target || '',
+            message: m.message || '',
+            message_type: m.message_type || 'STATUS',
+            priority: m.priority || 'normal',
+            status: m.status || 'delivered',
+            createdAt: m.createdAt,
+            threadId: m.threadId,
+            context: m.context,
+          });
+        }
       }
 
       // Sort by createdAt descending (newest first)

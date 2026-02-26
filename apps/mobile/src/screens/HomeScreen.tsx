@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -44,6 +44,18 @@ export default function HomeScreen({ navigation }: Props) {
 
   const [refreshing, setRefreshing] = useState(false);
   const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
+  const [showError, setShowError] = useState(false);
+  const errorCountRef = useRef(0);
+
+  useEffect(() => {
+    if (error) {
+      errorCountRef.current += 1;
+      if (errorCountRef.current >= 3) setShowError(true);
+    } else {
+      errorCountRef.current = 0;
+      setShowError(false);
+    }
+  }, [error]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -143,7 +155,7 @@ export default function HomeScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {error && (
+        {showError && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorText}>Unable to connect to Grid</Text>
             <TouchableOpacity
