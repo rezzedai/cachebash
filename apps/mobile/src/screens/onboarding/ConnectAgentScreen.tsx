@@ -13,10 +13,19 @@ export default function ConnectAgentScreen({ navigation }: Props) {
   const { completeStep, skipOnboarding } = useOnboarding();
   const [copied, setCopied] = useState(false);
 
-  const command = 'npx cachebash init';
+  const configSnippet = `{
+  "mcpServers": {
+    "cachebash": {
+      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_KEY"
+      }
+    }
+  }
+}`;
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(command);
+    await Clipboard.setStringAsync(configSnippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -32,16 +41,16 @@ export default function ConnectAgentScreen({ navigation }: Props) {
         <Text style={styles.stepLabel}>Step 1 of 2</Text>
         <Text style={styles.title}>Connect Your IDE</Text>
         <Text style={styles.subtitle}>
-          Run this command in your terminal to connect Claude Code, Cursor, or VS Code:
+          Add this to your IDE's MCP configuration file. Replace YOUR_KEY with the API key you just copied:
         </Text>
 
         <TouchableOpacity style={styles.codeBlock} onPress={handleCopy} activeOpacity={0.7}>
-          <Text style={styles.codeText}>{command}</Text>
+          <Text style={styles.codeText}>{configSnippet}</Text>
           <Text style={styles.copyHint}>{copied ? 'Copied!' : 'Tap to copy'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.hint}>
-          The CLI will open your browser to authenticate, then automatically configure your IDE.
+          Claude Code: ~/.claude.json  •  Cursor: .cursor/mcp.json  •  VS Code: .vscode/mcp.json
         </Text>
       </View>
 
@@ -70,7 +79,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a2e', borderRadius: 12, padding: 20,
     borderWidth: 1, borderColor: '#2a2a3e', marginBottom: 16,
   },
-  codeText: { fontSize: 18, fontWeight: '600', color: '#00d4ff', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  codeText: { fontSize: 13, fontWeight: '600', color: '#00d4ff', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', textAlignVertical: 'top' },
   copyHint: { fontSize: 12, color: '#6b7280', marginTop: 8 },
   hint: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
   footer: { paddingHorizontal: 32 },

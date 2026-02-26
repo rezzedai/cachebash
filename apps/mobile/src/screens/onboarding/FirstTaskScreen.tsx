@@ -44,51 +44,52 @@ export default function FirstTaskScreen({ navigation }: Props) {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-    <KeyboardAvoidingView style={[styles.container, { paddingTop: insets.top + 40 }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={styles.content}>
-        <Text style={styles.stepLabel}>Step 2 of 2</Text>
-        <Text style={styles.title}>Send Your First Task</Text>
-        <Text style={styles.subtitle}>
-          Create a task that your connected agents can pick up. Try something simple:
-        </Text>
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top + 40 }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.content}>
+          <Text style={styles.stepLabel}>Step 2 of 2</Text>
+          <Text style={styles.title}>Send Your First Task</Text>
+          <Text style={styles.subtitle}>
+            Create a task that your connected agents can pick up. Try something simple:
+          </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder='e.g., "Run the test suite and report results"'
-          placeholderTextColor="#4b5563"
-          value={title}
-          onChangeText={setTitle}
-          multiline
-          maxLength={200}
-          returnKeyType="done"
-          blurOnSubmit
-        />
+          <TextInput
+            style={styles.input}
+            placeholder='e.g., "Run the test suite and report results"'
+            placeholderTextColor="#4b5563"
+            value={title}
+            onChangeText={setTitle}
+            multiline
+            maxLength={200}
+          />
 
-        <Text style={styles.hint}>
-          Tasks are delivered to all connected agents via MCP.
-        </Text>
-      </View>
+          <Text style={styles.hint}>
+            Tasks are delivered to all connected agents via MCP.
+          </Text>
+        </View>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <TouchableOpacity
-          style={[styles.primaryButton, (!title.trim() || sending) && styles.primaryButtonDisabled]}
-          onPress={handleSendTask}
-          disabled={!title.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator color="#0a0a0f" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Send Task</Text>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleSkipStep}>
-          <Text style={styles.secondaryText}>Skip for now</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.skipButton} onPress={skipOnboarding}>
-          <Text style={styles.skipText}>Skip setup</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+          <TouchableOpacity
+            style={[styles.primaryButton, (!title.trim() || sending) && styles.primaryButtonDisabled]}
+            onPress={handleSendTask}
+            disabled={!title.trim() || sending}
+          >
+            {sending ? (
+              <ActivityIndicator color="#0a0a0f" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Send Task</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleSkipStep}>
+            <Text style={styles.secondaryText}>Skip for now</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.skipButton} onPress={skipOnboarding}>
+            <Text style={styles.skipText}>Skip setup</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
 }
