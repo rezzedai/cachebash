@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import type { ParamListBase } from '@react-navigation/native';
+import { useNavigation, type ParamListBase } from '@react-navigation/native';
 
 import HomeScreen from '../screens/HomeScreen';
 import MessagesScreen from '../screens/MessagesScreen';
@@ -123,6 +123,21 @@ const iconStyles = StyleSheet.create({
   badgeText: { fontSize: 9, fontWeight: '700', color: '#fff' },
 });
 
+// Header button using useNavigation hook for reliable navigation
+function ComposeButton() {
+  const navigation = useNavigation<any>();
+  return (
+    <View style={{ flexDirection: 'row', gap: 12, marginRight: 4 }}>
+      <Text
+        style={{ fontSize: 22, color: '#00d4ff', fontWeight: '600' }}
+        onPress={() => navigation.navigate('ComposeMessage')}
+        accessibilityLabel="New message"
+        accessibilityRole="button"
+      >+</Text>
+    </View>
+  );
+}
+
 // Stack navigators for each tab
 function HomeStackScreen() {
   return (
@@ -157,19 +172,10 @@ function MessagesStackScreen() {
       <MessagesStack.Screen
         name="MessagesMain"
         component={MessagesScreen}
-        options={({ navigation: nav }) => ({
+        options={{
           title: 'Messages',
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 12, marginRight: 4 }}>
-              <Text
-                style={{ fontSize: 22, color: '#00d4ff', fontWeight: '600' }}
-                onPress={() => nav.navigate('ComposeMessage')}
-                accessibilityLabel="New message"
-                accessibilityRole="button"
-              >+</Text>
-            </View>
-          ),
-        })}
+          headerRight: () => <ComposeButton />,
+        }}
       />
       <MessagesStack.Screen name="ChannelDetail" component={ChannelDetailScreen} options={{ title: 'Channel' }} />
       <MessagesStack.Screen name="ComposeMessage" component={ComposeMessageScreen} options={{ title: 'New Message' }} />
