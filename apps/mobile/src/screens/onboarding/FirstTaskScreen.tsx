@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,7 +43,6 @@ export default function FirstTaskScreen({ navigation }: Props) {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <KeyboardAvoidingView
         style={[styles.container, { paddingTop: insets.top + 40 }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -90,7 +89,6 @@ export default function FirstTaskScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
   );
 }
 

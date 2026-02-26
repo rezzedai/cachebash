@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Keyboard, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -99,6 +100,7 @@ function AppContentWithOnboarding() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
       <SafeAreaProvider>
         <ConnectivityProvider>
           <AuthProvider>
@@ -109,6 +111,7 @@ export default function App() {
           </AuthProvider>
         </ConnectivityProvider>
       </SafeAreaProvider>
+      </Pressable>
     </GestureHandlerRootView>
   );
 }

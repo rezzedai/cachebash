@@ -18,7 +18,6 @@ import FleetHealthScreen from '../screens/FleetHealthScreen';
 import UsageScreen from '../screens/UsageScreen';
 import KeyManagementScreen from '../screens/KeyManagementScreen';
 import ComposeMessageScreen from '../screens/ComposeMessageScreen';
-import { useTasks } from '../hooks/useTasks';
 import { useMessages } from '../hooks/useMessages';
 
 const Tab = createBottomTabNavigator();
@@ -211,7 +210,6 @@ function SettingsStackScreen() {
 }
 
 export default function AppNavigation() {
-  const { pendingCount } = useTasks();
   const { unreadCount } = useMessages();
 
   return (
@@ -220,7 +218,6 @@ export default function AppNavigation() {
         tabBarIcon: ({ focused }) => {
           let badge: number | undefined;
           if (route.name === 'Messages') badge = unreadCount;
-          if (route.name === 'Tasks') badge = pendingCount;
           return <TabIcon routeName={route.name} focused={focused} badge={badge} />;
         },
         tabBarShowLabel: true,
