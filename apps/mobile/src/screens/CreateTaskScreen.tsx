@@ -25,14 +25,18 @@ interface Program {
 }
 
 const PROGRAMS: Program[] = [
-  { id: 'orchestrator', name: 'orchestrator', color: '#6FC3DF' },
-  { id: 'builder', name: 'builder', color: '#E87040' },
-  { id: 'architect', name: 'architect', color: '#4A8ED4' },
-  { id: 'reviewer', name: 'reviewer', color: '#9B6FC0' },
-  { id: 'auditor', name: 'auditor', color: '#C44040' },
-  { id: 'able', name: 'able', color: '#4DB870' },
-  { id: 'beck', name: 'beck', color: '#40A8A0' },
-  { id: 'radia', name: 'radia', color: '#E8E0D0' },
+  { id: 'iso', name: 'ISO', color: '#6FC3DF' },
+  { id: 'basher', name: 'BASHER', color: '#E87040' },
+  { id: 'vector', name: 'VECTOR', color: '#4A8ED4' },
+  { id: 'alan', name: 'ALAN', color: '#9B6FC0' },
+  { id: 'sark', name: 'SARK', color: '#C44040' },
+  { id: 'quorra', name: 'QUORRA', color: '#8B4A8E' },
+  { id: 'casp', name: 'CASP', color: '#7C8C4A' },
+  { id: 'radia', name: 'RADIA', color: '#E8E0D0' },
+  { id: 'able', name: 'ABLE', color: '#4DB870' },
+  { id: 'beck', name: 'BECK', color: '#40A8A0' },
+  { id: 'codex', name: 'CODEX', color: '#D4A04A' },
+  { id: 'tesler', name: 'TESLER', color: '#8A4A8A' },
 ];
 
 const CreateTaskScreen = () => {
