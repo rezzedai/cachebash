@@ -113,6 +113,8 @@ async function main() {
       return { content: [{ type: "text", text: "Error: Not authenticated." }], isError: true };
     }
 
+    console.log(`[TENANT] Tool=${name} userId=${auth.userId} programId=${auth.programId}`);
+
     if (!checkRateLimit(auth.userId, name)) {
       const resetIn = getRateLimitResetIn(auth.userId, name);
       return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
@@ -625,12 +627,15 @@ async function main() {
     cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
     cleanupDcrRateLimits();
-    // TTL cleanup for expired relay messages (uses admin UID from first active session)
+    // TTL cleanup for expired relay messages — run per distinct tenant
+    const cleanedUserIds = new Set<string>();
     for (const [, info] of sessions.entries()) {
-      cleanupExpiredRelayMessages(info.authContext.userId).catch((err) => {
-        console.error("[Relay] TTL cleanup failed:", err);
+      const uid = info.authContext.userId;
+      if (cleanedUserIds.has(uid)) continue;
+      cleanedUserIds.add(uid);
+      cleanupExpiredRelayMessages(uid).catch((err) => {
+        console.error("[Relay] TTL cleanup failed for", uid, err);
       });
-      break; // Only need one userId — all sessions share the same admin user
     }
   }, 5 * 60 * 1000);
 

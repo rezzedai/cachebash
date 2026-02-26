@@ -40,7 +40,14 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       userId: uid,
       programId: "default",
       label: "Default API Key",
-      capabilities: ["*"],
+      capabilities: [
+        "dispatch.read", "dispatch.write",
+        "relay.read", "relay.write",
+        "pulse.read",
+        "signal.read", "signal.write",
+        "sprint.read",
+        "metrics.read", "fleet.read",
+      ],
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       active: true,
     });
