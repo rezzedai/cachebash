@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { NavigationContainer } from '@react-navigation/native';
+import { navigationRef } from './src/utils/navigationRef';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { OnboardingProvider, useOnboarding } from './src/contexts/OnboardingContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
@@ -67,15 +69,17 @@ function AppContentWithOnboarding() {
     return <LoadingScreen />;
   }
 
-  if (isFirstRun) {
-    return <OnboardingNavigator />;
-  }
-
   return (
-    <NotificationProvider>
-      <ConnectionBanner />
-      <AppNavigation />
-    </NotificationProvider>
+    <NavigationContainer ref={navigationRef}>
+      {isFirstRun ? (
+        <OnboardingNavigator />
+      ) : (
+        <NotificationProvider>
+          <ConnectionBanner />
+          <AppNavigation />
+        </NotificationProvider>
+      )}
+    </NavigationContainer>
   );
 }
 
