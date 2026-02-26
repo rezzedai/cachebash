@@ -67,24 +67,23 @@ export const cliAuthApprove = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    // Write API key to keyIndex
+    // Write API key to keyIndex (canonical path — matches onUserCreate)
     const now = admin.firestore.FieldValue.serverTimestamp();
     await db.collection("keyIndex").doc(keyHash).set({
       userId,
+      programId: "default",
       label: "CLI (auto-generated)",
+      capabilities: [
+        "dispatch.read", "dispatch.write",
+        "relay.read", "relay.write",
+        "pulse.read",
+        "signal.read", "signal.write",
+        "sprint.read",
+        "metrics.read", "fleet.read",
+      ],
       active: true,
       createdAt: now,
       createdBy: "cli-auth",
-    });
-
-    // Write the full API key doc
-    await db.doc(`users/${userId}/apiKeys/${keyHash}`).set({
-      keyHash,
-      userId,
-      label: "CLI (auto-generated)",
-      active: true,
-      createdAt: now,
-      capabilities: ["*"],
     });
 
     // Store CLI session (for polling)

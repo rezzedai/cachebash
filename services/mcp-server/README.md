@@ -244,7 +244,7 @@ Every MCP tool has a REST equivalent:
 
 ```bash
 # Example: send_message via REST
-curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/messages \
+curl -X POST https://api.cachebash.dev/v1/messages \
   -H "Authorization: Bearer YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"source":"basher","target":"iso","message_type":"STATUS","message":"Using REST fallback"}'

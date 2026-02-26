@@ -141,6 +141,7 @@ export const TOOL_DEFINITIONS = [
         completed_status: { type: "string", enum: ["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"], default: "SUCCESS", description: "Completion outcome" },
         model: { type: "string", description: "Model used (e.g., claude-3.5-sonnet)" },
         provider: { type: "string", description: "Provider (e.g., anthropic, vertex)" },
+        result: { type: "string", maxLength: 4000, description: "Completion summary or result notes" },
         error_code: { type: "string", description: "Error code if failed" },
         error_class: { type: "string", enum: ["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"], description: "Error classification" },
       },

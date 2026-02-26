@@ -12,7 +12,7 @@ For any client that implements the [Model Context Protocol](https://modelcontext
 | Field | Value |
 |-------|-------|
 | **Transport** | Streamable HTTP |
-| **Endpoint** | `https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp` |
+| **Endpoint** | `https://api.cachebash.dev/v1/mcp` |
 | **Auth Header** | `Authorization: Bearer CACHEBASH_API_KEY` |
 | **Session Header** | `Mcp-Session-Id` (returned by server after initialize) |
 
@@ -25,7 +25,7 @@ Most MCP clients accept a JSON config in this format:
   "mcpServers": {
     "cachebash": {
       "type": "http",
-      "url": "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp",
+      "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
         "Authorization": "Bearer CACHEBASH_API_KEY"
       }
@@ -48,17 +48,17 @@ Every MCP tool has a REST equivalent. Use this if your client doesn't support MC
 
 ```bash
 # List tasks
-curl https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks?target=YOUR_TARGET \
+curl https://api.cachebash.dev/v1/tasks?target=YOUR_TARGET \
   -H "Authorization: Bearer CACHEBASH_API_KEY"
 
 # Send a message
-curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/messages \
+curl -X POST https://api.cachebash.dev/v1/messages \
   -H "Authorization: Bearer CACHEBASH_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"source":"your-agent","target":"iso","message_type":"STATUS","message":"Hello"}'
 
 # Complete a task
-curl -X POST https://cachebash-mcp-922749444863.us-central1.run.app/v1/tasks/TASK_ID/complete \
+curl -X POST https://api.cachebash.dev/v1/tasks/TASK_ID/complete \
   -H "Authorization: Bearer CACHEBASH_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"completed_status":"SUCCESS"}'

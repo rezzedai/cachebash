@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import * as readline from "node:readline/promises";
 import { printStep, printSuccess, printWarning, green, bold } from "../ui/output.js";
 
-const MCP_URL = "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp";
+const MCP_URL = process.env.CACHEBASH_MCP_URL || "https://api.cachebash.dev/v1/mcp";
 
 interface ConfigTarget {
   name: string;

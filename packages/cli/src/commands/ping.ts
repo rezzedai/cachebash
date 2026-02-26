@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { detectConfigs, verifyConnection } from "../config/writer.js";
 import { Spinner, printSuccess, printError, printStep, printWarning } from "../ui/output.js";
 
-const MCP_URL = "https://cachebash-mcp-922749444863.us-central1.run.app/v1/mcp";
+const MCP_URL = process.env.CACHEBASH_MCP_URL || "https://api.cachebash.dev/v1/mcp";
 
 export async function runPing(): Promise<void> {
   const configs = await detectConfigs();
