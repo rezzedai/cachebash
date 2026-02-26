@@ -1,8 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { Spinner, printStep, printWarning, printError } from "../ui/output.js";
 
-const CLI_AUTH_BASE = "https://cachebash.rezzed.ai/cli-auth";
-const POLL_URL = "https://us-central1-cachebash-app.cloudfunctions.net/cliAuthStatus";
+const CLI_AUTH_BASE =
+  process.env.CACHEBASH_AUTH_URL ?? "https://cachebash-app.web.app/cli-auth";
+const POLL_URL =
+  process.env.CACHEBASH_POLL_URL ??
+  "https://us-central1-cachebash-app.cloudfunctions.net/cliAuthStatus";
 const POLL_INTERVAL_MS = 2000;
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
