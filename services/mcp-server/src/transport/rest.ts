@@ -13,7 +13,7 @@ import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
-import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, RateLimitError, checkToolRateLimit, getToolRateLimitResetIn } from "../middleware/rateLimiter.js";
+import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
@@ -137,15 +137,12 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 }
 
 async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: string, args: unknown): Promise<unknown> {
-  if (!checkRateLimit(auth.userId, toolName)) {
-    const resetIn = getRateLimitResetIn(auth.userId, toolName);
-    throw new RateLimitError(`Rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
-  }
-
-  // Per-tool rate limit (Phase 4: tighter limits on state writes)
-  if (!checkToolRateLimit(auth.userId, toolName, auth.programId)) {
-    const resetIn = getToolRateLimitResetIn(auth.userId, toolName, auth.programId);
-    throw new RateLimitError(`Tool rate limit exceeded for ${toolName}. Try again in ${resetIn}s.`, resetIn);
+  // Per-key + per-tenant + per-tool rate limiting (SPEC 2)
+  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName);
+  if (!rateResult.allowed) {
+    const err = new Error(`Rate limit exceeded for ${toolName}. Try again in ${rateResult.retryAfter}s.`);
+    (err as any).rateLimitResult = rateResult;
+    throw err;
   }
 
   // Phase 4: Capability gate
@@ -542,12 +539,16 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             issues: err.issues,
           }, 400);
         }
-        if (err instanceof RateLimitError) {
-          res.setHeader("Retry-After", String(err.resetIn));
+        if (err instanceof Error && (err as any).rateLimitResult) {
+          const rl = (err as any).rateLimitResult;
+          res.setHeader("Retry-After", String(rl.retryAfter || 60));
+          res.setHeader("X-RateLimit-Limit", String(rl.limit));
+          res.setHeader("X-RateLimit-Remaining", "0");
+          res.setHeader("X-RateLimit-Reset", String(Math.ceil(rl.resetAt.getTime() / 1000)));
           return restResponse(res, false, {
             code: "RATE_LIMITED",
             message: err.message,
-            retryAfter: err.resetIn,
+            retryAfter: rl.retryAfter,
           }, 429);
         }
         if (err instanceof ComplianceError) {

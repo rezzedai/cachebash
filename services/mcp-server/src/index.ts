@@ -13,7 +13,7 @@ import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
 import { validateAuth, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
-import { checkRateLimit, getRateLimitResetIn, checkAuthRateLimit, cleanupRateLimits, checkToolRateLimit, getToolRateLimitResetIn } from "./middleware/rateLimiter.js";
+import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
@@ -115,15 +115,23 @@ async function main() {
 
     console.log(`[TENANT] Tool=${name} userId=${auth.userId} programId=${auth.programId}`);
 
-    if (!checkRateLimit(auth.userId, name)) {
-      const resetIn = getRateLimitResetIn(auth.userId, name);
-      return { content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
-    }
-
-    // Per-tool rate limit (Phase 4: tighter limits on state writes)
-    if (!checkToolRateLimit(auth.userId, name, auth.programId)) {
-      const resetIn = getToolRateLimitResetIn(auth.userId, name, auth.programId);
-      return { content: [{ type: "text", text: `Tool rate limit exceeded for ${name}. Try again in ${resetIn}s.` }], isError: true };
+    // Per-key + per-tenant + per-tool rate limiting (SPEC 2)
+    const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, name);
+    if (sessionId) setRateLimitResult(sessionId, rateResult);
+    if (!rateResult.allowed) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            error: "rate_limited",
+            retryAfter: rateResult.retryAfter,
+            limit: rateResult.limit,
+            remaining: 0,
+            scope: rateResult.scope,
+          }),
+        }],
+        isError: true,
+      };
     }
     // Phase 4: Capability gate
     const { checkToolCapability } = await import("./middleware/capabilities.js");
@@ -610,7 +618,18 @@ async function main() {
       const webReq = await nodeToWebRequest(req);
       const webRes = await transport.handleRequest(webReq, auth);
 
-      res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
+      // Inject rate limit headers (SPEC 2)
+      const headers = Object.fromEntries(webRes.headers.entries());
+      if (mcpSessionId) {
+        const rl = consumeRateLimitResult(mcpSessionId);
+        if (rl) {
+          headers["X-RateLimit-Limit"] = String(rl.limit);
+          headers["X-RateLimit-Remaining"] = String(rl.remaining);
+          headers["X-RateLimit-Reset"] = String(Math.ceil(rl.resetAt.getTime() / 1000));
+        }
+      }
+
+      res.writeHead(webRes.status, headers);
       const body = await webRes.text();
       return res.end(body);
     }
