@@ -1,6 +1,6 @@
 {
   "name": "@rezzed.ai/cachebash",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CacheBash CLI — MCP agent coordination for AI workflows",
   "bin": { "cachebash": "./bin/cachebash.js" },
   "main": "dist/index.js",
