@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
+import { logSuccess } from "../util/structuredLog";
 
 const db = admin.firestore();
 
@@ -12,6 +13,7 @@ export const createUserKey = functions.https.onCall(async (data, context) => {
     );
   }
 
+  const startTime = Date.now();
   const label = data.label || "API Key";
   const userId = context.auth.uid;
 
@@ -47,6 +49,13 @@ export const createUserKey = functions.https.onCall(async (data, context) => {
     active: true,
   });
 
+  logSuccess({
+    function: "createUserKey",
+    uid: userId,
+    action: "create_key",
+    durationMs: Date.now() - startTime,
+  });
+
   return {
     success: true,
     key: rawKey,
@@ -63,6 +72,7 @@ export const revokeUserKey = functions.https.onCall(async (data, context) => {
     );
   }
 
+  const startTime = Date.now();
   if (!data.keyHash) {
     throw new functions.https.HttpsError(
       "invalid-argument",
@@ -87,6 +97,13 @@ export const revokeUserKey = functions.https.onCall(async (data, context) => {
   await db.collection("keyIndex").doc(data.keyHash).update({
     active: false,
     revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  logSuccess({
+    function: "revokeUserKey",
+    uid: context.auth.uid,
+    action: "revoke_key",
+    durationMs: Date.now() - startTime,
   });
 
   return {
@@ -116,6 +133,7 @@ export const rotateApiKey = functions.https.onCall(async (data, context) => {
     );
   }
 
+  const startTime = Date.now();
   const userId = context.auth.uid;
   const oldKeyHash: string = data.keyHash;
   const oldKeyRef = db.collection("keyIndex").doc(oldKeyHash);
@@ -172,6 +190,13 @@ export const rotateApiKey = functions.https.onCall(async (data, context) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       rotatedFrom: oldKeyHash,
     });
+  });
+
+  logSuccess({
+    function: "rotateApiKey",
+    uid: userId,
+    action: "rotate_key",
+    durationMs: Date.now() - startTime,
   });
 
   return {
