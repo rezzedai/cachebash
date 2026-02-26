@@ -11,6 +11,7 @@ export type EventType =
   | "TASK_CLAIMED"
   | "TASK_SUCCEEDED"
   | "TASK_FAILED"
+  | "TASK_UNCLAIMED"
   | "TASK_RETRIED"
   | "RELAY_DELIVERED"
   | "TASK_RETRY_EXHAUSTED"

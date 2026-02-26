@@ -4,7 +4,7 @@
  */
 
 import { AuthContext } from "./auth/authValidator.js";
-import { getTasksHandler, createTaskHandler, claimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler } from "./modules/dispatch.js";
+import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler } from "./modules/dispatch.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
@@ -15,6 +15,7 @@ import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
+import { getFleetTimelineHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -24,6 +25,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_tasks: getTasksHandler,
   create_task: createTaskHandler,
   claim_task: claimTaskHandler,
+  unclaim_task: unclaimTaskHandler,
   complete_task: completeTaskHandler,
   batch_claim_tasks: batchClaimTasksHandler,
   batch_complete_tasks: batchCompleteTasksHandler,
@@ -71,6 +73,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_operational_metrics: getOperationalMetricsHandler,
   // Fleet
   get_fleet_health: getFleetHealthHandler,
+  get_fleet_timeline: getFleetTimelineHandler,
 
   // Trace
   query_traces: queryTracesHandler,
@@ -129,6 +132,18 @@ export const TOOL_DEFINITIONS = [
       properties: {
         taskId: { type: "string" },
         sessionId: { type: "string" },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "unclaim_task",
+    description: "Unclaim an active task, returning it to created status for re-claiming. Circuit breaker flags tasks with 3+ unclaims.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string" },
+        reason: { type: "string", enum: ["stale_recovery", "manual", "timeout"], description: "Reason for unclaiming" },
       },
       required: ["taskId"],
     },
@@ -643,6 +658,17 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {},
+    },
+  },
+  {
+    name: "get_fleet_timeline",
+    description: "Query historical fleet snapshots with configurable resolution. Returns time-series data for fleet health visualization.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        period: { type: "string", enum: ["today", "this_week", "this_month"], default: "today", description: "Time period to query" },
+        resolution: { type: "string", enum: ["30s", "1m", "5m", "1h"], default: "5m", description: "Time bucket resolution for aggregation" },
+      },
     },
   },
   // === Metrics ===
