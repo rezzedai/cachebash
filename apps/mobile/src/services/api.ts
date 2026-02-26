@@ -183,14 +183,18 @@ class CacheBashAPI {
 
   async completeTask(
     taskId: string,
-    tokens_in?: number,
-    tokens_out?: number,
-    cost_usd?: number
+    params?: {
+      completed_status?: 'SUCCESS' | 'FAILED' | 'SKIPPED' | 'CANCELLED';
+      tokens_in?: number;
+      tokens_out?: number;
+      cost_usd?: number;
+    }
   ): Promise<any> {
     return this.post(`/tasks/${encodeURIComponent(taskId)}/complete`, {
-      ...(tokens_in !== undefined ? { tokens_in } : {}),
-      ...(tokens_out !== undefined ? { tokens_out } : {}),
-      ...(cost_usd !== undefined ? { cost_usd } : {}),
+      ...(params?.completed_status ? { completed_status: params.completed_status } : {}),
+      ...(params?.tokens_in !== undefined ? { tokens_in: params.tokens_in } : {}),
+      ...(params?.tokens_out !== undefined ? { tokens_out: params.tokens_out } : {}),
+      ...(params?.cost_usd !== undefined ? { cost_usd: params.cost_usd } : {}),
     });
   }
 
