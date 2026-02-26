@@ -5,7 +5,7 @@ import { Sprint } from '../types';
 function normalizeSprintStatus(status: string): string {
   const completed = ['complete', 'completed', 'done', 'finished', 'cancelled'];
   if (completed.includes(status)) return 'complete';
-  return status || 'active';
+  return status || 'unknown';
 }
 
 export function useSprints() {
@@ -24,7 +24,7 @@ export function useSprints() {
       for (const task of sprintTasks) {
         try {
           const sprintData = await api.getSprint(task.id);
-          if (sprintData) {
+          if (sprintData && sprintData.stories && sprintData.stories.length > 0) {
             sprints.push({
               id: sprintData.id || task.id,
               projectName: sprintData.projectName || task.title,

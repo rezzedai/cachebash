@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Alert, View, Text, ScrollView, RefreshControl, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import { Sprint, SprintStory, SprintStoryStatus } from '../types';
@@ -251,14 +251,50 @@ export default function SprintDetailScreen({ route, navigation }: Props) {
         {/* Stories by Wave */}
         <View style={styles.storiesSection}>
           <Text style={styles.storiesSectionHeader}>Stories</Text>
-          {Array.from(storiesByWave.entries())
-            .sort(([a], [b]) => {
-              if (a === 'unassigned') return 1;
-              if (b === 'unassigned') return -1;
-              return a - b;
-            })
-            .map(([wave, stories]) => renderWaveSection(wave, stories))}
+          {sprint.stories.length === 0 ? (
+            <View style={styles.emptyStories}>
+              <Text style={styles.emptyStoriesText}>This sprint has no stories</Text>
+            </View>
+          ) : (
+            Array.from(storiesByWave.entries())
+              .sort(([a], [b]) => {
+                if (a === 'unassigned') return 1;
+                if (b === 'unassigned') return -1;
+                return a - b;
+              })
+              .map(([wave, stories]) => renderWaveSection(wave, stories))
+          )}
         </View>
+
+        {/* Complete Sprint button — show when no stories are active */}
+        {sprint.stories.every(s => s.status !== 'active') && (
+          <TouchableOpacity
+            style={styles.completeSprintButton}
+            onPress={() => {
+              Alert.alert(
+                'Complete Sprint',
+                `Mark "${sprint.projectName}" as complete?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Complete',
+                    onPress: async () => {
+                      try {
+                        await api?.completeSprint(sprintId);
+                        navigation.goBack();
+                      } catch {
+                        Alert.alert('Error', 'Failed to complete sprint');
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.completeSprintText}>Complete Sprint</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -443,5 +479,27 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.textSecondary,
     fontWeight: '500',
+  },
+  emptyStories: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  emptyStoriesText: {
+    fontSize: theme.fontSize.md,
+    color: theme.colors.textMuted,
+  },
+  completeSprintButton: {
+    marginTop: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+  },
+  completeSprintText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: theme.colors.error,
   },
 });
