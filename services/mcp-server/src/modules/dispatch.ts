@@ -21,6 +21,8 @@ const GetTasksSchema = z.object({
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
   target: z.string().max(100).optional(),
   limit: z.number().min(1).max(50).default(10),
+  requires_action: z.boolean().optional(),
+  include_archived: z.boolean().default(false),
 });
 
 const CreateTaskSchema = z.object({
@@ -72,6 +74,35 @@ function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 
+/**
+ * Auto-classify whether a task requires action based on source and message_type.
+ * Applied at creation time. Rules per council-ratified spec.
+ */
+function classifyRequiresAction(taskData: Record<string, unknown>): boolean {
+  const source = taskData.source as string | undefined;
+  const messageType = taskData.message_type as string | undefined;
+  const completedStatus = taskData.completed_status as string | undefined;
+
+  // Admin (Flynn) tasks always require action
+  if (source === "admin") return true;
+
+  // Classify by message_type
+  switch (messageType) {
+    case "DIRECTIVE": return true;
+    case "QUERY": return true;
+    case "HANDSHAKE": return true;
+    case "ACK": return false;
+    case "STATUS": return false;
+    case "PING": return false;
+    case "PONG": return false;
+    case "RESULT":
+      return completedStatus === "FAILED";
+    default:
+      // Plain tasks (no message_type) require action by default
+      return true;
+  }
+}
+
 function decryptTaskFields(
   data: { title?: string; instructions?: string; encrypted?: boolean },
   key: Buffer
@@ -113,18 +144,35 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   const snapshot = await query.orderBy("createdAt", "desc").limit(args.limit).get();
 
+  // Track informational tasks for auto-archive (fire-and-forget)
+  const autoArchiveRefs: admin.firestore.DocumentReference[] = [];
+
   const tasks = snapshot.docs
     .filter((doc) => {
+      const data = doc.data();
       // Additional client-side filter if caller specified target param (for legacy keys)
       if (args.target && auth.programId === "legacy") {
-        const target = doc.data().target;
-        return !target || target === args.target;
+        const target = data.target;
+        if (target && target !== args.target) return false;
       }
+      // Filter by requires_action if specified
+      if (args.requires_action !== undefined) {
+        const reqAction = data.requires_action ?? true; // default true for legacy tasks
+        if (reqAction !== args.requires_action) return false;
+      }
+      // Filter out auto-archived unless explicitly included
+      if (!args.include_archived && data.auto_archived === true) return false;
       return true;
     })
     .map((doc) => {
       const data = doc.data();
       const decrypted = decryptTaskFields(data, auth.encryptionKey);
+
+      // Auto-archive informational tasks on read
+      if (data.requires_action === false && !data.auto_archived) {
+        autoArchiveRefs.push(doc.ref);
+      }
+
       return {
         id: doc.id,
         type: data.type || "task",
@@ -136,6 +184,8 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         source: data.source,
         target: data.target,
         projectId: data.projectId || null,
+        requires_action: data.requires_action ?? true,
+        auto_archived: data.auto_archived || false,
         // Envelope v2.1
         ttl: data.ttl || null,
         replyTo: data.replyTo || null,
@@ -146,6 +196,16 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       };
     });
+
+  // Fire-and-forget: auto-archive informational tasks
+  if (autoArchiveRefs.length > 0) {
+    const db2 = getFirestore();
+    const batch = db2.batch();
+    for (const ref of autoArchiveRefs) {
+      batch.update(ref, { auto_archived: true, auto_archived_at: admin.firestore.FieldValue.serverTimestamp() });
+    }
+    batch.commit().catch((err: unknown) => console.error("[AutoArchive] Failed:", err));
+  }
 
   return jsonResult({
     success: true,
@@ -199,6 +259,10 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     spanId: args.spanId || generateSpanId(),
     parentSpanId: args.parentSpanId || null,
   };
+
+    // Auto-classification: requires_action
+    taskData.requires_action = classifyRequiresAction(taskData);
+    taskData.auto_archived = false;
 
     // Telemetry: classify task
     taskData.task_class = classifyTask(args.type, args.action, args.title);
