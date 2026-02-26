@@ -137,6 +137,7 @@ export const TOOL_SCOPE_MAP: Record<string, string> = {
   // Admin tools → mcp:admin
   create_key: "mcp:admin",
   revoke_key: "mcp:admin",
+  rotate_key: "mcp:admin",
 };
 
 /**
