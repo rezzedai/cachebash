@@ -180,7 +180,7 @@ export const TOOL_DEFINITIONS = [
       properties: {
         sessionId: { type: "string" },
         target: { type: "string", description: "Filter by target program ID" },
-        markAsRead: { type: "boolean", default: true },
+        markAsRead: { type: "boolean", default: false },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"], description: "Filter by message type" },
         priority: { type: "string", enum: ["low", "normal", "high"], description: "Filter by priority level" },
       },
