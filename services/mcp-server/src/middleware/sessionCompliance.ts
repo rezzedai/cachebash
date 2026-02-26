@@ -34,6 +34,17 @@ export const COMPLIANCE_EXEMPT_TOOLS = new Set([
   "query_message_history",
 ]);
 
+/**
+ * Reset compliance state for an MCP transport session.
+ * Called after create_session succeeds so that a DEREZED transport session
+ * can start fresh without requiring a new MCP connection.
+ */
+export function resetTransportCompliance(userId: string, sessionId: string): void {
+  const freshState = initializeCompliance(userId, sessionId);
+  cacheCompliance(sessionId, freshState);
+  persistCompliance(userId, sessionId, freshState);
+}
+
 export const EXEMPT_PROGRAMS = new Set(["legacy", "mobile", "admin", "admin-mirror", "bit"]);
 
 const ORCHESTRATOR_PROGRAMS = new Set(["orchestrator", "iso", "alan", "vector", "quorra", "radia", "casp", "sark"]);
