@@ -45,6 +45,15 @@ export function resetTransportCompliance(userId: string, sessionId: string): voi
   persistCompliance(userId, sessionId, freshState);
 }
 
+/**
+ * Clear the in-memory compliance cache entry for a given programId.
+ * The next auth request will re-fetch fresh state from Firestore.
+ * Returns true if an entry was found and deleted, false otherwise.
+ */
+export function clearComplianceCache(programId: string): boolean {
+  return complianceCache.delete(programId);
+}
+
 export const EXEMPT_PROGRAMS = new Set(["legacy", "mobile", "admin", "admin-mirror", "bit"]);
 
 const ORCHESTRATOR_PROGRAMS = new Set(["orchestrator", "iso", "alan", "vector", "quorra", "radia", "casp", "sark"]);
