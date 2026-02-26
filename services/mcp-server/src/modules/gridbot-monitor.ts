@@ -132,6 +132,27 @@ export async function runHealthCheck(
     threshold: { warning: 10, critical: 50 },
   });
 
+  // 7. Stale session count (sessions with heartbeat age > 10 min)
+  const activeSessions = await firestore
+    .collection(`tenants/${userId}/sessions`)
+    .where("state", "in", ["working", "blocked"])
+    .get();
+
+  const staleSessionCount = activeSessions.docs.filter((doc) => {
+    const data = doc.data();
+    const heartbeat =
+      data.lastHeartbeat?.toMillis?.() || data.lastUpdate?.toMillis?.() || 0;
+    return Date.now() - heartbeat > 10 * 60 * 1000;
+  }).length;
+
+  indicators.push({
+    name: "stale_sessions",
+    value: staleSessionCount,
+    status:
+      staleSessionCount >= 3 ? "critical" : staleSessionCount >= 1 ? "warning" : "ok",
+    threshold: { warning: 1, critical: 3 },
+  });
+
   // Determine overall status
   const hasCritical = indicators.some((i) => i.status === "critical");
   const hasWarning = indicators.some((i) => i.status === "warning");
