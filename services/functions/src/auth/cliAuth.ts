@@ -12,6 +12,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { randomBytes, createHash } from "crypto";
+import { logSuccess, logError } from "../util/structuredLog";
 
 const db = admin.firestore();
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -54,6 +55,7 @@ export const cliAuthApprove = functions.https.onRequest(async (req, res) => {
     return;
   }
 
+  const startTime = Date.now();
   try {
     const { sessionToken, idToken } = req.body;
 
@@ -123,13 +125,24 @@ export const cliAuthApprove = functions.https.onRequest(async (req, res) => {
       });
     });
 
+    logSuccess({
+      function: "cliAuthApprove",
+      uid: userId,
+      action: "approve_cli_session",
+      durationMs: Date.now() - startTime,
+    });
     res.status(200).json({ success: true });
   } catch (err: any) {
     if (err.code === "resource-exhausted") {
       res.status(400).json({ error: err.message });
       return;
     }
-    console.error("[cliAuth] Approve failed:", err);
+    logError({
+      function: "cliAuthApprove",
+      uid: null,
+      action: "approve_cli_session",
+      durationMs: Date.now() - startTime,
+    }, err);
     res.status(500).json({ error: "Authentication failed" });
   }
 });
@@ -157,6 +170,7 @@ export const cliAuthStatus = functions.https.onRequest(async (req, res) => {
     return;
   }
 
+  const startTime = Date.now();
   try {
     const sessionRef = db.collection("cli_sessions").doc(sessionToken);
 
@@ -195,9 +209,20 @@ export const cliAuthStatus = functions.https.onRequest(async (req, res) => {
       return { status: data.status || "pending" };
     });
 
+    logSuccess({
+      function: "cliAuthStatus",
+      uid: null,
+      action: "poll_cli_status",
+      durationMs: Date.now() - startTime,
+    });
     res.status(200).json(result);
   } catch (err: any) {
-    console.error("[cliAuth] Status check failed:", err);
+    logError({
+      function: "cliAuthStatus",
+      uid: null,
+      action: "poll_cli_status",
+      durationMs: Date.now() - startTime,
+    }, err);
     res.status(500).json({ error: "Status check failed" });
   }
 });

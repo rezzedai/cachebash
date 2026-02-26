@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
+import { logSuccess, logError } from "../util/structuredLog";
 
 const db = admin.firestore();
 
@@ -11,6 +12,7 @@ const db = admin.firestore();
 export const onUserCreate = functions.auth.user().onCreate(async (user) => {
   const { uid, email, displayName, photoURL, providerData } = user;
   const provider = providerData?.[0]?.providerId || "unknown";
+  const startTime = Date.now();
 
   try {
     // 1. Generate first API key
@@ -72,14 +74,19 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    functions.logger.info(
-      `Tenant provisioned for ${uid} (${email}), provider: ${provider}`
-    );
+    logSuccess({
+      function: "onUserCreate",
+      uid,
+      action: "create_tenant_and_firstkey",
+      durationMs: Date.now() - startTime,
+    });
   } catch (error) {
-    functions.logger.error(
-      `Failed to provision tenant for ${uid}`,
-      error
-    );
+    logError({
+      function: "onUserCreate",
+      uid,
+      action: "create_tenant_and_firstkey",
+      durationMs: Date.now() - startTime,
+    }, error);
     throw error;
   }
 });
