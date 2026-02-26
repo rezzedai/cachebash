@@ -198,7 +198,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
       {localTask.instructions && (
         <View style={styles.instructionsCard}>
           <Text style={styles.sectionTitle}>Instructions</Text>
-          <Text style={styles.instructionsText}>
+          <Text style={styles.instructionsText} selectable={false}>
             {isExpanded || localTask.instructions.length <= 500
               ? localTask.instructions
               : `${localTask.instructions.slice(0, 500)}...`}
