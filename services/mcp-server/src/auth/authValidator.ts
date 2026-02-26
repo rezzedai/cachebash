@@ -43,7 +43,7 @@ export async function validateApiKey(
 
     // Load capabilities from key doc, falling back to defaults for the program
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
-    const capabilities: string[] = data.capabilities && data.capabilities.length > 0 && data.capabilities[0] !== "*"
+    const capabilities: string[] = data.capabilities && data.capabilities.length > 0
       ? data.capabilities
       : getDefaultCapabilities(programId);
 
