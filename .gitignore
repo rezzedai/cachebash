@@ -23,3 +23,4 @@ lib/
 apps/mobile/.expo/
 apps/mobile/ios/
 apps/mobile/android/
+apps/mobile/.env
