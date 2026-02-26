@@ -141,6 +141,16 @@ async function main() {
       return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
     }
 
+    // OAuth scope enforcement — only applies to OAuth tokens
+    if (auth.oauthScopes) {
+      const { checkToolScope } = await import("./oauth/scopes.js");
+      const scopeError = checkToolScope(name, auth.oauthScopes);
+      if (scopeError) {
+        audit.error(name, scopeError, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+        return { content: [{ type: "text", text: JSON.stringify({ error: "insufficient_scope", error_description: scopeError }) }], isError: true };
+      }
+    }
+
     let complianceWarning: string | undefined;
     try {
       const complianceResult = await checkSessionCompliance(auth, name, (args || {}) as Record<string, unknown>, {

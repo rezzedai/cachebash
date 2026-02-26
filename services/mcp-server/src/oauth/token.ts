@@ -112,6 +112,9 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
     const familyId = crypto.randomUUID();
     const now = new Date();
 
+    // Resolve granted scopes from the scope string
+    const grantedScopes = result.scope ? result.scope.split(" ").filter(Boolean) : ["mcp:full"];
+
     // Store access token (1 hour TTL)
     const accessExpiresAt = new Date(now.getTime() + 3600 * 1000);
     await db.doc(`oauthTokens/${accessHash}`).set({
@@ -121,6 +124,7 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
       clientId,
       userId: result.userId,
       scope: result.scope,
+      grantedScopes,
       programId: "oauth",
       familyId,
       createdAt: Timestamp.fromDate(now),
@@ -139,6 +143,7 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
       clientId,
       userId: result.userId,
       scope: result.scope,
+      grantedScopes,
       programId: "oauth",
       familyId,
       createdAt: Timestamp.fromDate(now),
@@ -210,6 +215,9 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
     const newAccessHash = hashToken(newAccessToken);
     const newRefreshHash = hashToken(newRefreshToken);
 
+    // Carry forward granted scopes
+    const grantedScopes = tokenData.grantedScopes || (tokenData.scope ? tokenData.scope.split(" ").filter(Boolean) : ["mcp:full"]);
+
     // Store new access token
     const accessExpiresAt = new Date(now.getTime() + 3600 * 1000);
     await db.doc(`oauthTokens/${newAccessHash}`).set({
@@ -219,6 +227,7 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
       clientId,
       userId: tokenData.userId,
       scope: tokenData.scope,
+      grantedScopes,
       programId: "oauth",
       familyId: tokenData.familyId,
       createdAt: Timestamp.fromDate(now),
@@ -237,6 +246,7 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
       clientId,
       userId: tokenData.userId,
       scope: tokenData.scope,
+      grantedScopes,
       programId: "oauth",
       familyId: tokenData.familyId,
       createdAt: Timestamp.fromDate(now),

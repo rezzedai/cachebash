@@ -50,12 +50,16 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Load capabilities
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
 
+    // Pass granted scopes through capabilities for scope enforcement
+    const grantedScopes = data.grantedScopes || (data.scope ? data.scope.split(" ") : ["mcp:full"]);
+
     return {
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
       programId: "oauth",
       capabilities: getDefaultCapabilities("oauth"),
+      oauthScopes: grantedScopes,
     };
   } catch (error) {
     console.error("[Auth] OAuth token validation failed:", error instanceof Error ? error.message : String(error));
