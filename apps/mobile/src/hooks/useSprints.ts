@@ -2,6 +2,12 @@ import { usePolling } from './usePolling';
 import { useAuth } from '../contexts/AuthContext';
 import { Sprint } from '../types';
 
+function normalizeSprintStatus(status: string): string {
+  const completed = ['complete', 'completed', 'done', 'finished', 'cancelled'];
+  if (completed.includes(status)) return 'complete';
+  return status || 'active';
+}
+
 export function useSprints() {
   const { api } = useAuth();
 
@@ -31,7 +37,7 @@ export function useSprints() {
                 currentAction: s.currentAction,
                 wave: s.wave,
               })),
-              status: sprintData.status || task.status,
+              status: normalizeSprintStatus(sprintData.status || task.status),
               createdAt: sprintData.createdAt || task.createdAt,
             });
           }

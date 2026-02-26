@@ -458,11 +458,11 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
 
         {/* Active Sprint Card */}
-        {sprints.filter(s => s.status !== 'complete' && s.status !== 'done').length > 0 && (
+        {sprints.filter(s => s.status === 'active').length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionHeader}>Active Sprint</Text>
             {sprints
-              .filter(s => s.status !== 'complete' && s.status !== 'done')
+              .filter(s => s.status === 'active')
               .slice(0, 1)
               .map((sprint) => {
                 const completed = sprint.stories.filter(s => s.status === 'complete').length;
