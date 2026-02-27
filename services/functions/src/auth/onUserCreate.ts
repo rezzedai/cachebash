@@ -74,6 +74,15 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // 7. W1.3.1: Create usage-based billing config
+    await db.doc(`tenants/${uid}/_meta/billing`).set({
+      monthlyBudgetUsd: null, // unlimited by default
+      tokenBudgetMonthly: null, // unlimited by default
+      alertThresholds: [], // no alerts by default
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     logSuccess({
       function: "onUserCreate",
       uid,

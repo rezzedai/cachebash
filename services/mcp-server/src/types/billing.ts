@@ -12,6 +12,24 @@ export interface BillingConfig {
   softWarnOnly: boolean;
 }
 
+/**
+ * W1.3.1: Per-tenant billing configuration
+ * Document: tenants/{userId}/_meta/billing
+ */
+export interface TenantBillingConfig {
+  monthlyBudgetUsd: number | null; // null = unlimited
+  tokenBudgetMonthly: number | null; // null = unlimited
+  alertThresholds: number[]; // percentage thresholds (e.g., [50, 80, 95])
+  createdAt?: FirebaseFirestore.Timestamp;
+  updatedAt?: FirebaseFirestore.Timestamp;
+}
+
+export const DEFAULT_TENANT_BILLING_CONFIG: Omit<TenantBillingConfig, 'createdAt' | 'updatedAt'> = {
+  monthlyBudgetUsd: null, // unlimited
+  tokenBudgetMonthly: null, // unlimited
+  alertThresholds: [], // no alerts by default
+};
+
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   tier: "free",
   limits: {
