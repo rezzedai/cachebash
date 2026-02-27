@@ -14,6 +14,7 @@ import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler }
 import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
+import { getUsageHandler, getInvoiceHandler, setBudgetHandler } from "./modules/usage.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
 import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
@@ -72,6 +73,10 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_cost_summary: getCostSummaryHandler,
   get_comms_metrics: getCommsMetricsHandler,
   get_operational_metrics: getOperationalMetricsHandler,
+  // Usage (W1.3)
+  get_usage: getUsageHandler,
+  get_invoice: getInvoiceHandler,
+  set_budget: setBudgetHandler,
   // Fleet
   get_fleet_health: getFleetHealthHandler,
   get_fleet_timeline: getFleetTimelineHandler,
