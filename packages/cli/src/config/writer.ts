@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, chmod } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -94,7 +94,9 @@ export async function writeConfig(apiKey: string): Promise<string> {
     await mkdir(dir, { recursive: true });
   }
 
-  await writeFile(target.path, JSON.stringify(config, null, 2) + "\n", "utf-8");
+  await writeFile(target.path, JSON.stringify(config, null, 2) + "\n", { encoding: "utf-8", mode: 0o600 });
+  // Ensure permissions on pre-existing files too (writeFile mode only applies to new files)
+  await chmod(target.path, 0o600);
   printSuccess(`Config written to ${target.path}`);
 
   return target.path;
