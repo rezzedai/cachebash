@@ -14,6 +14,8 @@ import { emitEvent } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { generateSpanId } from "../utils/trace.js";
 import { z } from "zod";
+import { logDirective, markDirectiveAcknowledged } from "./ack-compliance.js";
+import { getComplianceConfig } from "../config/compliance.js";
 
 const SendMessageSchema = z.object({
   message: z.string().max(2000),
@@ -231,6 +233,30 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   };
 
   const relayRef = await db.collection(`tenants/${auth.userId}/relay`).add(relayData);
+
+  // W1.2.3: Log DIRECTIVE messages to audit trail
+  const complianceConfig = getComplianceConfig(auth.userId);
+  if (args.message_type === "DIRECTIVE" && complianceConfig.ackAudit.enabled) {
+    await logDirective(
+      auth.userId,
+      relayRef.id,
+      verifiedSource,
+      args.target,
+      args.message,
+      args.threadId,
+      args.sessionId
+    );
+  }
+
+  // W1.2.3: Mark DIRECTIVE as acknowledged when ACK received
+  if (args.message_type === "ACK" && args.reply_to && complianceConfig.ackAudit.enabled) {
+    try {
+      await markDirectiveAcknowledged(auth.userId, args.reply_to, relayRef.id);
+    } catch (error) {
+      // Log error but don't fail the ACK send
+      console.warn(`[W1.2.3] Failed to mark DIRECTIVE ${args.reply_to} as acknowledged:`, error);
+    }
+  }
 
   // Emit telemetry event for message delivery
   emitEvent(auth.userId, {
