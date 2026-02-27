@@ -1,0 +1,24 @@
+# CacheBash Terraform Variables
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit actual values.
+
+project_id = "your-gcp-project-id"
+region     = "us-central1"
+
+# Custom domain for Cloud Run (leave empty to use default *.run.app URL)
+# Requires DNS CNAME pointing to ghs.googlehosted.com
+custom_domain = ""
+
+# Cloud Run scaling
+mcp_min_instances = 0
+mcp_max_instances = 10
+
+# MCP server environment variables (secrets should use Secret Manager in production)
+mcp_server_env_vars = {
+  # GITHUB_TOKEN          = ""
+  # GITHUB_FEEDBACK_PAT   = ""
+  # GITHUB_WEBHOOK_SECRET = ""
+  # GITHUB_REPO           = "owner/repo"
+  # ADMIN_USER_ID         = ""
+  # OAUTH_ISSUER          = ""
+}

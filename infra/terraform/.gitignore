@@ -1,0 +1,18 @@
+# Terraform state (managed in GCS backend)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Actual variable values (secrets, project IDs)
+terraform.tfvars
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
