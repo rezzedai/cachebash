@@ -364,14 +364,25 @@ async function main() {
         session_expires_in_ms: Math.max(0, remainingMs),
       });
     }
-    // REST API — but NOT internal endpoints (those are handled below without auth)
+    // REST API — but NOT internal endpoints (those are handled below with separate auth)
     if (url?.startsWith("/v1/") && url !== "/v1/mcp" && url !== "/v1/iso/mcp" && !url?.startsWith("/v1/internal/")) {
       return restRouter(req, res);
     }
 
+    // Auth guard for all /v1/internal/* endpoints (SARK C-1)
+    if (url?.startsWith("/v1/internal/")) {
+      const internalToken = extractBearerToken(req.headers.authorization);
+      if (!internalToken) {
+        return sendJson(res, 401, { error: "Missing Authorization header" });
+      }
+      const internalAuth = await validateAuth(internalToken);
+      if (!internalAuth) {
+        return sendJson(res, 401, { error: "Invalid API key" });
+      }
+    }
+
     // Internal cleanup endpoint (scheduled job)
     if (url === "/v1/internal/cleanup" && req.method === "POST") {
-      // TODO: Restrict to Cloud Scheduler service account in production
       const startTime = Date.now();
 
       try {
