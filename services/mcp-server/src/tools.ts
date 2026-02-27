@@ -18,6 +18,7 @@ import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
 import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
 import { logRateLimitEventHandler, getRateLimitEventsHandler } from "./modules/rate-limits.js";
+import { getAckComplianceHandler } from "./modules/ack-compliance.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -93,6 +94,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // Context Utilization (Story 2E)
   get_context_utilization: getContextUtilizationHandler,
+
+  // ACK Compliance (W1.2.3)
+  get_ack_compliance: getAckComplianceHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -832,6 +836,18 @@ export const TOOL_DEFINITIONS = [
       properties: {
         sessionId: { type: "string", maxLength: 100, description: "Specific session to query" },
         period: { type: "string", enum: ["today", "this_week", "this_month"], default: "today", description: "Time period to filter context history" },
+      },
+    },
+  },
+  // === ACK Compliance (W1.2.3) ===
+  {
+    name: "get_ack_compliance",
+    description: "Get ACK compliance report. Returns statistics on DIRECTIVE messages and their ACK status.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", maxLength: 100, description: "Filter by source program ID" },
+        period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to query" },
       },
     },
   },
