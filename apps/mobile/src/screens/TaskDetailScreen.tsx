@@ -63,7 +63,7 @@ export default function TaskDetailScreen({ route, navigation }: Props) {
     try {
       await api.sendMessage({
         source: 'admin',
-        target: localTask.source || 'orchestrator',
+        target: localTask.source || 'iso',
         message: option,
         message_type: 'RESULT',
         priority: localTask.priority || 'normal',

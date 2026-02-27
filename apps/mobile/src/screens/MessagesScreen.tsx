@@ -41,8 +41,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       } else if (message.target === 'admin') {
         programId = message.source;
       } else {
-        // Messages between programs — group by the non-orchestrator party
-        programId = message.source === 'orchestrator' ? message.target : message.source;
+        // Messages between programs — group by the non-iso party
+        programId = message.source === 'iso' ? message.target : message.source;
       }
 
       // Skip empty programId
@@ -95,7 +95,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           <View style={styles.channelContent}>
             <Text style={styles.programName}>{(item.programId || 'Unknown').toUpperCase()}</Text>
             <Text style={styles.messagePreview} numberOfLines={1} ellipsizeMode="tail">
-              {(item.lastMessage.source === 'orchestrator' || item.lastMessage.source === 'admin') ? 'You: ' : ''}{item.lastMessage.message}
+              {(item.lastMessage.source === 'iso' || item.lastMessage.source === 'admin') ? 'You: ' : ''}{item.lastMessage.message}
             </Text>
           </View>
         </View>
