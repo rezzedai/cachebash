@@ -10,6 +10,7 @@ import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
 import { emitAnalyticsEvent } from "./analytics.js";
+import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 
 /** Approximate context window size in bytes (200KB) */
 const CONTEXT_WINDOW_BYTES = 200_000;
@@ -66,6 +67,34 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
   const db = getFirestore();
 
   const sessionId = args.sessionId || `session_${Date.now()}`;
+
+  // W1.2.1: Session ID format validation
+  const complianceConfig = getComplianceConfig(auth.userId);
+  const validation = validateSessionId(sessionId);
+
+  if (!validation.valid) {
+    if (complianceConfig.sessionIdValidation.enforceFormat) {
+      return jsonResult({
+        success: false,
+        error: `Invalid session ID format: ${validation.reason}`,
+        sessionId,
+      });
+    }
+  }
+
+  if (validation.legacy && !complianceConfig.sessionIdValidation.allowLegacy) {
+    return jsonResult({
+      success: false,
+      error: `Legacy session ID format not allowed: ${sessionId}. Use format: {program}[-{env}].{task}`,
+      sessionId,
+    });
+  }
+
+  // Log warning for legacy format
+  if (validation.legacy) {
+    console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
+  }
+
   const programId = args.programId || sessionId.split(".")[0];
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
@@ -127,6 +156,34 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   const db = getFirestore();
 
   const sessionId = args.sessionId || `session_${Date.now()}`;
+
+  // W1.2.1: Session ID format validation
+  const complianceConfig = getComplianceConfig(auth.userId);
+  const validation = validateSessionId(sessionId);
+
+  if (!validation.valid) {
+    if (complianceConfig.sessionIdValidation.enforceFormat) {
+      return jsonResult({
+        success: false,
+        error: `Invalid session ID format: ${validation.reason}`,
+        sessionId,
+      });
+    }
+  }
+
+  if (validation.legacy && !complianceConfig.sessionIdValidation.allowLegacy) {
+    return jsonResult({
+      success: false,
+      error: `Legacy session ID format not allowed: ${sessionId}. Use format: {program}[-{env}].{task}`,
+      sessionId,
+    });
+  }
+
+  // Log warning for legacy format
+  if (validation.legacy) {
+    console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
+  }
+
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
