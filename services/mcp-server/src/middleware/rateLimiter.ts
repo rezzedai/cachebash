@@ -21,6 +21,7 @@ import {
   AUTH_ATTEMPT,
   COUNTER_TTL_MS,
 } from "../config/rateLimits.js";
+import { getComplianceConfig } from "../config/compliance.js";
 
 // --- In-memory fixed-window counters ---
 
@@ -112,6 +113,8 @@ export function consumeRateLimitResult(sessionId: string): RateLimitResult | und
  * Check all rate limits for a request. Returns the most restrictive result.
  * Checks in order: per-tool → per-key global → per-tenant aggregate.
  * First failure short-circuits.
+ *
+ * W1.2.6: Uses compliance config if enabled, otherwise falls back to hardcoded limits.
  */
 export function enforceRateLimit(
   userId: string,
@@ -121,11 +124,21 @@ export function enforceRateLimit(
   const windowKey = getWindowKey();
   const resetAt = getWindowResetAt();
 
+  // W1.2.6: Check compliance config for tenant-level rate limits
+  const complianceConfig = getComplianceConfig(userId);
+  const useComplianceLimits = complianceConfig.rateLimits.enabled;
+
   // 1. Per-key tool-specific limit
-  const toolConfig = TOOL_LIMITS[tool];
-  if (toolConfig) {
+  let toolLimit: number | undefined;
+  if (useComplianceLimits && complianceConfig.rateLimits.requestsPerMinute[tool]) {
+    toolLimit = complianceConfig.rateLimits.requestsPerMinute[tool];
+  } else if (TOOL_LIMITS[tool]) {
+    toolLimit = TOOL_LIMITS[tool].limit;
+  }
+
+  if (toolLimit) {
     const toolScope = `tool:${tool}:${keyHash}`;
-    const toolResult = incrementCounter(toolScope, toolConfig.limit);
+    const toolResult = incrementCounter(toolScope, toolLimit);
     if (toolResult.allowed) {
       persistCounter(userId, toolScope, windowKey);
     }
@@ -133,7 +146,7 @@ export function enforceRateLimit(
       const retryAfter = Math.ceil((resetAt.getTime() - Date.now()) / 1000);
       return {
         allowed: false,
-        limit: toolConfig.limit,
+        limit: toolLimit,
         remaining: 0,
         resetAt,
         retryAfter,
