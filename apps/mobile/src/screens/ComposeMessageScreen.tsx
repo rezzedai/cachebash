@@ -13,7 +13,7 @@ interface Program {
 }
 
 const PROGRAMS: Program[] = [
-  { id: 'orchestrator', name: 'ISO', color: '#6FC3DF' },
+  { id: 'iso', name: 'ISO', color: '#6FC3DF' },
   { id: 'builder', name: 'BASHER', color: '#E87040' },
   { id: 'architect', name: 'ALAN', color: '#4A8ED4' },
   { id: 'reviewer', name: 'QUORRA', color: '#9B6FC0' },
