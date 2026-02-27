@@ -36,6 +36,9 @@ export { cleanupLedger } from "./cleanup/cleanupLedger";
 export { processDeadLetters } from "./cleanup/processDeadLetters";
 export { cleanupAudit } from "./cleanup/cleanupAudit";
 
+// Usage tracking (W1.1.5)
+export { aggregateUsage } from "./usage/aggregateUsage";
+
 // Feedback
 export { submitFeedback } from "./feedback/submitFeedback";
 
