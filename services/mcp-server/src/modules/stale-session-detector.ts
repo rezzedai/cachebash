@@ -10,6 +10,7 @@
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { emitEvent } from "./events.js";
+import { getComplianceConfig } from "../config/compliance.js";
 
 export interface StaleSession {
   sessionId: string;
@@ -25,12 +26,17 @@ export interface StaleSessionResult {
   archived: number;
 }
 
-const STALE_WARN_THRESHOLD_MS = 10 * 60 * 1000;     // 10 minutes
-const STALE_ARCHIVE_THRESHOLD_MS = 30 * 60 * 1000;  // 30 minutes
+const STALE_WARN_THRESHOLD_MS = 10 * 60 * 1000;     // 10 minutes (default)
 
 export async function detectStaleSessions(userId: string): Promise<StaleSessionResult> {
   const db = getFirestore();
   const now = Date.now();
+
+  // W1.2.5: Use compliance config for staleness threshold
+  const complianceConfig = getComplianceConfig(userId);
+  const stalenessThresholdMs = complianceConfig.contextHealth.enabled
+    ? complianceConfig.contextHealth.stalenessThresholdMinutes * 60 * 1000
+    : 30 * 60 * 1000; // Default to 30 minutes if disabled
 
   const sessionsSnap = await db.collection(`tenants/${userId}/sessions`)
     .where("state", "in", ["working", "blocked"])
@@ -49,7 +55,8 @@ export async function detectStaleSessions(userId: string): Promise<StaleSessionR
     const heartbeatMs = heartbeatTime ? heartbeatTime.getTime() : 0;
     const ageMs = now - heartbeatMs;
 
-    if (ageMs > STALE_ARCHIVE_THRESHOLD_MS) {
+    // W1.2.5: Use configurable threshold for staleness detection
+    if (ageMs > stalenessThresholdMs) {
       // Auto-archive: session is dead
       try {
         await doc.ref.update({
