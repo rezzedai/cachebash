@@ -27,6 +27,8 @@ export interface ComplianceState {
   stateHistory: Array<{ from: string; to: string; trigger: string; at: string }>;
 }
 
+export type BootType = "orchestrator" | "builder";
+
 /** The Session document — lives in tenants/{uid}/sessions/{id} */
 export interface Session {
   id: string;
@@ -34,6 +36,9 @@ export interface Session {
 
   // Lifecycle
   status: LifecycleStatus;
+
+  // Boot configuration
+  bootType?: BootType; // orchestrator = full boot prompt, builder = minimal
 
   // State
   name: string;
