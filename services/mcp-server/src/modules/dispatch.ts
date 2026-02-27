@@ -154,7 +154,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   // Phase 2: Target enforcement — programs only see their own tasks
   // Sprints are org-wide (target: null) — skip target filter for sprint types
-  if (auth.programId !== "legacy" && auth.programId !== "mobile"
+  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "dispatcher"
       && args.type !== "sprint" && args.type !== "sprint-story") {
     // Program keys: only see tasks targeted at this program OR broadcast
     query = query.where("target", "in", [auth.programId, "all"]);

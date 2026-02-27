@@ -15,7 +15,7 @@ import { getAuditHandler } from "./modules/audit.js";
 import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
-import { getFleetTimelineHandler } from "./modules/fleet-timeline.js";
+import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
 import { logRateLimitEventHandler, getRateLimitEventsHandler } from "./modules/rate-limits.js";
 
@@ -75,6 +75,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Fleet
   get_fleet_health: getFleetHealthHandler,
   get_fleet_timeline: getFleetTimelineHandler,
+  write_fleet_snapshot: writeFleetSnapshotHandler,
 
   // Trace
   query_traces: queryTracesHandler,
@@ -682,6 +683,28 @@ export const TOOL_DEFINITIONS = [
         period: { type: "string", enum: ["today", "this_week", "this_month"], default: "today", description: "Time period to query" },
         resolution: { type: "string", enum: ["30s", "1m", "5m", "1h"], default: "5m", description: "Time bucket resolution for aggregation" },
       },
+    },
+  },
+  {
+    name: "write_fleet_snapshot",
+    description: "Write a fleet health snapshot for time-series tracking. Called by the Grid Dispatcher daemon.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        activeSessions: {
+          type: "object",
+          properties: {
+            total: { type: "number", description: "Total active sessions" },
+            byTier: { type: "object", description: "Sessions grouped by tier" },
+            byProgram: { type: "object", description: "Sessions grouped by program" },
+          },
+          required: ["total"],
+        },
+        tasksInFlight: { type: "number", description: "Number of tasks currently in flight" },
+        messagesPending: { type: "number", description: "Number of pending messages" },
+        heartbeatHealth: { type: "number", description: "Heartbeat health score (0-1)" },
+      },
+      required: ["activeSessions"],
     },
   },
   // === Metrics ===

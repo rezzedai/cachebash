@@ -427,6 +427,11 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "get_fleet_health", {});
     restResponse(res, true, data);
   }),
+  route("POST", "/v1/fleet/snapshots", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "write_fleet_snapshot", body);
+    restResponse(res, true, data);
+  }),
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
     const result = await dreamPeekHandler(auth, {});
