@@ -38,6 +38,7 @@ describe("Lifecycle Engine", () => {
         ["done", "archived"],
         ["failed", "created"],
         ["failed", "archived"],
+        ["active", "created"],
       ];
 
       it.each(valid)("allows %s → %s", (from, to) => {
@@ -48,7 +49,6 @@ describe("Lifecycle Engine", () => {
         ["created", "blocked"],
         ["created", "completing"],
         ["created", "done"],
-        ["active", "created"],
         ["blocked", "completing"],
         ["blocked", "done"],
         ["completing", "created"],

@@ -72,9 +72,9 @@ describe("Fleet Timeline Integration", () => {
       await writeSnapshot(t2, { tasksInFlight: 8 });
 
       // Query ordered by timestamp
-      const startOfDay = new Date(now);
-      startOfDay.setHours(0, 0, 0, 0);
-      const startTs = admin.firestore.Timestamp.fromDate(startOfDay);
+      // Use a start time safely before all test data (1 hour before oldest snapshot)
+      const queryStart = new Date(now.getTime() - 4 * 60 * 1000); // 4 min ago (before t1 at 3 min ago)
+      const startTs = admin.firestore.Timestamp.fromDate(queryStart);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)
@@ -118,9 +118,9 @@ describe("Fleet Timeline Integration", () => {
       await writeSnapshot(yesterdaySnapshot, { tasksInFlight: 99 });
 
       // Query "today" only
-      const startOfToday = new Date(now);
-      startOfToday.setHours(0, 0, 0, 0);
-      const startTs = admin.firestore.Timestamp.fromDate(startOfToday);
+      // Use a start time that excludes yesterday but includes today
+      const queryStart = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago (after yesterdaySnapshot at 25h ago, before todaySnapshot at 30m ago)
+      const startTs = admin.firestore.Timestamp.fromDate(queryStart);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)

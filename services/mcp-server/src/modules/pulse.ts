@@ -4,11 +4,17 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
+import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
 import { emitAnalyticsEvent } from "./analytics.js";
+
+/** Approximate context window size in bytes (200KB) */
+const CONTEXT_WINDOW_BYTES = 200_000;
+/** Maximum context history entries per session (rolling window) */
+const MAX_CONTEXT_HISTORY = 1000;
 
 const CreateSessionSchema = z.object({
   name: z.string().max(200),
@@ -137,7 +143,31 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
 
   if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
-  if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;  await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
+  if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;
+
+  await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
+
+  // Story 2E: Append context utilization to contextHistory when contextBytes provided
+  if (args.contextBytes !== undefined) {
+    const contextPercent = Math.round((args.contextBytes / CONTEXT_WINDOW_BYTES) * 10000) / 100;
+    const contextEntry = {
+      timestamp: new Date().toISOString(),
+      contextBytes: args.contextBytes,
+      contextPercent,
+    };
+
+    const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
+    const sessionDoc = await sessionRef.get();
+    const existingHistory: Array<Record<string, unknown>> = (sessionDoc.data()?.contextHistory as Array<Record<string, unknown>>) || [];
+
+    // Rolling window: cap at MAX_CONTEXT_HISTORY entries
+    const updatedHistory = [...existingHistory, contextEntry];
+    const trimmedHistory = updatedHistory.length > MAX_CONTEXT_HISTORY
+      ? updatedHistory.slice(updatedHistory.length - MAX_CONTEXT_HISTORY)
+      : updatedHistory;
+
+    await sessionRef.update({ contextHistory: trimmedHistory });
+  }
 
   // Add to history
   await db.collection(`tenants/${auth.userId}/sessions/${sessionId}/updates`).add({
@@ -279,4 +309,114 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
   });
 
   return jsonResult({ success: true, count: sessions.length, sessions });
+}
+
+// === Story 2E: Context Utilization Query ===
+
+const GetContextUtilizationSchema = z.object({
+  sessionId: z.string().max(100).optional(),
+  period: z.enum(["today", "this_week", "this_month"]).default("today"),
+});
+
+function contextPeriodStart(period: string): Date {
+  const now = new Date();
+  switch (period) {
+    case "today": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    case "this_week": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+    case "this_month": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(1);
+      return d;
+    }
+    default:
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+}
+
+export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GetContextUtilizationSchema.parse(rawArgs || {});
+  const db = getFirestore();
+
+  const start = contextPeriodStart(args.period);
+
+  if (args.sessionId) {
+    // Return specific session's contextHistory
+    const sessionDoc = await db.doc(`tenants/${auth.userId}/sessions/${args.sessionId}`).get();
+
+    if (!sessionDoc.exists) {
+      return jsonResult({ success: false, error: "Session not found." });
+    }
+
+    const data = sessionDoc.data()!;
+    const fullHistory: Array<Record<string, unknown>> = (data.contextHistory as Array<Record<string, unknown>>) || [];
+
+    // Filter by period
+    const filtered = fullHistory.filter((entry) => {
+      const ts = entry.timestamp as string;
+      if (!ts) return false;
+      return new Date(ts).getTime() >= start.getTime();
+    });
+
+    return jsonResult({
+      success: true,
+      sessionId: args.sessionId,
+      period: args.period,
+      count: filtered.length,
+      contextHistory: filtered,
+      currentContextBytes: data.contextBytes || null,
+      currentContextPercent: data.contextBytes
+        ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
+        : null,
+    });
+  }
+
+  // Aggregate across all active sessions
+  const sessionsSnap = await db
+    .collection(`tenants/${auth.userId}/sessions`)
+    .where("archived", "==", false)
+    .get();
+
+  const sessionSummaries: Array<Record<string, unknown>> = [];
+
+  for (const doc of sessionsSnap.docs) {
+    const data = doc.data();
+    const fullHistory: Array<Record<string, unknown>> = (data.contextHistory as Array<Record<string, unknown>>) || [];
+
+    // Filter by period
+    const filtered = fullHistory.filter((entry) => {
+      const ts = entry.timestamp as string;
+      if (!ts) return false;
+      return new Date(ts).getTime() >= start.getTime();
+    });
+
+    if (filtered.length > 0 || data.contextBytes) {
+      sessionSummaries.push({
+        sessionId: doc.id,
+        programId: data.programId || null,
+        currentContextBytes: data.contextBytes || null,
+        currentContextPercent: data.contextBytes
+          ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
+          : null,
+        historyCount: filtered.length,
+        latestEntry: filtered.length > 0 ? filtered[filtered.length - 1] : null,
+      });
+    }
+  }
+
+  return jsonResult({
+    success: true,
+    period: args.period,
+    activeSessions: sessionSummaries.length,
+    sessions: sessionSummaries,
+  });
 }
