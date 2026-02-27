@@ -10,6 +10,7 @@ import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
 import { emitAnalyticsEvent } from "./analytics.js";
+import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 
 /** Approximate context window size in bytes (200KB) */
 const CONTEXT_WINDOW_BYTES = 200_000;
@@ -66,6 +67,34 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
   const db = getFirestore();
 
   const sessionId = args.sessionId || `session_${Date.now()}`;
+
+  // W1.2.1: Session ID format validation
+  const complianceConfig = getComplianceConfig(auth.userId);
+  const validation = validateSessionId(sessionId);
+
+  if (!validation.valid) {
+    if (complianceConfig.sessionIdValidation.enforceFormat) {
+      return jsonResult({
+        success: false,
+        error: `Invalid session ID format: ${validation.reason}`,
+        sessionId,
+      });
+    }
+  }
+
+  if (validation.legacy && !complianceConfig.sessionIdValidation.allowLegacy) {
+    return jsonResult({
+      success: false,
+      error: `Legacy session ID format not allowed: ${sessionId}. Use format: {program}[-{env}].{task}`,
+      sessionId,
+    });
+  }
+
+  // Log warning for legacy format
+  if (validation.legacy) {
+    console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
+  }
+
   const programId = args.programId || sessionId.split(".")[0];
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
@@ -127,8 +156,82 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   const db = getFirestore();
 
   const sessionId = args.sessionId || `session_${Date.now()}`;
+
+  // W1.2.1: Session ID format validation
+  const complianceConfig = getComplianceConfig(auth.userId);
+  const validation = validateSessionId(sessionId);
+
+  if (!validation.valid) {
+    if (complianceConfig.sessionIdValidation.enforceFormat) {
+      return jsonResult({
+        success: false,
+        error: `Invalid session ID format: ${validation.reason}`,
+        sessionId,
+      });
+    }
+  }
+
+  if (validation.legacy && !complianceConfig.sessionIdValidation.allowLegacy) {
+    return jsonResult({
+      success: false,
+      error: `Legacy session ID format not allowed: ${sessionId}. Use format: {program}[-{env}].{task}`,
+      sessionId,
+    });
+  }
+
+  // Log warning for legacy format
+  if (validation.legacy) {
+    console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
+  }
+
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
+
+  // W1.2.2: Derez gate — check pattern extraction before completion
+  if (args.state === "complete" && complianceConfig.derezGate.requirePatternExtraction) {
+    const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
+    const sessionDoc = await sessionRef.get();
+
+    if (sessionDoc.exists) {
+      const sessionData = sessionDoc.data()!;
+      const sessionCreatedAt = sessionData.createdAt?.toDate?.()?.getTime();
+      const programId = auth.programId;
+
+      if (sessionCreatedAt && programId && programId !== "legacy" && programId !== "mobile") {
+        // Check if program_state.learnedPatterns was updated since session start
+        const programStateRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${programId}`);
+        const programStateDoc = await programStateRef.get();
+
+        let patternsUpdated = false;
+        if (programStateDoc.exists) {
+          const programStateData = programStateDoc.data()!;
+          const lastUpdatedAt = programStateData.lastUpdatedAt;
+          const stateTimestamp = typeof lastUpdatedAt === "string"
+            ? new Date(lastUpdatedAt).getTime()
+            : lastUpdatedAt?.toDate?.()?.getTime() || 0;
+
+          patternsUpdated = stateTimestamp > sessionCreatedAt;
+        }
+
+        if (!patternsUpdated) {
+          const message = `[W1.2.2] Session "${sessionId}" completing without pattern extraction. Program "${programId}" has not updated learnedPatterns since session start.`;
+
+          if (complianceConfig.derezGate.mode === "strict") {
+            console.error(message);
+            return jsonResult({
+              success: false,
+              error: "Session cannot complete without pattern extraction. Update program_state.learnedPatterns first.",
+              sessionId,
+              programId,
+            });
+          } else {
+            // Lenient mode: log warning
+            console.warn(message);
+          }
+        }
+      }
+    }
+  }
 
   const updateData: Record<string, unknown> = {
     name: args.status,
