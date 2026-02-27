@@ -88,6 +88,105 @@ const BatchCompleteTasksSchema = z.object({
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
+/**
+ * Tenant compliance config types
+ *
+ * Wave 1.1 — Tenant Compliance Config (tenants/{userId}/_meta/compliance)
+ *
+ * Schema:
+ *   telemetryMode: "strict" | "lenient" | "off"
+ *     - strict: Reject task completion if model/provider missing
+ *     - lenient: Log warning but allow completion (default for existing tenants)
+ *     - off: Skip telemetry validation entirely
+ *
+ * Default behavior:
+ *   - Existing tenants: "lenient" (backwards compatible)
+ *   - New tenants: "strict" (should be set during onboarding)
+ */
+type TelemetryMode = "strict" | "lenient" | "off";
+
+interface ComplianceConfig {
+  telemetryMode: TelemetryMode;
+}
+
+/**
+ * Read tenant compliance config from tenants/{userId}/_meta/compliance
+ * Defaults to "lenient" if not found (for existing tenants)
+ */
+async function getTenantComplianceConfig(userId: string): Promise<ComplianceConfig> {
+  const db = getFirestore();
+  try {
+    const doc = await db.doc(`tenants/${userId}/_meta/compliance`).get();
+    if (!doc.exists) {
+      // Default to lenient for existing tenants
+      return { telemetryMode: "lenient" };
+    }
+    const data = doc.data()!;
+    const telemetryMode = (data.telemetryMode as TelemetryMode) || "lenient";
+    return { telemetryMode };
+  } catch (err) {
+    console.error("[Compliance] Failed to read config, defaulting to lenient:", err);
+    return { telemetryMode: "lenient" };
+  }
+}
+
+/**
+ * Initialize or update tenant compliance config
+ * Call during tenant onboarding to set initial mode to "strict" for new tenants
+ * Can also be used to update existing tenant preferences
+ */
+async function setTenantComplianceConfig(
+  userId: string,
+  telemetryMode: TelemetryMode,
+): Promise<void> {
+  const db = getFirestore();
+  await db.doc(`tenants/${userId}/_meta/compliance`).set(
+    {
+      telemetryMode,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Validate telemetry fields based on tenant compliance mode
+ * Returns error message if validation fails in strict mode, null otherwise
+ */
+async function validateTelemetryCompliance(
+  userId: string,
+  model: string | undefined,
+  provider: string | undefined,
+): Promise<string | null> {
+  const config = await getTenantComplianceConfig(userId);
+
+  // off mode: skip validation entirely
+  if (config.telemetryMode === "off") {
+    return null;
+  }
+
+  const missingFields: string[] = [];
+  if (!model) missingFields.push("model");
+  if (!provider) missingFields.push("provider");
+
+  if (missingFields.length === 0) {
+    return null; // all fields present
+  }
+
+  // strict mode: reject missing fields
+  if (config.telemetryMode === "strict") {
+    return `Telemetry fields required in strict mode: ${missingFields.join(", ")}`;
+  }
+
+  // lenient mode: log warning but allow
+  if (config.telemetryMode === "lenient") {
+    console.warn(`[Compliance] Telemetry fields missing (lenient mode): ${missingFields.join(", ")}`);
+    return null;
+  }
+
+  return null;
+}
+
 function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
@@ -534,6 +633,12 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
+  // Tenant compliance enforcement (Wave 1.1)
+  const complianceError = await validateTelemetryCompliance(auth.userId, args.model, args.provider);
+  if (complianceError) {
+    return jsonResult({ success: false, error: complianceError });
+  }
+
   // Soft telemetry validation — log gaps, never block completion
   const missingFields: string[] = [];
   if (!args.model) missingFields.push("model");
@@ -786,6 +891,12 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
 export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = BatchCompleteTasksSchema.parse(rawArgs);
   const db = getFirestore();
+
+  // Tenant compliance enforcement (Wave 1.1) - shared validation logic
+  const complianceError = await validateTelemetryCompliance(auth.userId, args.model, args.provider);
+  if (complianceError) {
+    return jsonResult({ success: false, error: complianceError });
+  }
 
   // Soft telemetry validation
   const missingFields: string[] = [];
