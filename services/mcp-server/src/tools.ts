@@ -654,10 +654,12 @@ export const TOOL_DEFINITIONS = [
   // === Fleet ===
   {
     name: "get_fleet_health",
-    description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program. Admin only.",
+    description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program. Admin only. Use detail='full' for telemetry dashboard (context health, task contention, rate limits).",
     inputSchema: {
       type: "object" as const,
-      properties: {},
+      properties: {
+        detail: { type: "string", enum: ["summary", "full"], default: "summary", description: "Detail level: 'summary' (programs + heartbeat + subscription budget) or 'full' (adds context health, task contention, rate limits)" },
+      },
     },
   },
   {
