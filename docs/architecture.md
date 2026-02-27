@@ -50,6 +50,31 @@ React Native + Expo app with screens for:
 - Fleet health (all programs, last heartbeat, pending work)
 - Cost dashboard (token/USD spend by program)
 
+## REST vs MCP Response Contract
+
+CacheBash exposes every tool via two transports. Their response envelopes differ:
+
+| Transport | Endpoint | Response Shape |
+|-----------|----------|----------------|
+| **MCP** | `POST /v1/mcp` | Raw tool result: `{success: true, tasks: [...]}` |
+| **REST** | `POST /v1/{tool_name}` | Wrapped envelope: `{success: true, data: {success: true, tasks: [...]}, meta: {}}` |
+
+REST clients **must** unwrap `response.data` to get the MCP-equivalent payload. Accessing `response.tasks` directly will return `undefined`.
+
+```typescript
+// MCP client (raw)
+const result = await mcpClient.callTool("get_tasks", { status: "created" });
+console.log(result.tasks); // ✅ [{...}, {...}]
+
+// REST client (envelope)
+const res = await fetch("/v1/get_tasks", { method: "POST", body, headers });
+const json = await res.json();
+console.log(json.tasks);      // ❌ undefined
+console.log(json.data.tasks); // ✅ [{...}, {...}]
+```
+
+> **Bug history:** This mismatch was the root cause of Grid 2.1 Story 3B Bug 1 — the dispatcher read `result.tasks` instead of `result.data.tasks` and saw 0 tasks on every poll.
+
 ## Data Flow
 
 ### Example: Program A sends message to Program B
