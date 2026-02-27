@@ -698,6 +698,22 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       errorClass: args.error_class,
     });
 
+    // W1.1.4: Write immutable ledger entry (fire-and-forget)
+    if (args.model || args.tokens_in || args.tokens_out || args.cost_usd) {
+      db.collection(`tenants/${auth.userId}/usage_ledger`).add({
+        taskId: args.taskId,
+        model: args.model || null,
+        provider: args.provider || null,
+        tokens_in: args.tokens_in || 0,
+        tokens_out: args.tokens_out || 0,
+        cost_usd: args.cost_usd || 0,
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        programId: auth.programId,
+        taskType: taskData.source || "unknown",
+        completed_status: args.completed_status,
+      }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
+    }
+
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
   } catch (error) {
     return jsonResult({
@@ -849,6 +865,20 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         toolName: "batch_complete_tasks",
         success: args.completed_status !== "FAILED",
       });
+
+      // W1.1.4: Write immutable ledger entry (fire-and-forget) - batch complete doesn't have cost data but we track it anyway
+      db.collection(`tenants/${auth.userId}/usage_ledger`).add({
+        taskId,
+        model: args.model || null,
+        provider: args.provider || null,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: 0,
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        programId: auth.programId,
+        taskType: taskData.source || "unknown",
+        completed_status: args.completed_status,
+      }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
 
       // Budget tracking per task
       if (taskData.dreamId) {
