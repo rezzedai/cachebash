@@ -97,6 +97,12 @@ service cloud.firestore {
       allow update: if isOwner(userId) && configDoc == 'onboarding';
     }
 
+    // Projects: full CRUD for owner (Command Center)
+    match /tenants/{userId}/projects/{projectId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
     // Feedback: read own, write via Admin SDK only
     match /tenants/{userId}/feedback/{feedbackId} {
       allow read: if isOwner(userId);
