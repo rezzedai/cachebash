@@ -217,3 +217,42 @@ export async function getFleetTimelineHandler(auth: AuthContext, rawArgs: unknow
     message: `Found ${timeline.length} data point(s) for period "${args.period}" at ${args.resolution} resolution.`,
   });
 }
+/**
+ * Write a fleet health snapshot for time-series tracking.
+ * Called by the Grid Dispatcher daemon every 30s.
+ */
+const WriteFleetSnapshotSchema = z.object({
+  activeSessions: z.object({
+    total: z.number(),
+    byTier: z.record(z.string(), z.number()).optional().default({}),
+    byProgram: z.record(z.string(), z.number()).optional().default({}),
+  }),
+  tasksInFlight: z.number().optional().default(0),
+  messagesPending: z.number().optional().default(0),
+  heartbeatHealth: z.number().optional().default(1.0),
+});
+
+export async function writeFleetSnapshotHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = WriteFleetSnapshotSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  const snapshot = {
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    activeSessions: {
+      total: args.activeSessions.total,
+      byTier: args.activeSessions.byTier || {},
+      byProgram: args.activeSessions.byProgram || {},
+    },
+    tasksInFlight: args.tasksInFlight,
+    messagesPending: args.messagesPending,
+    heartbeatHealth: args.heartbeatHealth,
+    ttl: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7-day TTL
+  };
+
+  await db.collection(`tenants/${auth.userId}/fleet_snapshots`).add(snapshot);
+
+  return jsonResult({
+    success: true,
+    message: "Fleet snapshot written",
+  });
+}

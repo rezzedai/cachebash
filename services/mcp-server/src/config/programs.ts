@@ -23,7 +23,7 @@ export function isRegisteredProgram(id: string): id is ProgramId {
 }
 
 /** Special program IDs for backward compat, mobile, OAuth, and service accounts */
-export const SPECIAL_PROGRAMS = ['legacy', 'mobile', 'oauth', 'oauth-service'] as const;
+export const SPECIAL_PROGRAMS = ['legacy', 'mobile', 'oauth', 'oauth-service', 'dispatcher'] as const;
 export type SpecialProgramId = typeof SPECIAL_PROGRAMS[number];
 
 /** All valid program IDs including special ones */
