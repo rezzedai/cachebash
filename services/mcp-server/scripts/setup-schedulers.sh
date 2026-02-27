@@ -1,8 +1,19 @@
 #!/bin/bash
 # Cloud Scheduler setup for CacheBash internal jobs
 # Run once per environment. Requires gcloud CLI authenticated to cachebash-app project.
+#
+# IMPORTANT: Set INTERNAL_API_KEY environment variable before running:
+#   export INTERNAL_API_KEY="your-api-key-here"
+#
+# This API key is used by Cloud Scheduler to authenticate to internal endpoints.
 
 set -euo pipefail
+
+if [ -z "${INTERNAL_API_KEY:-}" ]; then
+  echo "Error: INTERNAL_API_KEY environment variable is not set"
+  echo "Please set it with: export INTERNAL_API_KEY=\"your-api-key-here\""
+  exit 1
+fi
 
 PROJECT="cachebash-app"
 REGION="us-central1"
@@ -32,6 +43,7 @@ gcloud scheduler jobs create http cachebash-wake-daemon \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="Wake daemon: polls for orphaned tasks and spawns idle programs" \
@@ -42,6 +54,7 @@ gcloud scheduler jobs update http cachebash-wake-daemon \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="Wake daemon: polls for orphaned tasks and spawns idle programs" \
@@ -55,6 +68,7 @@ gcloud scheduler jobs create http cachebash-ttl-reaper \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="TTL Reaper: cleans expired sessions, relay messages, idempotency keys" \
@@ -65,6 +79,7 @@ gcloud scheduler jobs update http cachebash-ttl-reaper \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="TTL Reaper: cleans expired sessions, relay messages, idempotency keys" \
@@ -78,6 +93,7 @@ gcloud scheduler jobs create http cachebash-github-reconcile \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="GitHub Reconciliation: retries failed GitHub sync operations" \
@@ -88,6 +104,7 @@ gcloud scheduler jobs update http cachebash-github-reconcile \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="GitHub Reconciliation: retries failed GitHub sync operations" \
@@ -101,6 +118,7 @@ gcloud scheduler jobs create http cachebash-health-check \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="GRIDBOT Health Check: monitors 6 health indicators, routes alerts" \
@@ -111,9 +129,35 @@ gcloud scheduler jobs update http cachebash-health-check \
   --http-method=POST \
   --oidc-service-account-email="$SA_EMAIL" \
   --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
   --location="$REGION" \
   --project="$PROJECT" \
   --description="GRIDBOT Health Check: monitors 6 health indicators, routes alerts" \
+  --attempt-deadline="60s"
+
+echo ""
+echo "=== Creating stale sessions detector scheduler (every 5min) ==="
+gcloud scheduler jobs create http cachebash-stale-sessions \
+  --schedule="*/5 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/stale-sessions" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="Stale Session Detector: identifies and archives sessions with no recent heartbeat" \
+  --attempt-deadline="60s" 2>/dev/null || \
+gcloud scheduler jobs update http cachebash-stale-sessions \
+  --schedule="*/5 * * * *" \
+  --uri="${SERVICE_URL}/v1/internal/stale-sessions" \
+  --http-method=POST \
+  --oidc-service-account-email="$SA_EMAIL" \
+  --oidc-token-audience="$SERVICE_URL" \
+  --headers="Authorization=Bearer ${INTERNAL_API_KEY}" \
+  --location="$REGION" \
+  --project="$PROJECT" \
+  --description="Stale Session Detector: identifies and archives sessions with no recent heartbeat" \
   --attempt-deadline="60s"
 
 echo ""
