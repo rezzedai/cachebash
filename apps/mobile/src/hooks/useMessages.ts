@@ -14,10 +14,10 @@ export function useMessages() {
     fetcher: async () => {
       if (!api) return [];
 
-      // Fetch messages: to/from orchestrator (hub) + user-sent (admin) + replies to admin
+      // Fetch messages: to/from iso (hub) + user-sent (admin) + replies to admin
       const [toOrch, fromOrch, fromAdmin, toAdmin] = await Promise.all([
-        api.queryMessageHistory({ target: 'orchestrator', limit: 30 }).catch(() => null),
-        api.queryMessageHistory({ source: 'orchestrator', limit: 30 }).catch(() => null),
+        api.queryMessageHistory({ target: 'iso', limit: 30 }).catch(() => null),
+        api.queryMessageHistory({ source: 'iso', limit: 30 }).catch(() => null),
         api.queryMessageHistory({ source: 'admin', limit: 30 }).catch(() => null),
         api.queryMessageHistory({ target: 'admin', limit: 30 }).catch(() => null),
       ]);
@@ -86,7 +86,7 @@ export function useMessages() {
     for (const msg of result.data) {
       if (
         !prevMessageIdsRef.current.has(msg.id) &&
-        msg.source !== 'orchestrator' &&
+        msg.source !== 'iso' &&
         msg.source !== 'admin'
       ) {
         notifyNewMessage({
@@ -102,10 +102,10 @@ export function useMessages() {
     prevMessageIdsRef.current = currentIds;
   }, [result.data, notifyNewMessage]);
 
-  // Count only incoming unread messages (not from orchestrator/admin, and not read/archived)
+  // Count only incoming unread messages (not from iso/admin, and not read/archived)
   const unreadCount = messages.filter(
     (msg) =>
-      msg.source !== 'orchestrator' &&
+      msg.source !== 'iso' &&
       msg.source !== 'admin' &&
       msg.status !== 'read' &&
       msg.status !== 'archived'

@@ -105,9 +105,9 @@ export default function HomeScreen({ navigation }: Props) {
     [tasks]
   );
 
-  // Filter received messages (exclude orchestrator/admin as source)
+  // Filter received messages (exclude iso/admin as source)
   const receivedMessages = useMemo(
-    () => messages.filter((m) => m.source !== 'orchestrator' && m.source !== 'admin').slice(0, 10),
+    () => messages.filter((m) => m.source !== 'iso' && m.source !== 'admin').slice(0, 10),
     [messages]
   );
 
