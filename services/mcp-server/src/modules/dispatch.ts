@@ -646,6 +646,44 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({ success: false, error: complianceError });
   }
 
+  // W1.3.2: Budget enforcement - check BEFORE completing task
+  if (args.cost_usd && args.cost_usd > 0) {
+    try {
+      const billingConfigDoc = await db.doc(`tenants/${auth.userId}/_meta/billing`).get();
+      if (billingConfigDoc.exists) {
+        const billingConfig = billingConfigDoc.data();
+        const monthlyBudgetUsd = billingConfig?.monthlyBudgetUsd as number | null;
+
+        if (monthlyBudgetUsd !== null && monthlyBudgetUsd > 0) {
+          const now = new Date();
+          const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+          const aggregatesSnapshot = await db
+            .collection(`tenants/${auth.userId}/usage_aggregates`)
+            .where("periodType", "==", "month")
+            .where("period", "==", monthKey)
+            .get();
+
+          let currentMonthSpend = 0;
+          for (const doc of aggregatesSnapshot.docs) {
+            currentMonthSpend += (doc.data().totalCostUsd as number) || 0;
+          }
+
+          const projectedSpend = currentMonthSpend + args.cost_usd;
+          if (projectedSpend > monthlyBudgetUsd) {
+            return jsonResult({
+              success: false,
+              error: "BUDGET_EXCEEDED",
+              message: `Monthly budget exceeded. Budget: $${monthlyBudgetUsd.toFixed(2)}, Current: $${currentMonthSpend.toFixed(4)}, Task cost: $${args.cost_usd.toFixed(4)}`,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Budget] Failed to check budget, allowing completion:", err);
+    }
+  }
+
   // Soft telemetry validation — log gaps, never block completion
   const missingFields: string[] = [];
   if (!args.model) missingFields.push("model");
@@ -824,6 +862,13 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
         taskType: taskData.source || "unknown",
         completed_status: args.completed_status,
       }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
+    }
+
+    // W1.3.6: Check alert thresholds and emit alerts
+    if (args.cost_usd && args.cost_usd > 0) {
+      checkBudgetThresholdsAndAlert(db, auth.userId, auth.programId).catch((err) =>
+        console.error("[Budget] Failed to check thresholds:", err)
+      );
     }
 
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
@@ -1166,4 +1211,64 @@ export async function getContentionMetricsHandler(auth: AuthContext, rawArgs: un
       : 0,
     meanTimeToClaimMs,
   });
+}
+
+// W1.3.6: Budget threshold alerting helper
+async function checkBudgetThresholdsAndAlert(
+  db: admin.firestore.Firestore,
+  userId: string,
+  programId: string
+): Promise<void> {
+  const billingConfigDoc = await db.doc(`tenants/${userId}/_meta/billing`).get();
+  if (!billingConfigDoc.exists) return;
+
+  const billingConfig = billingConfigDoc.data();
+  const monthlyBudgetUsd = billingConfig?.monthlyBudgetUsd as number | null;
+  const alertThresholds = (billingConfig?.alertThresholds as number[]) || [];
+
+  if (!monthlyBudgetUsd || monthlyBudgetUsd <= 0 || alertThresholds.length === 0) return;
+
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const aggregatesSnapshot = await db
+    .collection(`tenants/${userId}/usage_aggregates`)
+    .where("periodType", "==", "month")
+    .where("period", "==", monthKey)
+    .get();
+
+  let currentMonthSpend = 0;
+  for (const doc of aggregatesSnapshot.docs) {
+    currentMonthSpend += (doc.data().totalCostUsd as number) || 0;
+  }
+
+  const usagePercent = (currentMonthSpend / monthlyBudgetUsd) * 100;
+
+  for (const threshold of alertThresholds) {
+    if (usagePercent >= threshold) {
+      const alertId = `budget_alert_${monthKey}_${threshold}`;
+      const existingAlert = await db.doc(`tenants/${userId}/budget_alerts/${alertId}`).get();
+
+      if (!existingAlert.exists) {
+        await db.doc(`tenants/${userId}/budget_alerts/${alertId}`).set({
+          month: monthKey,
+          threshold,
+          usagePercent: Math.round(usagePercent * 100) / 100,
+          currentSpend: currentMonthSpend,
+          budget: monthlyBudgetUsd,
+          triggeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          programId,
+        });
+
+        emitEvent(userId, {
+          event_type: "BUDGET_THRESHOLD_ALERT",
+          program_id: programId,
+          threshold,
+          usage_percent: usagePercent,
+          current_spend: currentMonthSpend,
+          budget: monthlyBudgetUsd,
+        });
+      }
+    }
+  }
 }
