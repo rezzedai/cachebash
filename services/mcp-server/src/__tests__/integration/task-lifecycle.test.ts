@@ -270,6 +270,94 @@ describe("Task Lifecycle Integration", () => {
         now.toMillis()
       );
     });
+
+    it("should cleanup expired tasks via cleanupExpiredTasks", async () => {
+      const { cleanupExpiredTasks } = await import("../../modules/dispatch.js");
+
+      const pastTimestamp = admin.firestore.Timestamp.fromDate(
+        new Date(Date.now() - 60 * 60 * 1000)
+      );
+
+      // Create expired task
+      await db.collection(`tenants/${userId}/tasks`).doc("task-expired-1").set({
+        title: "Expired Task 1",
+        type: "task",
+        status: "created",
+        source: "iso",
+        target: "basher",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: pastTimestamp,
+      });
+
+      // Create non-expired task (should NOT be cleaned up)
+      const futureTimestamp = admin.firestore.Timestamp.fromDate(
+        new Date(Date.now() + 60 * 60 * 1000)
+      );
+      await db.collection(`tenants/${userId}/tasks`).doc("task-alive-1").set({
+        title: "Alive Task",
+        type: "task",
+        status: "created",
+        source: "iso",
+        target: "basher",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: futureTimestamp,
+      });
+
+      // Create task with no TTL (should NOT be cleaned up)
+      await db.collection(`tenants/${userId}/tasks`).doc("task-no-ttl").set({
+        title: "No TTL Task",
+        type: "task",
+        status: "created",
+        source: "iso",
+        target: "basher",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const result = await cleanupExpiredTasks(userId);
+
+      expect(result.expired).toBe(1);
+      expect(result.cleaned).toBe(1);
+
+      // Verify expired task was transitioned
+      const expiredDoc = await db.collection(`tenants/${userId}/tasks`).doc("task-expired-1").get();
+      const expiredData = expiredDoc.data();
+      expect(expiredData?.status).toBe("done");
+      expect(expiredData?.completed_status).toBe("CANCELLED");
+      expect(expiredData?.error_class).toBe("TIMEOUT");
+      expect(expiredData?.expiry_reason).toBe("TTL_EXPIRED");
+
+      // Verify alive task was NOT touched
+      const aliveDoc = await db.collection(`tenants/${userId}/tasks`).doc("task-alive-1").get();
+      expect(aliveDoc.data()?.status).toBe("created");
+
+      // Verify no-TTL task was NOT touched
+      const noTtlDoc = await db.collection(`tenants/${userId}/tasks`).doc("task-no-ttl").get();
+      expect(noTtlDoc.data()?.status).toBe("created");
+    });
+
+    it("should not cleanup already-completed expired tasks", async () => {
+      const { cleanupExpiredTasks } = await import("../../modules/dispatch.js");
+
+      const pastTimestamp = admin.firestore.Timestamp.fromDate(
+        new Date(Date.now() - 60 * 60 * 1000)
+      );
+
+      // Already completed task with past expiresAt
+      await db.collection(`tenants/${userId}/tasks`).doc("task-done-expired").set({
+        title: "Already Done",
+        type: "task",
+        status: "done",
+        completed_status: "SUCCESS",
+        source: "iso",
+        target: "basher",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: pastTimestamp,
+      });
+
+      const result = await cleanupExpiredTasks(userId);
+      expect(result.expired).toBe(0);
+      expect(result.cleaned).toBe(0);
+    });
   });
 
   describe("Budget Tracking", () => {

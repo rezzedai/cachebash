@@ -182,6 +182,8 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
       }
       // Filter out auto-archived unless explicitly included
       if (!args.include_archived && data.auto_archived === true) return false;
+      // Filter out expired tasks on read (before cleanup job runs)
+      if (data.expiresAt && data.expiresAt.toMillis() <= Date.now()) return false;
       return true;
     })
     .map((doc) => {
@@ -1018,4 +1020,52 @@ export async function getContentionMetricsHandler(auth: AuthContext, rawArgs: un
       : 0,
     meanTimeToClaimMs,
   });
+}
+
+/**
+ * Cleanup expired tasks — transition to CANCELLED with TIMEOUT error.
+ * Called from /v1/internal/cleanup endpoint. Mirrors relay TTL pattern.
+ */
+export async function cleanupExpiredTasks(userId: string): Promise<{ expired: number; cleaned: number }> {
+  const db = getFirestore();
+  const now = admin.firestore.Timestamp.now();
+
+  // Only expire tasks in non-terminal states that have a past expiresAt
+  const snapshot = await db
+    .collection(`tenants/${userId}/tasks`)
+    .where("status", "in", ["created", "active"])
+    .where("expiresAt", "<=", now)
+    .limit(100)
+    .get();
+
+  const expired = snapshot.size;
+  if (snapshot.empty) return { expired: 0, cleaned: 0 };
+
+  const batch = db.batch();
+  let count = 0;
+
+  for (const doc of snapshot.docs) {
+    batch.update(doc.ref, {
+      status: "done",
+      completed_status: "CANCELLED",
+      error_code: "TIMEOUT",
+      error_class: "TIMEOUT",
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiry_reason: "TTL_EXPIRED",
+    });
+    count++;
+  }
+
+  await batch.commit();
+
+  if (count > 0) {
+    emitEvent(userId, {
+      event_type: "TASKS_EXPIRED",
+      expired_count: count,
+      reason: "TTL_EXPIRED",
+    });
+  }
+
+  return { expired, cleaned: count };
 }

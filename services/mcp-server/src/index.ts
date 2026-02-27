@@ -15,6 +15,7 @@ import { validateAuth, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
+import { cleanupExpiredTasks } from "./modules/dispatch.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
@@ -381,6 +382,8 @@ async function main() {
         let totalRelayCleaned = 0;
         let totalSessionsExpired = 0;
         let totalSessionsCleaned = 0;
+        let totalTasksExpired = 0;
+        let totalTasksCleaned = 0;
 
         // Run cleanup for each active user
         for (const userId of activeUserIds) {
@@ -391,6 +394,10 @@ async function main() {
           const sessionResult = await sessionManager.cleanupExpiredSessions(userId);
           totalSessionsExpired += sessionResult.expired;
           totalSessionsCleaned += sessionResult.cleaned;
+
+          const taskResult = await cleanupExpiredTasks(userId);
+          totalTasksExpired += taskResult.expired;
+          totalTasksCleaned += taskResult.cleaned;
         }
 
         const duration = Date.now() - startTime;
@@ -401,6 +408,7 @@ async function main() {
             event_type: "CLEANUP_RUN",
             relay_expired: totalRelayExpired,
             sessions_expired: totalSessionsExpired,
+            tasks_expired: totalTasksExpired,
             duration_ms: duration,
           });
         }
@@ -415,6 +423,10 @@ async function main() {
           sessions: {
             expired: totalSessionsExpired,
             cleaned: totalSessionsCleaned,
+          },
+          tasks: {
+            expired: totalTasksExpired,
+            cleaned: totalTasksCleaned,
           },
           duration_ms: duration,
         });

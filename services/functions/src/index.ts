@@ -31,6 +31,7 @@ export { onSessionComplete } from "./patterns/onSessionComplete";
 // Scheduled cleanup
 export { cleanupExpiredSessions } from "./cleanup/cleanupExpiredSessions";
 export { cleanupOrphanedTasks } from "./cleanup/cleanupOrphanedTasks";
+export { cleanupExpiredTasks } from "./cleanup/cleanupExpiredTasks";
 export { cleanupExpiredRelay } from "./cleanup/cleanupExpiredRelay";
 export { cleanupLedger } from "./cleanup/cleanupLedger";
 export { processDeadLetters } from "./cleanup/processDeadLetters";

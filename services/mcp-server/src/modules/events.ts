@@ -41,7 +41,8 @@ export type EventType =
   | "COMPLIANCE_JOURNAL_RESTORED"
   | "COMPLIANCE_DEREZ_STARTED"
   | "COMPLIANCE_DEREZ_COMPLETED"
-  | "COMPLIANCE_CHECK_FAILED";
+  | "COMPLIANCE_CHECK_FAILED"
+  | "TASKS_EXPIRED";
 export type TaskClass = "WORK" | "CONTROL";
 
 export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
