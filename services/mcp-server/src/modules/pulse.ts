@@ -187,6 +187,52 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
+  // W1.2.2: Derez gate — check pattern extraction before completion
+  if (args.state === "complete" && complianceConfig.derezGate.requirePatternExtraction) {
+    const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
+    const sessionDoc = await sessionRef.get();
+
+    if (sessionDoc.exists) {
+      const sessionData = sessionDoc.data()!;
+      const sessionCreatedAt = sessionData.createdAt?.toDate?.()?.getTime();
+      const programId = auth.programId;
+
+      if (sessionCreatedAt && programId && programId !== "legacy" && programId !== "mobile") {
+        // Check if program_state.learnedPatterns was updated since session start
+        const programStateRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${programId}`);
+        const programStateDoc = await programStateRef.get();
+
+        let patternsUpdated = false;
+        if (programStateDoc.exists) {
+          const programStateData = programStateDoc.data()!;
+          const lastUpdatedAt = programStateData.lastUpdatedAt;
+          const stateTimestamp = typeof lastUpdatedAt === "string"
+            ? new Date(lastUpdatedAt).getTime()
+            : lastUpdatedAt?.toDate?.()?.getTime() || 0;
+
+          patternsUpdated = stateTimestamp > sessionCreatedAt;
+        }
+
+        if (!patternsUpdated) {
+          const message = `[W1.2.2] Session "${sessionId}" completing without pattern extraction. Program "${programId}" has not updated learnedPatterns since session start.`;
+
+          if (complianceConfig.derezGate.mode === "strict") {
+            console.error(message);
+            return jsonResult({
+              success: false,
+              error: "Session cannot complete without pattern extraction. Update program_state.learnedPatterns first.",
+              sessionId,
+              programId,
+            });
+          } else {
+            // Lenient mode: log warning
+            console.warn(message);
+          }
+        }
+      }
+    }
+  }
+
   const updateData: Record<string, unknown> = {
     name: args.status,
     currentAction: args.status,
