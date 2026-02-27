@@ -182,6 +182,11 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
       }
       // Filter out auto-archived unless explicitly included
       if (!args.include_archived && data.auto_archived === true) return false;
+      // Filter out expired tasks (TTL-based auto-archive on read)
+      if (data.expiresAt) {
+        const expires = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+        if (expires < new Date()) return false;
+      }
       return true;
     })
     .map((doc) => {
@@ -288,9 +293,11 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     taskData.task_class = classifyTask(args.type, args.action, args.title);
     taskData.attempt_count = 0;
 
-  if (args.ttl) {
-    // expiresAt computed by Cloud Function on write, or we estimate here
-    taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + args.ttl * 1000);
+  // Default 24h TTL for type=task; other types (dream, sprint, question) have no default TTL
+  const DEFAULT_TASK_TTL_S = 24 * 60 * 60;
+  const effectiveTtl = args.ttl || (args.type === "task" ? DEFAULT_TASK_TTL_S : null);
+  if (effectiveTtl) {
+    taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
   }
 
   const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
