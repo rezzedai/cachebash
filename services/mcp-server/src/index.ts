@@ -576,6 +576,7 @@ async function main() {
         const results: Record<string, any> = {};
         let totalStale = 0;
         let totalArchived = 0;
+        let totalIsoAlerts = 0;
 
         for (const userId of activeUserIds) {
           const result = await detectStaleSessions(userId);
@@ -584,8 +585,12 @@ async function main() {
           results[userId] = result;
           totalStale += result.stale.length;
           totalArchived += result.archived;
+          totalIsoAlerts += result.isoAlertsCreated;
 
           for (const session of result.stale) {
+            // Skip creating admin alerts for sessions that got ISO alerts (ISO will handle it)
+            if (session.action === "iso_alerted") continue;
+
             const alertType = session.action === "archived" ? "error" : "warning";
             const message = session.action === "archived"
               ? `${session.programId} session archived (no heartbeat for ${session.ageMinutes}min)`
@@ -620,6 +625,7 @@ async function main() {
           success: true,
           totalStale,
           totalArchived,
+          totalIsoAlerts,
           activeUsers: activeUserIds.length,
           results,
         });
