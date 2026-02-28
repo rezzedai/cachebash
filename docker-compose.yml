@@ -1,0 +1,79 @@
+# ============================================
+# CacheBash - Docker Compose
+# ============================================
+# Quick start for local development
+# Usage: docker compose up
+
+version: '3.8'
+
+services:
+  # ============================================
+  # CacheBash MCP Server
+  # ============================================
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - FIREBASE_AUTH_EMULATOR_HOST=auth-emulator:9099
+    depends_on:
+      - firestore-emulator
+      - auth-emulator
+    restart: unless-stopped
+    volumes:
+      # Mount service account key if using local file
+      - ./service-account-key.json:/app/service-account-key.json:ro
+    networks:
+      - cachebash
+
+  # ============================================
+  # Firebase Firestore Emulator
+  # ============================================
+  firestore-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:alpine
+    ports:
+      - "8080:8080"
+      - "4000:4000"  # Emulator UI
+    command: >
+      gcloud emulators firestore start
+      --host-port=0.0.0.0:8080
+    environment:
+      - FIRESTORE_PROJECT_ID=${FIREBASE_PROJECT_ID:-cachebash-dev}
+    networks:
+      - cachebash
+
+  # ============================================
+  # Firebase Auth Emulator
+  # ============================================
+  auth-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:alpine
+    ports:
+      - "9099:9099"
+    command: >
+      gcloud emulators auth start
+      --host-port=0.0.0.0:9099
+    environment:
+      - FIREBASE_AUTH_EMULATOR_HOST=0.0.0.0:9099
+    networks:
+      - cachebash
+
+networks:
+  cachebash:
+    driver: bridge
+
+# ============================================
+# Production mode (without emulators)
+# ============================================
+# To run against a real Firebase project:
+#
+# 1. Create a .env file with your Firebase credentials
+# 2. Run: docker compose up mcp-server
+#
+# The mcp-server will connect to your production Firebase
+# instead of the local emulators.
