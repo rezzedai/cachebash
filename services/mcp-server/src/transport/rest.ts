@@ -618,6 +618,31 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
 
+  // Memory (Phase 1)
+  route("POST", "/v1/memory/:programId/patterns", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "store_memory", { programId: p.programId, ...body });
+    restResponse(res, true, data, 201);
+  }),
+  route("GET", "/v1/memory/:programId/patterns", async (auth, req, res, p) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "recall_memory", { programId: p.programId, ...query });
+    restResponse(res, true, data);
+  }),
+  route("DELETE", "/v1/memory/:programId/patterns/:patternId", async (auth, req, res, p) => {
+    const data = await callTool(auth, req, "delete_memory", { programId: p.programId, patternId: p.patternId });
+    restResponse(res, true, data);
+  }),
+  route("PATCH", "/v1/memory/:programId/patterns/:patternId/reinforce", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "reinforce_memory", { programId: p.programId, patternId: p.patternId, ...body });
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/memory/:programId/health", async (auth, req, res, p) => {
+    const data = await callTool(auth, req, "memory_health", { programId: p.programId });
+    restResponse(res, true, data);
+  }),
+
   // Keys
   route("POST", "/v1/keys", async (auth, req, res) => {
     const body = await readBody(req);
