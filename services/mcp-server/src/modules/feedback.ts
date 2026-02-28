@@ -7,6 +7,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+// @ts-expect-error — @octokit/rest v22 is ESM-only; Node 20.19+ handles require() of ESM at runtime
 import { Octokit } from "@octokit/rest";
 import * as crypto from "crypto";
 
