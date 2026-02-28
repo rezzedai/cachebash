@@ -25,6 +25,7 @@ const CreateSessionSchema = z.object({
   state: z.enum(["working", "blocked", "complete", "pinned"]).optional(),
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
+  bootType: z.enum(["orchestrator", "builder"]).optional(),
 });
 
 const UpdateSessionSchema = z.object({
@@ -103,6 +104,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     name: args.name,
     programId,
     status: lifecycleStatus,
+    bootType: args.bootType || null,
     currentAction: args.status || args.name,
     progress: args.progress ?? null,
     projectName: args.projectName || null,

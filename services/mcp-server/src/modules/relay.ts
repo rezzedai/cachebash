@@ -73,14 +73,14 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const args = SendMessageSchema.parse(rawArgs);
 
   // W1.2.4: Idempotency key enforcement
-  const complianceConfig = getComplianceConfig(auth.userId);
+  const complianceConfigIdempotency = getComplianceConfig(auth.userId);
   if (!args.idempotency_key) {
-    if (complianceConfig.idempotencyKey.enforcement === "required") {
+    if (complianceConfigIdempotency.idempotencyKey.enforcement === "required") {
       return jsonResult({
         success: false,
         error: "idempotency_key is required for send_message to prevent duplicate messages.",
       });
-    } else if (complianceConfig.idempotencyKey.enforcement === "recommended") {
+    } else if (complianceConfigIdempotency.idempotencyKey.enforcement === "recommended") {
       console.warn(`[W1.2.4] send_message called without idempotency_key by ${auth.programId}. This may result in duplicate messages on retry.`);
     }
   }
@@ -248,8 +248,8 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const relayRef = await db.collection(`tenants/${auth.userId}/relay`).add(relayData);
 
   // W1.2.3: Log DIRECTIVE messages to audit trail
-  const complianceConfig = getComplianceConfig(auth.userId);
-  if (args.message_type === "DIRECTIVE" && complianceConfig.ackAudit.enabled) {
+  const complianceConfigAudit = getComplianceConfig(auth.userId);
+  if (args.message_type === "DIRECTIVE" && complianceConfigAudit.ackAudit.enabled) {
     await logDirective(
       auth.userId,
       relayRef.id,
@@ -262,7 +262,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   }
 
   // W1.2.3: Mark DIRECTIVE as acknowledged when ACK received
-  if (args.message_type === "ACK" && args.reply_to && complianceConfig.ackAudit.enabled) {
+  if (args.message_type === "ACK" && args.reply_to && complianceConfigAudit.ackAudit.enabled) {
     try {
       await markDirectiveAcknowledged(auth.userId, args.reply_to, relayRef.id);
     } catch (error) {
