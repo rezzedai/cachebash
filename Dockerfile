@@ -28,8 +28,11 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source files
 COPY services/mcp-server/package.json ./
-COPY services/mcp-server/tsconfig.json ./
 COPY services/mcp-server/src ./src
+
+# Write tsconfig inline — ensures Node16 module resolution regardless of
+# source upload caching. noImplicitAny disabled until all params are typed.
+RUN printf '{"compilerOptions":{"target":"ES2022","module":"Node16","moduleResolution":"Node16","lib":["ES2022"],"outDir":"./dist","rootDir":"./src","esModuleInterop":true,"skipLibCheck":true,"strict":true,"noImplicitAny":false,"resolveJsonModule":true,"forceConsistentCasingInFileNames":true,"declaration":true,"declarationMap":true,"sourceMap":true},"include":["src/**/*"],"exclude":["node_modules","dist"]}' > tsconfig.json
 
 # Build TypeScript
 RUN npm run build
