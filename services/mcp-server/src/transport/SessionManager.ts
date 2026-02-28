@@ -79,7 +79,7 @@ export class SessionManager {
     // (zero code, auto-deletes expired docs), but scheduled job is preferred for relay
     // (preserves dead letter analytics).
     const batch = db.batch();
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((doc: any) => batch.delete(doc.ref));
     await batch.commit();
     return { expired, cleaned: snapshot.size };
   }
