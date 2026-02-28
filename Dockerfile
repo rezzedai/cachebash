@@ -8,7 +8,7 @@
 # ============================================
 # Stage 1: Dependencies
 # ============================================
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 
 WORKDIR /app
 
@@ -16,19 +16,18 @@ WORKDIR /app
 COPY package*.json ./
 COPY services/mcp-server/package*.json ./services/mcp-server/
 
-# Install dependencies
-RUN npm ci --workspace=services/mcp-server
+# Install all workspace dependencies (hoisted to root node_modules)
+RUN npm ci
 
 # ============================================
 # Stage 2: Build
 # ============================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
+# Copy dependencies from deps stage (all hoisted to root)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/services/mcp-server/node_modules ./services/mcp-server/node_modules
 
 # Copy source files
 COPY services/mcp-server/tsconfig.json ./services/mcp-server/
@@ -36,19 +35,19 @@ COPY services/mcp-server/src ./services/mcp-server/src
 COPY services/mcp-server/package.json ./services/mcp-server/
 
 # Build TypeScript
-RUN cd services/mcp-server && npm run build
+RUN cd services/mcp-server && npx tsc
 
 # ============================================
 # Stage 3: Runtime
 # ============================================
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Install production dependencies only
 COPY package*.json ./
 COPY services/mcp-server/package*.json ./services/mcp-server/
-RUN npm ci --workspace=services/mcp-server --omit=dev
+RUN npm ci --omit=dev
 
 # Copy built application
 COPY --from=builder /app/services/mcp-server/dist ./services/mcp-server/dist
