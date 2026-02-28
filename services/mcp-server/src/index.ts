@@ -543,7 +543,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const { runHealthCheck } = await import("./modules/system-monitor.js");
+        const { runHealthCheck } = await import("./modules/gridbot-monitor.js");
         const activeUserIds = await getActiveUserIds();
 
         const results = [];
