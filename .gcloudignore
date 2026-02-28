@@ -1,6 +1,6 @@
 # Ignore everything except the MCP server
 app/
-firebase/
+/firebase/
 .git/
 node_modules/
 *.log
