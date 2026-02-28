@@ -19,6 +19,7 @@ import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
 import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "./modules/fleet-timeline.js";
 import { submitFeedbackHandler } from "./modules/feedback.js";
 import { logRateLimitEventHandler, getRateLimitEventsHandler } from "./modules/rate-limits.js";
+import { cluIngestHandler, cluAnalyzeHandler, cluReportHandler } from "./modules/clu.js";
 import { getAckComplianceHandler } from "./modules/ack-compliance.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -107,6 +108,11 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // ACK Compliance (W1.2.3)
   get_ack_compliance: getAckComplianceHandler,
+
+  // CLU Intelligence Service
+  clu_ingest: cluIngestHandler,
+  clu_analyze: cluAnalyzeHandler,
+  clu_report: cluReportHandler,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -912,6 +918,58 @@ export const TOOL_DEFINITIONS = [
         programId: { type: "string", maxLength: 100, description: "Filter by source program ID" },
         period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to query" },
       },
+    },
+  },
+  // === CLU Intelligence Service ===
+  {
+    name: "clu_ingest",
+    description: "Ingest content for CLU analysis. Stores raw content in a session for later analysis.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        content: { type: "string", description: "Raw text content to analyze", minLength: 1, maxLength: 500000 },
+        source_type: { type: "string", enum: ["transcript", "url", "text", "document"], description: "Type of content source" },
+        source_url: { type: "string", description: "Optional source URL for metadata" },
+        metadata: {
+          type: "object",
+          description: "Optional metadata about the content",
+          properties: {
+            speakers: { type: "array", items: { type: "string" }, description: "List of speakers (for transcripts)" },
+            date: { type: "string", description: "Date of content creation" },
+            topic: { type: "string", description: "Main topic" },
+            tags: { type: "array", items: { type: "string" }, description: "Tags for categorization" },
+          },
+        },
+        session_id: { type: "string", description: "Session ID to group multiple ingestions (auto-generated if not provided)", maxLength: 100 },
+      },
+      required: ["content", "source_type"],
+    },
+  },
+  {
+    name: "clu_analyze",
+    description: "Run CLU analysis on ingested content. Extracts patterns, opportunities, gaps, and blind spots using LLM.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        session_id: { type: "string", description: "Session ID containing ingested content", maxLength: 100 },
+        analysis_type: { type: "string", enum: ["patterns", "opportunities", "gaps", "synthesis", "full"], default: "full", description: "Type of analysis to perform" },
+        focus_domains: { type: "array", items: { type: "string" }, description: "Optional domains to prioritize in analysis" },
+        confidence_threshold: { type: "number", minimum: 0, maximum: 1, default: 0.5, description: "Minimum confidence score for results" },
+      },
+      required: ["session_id"],
+    },
+  },
+  {
+    name: "clu_report",
+    description: "Generate a formatted report from CLU analysis results.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        analysis_id: { type: "string", description: "Analysis ID to generate report from", maxLength: 100 },
+        report_type: { type: "string", enum: ["opportunity_brief", "synthesis", "prd", "executive_summary"], default: "synthesis", description: "Type of report to generate" },
+        format: { type: "string", enum: ["markdown", "json"], default: "markdown", description: "Output format" },
+      },
+      required: ["analysis_id"],
     },
   },
 ];
