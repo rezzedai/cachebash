@@ -1,0 +1,63 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Publish @cachebash/mcp-server to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Verify tag format
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ ! $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Tag must match v*.*.* format (e.g., v1.0.0)"
+            exit 1
+          fi
+          echo "Publishing version: $TAG"
+
+      - run: npm ci -w services/mcp-server
+
+      - name: Run tests
+        working-directory: ./services/mcp-server
+        run: npm test
+
+      - name: Build TypeScript
+        working-directory: ./services/mcp-server
+        run: npm run build
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        working-directory: ./services/mcp-server
+        run: npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        working-directory: ./services/mcp-server
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

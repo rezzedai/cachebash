@@ -1,5 +1,7 @@
 # CacheBash
 
+[![CI](https://github.com/rezzedai/cachebash/actions/workflows/ci.yml/badge.svg)](https://github.com/rezzedai/cachebash/actions/workflows/ci.yml)
+
 **The coordination layer between your AI coding agents and your phone.**
 
 Your AI agents can't reach you when you close the laptop. CacheBash connects them. Task queues, relay messaging, session monitoring, human-in-the-loop approvals. One MCP server. Every client that speaks the protocol.
