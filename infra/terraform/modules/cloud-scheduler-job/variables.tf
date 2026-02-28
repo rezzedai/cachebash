@@ -30,13 +30,21 @@ variable "uri" {
 }
 
 variable "service_account_email" {
-  description = "Service account email for OIDC authentication"
+  description = "Service account email for OIDC authentication (optional — omit when using headers for auth)"
   type        = string
+  default     = null
 }
 
 variable "oidc_audience" {
-  description = "OIDC token audience (usually the Cloud Run service URL)"
+  description = "OIDC token audience (optional — required when service_account_email is set)"
   type        = string
+  default     = null
+}
+
+variable "headers" {
+  description = "Custom HTTP headers to include with each request (e.g. Authorization)"
+  type        = map(string)
+  default     = {}
 }
 
 variable "time_zone" {
