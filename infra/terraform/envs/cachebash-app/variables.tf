@@ -22,6 +22,12 @@ variable "mcp_server_env_vars" {
   sensitive   = true
 }
 
+variable "internal_api_key" {
+  description = "CacheBash API key for Cloud Scheduler to authenticate to internal endpoints"
+  type        = string
+  sensitive   = true
+}
+
 variable "mcp_min_instances" {
   description = "Minimum Cloud Run instances (0 = scale to zero)"
   type        = number
