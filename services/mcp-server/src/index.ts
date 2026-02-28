@@ -17,6 +17,7 @@ import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitRe
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
+import { generateSpanId } from "./utils/trace.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
 import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
@@ -197,13 +198,19 @@ async function main() {
       console.error("[Pricing] Check failed, failing open:", err);
     }
 
+    // Agent Trace L1: auto-inject trace context on every tool call
+    const tracedArgs = Object.assign({}, args || {}, {
+      traceId: (args as Record<string, unknown>)?.traceId || generateSpanId(),
+      spanId: generateSpanId(),
+    });
+
     const handler = TOOL_HANDLERS[name];
     if (!handler) {
       return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
     }
 
     try {
-      const result = await handler(auth, args);
+      const result = await handler(auth, tracedArgs);
       if ((complianceWarning || pricingWarning) && result?.content?.[0]?.text) {
         try {
           const parsed = JSON.parse(result.content[0].text);
@@ -226,14 +233,14 @@ async function main() {
       }
 
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
-      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
+      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, tracedArgs,
         JSON.stringify(result).substring(0, 500), Date.now() - startTime, true);
       audit.log(name, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return result;
     } catch (err) {
       logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
         err instanceof Error ? err.message : String(err));
-      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, args,
+      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, tracedArgs,
         "", Date.now() - startTime, false, err instanceof Error ? err.message : String(err));
       audit.error(name, err instanceof Error ? err.message : String(err), { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
