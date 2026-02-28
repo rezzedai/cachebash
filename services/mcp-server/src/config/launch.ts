@@ -83,6 +83,13 @@ export const SPAWNABLE_PROGRAMS: Map<string, ProgramLaunchConfig> = new Map([
     repo: "",
     description: "Strategic counsel — architecture, roadmap, council contributions",
   }],
+  ["vector", {
+    programId: "vector",
+    spawnable: true,
+    model: "opus",
+    repo: "rezzed-ai",
+    description: "Flynn's exclusive strategic interface — directive authority over ISO",
+  }],
 ]);
 
 /** Check if a program is spawnable by the wake daemon */
