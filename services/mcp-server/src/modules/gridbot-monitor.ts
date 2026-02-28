@@ -153,6 +153,96 @@ export async function runHealthCheck(
     threshold: { warning: 1, critical: 3 },
   });
 
+  // 8. Stuck session count (heartbeat recent but no output for 10+ min)
+  const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
+  const tenMinAgo = admin.firestore.Timestamp.fromDate(
+    new Date(now.toDate().getTime() - STUCK_THRESHOLD_MS)
+  );
+
+  // Sessions with recent heartbeats (not stale) are candidates for stuck detection
+  const aliveSessions = activeSessions.docs.filter((doc) => {
+    const data = doc.data();
+    const heartbeat =
+      data.lastHeartbeat?.toMillis?.() || data.lastUpdate?.toMillis?.() || 0;
+    return Date.now() - heartbeat <= STUCK_THRESHOLD_MS;
+  });
+
+  let stuckSessionCount = 0;
+  for (const doc of aliveSessions) {
+    const data = doc.data();
+    const programId = data.programId || data.name || doc.id;
+
+    // Check for recent task completions from this program
+    const recentCompletions = await firestore
+      .collection(`tenants/${userId}/tasks`)
+      .where("source", "==", programId)
+      .where("completedAt", ">=", tenMinAgo)
+      .limit(1)
+      .get();
+
+    if (!recentCompletions.empty) continue;
+
+    // Check for recent relay messages sent by this program
+    const recentMessages = await firestore
+      .collection(`tenants/${userId}/relay`)
+      .where("source", "==", programId)
+      .where("createdAt", ">=", tenMinAgo)
+      .limit(1)
+      .get();
+
+    if (!recentMessages.empty) continue;
+
+    // No output — session is stuck
+    stuckSessionCount++;
+
+    // Create ISO alert (deduplicate via stuckSessionAlertSent flag)
+    if (!data.stuckSessionAlertSent) {
+      try {
+        const alertMessage = `STUCK SESSION: ${programId} session "${data.name || doc.id}" is alive (heartbeat OK) but has produced no output for 10+ minutes. It may be deadlocked or spinning.`;
+        const alertExpiry = admin.firestore.Timestamp.fromDate(
+          new Date(now.toDate().getTime() + 3600 * 1000)
+        );
+
+        await firestore.collection(`tenants/${userId}/tasks`).add({
+          schemaVersion: "2.2",
+          type: "task",
+          title: `[dispatcher] STUCK SESSION: ${programId}`,
+          instructions: alertMessage,
+          preview: `Session ${doc.id} alive but no output for 10+ min`,
+          source: "dispatcher",
+          target: "iso",
+          priority: "high",
+          action: "queue",
+          status: "created",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt: alertExpiry,
+          metadata: {
+            sessionId: doc.id,
+            programId,
+            alertType: "stuck_session",
+          },
+        });
+
+        await doc.ref.update({
+          stuckSessionAlertSent: true,
+          stuckSessionAlertAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        alertsSent.push(`STUCK_SESSION alert for ${programId}`);
+      } catch (err) {
+        console.error(`[HealthCheck] Failed to create stuck session alert for ${doc.id}:`, err);
+      }
+    }
+  }
+
+  indicators.push({
+    name: "stuck_sessions",
+    value: stuckSessionCount,
+    status:
+      stuckSessionCount >= 3 ? "critical" : stuckSessionCount >= 1 ? "warning" : "ok",
+    threshold: { warning: 1, critical: 3 },
+  });
+
   // Determine overall status
   const hasCritical = indicators.some((i) => i.status === "critical");
   const hasWarning = indicators.some((i) => i.status === "warning");
