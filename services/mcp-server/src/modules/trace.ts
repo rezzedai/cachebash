@@ -112,7 +112,7 @@ export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Pr
       .get(),
   ]);
 
-  const tasks = tasksSnap.docs.map((doc) => {
+  const tasks = tasksSnap.docs.map((doc: any) => {
     const d = doc.data();
     return {
       id: doc.id,
@@ -127,7 +127,7 @@ export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Pr
     };
   });
 
-  const messages = relaySnap.docs.map((doc) => {
+  const messages = relaySnap.docs.map((doc: any) => {
     const d = doc.data();
     return {
       id: doc.id,
@@ -142,7 +142,7 @@ export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Pr
     };
   });
 
-  const spans = ledgerSnap.docs.map((doc) => {
+  const spans = ledgerSnap.docs.map((doc: any) => {
     const d = doc.data();
     return {
       id: doc.id,
