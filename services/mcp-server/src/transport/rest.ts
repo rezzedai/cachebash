@@ -107,6 +107,34 @@ function coerceQueryParams(params: Record<string, string>): Record<string, unkno
   return result;
 }
 
+/** Admin gate — requires wildcard capability or admin-class programId */
+function requireAdmin(auth: AuthContext, res: http.ServerResponse): boolean {
+  if (auth.capabilities.includes("*") || ["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+    return true;
+  }
+  restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
+  return false;
+}
+
+/** Compute period start date for time-range filters */
+function periodStart(period: string): Date {
+  const now = new Date();
+  switch (period) {
+    case "today":
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    case "this_week": {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - d.getDay());
+      return d;
+    }
+    case "this_month":
+      return new Date(now.getFullYear(), now.getMonth(), 1);
+    default:
+      return new Date(0);
+  }
+}
+
 function restResponse(res: http.ServerResponse, success: boolean, data: unknown, status = 200): void {
   sendJson(res, status, {
     success,
@@ -229,21 +257,52 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
 const routes: Route[] = [
   // Dispatch
   route("GET", "/v1/tasks/stats", async (auth, req, res) => {
+    if (!requireAdmin(auth, res)) return;
+    const query = coerceQueryParams(parseQuery(req.url || ""));
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
-    const [created, active, done, failed] = await Promise.all([
-      tasksRef.where("lifecycle", "==", "created").count().get(),
-      tasksRef.where("lifecycle", "==", "active").count().get(),
-      tasksRef.where("lifecycle", "==", "done").count().get(),
-      tasksRef.where("lifecycle", "==", "failed").count().get(),
-    ]);
-    restResponse(res, true, {
-      created: created.data().count,
-      active: active.data().count,
-      done: done.data().count,
-      failed: failed.data().count,
-      total: created.data().count + active.data().count + done.data().count + failed.data().count,
-    });
+    const target = query.target as string | undefined;
+    const period = query.period as string | undefined;
+
+    if (target || (period && period !== "all")) {
+      // Filtered: fetch docs and count in memory to avoid composite index issues
+      let q: admin.firestore.Query = tasksRef;
+      if (target) q = q.where("target", "==", target);
+      if (period && period !== "all") {
+        q = q.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(periodStart(period)));
+      }
+      q = q.orderBy("createdAt", "desc").limit(5000);
+      const snap = await q.get();
+      const counts = { created: 0, active: 0, done: 0, failed: 0 };
+      for (const doc of snap.docs) {
+        const lc = doc.data().lifecycle as string;
+        if (lc === "created") counts.created++;
+        else if (lc === "active") counts.active++;
+        else if (lc === "done") counts.done++;
+        else if (lc === "failed") counts.failed++;
+      }
+      restResponse(res, true, {
+        ...counts,
+        total: counts.created + counts.active + counts.done + counts.failed,
+        ...(target ? { target } : {}),
+        ...(period ? { period } : {}),
+      });
+    } else {
+      // Unfiltered: use efficient count queries
+      const [created, active, done, failed] = await Promise.all([
+        tasksRef.where("lifecycle", "==", "created").count().get(),
+        tasksRef.where("lifecycle", "==", "active").count().get(),
+        tasksRef.where("lifecycle", "==", "done").count().get(),
+        tasksRef.where("lifecycle", "==", "failed").count().get(),
+      ]);
+      restResponse(res, true, {
+        created: created.data().count,
+        active: active.data().count,
+        done: done.data().count,
+        failed: failed.data().count,
+        total: created.data().count + active.data().count + done.data().count + failed.data().count,
+      });
+    }
   }),
   route("GET", "/v1/tasks", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -335,12 +394,14 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/history", async (auth, req, res) => {
+    if (!requireAdmin(auth, res)) return;
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "query_message_history", query);
     restResponse(res, true, data);
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
+    if (!requireAdmin(auth, res)) return;
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "list_sessions", query);
     restResponse(res, true, data);
@@ -357,6 +418,41 @@ const routes: Route[] = [
     const body = await readBody(req);
     const data = await callTool(auth, req, "update_session", { sessionId: p.id, ...body });
     restResponse(res, true, data);
+  }),
+  route("GET", "/v1/sessions/history", async (auth, req, res) => {
+    if (!requireAdmin(auth, res)) return;
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const db = getFirestore();
+    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
+
+    const snap = await db.collection(`tenants/${auth.userId}/sessions`)
+      .where("archived", "==", true)
+      .orderBy("lastUpdate", "desc")
+      .limit(limit)
+      .get();
+
+    const sessions = snap.docs.map(doc => {
+      const data = doc.data();
+      const createdAt = data.createdAt?.toDate?.()?.getTime() || 0;
+      const lastUpdate = data.lastUpdate?.toDate?.()?.getTime() || 0;
+      const durationMs = lastUpdate && createdAt ? lastUpdate - createdAt : null;
+
+      return {
+        sessionId: doc.id,
+        name: data.name,
+        programId: data.programId,
+        status: data.currentAction || data.name,
+        state: data.status,
+        progress: data.progress,
+        projectName: data.projectName,
+        durationMs,
+        durationMinutes: durationMs ? Math.round(durationMs / 60000) : null,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+        completedAt: data.lastUpdate?.toDate?.()?.toISOString() || null,
+      };
+    });
+
+    restResponse(res, true, { sessions, count: sessions.length });
   }),
   // Signal
   route("POST", "/v1/questions", async (auth, req, res) => {
@@ -395,6 +491,7 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sprints/active", async (auth, req, res) => {
+    if (!requireAdmin(auth, res)) return;
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
     const snap = await tasksRef
@@ -403,8 +500,53 @@ const routes: Route[] = [
       .orderBy("createdAt", "desc")
       .limit(10)
       .get();
-    const sprints = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    restResponse(res, true, { sprints });
+
+    const sprints = await Promise.all(snap.docs.map(async (doc) => {
+      const data = doc.data();
+      // Fetch stories for this sprint
+      const storiesSnap = await tasksRef
+        .where("type", "==", "sprint-story")
+        .where("sprint.parentId", "==", doc.id)
+        .get();
+
+      const stories = storiesSnap.docs.map(s => {
+        const sd = s.data();
+        return {
+          id: s.id,
+          title: sd.title,
+          status: sd.status,
+          wave: sd.sprint?.wave || 1,
+          dependencies: sd.sprint?.dependencies || [],
+          complexity: sd.sprint?.complexity || "normal",
+          currentAction: sd.sprint?.currentAction || null,
+          startedAt: sd.startedAt?.toDate?.()?.toISOString() || null,
+          completedAt: sd.completedAt?.toDate?.()?.toISOString() || null,
+        };
+      });
+
+      const stats = {
+        total: stories.length,
+        completed: stories.filter(s => s.status === "done").length,
+        failed: stories.filter(s => s.status === "failed").length,
+        active: stories.filter(s => s.status === "active").length,
+        queued: stories.filter(s => s.status === "created").length,
+      };
+
+      return {
+        id: doc.id,
+        title: data.title,
+        status: data.status,
+        projectName: data.sprint?.projectName,
+        branch: data.sprint?.branch,
+        config: data.sprint?.config || null,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+        startedAt: data.startedAt?.toDate?.()?.toISOString() || null,
+        stories,
+        stats,
+      };
+    }));
+
+    restResponse(res, true, { sprints, count: sprints.length });
   }),
   route("GET", "/v1/sprints/:id", async (auth, req, res, p) => {
     const data = await callTool(auth, req, "get_sprint", { sprintId: p.id });
