@@ -265,6 +265,21 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "complete_task", { taskId: p.id, ...body });
     restResponse(res, true, data);
   }),
+  route("POST", "/v1/tasks/:id/unclaim", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "unclaim_task", { taskId: p.id, ...body });
+    restResponse(res, true, data);
+  }),
+  route("POST", "/v1/tasks/batch-claim", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "batch_claim_tasks", body);
+    restResponse(res, true, data);
+  }),
+  route("POST", "/v1/tasks/batch-complete", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "batch_complete_tasks", body);
+    restResponse(res, true, data);
+  }),
   // Relay
   route("GET", "/v1/messages/unread", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -432,6 +447,11 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "write_fleet_snapshot", body);
     restResponse(res, true, data);
   }),
+  route("GET", "/v1/fleet/timeline", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_fleet_timeline", query);
+    restResponse(res, true, data);
+  }),
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
     const result = await dreamPeekHandler(auth, {});
@@ -471,6 +491,10 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "list_keys", query);
     restResponse(res, true, data);
   }),
+  route("POST", "/v1/keys/rotate", async (auth, req, res) => {
+    const data = await callTool(auth, req, "rotate_key", {});
+    restResponse(res, true, data);
+  }),
 
   // Audit
   route("GET", "/v1/audit", async (auth, req, res) => {
@@ -501,6 +525,63 @@ const routes: Route[] = [
   route("GET", "/v1/traces", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "query_traces", query);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/traces/:traceId", async (auth, req, res, p) => {
+    const data = await callTool(auth, req, "query_trace", { traceId: p.traceId });
+    restResponse(res, true, data);
+  }),
+
+  // Feedback
+  route("POST", "/v1/feedback", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "submit_feedback", body);
+    restResponse(res, true, data, 201);
+  }),
+
+  // Rate Limits
+  route("POST", "/v1/rate-limits", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "log_rate_limit_event", body);
+    restResponse(res, true, data, 201);
+  }),
+  route("GET", "/v1/rate-limits", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_rate_limit_events", query);
+    restResponse(res, true, data);
+  }),
+
+  // Additional Metrics
+  route("GET", "/v1/metrics/contention", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_contention_metrics", query);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/metrics/context-utilization", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_context_utilization", query);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/metrics/ack-compliance", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_ack_compliance", query);
+    restResponse(res, true, data);
+  }),
+
+  // Usage & Billing
+  route("GET", "/v1/usage", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_usage", query);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/invoices", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_invoice", query);
+    restResponse(res, true, data);
+  }),
+  route("PUT", "/v1/budget", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "set_budget", body);
     restResponse(res, true, data);
   }),
 
