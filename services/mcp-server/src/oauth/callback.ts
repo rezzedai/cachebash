@@ -69,7 +69,7 @@ export async function handleOAuthCallback(req: http.IncomingMessage, res: http.S
 
   // SARK F-8: Atomic write via Firestore transaction
   try {
-    await db.runTransaction(async (txn) => {
+    await db.runTransaction(async (txn: any) => {
       const codeRef = db.doc(`oauthCodes/${codeHash}`);
       const existing = await txn.get(codeRef);
       if (existing.exists) {

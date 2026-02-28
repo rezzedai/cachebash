@@ -431,7 +431,7 @@ const routes: Route[] = [
       .limit(limit)
       .get();
 
-    const sessions = snap.docs.map(doc => {
+    const sessions = snap.docs.map((doc: any) => {
       const data = doc.data();
       const createdAt = data.createdAt?.toDate?.()?.getTime() || 0;
       const lastUpdate = data.lastUpdate?.toDate?.()?.getTime() || 0;
@@ -501,7 +501,7 @@ const routes: Route[] = [
       .limit(10)
       .get();
 
-    const sprints = await Promise.all(snap.docs.map(async (doc) => {
+    const sprints = await Promise.all(snap.docs.map(async (doc: any) => {
       const data = doc.data();
       // Fetch stories for this sprint
       const storiesSnap = await tasksRef
@@ -509,7 +509,7 @@ const routes: Route[] = [
         .where("sprint.parentId", "==", doc.id)
         .get();
 
-      const stories = storiesSnap.docs.map(s => {
+      const stories = storiesSnap.docs.map((s: any) => {
         const sd = s.data();
         return {
           id: s.id,
@@ -526,10 +526,10 @@ const routes: Route[] = [
 
       const stats = {
         total: stories.length,
-        completed: stories.filter(s => s.status === "done").length,
-        failed: stories.filter(s => s.status === "failed").length,
-        active: stories.filter(s => s.status === "active").length,
-        queued: stories.filter(s => s.status === "created").length,
+        completed: stories.filter((s: any) => s.status === "done").length,
+        failed: stories.filter((s: any) => s.status === "failed").length,
+        active: stories.filter((s: any) => s.status === "active").length,
+        queued: stories.filter((s: any) => s.status === "created").length,
       };
 
       return {

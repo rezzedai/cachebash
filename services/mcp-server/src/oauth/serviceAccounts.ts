@@ -66,7 +66,7 @@ async function listServiceAccounts(auth: AuthContext, res: http.ServerResponse):
       .where("userId", "==", auth.userId)
       .get();
 
-    const accounts = snapshot.docs.map((doc) => {
+    const accounts = snapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         client_id: data.clientId,
