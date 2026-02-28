@@ -12,7 +12,7 @@ import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
-import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, recallMemoryHandler, memoryHealthHandler } from "./modules/programState.js";
+import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, recallMemoryHandler, memoryHealthHandler, deleteMemoryHandler, reinforceMemoryHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { getUsageHandler, getInvoiceHandler, setBudgetHandler } from "./modules/usage.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
@@ -71,10 +71,12 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   get_program_state: getProgramStateHandler,
   update_program_state: updateProgramStateHandler,
 
-  // Memory (Phase 1 aliases over program_state)
+  // Memory (Phase 1)
   store_memory: storeMemoryHandler,
   recall_memory: recallMemoryHandler,
   memory_health: memoryHealthHandler,
+  delete_memory: deleteMemoryHandler,
+  reinforce_memory: reinforceMemoryHandler,
 
   // Metrics
   get_cost_summary: getCostSummaryHandler,
@@ -734,6 +736,32 @@ export const TOOL_DEFINITIONS = [
         programId: { type: "string", description: "Program ID to check memory health for", maxLength: 100 },
       },
       required: ["programId"],
+    },
+  },
+  {
+    name: "delete_memory",
+    description: "Delete a learned pattern from agent memory by ID. Hard delete — pattern is removed, not just marked stale.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to delete memory from", maxLength: 100 },
+        patternId: { type: "string", description: "ID of the pattern to delete" },
+      },
+      required: ["programId", "patternId"],
+    },
+  },
+  {
+    name: "reinforce_memory",
+    description: "Reinforce an existing memory pattern. Bumps lastReinforced timestamp, optionally updates confidence and evidence. Resets stale flag.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to reinforce memory for", maxLength: 100 },
+        patternId: { type: "string", description: "ID of the pattern to reinforce" },
+        confidence: { type: "number", minimum: 0, maximum: 1, description: "Updated confidence score (optional)" },
+        evidence: { type: "string", maxLength: 500, description: "Updated evidence text (optional)" },
+      },
+      required: ["programId", "patternId"],
     },
   },
   // === Fleet ===
