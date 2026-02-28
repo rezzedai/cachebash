@@ -6,6 +6,7 @@ lib/
 !jest.config.js
 .env
 .env.local
+mobile/.env
 *.log
 .DS_Store
 

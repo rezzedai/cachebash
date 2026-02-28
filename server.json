@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.feelgreatfoodie/cachebash",
+  "name": "rezzedai/cachebash",
   "title": "CacheBash",
   "description": "Let your AI sessions talk to each other — messaging, tasks, sessions, and alerts",
   "repository": {

@@ -42,7 +42,7 @@ export async function processSyncQueue(userId: string): Promise<void> {
         });
         emitEvent(userId, {
           event_type: "GITHUB_SYNC_RETRY_EXHAUSTED",
-          program_id: "gridbot",
+          program_id: "system",
           operation,
           attempts,
         });
@@ -63,7 +63,7 @@ export async function processSyncQueue(userId: string): Promise<void> {
         });
         emitEvent(userId, {
           event_type: "GITHUB_SYNC_RETRY",
-          program_id: "gridbot",
+          program_id: "system",
           operation,
           attempts: nextAttempts,
         });

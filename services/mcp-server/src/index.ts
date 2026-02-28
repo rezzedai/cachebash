@@ -488,7 +488,7 @@ async function main() {
         for (const userId of activeUserIds) {
           emitEvent(userId, {
             event_type: "CLEANUP_RUN",
-            program_id: "gridbot",
+            program_id: "system",
             session_id: "scheduler",
             reconciliation: true,
           });
@@ -543,7 +543,7 @@ async function main() {
       const startTime = Date.now();
 
       try {
-        const { runHealthCheck } = await import("./modules/gridbot-monitor.js");
+        const { runHealthCheck } = await import("./modules/system-monitor.js");
         const activeUserIds = await getActiveUserIds();
 
         const results = [];

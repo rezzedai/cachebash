@@ -171,7 +171,7 @@ export async function runHealthCheck(
         message: alertMessage,
         alertType: "error",
         priority: "high",
-        source: "gridbot",
+        source: "system",
         target: "admin",
         status: "pending",
         type: "alert",
@@ -198,7 +198,7 @@ export async function runHealthCheck(
 
     emitEvent(userId, {
       event_type: "HEALTH_CRITICAL",
-      program_id: "gridbot",
+      program_id: "system",
       indicators: indicators
         .filter((i) => i.status === "critical")
         .map((i) => ({ name: i.name, value: i.value })),
@@ -215,7 +215,7 @@ export async function runHealthCheck(
 
       await firestore.collection(`tenants/${userId}/relay`).add({
         message: warningMessage,
-        source: "gridbot",
+        source: "system",
         target: "orchestrator",
         message_type: "STATUS",
         status: "pending",
@@ -233,7 +233,7 @@ export async function runHealthCheck(
 
     emitEvent(userId, {
       event_type: "HEALTH_WARNING",
-      program_id: "gridbot",
+      program_id: "system",
       indicators: indicators
         .filter((i) => i.status === "warning")
         .map((i) => ({ name: i.name, value: i.value })),
