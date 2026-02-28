@@ -9,4 +9,6 @@ export type {
   MemoryHealth,
   RecallOptions,
   StorePatternInput,
+  ReinforceOptions,
+  TransportMode,
 } from "./types.js";

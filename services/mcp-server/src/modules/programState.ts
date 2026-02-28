@@ -286,7 +286,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   });
 }
 
-// === Memory-as-Product Phase 1 aliases ===
+// === Memory-as-Product Phase 1 ===
 
 const StoreMemorySchema = z.object({
   programId: z.string().max(100),
@@ -599,5 +599,124 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
     programId: args.programId,
     patternsCount: (updated.learnedPatterns as any[]).length,
     message: `State updated for "${args.programId}".`,
+  });
+}
+
+// === Memory-as-Product Phase 1: Additional operations ===
+
+const DeleteMemorySchema = z.object({
+  programId: z.string().max(100),
+  patternId: z.string(),
+});
+
+/**
+ * delete_memory — Remove a learned pattern by ID.
+ * Hard delete — pattern is removed from the array, not marked stale.
+ */
+export async function deleteMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = DeleteMemorySchema.parse(rawArgs);
+
+  if (!isRegisteredProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canWrite(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const existing = await docRef.get();
+
+  if (!existing.exists) {
+    return jsonResult({ success: false, error: `No memory state for "${args.programId}".` });
+  }
+
+  const data = existing.data()!;
+  const patterns: any[] = Array.isArray(data.learnedPatterns) ? [...data.learnedPatterns] : [];
+  const before = patterns.length;
+  const filtered = patterns.filter((p: any) => p.id !== args.patternId);
+
+  if (filtered.length === before) {
+    return jsonResult({ success: false, error: `Pattern "${args.patternId}" not found.` });
+  }
+
+  const now = new Date().toISOString();
+  await docRef.update({
+    learnedPatterns: filtered,
+    lastUpdatedBy: auth.programId,
+    lastUpdatedAt: now,
+    version: (data.version || 0) + 1,
+  });
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    patternId: args.patternId,
+    patternsCount: filtered.length,
+    message: `Pattern "${args.patternId}" deleted from "${args.programId}".`,
+  });
+}
+
+const ReinforceMemorySchema = z.object({
+  programId: z.string().max(100),
+  patternId: z.string(),
+  confidence: z.number().min(0).max(1).optional(),
+  evidence: z.string().max(500).optional(),
+});
+
+/**
+ * reinforce_memory — Bump an existing pattern's confidence and lastReinforced timestamp.
+ * Optionally update confidence score and append evidence.
+ * Resets stale flag if pattern was previously stale.
+ */
+export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = ReinforceMemorySchema.parse(rawArgs);
+
+  if (!isRegisteredProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canWrite(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const existing = await docRef.get();
+
+  if (!existing.exists) {
+    return jsonResult({ success: false, error: `No memory state for "${args.programId}".` });
+  }
+
+  const data = existing.data()!;
+  const patterns: any[] = Array.isArray(data.learnedPatterns) ? [...data.learnedPatterns] : [];
+  const idx = patterns.findIndex((p: any) => p.id === args.patternId);
+
+  if (idx < 0) {
+    return jsonResult({ success: false, error: `Pattern "${args.patternId}" not found.` });
+  }
+
+  const now = new Date().toISOString();
+  const pattern = { ...patterns[idx] };
+  pattern.lastReinforced = now;
+  if (args.confidence !== undefined) pattern.confidence = args.confidence;
+  if (args.evidence) pattern.evidence = args.evidence;
+  if (pattern.stale) pattern.stale = false;
+  patterns[idx] = pattern;
+
+  await docRef.update({
+    learnedPatterns: patterns,
+    lastUpdatedBy: auth.programId,
+    lastUpdatedAt: now,
+    version: (data.version || 0) + 1,
+  });
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    patternId: args.patternId,
+    confidence: pattern.confidence,
+    message: `Pattern "${args.patternId}" reinforced for "${args.programId}".`,
   });
 }
