@@ -871,6 +871,17 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       );
     }
 
+    // ISO Self-Recycling: Detect [RECYCLE] marker and spawn new session
+    const taskDoc = await taskRef.get();
+    if (taskDoc.exists) {
+      const taskTitle = taskDoc.data()?.title as string;
+      if (taskTitle && (taskTitle.includes("[RECYCLE]") || taskTitle.toLowerCase().includes("recycle"))) {
+        handleSelfRecycle(db, auth.userId, auth.programId).catch((err) =>
+          console.error("[SelfRecycle] Failed:", err)
+        );
+      }
+    }
+
     return jsonResult({ success: true, taskId: args.taskId, message: "Task marked as done" });
   } catch (error) {
     return jsonResult({
@@ -1210,6 +1221,72 @@ export async function getContentionMetricsHandler(auth: AuthContext, rawArgs: un
       ? Math.round((contentionEvents / claimsAttempted) * 10000) / 100
       : 0,
     meanTimeToClaimMs,
+  });
+}
+
+// ISO Self-Recycling: Handle program self-recycle request
+const SPAWN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+async function handleSelfRecycle(
+  db: admin.firestore.Firestore,
+  userId: string,
+  programId: string
+): Promise<void> {
+  // 1. Check spawn cooldown
+  const metaDoc = await db.doc(`tenants/${userId}/sessions/_meta/programs/${programId}`).get();
+  if (metaDoc.exists) {
+    const lastSpawn = metaDoc.data()?.lastSpawnAt?.toDate();
+    if (lastSpawn) {
+      const timeSinceSpawn = Date.now() - lastSpawn.getTime();
+      if (timeSinceSpawn < SPAWN_COOLDOWN_MS) {
+        console.log(`[SelfRecycle] ${programId} in cooldown (${Math.round(timeSinceSpawn / 1000)}s since last spawn)`);
+        return;
+      }
+    }
+  }
+
+  // 2. Fleet gate: Check for active tasks
+  const activeTasksSnapshot = await db
+    .collection(`tenants/${userId}/tasks`)
+    .where("target", "==", programId)
+    .where("status", "==", "active")
+    .limit(1)
+    .get();
+
+  if (!activeTasksSnapshot.empty) {
+    console.log(`[SelfRecycle] ${programId} has active tasks, blocking recycle`);
+    return;
+  }
+
+  // 3. Spawn new orchestrator session
+  const newSessionId = `${programId}.recycle-${Date.now()}`;
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  await db.doc(`tenants/${userId}/sessions/${newSessionId}`).set({
+    name: `${programId} - Self-Recycle`,
+    programId,
+    status: "active",
+    bootType: "orchestrator",
+    currentAction: "Recycling from high context",
+    progress: 0,
+    projectName: null,
+    lastUpdate: now,
+    createdAt: now,
+    lastHeartbeat: now,
+    archived: false,
+  });
+
+  // Update spawn timestamp
+  await db.doc(`tenants/${userId}/sessions/_meta/programs/${programId}`).set({
+    lastSpawnAt: now,
+  }, { merge: true });
+
+  console.log(`[SelfRecycle] Spawned new session for ${programId}: ${newSessionId}`);
+
+  emitEvent(userId, {
+    event_type: "PROGRAM_WAKE",
+    program_id: programId,
+    session_id: newSessionId,
   });
 }
 
