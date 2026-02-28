@@ -12,7 +12,7 @@ import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
-import { getProgramStateHandler, updateProgramStateHandler } from "./modules/programState.js";
+import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, recallMemoryHandler, memoryHealthHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { getUsageHandler, getInvoiceHandler, setBudgetHandler } from "./modules/usage.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
@@ -69,6 +69,11 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Program State
   get_program_state: getProgramStateHandler,
   update_program_state: updateProgramStateHandler,
+
+  // Memory (Phase 1 aliases over program_state)
+  store_memory: storeMemoryHandler,
+  recall_memory: recallMemoryHandler,
+  memory_health: memoryHealthHandler,
 
   // Metrics
   get_cost_summary: getCostSummaryHandler,
@@ -668,6 +673,59 @@ export const TOOL_DEFINITIONS = [
             maxUnpromotedPatterns: { type: "number", minimum: 5, maximum: 200 },
           },
         },
+      },
+      required: ["programId"],
+    },
+  },
+  // === Memory (Phase 1 aliases) ===
+  {
+    name: "store_memory",
+    description: "Store a learned pattern into agent memory. Upserts by pattern ID — existing patterns with the same ID are replaced.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to store memory for", maxLength: 100 },
+        pattern: {
+          type: "object",
+          description: "The learned pattern to store",
+          properties: {
+            id: { type: "string" },
+            domain: { type: "string", maxLength: 100 },
+            pattern: { type: "string", maxLength: 500 },
+            confidence: { type: "number", minimum: 0, maximum: 1 },
+            evidence: { type: "string", maxLength: 500 },
+            discoveredAt: { type: "string" },
+            lastReinforced: { type: "string" },
+            promotedToStore: { type: "boolean" },
+            stale: { type: "boolean" },
+          },
+          required: ["id", "domain", "pattern", "confidence", "evidence", "discoveredAt", "lastReinforced"],
+        },
+      },
+      required: ["programId", "pattern"],
+    },
+  },
+  {
+    name: "recall_memory",
+    description: "Recall learned patterns from agent memory. Supports optional domain filter and text search (grep-style, case-insensitive substring match across pattern, evidence, and domain fields).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to recall memory for", maxLength: 100 },
+        domain: { type: "string", description: "Filter by knowledge domain (exact match)", maxLength: 100 },
+        query: { type: "string", description: "Text search across pattern, evidence, and domain fields", maxLength: 200 },
+        includeStale: { type: "boolean", default: false, description: "Include stale/expired patterns in results" },
+      },
+      required: ["programId"],
+    },
+  },
+  {
+    name: "memory_health",
+    description: "Get memory health summary for a program. Returns pattern counts (total, active, stale, promoted), domains list, last update timestamp, and decay configuration.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to check memory health for", maxLength: 100 },
       },
       required: ["programId"],
     },
