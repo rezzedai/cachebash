@@ -22,19 +22,25 @@ export interface MemoryPattern {
  */
 export interface MemoryHealth {
   totalPatterns: number;
+  activePatterns: number;
   promotedPatterns: number;
   stalePatterns: number;
   domains: string[];
-  avgConfidence: number;
-  oldestPattern: string | null;
-  newestPattern: string | null;
+  lastUpdatedAt: string | null;
+  lastUpdatedBy: string | null;
   decay: {
-    contextSummaryTTLDays: number;
-    learnedPatternMaxAge: number;
     maxUnpromotedPatterns: number;
-    lastDecayRun: string;
+    learnedPatternMaxAge: number;
+    lastDecayRun: string | null;
   };
 }
+
+/**
+ * Transport mode for the SDK client.
+ * - "mcp": JSON-RPC over MCP transport (default)
+ * - "rest": RESTful HTTP transport (simpler, no session management)
+ */
+export type TransportMode = "mcp" | "rest";
 
 /**
  * Configuration for CacheBashMemory client.
@@ -46,8 +52,9 @@ export interface CacheBashMemoryConfig {
   apiKey: string;
 
   /**
-   * MCP endpoint URL.
-   * @default "https://api.cachebash.dev/v1/mcp"
+   * Base API endpoint URL.
+   * For MCP transport: defaults to "https://api.cachebash.dev/v1/mcp"
+   * For REST transport: defaults to "https://api.cachebash.dev"
    */
   endpoint?: string;
 
@@ -55,6 +62,12 @@ export interface CacheBashMemoryConfig {
    * Program ID for memory operations.
    */
   programId: string;
+
+  /**
+   * Transport mode.
+   * @default "rest"
+   */
+  transport?: TransportMode;
 }
 
 /**
@@ -70,6 +83,11 @@ export interface RecallOptions {
    * Text search query (optional).
    */
   search?: string;
+
+  /**
+   * Include stale patterns (optional).
+   */
+  includeStale?: boolean;
 }
 
 /**
@@ -81,4 +99,19 @@ export interface StorePatternInput {
   pattern: string;
   confidence: number;
   evidence: string;
+}
+
+/**
+ * Options for reinforcing a memory pattern.
+ */
+export interface ReinforceOptions {
+  /**
+   * Updated confidence score (optional).
+   */
+  confidence?: number;
+
+  /**
+   * Updated evidence text (optional).
+   */
+  evidence?: string;
 }
