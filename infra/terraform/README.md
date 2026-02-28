@@ -100,7 +100,35 @@ infra/terraform/
 
 ## Prerequisites
 
+### Software
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.5
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud`)
+- [Firebase CLI](https://firebase.google.com/docs/cli) (for Firestore rules/indexes)
+
+### GCP Project
 - GCP project with billing enabled
-- `gcloud auth application-default login` for Terraform authentication
+- Authenticated with `gcloud auth application-default login`
+
+### Required GCP APIs
+The following APIs will be enabled automatically by Terraform:
+- Cloud Run API (`run.googleapis.com`)
+- Firestore API (`firestore.googleapis.com`)
+- Cloud Scheduler API (`cloudscheduler.googleapis.com`)
+- Cloud Build API (`cloudbuild.googleapis.com`)
+- Secret Manager API (`secretmanager.googleapis.com`)
+- IAM API (`iam.googleapis.com`)
+- Firebase API (`firebase.googleapis.com`)
+- Cloud Functions API (`cloudfunctions.googleapis.com`)
+- Firebase Cloud Messaging API (`fcm.googleapis.com`)
+
+### Required IAM Permissions
+Your service account or user must have these roles:
+- **Owner** (for initial setup and state bucket creation)
+
+Or these granular roles for production:
+- `roles/resourcemanager.projectIamAdmin`
+- `roles/iam.serviceAccountAdmin`
+- `roles/run.admin`
+- `roles/cloudscheduler.admin`
+- `roles/firebase.admin`
+- `roles/serviceusage.serviceUsageAdmin`

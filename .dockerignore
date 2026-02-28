@@ -1,0 +1,65 @@
+# ============================================
+# Docker Ignore File
+# ============================================
+
+# Node modules (will be installed in container)
+node_modules/
+npm-debug.log
+
+# Git
+.git/
+.gitignore
+
+# Environment files (use --env-file instead)
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+lib/
+*.tsbuildinfo
+
+# Tests
+**/__tests__/
+**/*.test.ts
+**/*.spec.ts
+jest.config.js
+jest.integration.config.js
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Mobile app (not needed for MCP server)
+apps/
+mobile/
+
+# Terraform
+infra/
+
+# Cloud Functions (separate deployment)
+services/functions/
+firebase/
+
+# CLI package (separate deployment)
+packages/
+
+# Misc
+*.log
+.cache/
+tmp/
+temp/
