@@ -9,10 +9,10 @@ import { emitEvent } from "./events.js";
 
 const MAX_RETRY_COUNT = 5;
 
-const REPO_OWNER = "rezzedai";
-const REPO_NAME = "grid";
+const REPO_OWNER = process.env.GITHUB_REPO_OWNER || "rezzedai";
+const REPO_NAME = process.env.GITHUB_REPO_NAME || "cachebash";
 
-const PROJECT_ID = "PVT_kwDOD5cSAM4BPj-e";
+const PROJECT_ID = process.env.GITHUB_PROJECT_ID || "";
 
 const FIELD_STATUS = "PVTSSF_lADOD5cSAM4BPj-ezg973Ho";
 const STATUS_TODO = "81956dd9";
@@ -157,7 +157,7 @@ export async function reconcileGitHub(userId: string): Promise<{ processed: numb
       
       emitEvent(userId, {
         event_type: "GITHUB_SYNC_RECONCILED",
-        program_id: "gridbot",
+        program_id: "system",
         operation: item.operation,
       });
     } catch (error: any) {
@@ -177,7 +177,7 @@ export async function reconcileGitHub(userId: string): Promise<{ processed: numb
         // Alert about abandoned item
         emitEvent(userId, {
           event_type: "GITHUB_SYNC_FAILED",
-          program_id: "gridbot",
+          program_id: "system",
           operation: item.operation,
           error_class: "PERMANENT",
           abandoned: true,

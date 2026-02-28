@@ -28,7 +28,7 @@ const GRID_PROGRAMS = [
   "able",
   "bit",
   "byte",
-  "gridbot",
+  "system",
   "ram",
   "yori",
   "pixel",
