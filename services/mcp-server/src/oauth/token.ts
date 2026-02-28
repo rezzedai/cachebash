@@ -73,7 +73,7 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
 
   try {
     // SARK F-8: Atomic single-use check via transaction
-    const result = await db.runTransaction(async (txn) => {
+    const result = await db.runTransaction(async (txn: any) => {
       const codeRef = db.doc(`oauthCodes/${codeHash}`);
       const codeDoc = await txn.get(codeRef);
 
