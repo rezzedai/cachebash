@@ -94,18 +94,23 @@ resource "google_cloud_run_domain_mapping" "api" {
 # Cloud Scheduler Jobs
 # ---------------------------------------------------------------------------
 
+locals {
+  scheduler_auth_headers = {
+    "Authorization" = "Bearer ${var.internal_api_key}"
+  }
+}
+
 module "scheduler_wake_daemon" {
   source = "../../modules/cloud-scheduler-job"
 
-  name                  = "cachebash-wake-daemon"
-  project_id            = var.project_id
-  region                = var.region
-  schedule              = "* * * * *"
-  uri                   = "${local.service_url}/v1/internal/wake"
-  service_account_email = google_service_account.scheduler.email
-  oidc_audience         = local.service_url
-  attempt_deadline      = "30s"
-  description           = "Wake daemon: polls for orphaned tasks and spawns idle programs"
+  name             = "cachebash-wake-daemon"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "* * * * *"
+  uri              = "${local.service_url}/v1/internal/wake"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "30s"
+  description      = "Wake daemon: polls for orphaned tasks and spawns idle programs"
 
   depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
 }
@@ -113,15 +118,14 @@ module "scheduler_wake_daemon" {
 module "scheduler_ttl_reaper" {
   source = "../../modules/cloud-scheduler-job"
 
-  name                  = "cachebash-ttl-reaper"
-  project_id            = var.project_id
-  region                = var.region
-  schedule              = "*/5 * * * *"
-  uri                   = "${local.service_url}/v1/internal/cleanup"
-  service_account_email = google_service_account.scheduler.email
-  oidc_audience         = local.service_url
-  attempt_deadline      = "60s"
-  description           = "TTL Reaper: cleans expired sessions, relay messages, idempotency keys"
+  name             = "cachebash-ttl-reaper"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "*/5 * * * *"
+  uri              = "${local.service_url}/v1/internal/cleanup"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "60s"
+  description      = "TTL Reaper: cleans expired sessions, relay messages, idempotency keys"
 
   depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
 }
@@ -129,15 +133,14 @@ module "scheduler_ttl_reaper" {
 module "scheduler_github_reconcile" {
   source = "../../modules/cloud-scheduler-job"
 
-  name                  = "cachebash-github-reconcile"
-  project_id            = var.project_id
-  region                = var.region
-  schedule              = "*/15 * * * *"
-  uri                   = "${local.service_url}/v1/internal/reconcile-github"
-  service_account_email = google_service_account.scheduler.email
-  oidc_audience         = local.service_url
-  attempt_deadline      = "120s"
-  description           = "GitHub Reconciliation: retries failed GitHub sync operations"
+  name             = "cachebash-github-reconcile"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "*/15 * * * *"
+  uri              = "${local.service_url}/v1/internal/reconcile-github"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "120s"
+  description      = "GitHub Reconciliation: retries failed GitHub sync operations"
 
   depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
 }
@@ -145,15 +148,29 @@ module "scheduler_github_reconcile" {
 module "scheduler_health_check" {
   source = "../../modules/cloud-scheduler-job"
 
-  name                  = "cachebash-health-check"
-  project_id            = var.project_id
-  region                = var.region
-  schedule              = "*/5 * * * *"
-  uri                   = "${local.service_url}/v1/internal/health-check"
-  service_account_email = google_service_account.scheduler.email
-  oidc_audience         = local.service_url
-  attempt_deadline      = "60s"
-  description           = "Health Check: monitors health indicators, routes alerts"
+  name             = "cachebash-health-check"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "*/5 * * * *"
+  uri              = "${local.service_url}/v1/internal/health-check"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "60s"
+  description      = "Health Check: monitors health indicators, routes alerts"
+
+  depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
+}
+
+module "scheduler_stale_sessions" {
+  source = "../../modules/cloud-scheduler-job"
+
+  name             = "cachebash-stale-sessions"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "*/5 * * * *"
+  uri              = "${local.service_url}/v1/internal/stale-sessions"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "60s"
+  description      = "Stale Session Detector: identifies and archives sessions with no recent heartbeat"
 
   depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
 }

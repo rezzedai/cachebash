@@ -17,10 +17,14 @@ resource "google_cloud_scheduler_job" "job" {
   http_target {
     http_method = "POST"
     uri         = var.uri
+    headers     = length(var.headers) > 0 ? var.headers : null
 
-    oidc_token {
-      service_account_email = var.service_account_email
-      audience              = var.oidc_audience
+    dynamic "oidc_token" {
+      for_each = var.service_account_email != null ? [1] : []
+      content {
+        service_account_email = var.service_account_email
+        audience              = var.oidc_audience
+      }
     }
   }
 }
