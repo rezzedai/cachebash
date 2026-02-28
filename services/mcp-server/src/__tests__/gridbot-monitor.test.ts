@@ -46,7 +46,7 @@ describe("Health Monitor", () => {
     const result = await runHealthCheck(testUserId);
 
     expect(result.overall_status).toBe("ok");
-    expect(result.indicators).toHaveLength(7);
+    expect(result.indicators).toHaveLength(8);
     expect(result.alerts_sent).toHaveLength(0);
     expect(result.indicators.every((i) => i.status === "ok")).toBe(true);
   });
@@ -191,8 +191,8 @@ describe("Health Monitor", () => {
 
     const result = await runHealthCheck(testUserId);
 
-    // Verify all 7 indicators exist with proper structure
-    expect(result.indicators).toHaveLength(7);
+    // Verify all 8 indicators exist with proper structure
+    expect(result.indicators).toHaveLength(8);
     const indicatorNames = result.indicators.map((i) => i.name);
     expect(indicatorNames).toContain("task_failure_rate");
     expect(indicatorNames).toContain("session_death_count");
@@ -201,6 +201,7 @@ describe("Health Monitor", () => {
     expect(indicatorNames).toContain("wake_failure_count");
     expect(indicatorNames).toContain("cleanup_backlog");
     expect(indicatorNames).toContain("stale_sessions");
+    expect(indicatorNames).toContain("stuck_sessions");
 
     // All indicators should have threshold structure
     result.indicators.forEach((indicator) => {
