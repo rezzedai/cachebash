@@ -44,7 +44,7 @@ function getDomain(programName: string): string {
     iso: "ops",
     bit: "ops",
     byte: "ops",
-    gridbot: "ops",
+    system: "ops",
     ram: "ops",
   };
 
