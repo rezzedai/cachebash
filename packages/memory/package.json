@@ -1,0 +1,49 @@
+{
+  "name": "@rezzed.ai/memory",
+  "version": "0.1.0",
+  "description": "CacheBash Memory SDK — Lightweight client for memory pattern storage and recall",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rezzedai/cachebash.git",
+    "directory": "packages/memory"
+  },
+  "homepage": "https://rezzed.ai/cachebash",
+  "bugs": "https://github.com/rezzedai/cachebash/issues",
+  "keywords": [
+    "cachebash",
+    "memory",
+    "mcp",
+    "ai",
+    "agents",
+    "patterns",
+    "learned-behavior"
+  ]
+}
