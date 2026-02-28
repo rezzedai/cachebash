@@ -35,7 +35,7 @@ COPY services/mcp-server/src ./services/mcp-server/src
 COPY services/mcp-server/package.json ./services/mcp-server/
 
 # Build TypeScript
-RUN cd services/mcp-server && npx tsc
+RUN cd services/mcp-server && npm run build
 
 # ============================================
 # Stage 3: Runtime
