@@ -286,6 +286,218 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   });
 }
 
+// === Memory-as-Product Phase 1 aliases ===
+
+const StoreMemorySchema = z.object({
+  programId: z.string().max(100),
+  pattern: LearnedPatternSchema,
+});
+
+const RecallMemorySchema = z.object({
+  programId: z.string().max(100),
+  domain: z.string().max(100).optional(),
+  query: z.string().max(200).optional(),
+  includeStale: z.boolean().default(false),
+});
+
+const MemoryHealthSchema = z.object({
+  programId: z.string().max(100),
+});
+
+/**
+ * store_memory — Upsert a single learned pattern into program state.
+ * If a pattern with the same ID exists, it is replaced. Otherwise it is appended.
+ * Enforces maxUnpromotedPatterns cap.
+ */
+export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = StoreMemorySchema.parse(rawArgs);
+
+  if (!isRegisteredProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canWrite(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const existing = await docRef.get();
+
+  const now = new Date().toISOString();
+  const base = existing.exists ? existing.data()! : defaultState(args.programId, "unknown");
+
+  let patterns: any[] = Array.isArray(base.learnedPatterns) ? [...base.learnedPatterns] : [];
+
+  // Upsert: replace if same ID exists, otherwise append
+  const existingIdx = patterns.findIndex((p: any) => p.id === args.pattern.id);
+  if (existingIdx >= 0) {
+    patterns[existingIdx] = args.pattern;
+  } else {
+    patterns.push(args.pattern);
+  }
+
+  // Enforce maxUnpromotedPatterns cap
+  const maxUnpromoted = base.decay?.maxUnpromotedPatterns || 50;
+  const unpromoted = patterns.filter((p: any) => !p.promotedToStore && !p.stale);
+  if (unpromoted.length > maxUnpromoted) {
+    unpromoted.sort((a: any, b: any) => a.confidence - b.confidence);
+    const toEvict = new Set(unpromoted.slice(0, unpromoted.length - maxUnpromoted).map((p: any) => p.id));
+    patterns = patterns.filter((p: any) => p.promotedToStore || p.stale || !toEvict.has(p.id));
+  }
+
+  // Merge update — only touch learnedPatterns + provenance
+  await docRef.set({
+    ...base,
+    learnedPatterns: patterns,
+    lastUpdatedBy: auth.programId,
+    lastUpdatedAt: now,
+    version: (base.version || 0) + 1,
+  });
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    patternId: args.pattern.id,
+    action: existingIdx >= 0 ? "updated" : "created",
+    patternsCount: patterns.length,
+    message: `Pattern "${args.pattern.id}" ${existingIdx >= 0 ? "updated" : "stored"} for "${args.programId}".`,
+  });
+}
+
+/**
+ * recall_memory — Read learned patterns with optional domain filter and text search.
+ * Grep-style: matches query substring against pattern text and evidence fields.
+ */
+export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = RecallMemorySchema.parse(rawArgs);
+
+  if (!isRegisteredProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canRead(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const doc = await docRef.get();
+
+  if (!doc.exists) {
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      patterns: [],
+      total: 0,
+      message: `No memory found for "${args.programId}".`,
+    });
+  }
+
+  const data = doc.data()!;
+  let patterns: any[] = Array.isArray(data.learnedPatterns) ? data.learnedPatterns : [];
+
+  // Filter out stale unless requested
+  if (!args.includeStale) {
+    patterns = patterns.filter((p: any) => !p.stale);
+  }
+
+  // Domain filter (exact match)
+  if (args.domain) {
+    patterns = patterns.filter((p: any) => p.domain === args.domain);
+  }
+
+  // Text search (case-insensitive substring match across pattern + evidence + domain)
+  if (args.query) {
+    const q = args.query.toLowerCase();
+    patterns = patterns.filter((p: any) =>
+      (p.pattern && p.pattern.toLowerCase().includes(q)) ||
+      (p.evidence && p.evidence.toLowerCase().includes(q)) ||
+      (p.domain && p.domain.toLowerCase().includes(q))
+    );
+  }
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    patterns,
+    total: patterns.length,
+    filters: {
+      domain: args.domain || null,
+      query: args.query || null,
+      includeStale: args.includeStale,
+    },
+    message: `Found ${patterns.length} pattern(s) for "${args.programId}".`,
+  });
+}
+
+/**
+ * memory_health — Summary of memory state per program.
+ * Returns pattern counts, staleness, domains, last update, decay config.
+ */
+export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = MemoryHealthSchema.parse(rawArgs);
+
+  if (!isRegisteredProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canRead(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory health for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
+  const doc = await docRef.get();
+
+  if (!doc.exists) {
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      exists: false,
+      health: {
+        totalPatterns: 0,
+        activePatterns: 0,
+        stalePatterns: 0,
+        promotedPatterns: 0,
+        domains: [],
+        lastUpdatedAt: null,
+        lastUpdatedBy: null,
+      },
+      message: `No memory state for "${args.programId}".`,
+    });
+  }
+
+  const data = doc.data()!;
+  const patterns: any[] = Array.isArray(data.learnedPatterns) ? data.learnedPatterns : [];
+
+  const stalePatterns = patterns.filter((p: any) => p.stale);
+  const promotedPatterns = patterns.filter((p: any) => p.promotedToStore);
+  const activePatterns = patterns.filter((p: any) => !p.stale);
+  const domains = [...new Set(patterns.map((p: any) => p.domain).filter(Boolean))];
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    exists: true,
+    health: {
+      totalPatterns: patterns.length,
+      activePatterns: activePatterns.length,
+      stalePatterns: stalePatterns.length,
+      promotedPatterns: promotedPatterns.length,
+      domains,
+      lastUpdatedAt: data.lastUpdatedAt || null,
+      lastUpdatedBy: data.lastUpdatedBy || null,
+      decay: {
+        maxUnpromotedPatterns: data.decay?.maxUnpromotedPatterns || 50,
+        learnedPatternMaxAge: data.decay?.learnedPatternMaxAge || 30,
+        lastDecayRun: data.decay?.lastDecayRun || null,
+      },
+    },
+    message: `Memory health for "${args.programId}": ${activePatterns.length} active, ${stalePatterns.length} stale, ${promotedPatterns.length} promoted across ${domains.length} domain(s).`,
+  });
+}
+
 export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UpdateProgramStateSchema.parse(rawArgs);
 
