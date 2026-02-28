@@ -12,9 +12,9 @@ FROM node:20-alpine AS deps
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY services/mcp-server/package*.json ./
-RUN npm ci
+# Copy package file and install dependencies (standalone, no workspace lock file)
+COPY services/mcp-server/package.json ./
+RUN npm install
 
 # ============================================
 # Stage 2: Build
@@ -42,8 +42,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install production dependencies only
-COPY services/mcp-server/package*.json ./
-RUN npm ci --omit=dev
+COPY services/mcp-server/package.json ./
+RUN npm install --omit=dev
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
