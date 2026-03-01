@@ -62,11 +62,15 @@ const CompleteTaskSchema = z.object({
   tokens_out: z.number().nonnegative().optional(),
   cost_usd: z.number().nonnegative().optional(),
   completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
-  model: z.string().optional(),
-  provider: z.string().optional(),
+  model: z.string(),
+  provider: z.string(),
   result: z.string().max(4000).optional(),
   error_code: z.string().optional(),
   error_class: z.enum(["TRANSIENT", "PERMANENT", "DEPENDENCY", "POLICY", "TIMEOUT", "UNKNOWN"]).optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const UnclaimTaskSchema = z.object({
@@ -77,6 +81,10 @@ const UnclaimTaskSchema = z.object({
 const BatchClaimTasksSchema = z.object({
   taskIds: z.array(z.string()).min(1).max(50),
   sessionId: z.string().optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const BatchCompleteTasksSchema = z.object({
@@ -85,6 +93,10 @@ const BatchCompleteTasksSchema = z.object({
   result: z.string().max(4000).optional(),
   model: z.string().optional(),
   provider: z.string().optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -753,6 +765,10 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (args.result) updateFields.result = args.result;
       if (args.error_code) updateFields.last_error_code = args.error_code;
       if (args.error_class) updateFields.last_error_class = args.error_class;
+      // Agent Trace L2: propagate trace context on completion
+      if (args.traceId) updateFields.traceId = args.traceId;
+      if (args.spanId) updateFields.completionSpanId = args.spanId;
+      if (args.parentSpanId) updateFields.completionParentSpanId = args.parentSpanId;
       tx.update(taskRef, updateFields);
     });
 
@@ -871,6 +887,10 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
         programId: auth.programId,
         taskType: taskData.source || "unknown",
         completed_status: args.completed_status,
+        // Agent Trace L2
+        traceId: args.traceId || null,
+        spanId: args.spanId || null,
+        parentSpanId: args.parentSpanId || null,
       }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
     }
 
@@ -927,13 +947,18 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
 
         transition("task", "created", "active");
 
-        tx.update(taskRef, {
+        const claimUpdate: Record<string, unknown> = {
           status: "active",
           startedAt: admin.firestore.FieldValue.serverTimestamp(),
           sessionId: args.sessionId || null,
           lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
           attempt_count: admin.firestore.FieldValue.increment(1),
-        });
+        };
+        // Agent Trace L2: propagate trace context on batch claim
+        if (args.traceId) claimUpdate.traceId = args.traceId;
+        if (args.spanId) claimUpdate.claimSpanId = args.spanId;
+        if (args.parentSpanId) claimUpdate.claimParentSpanId = args.parentSpanId;
+        tx.update(taskRef, claimUpdate);
 
         return { data };
       });
@@ -1027,6 +1052,10 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         if (args.result) updateFields.result = args.result;
         if (args.model) updateFields.model = args.model;
         if (args.provider) updateFields.provider = args.provider;
+        // Agent Trace L2: propagate trace context on batch complete
+        if (args.traceId) updateFields.traceId = args.traceId;
+        if (args.spanId) updateFields.completionSpanId = args.spanId;
+        if (args.parentSpanId) updateFields.completionParentSpanId = args.parentSpanId;
 
         tx.update(taskRef, updateFields);
       });
@@ -1062,6 +1091,10 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         programId: auth.programId,
         taskType: taskData.source || "unknown",
         completed_status: args.completed_status,
+        // Agent Trace L2
+        traceId: args.traceId || null,
+        spanId: args.spanId || null,
+        parentSpanId: args.parentSpanId || null,
       }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
 
       // Budget tracking per task
