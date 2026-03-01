@@ -2,7 +2,7 @@
   "name": "cachebash",
   "private": true,
   "workspaces": [
-    "apps/mobile",
+    "apps/*",
     "services/*",
     "packages/*"
   ],
