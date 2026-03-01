@@ -22,7 +22,7 @@ function jsonResult(data: unknown): ToolResult {
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only (legacy/mobile keys)
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator") {
+  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator" && auth.programId !== "dispatcher") {
     return jsonResult({
       success: false,
       error: "Audit log is only accessible by admin.",

@@ -352,7 +352,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   const requestedTarget = args.target || args.sessionId;
   const filtered = snapshot.docs.filter((doc) => {
     const t = doc.data().target;
-    if (auth.programId !== "legacy" && auth.programId !== "mobile") {
+    if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "dispatcher") {
       // Program keys: only see messages targeted at this program or broadcast
       return t === auth.programId || t === "all";
     }
@@ -513,7 +513,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only (legacy/mobile keys)
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator") {
+  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator" && auth.programId !== "dispatcher") {
     return jsonResult({
       success: false,
       error: "Dead letter queue is only accessible by admin.",
