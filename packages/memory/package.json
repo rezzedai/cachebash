@@ -15,19 +15,23 @@
   },
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {},
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "vitest": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "README.md"
   ],
   "license": "MIT",
   "repository": {
