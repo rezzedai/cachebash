@@ -41,10 +41,7 @@ import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
-// Per-session auth context
-const sessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
-
-// Session manager for cleanup
+// Session manager for lifecycle tracking (audit trail, not auth)
 const sessionManager = new SessionManager(SESSION_TIMEOUT_MS);
 
 function extractBearerToken(header: string | undefined): string | null {
@@ -113,7 +110,7 @@ async function main() {
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
     const sessionId = extra?.sessionId;
-    const auth = sessionId ? sessions.get(sessionId)?.authContext : null;
+    const auth = transport.currentAuth as AuthContext | null;
     const correlationId = generateCorrelationId();
     const audit = createAuditLogger(correlationId, auth?.userId || "unknown");
     const startTime = Date.now();
@@ -367,11 +364,6 @@ async function main() {
           detail: validation.error,
           fallback: "Use REST API: POST /v1/{tool_name} with Bearer auth",
         });
-      }
-
-      // Also refresh the in-memory session map
-      if (sessions.has(mcpSessionId)) {
-        sessions.get(mcpSessionId)!.lastActivity = Date.now();
       }
 
       const remainingMs = SESSION_TIMEOUT_MS - (Date.now() - (validation.session!.lastActivity || Date.now()));
@@ -677,9 +669,6 @@ async function main() {
       }
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
-      if (mcpSessionId) {
-        sessions.set(mcpSessionId, { authContext: auth, lastActivity: Date.now() });
-      }
 
       const webReq = await nodeToWebRequest(req);
       const webRes = await transport.handleRequest(webReq, auth);
@@ -703,26 +692,12 @@ async function main() {
     sendJson(res, 404, { error: "Not found" });
   });
 
-  // Cleanup intervals
+  // Cleanup intervals (no sessions Map to prune — auth is stateless now)
   setInterval(() => {
-    const now = Date.now();
-    for (const [id, info] of sessions.entries()) {
-      if (now - info.lastActivity > SESSION_TIMEOUT_MS) sessions.delete(id);
-    }
     cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
     cleanupDcrRateLimits();
     cleanupCcRateLimits();
-    // TTL cleanup for expired relay messages — run per distinct tenant
-    const cleanedUserIds = new Set<string>();
-    for (const [, info] of sessions.entries()) {
-      const uid = info.authContext.userId;
-      if (cleanedUserIds.has(uid)) continue;
-      cleanedUserIds.add(uid);
-      cleanupExpiredRelayMessages(uid).catch((err) => {
-        console.error("[Relay] TTL cleanup failed for", uid, err);
-      });
-    }
   }, 5 * 60 * 1000);
 
   httpServer.listen(PORT, () => {
