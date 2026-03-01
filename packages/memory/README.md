@@ -1,8 +1,8 @@
 # @rezzed.ai/memory
 
-**CacheBash Memory SDK** — Lightweight TypeScript client for storing and recalling learned patterns via CacheBash.
+Lightweight TypeScript client for storing and recalling learned patterns via CacheBash.
 
-## Installation
+## Install
 
 ```bash
 npm install @rezzed.ai/memory
@@ -16,10 +16,8 @@ import { CacheBashMemory } from "@rezzed.ai/memory";
 const memory = new CacheBashMemory({
   apiKey: "your-api-key",
   programId: "your-program-id",
-  endpoint: "https://api.cachebash.dev/v1/mcp", // optional, this is the default
 });
 
-// Store a memory pattern
 await memory.store({
   id: "pattern-001",
   domain: "workflow",
@@ -28,121 +26,214 @@ await memory.store({
   evidence: "Prevented 3 runtime errors in production",
 });
 
-// Recall all patterns
-const patterns = await memory.recall();
-console.log(patterns);
-
-// Recall patterns by domain
-const workflowPatterns = await memory.recall({ domain: "workflow" });
-
-// Search patterns
-const searchResults = await memory.recall({ search: "validate" });
-
-// Get memory health stats
-const health = await memory.health();
-console.log(health);
-// {
-//   totalPatterns: 42,
-//   promotedPatterns: 5,
-//   stalePatterns: 2,
-//   domains: ["workflow", "security", "performance"],
-//   avgConfidence: 0.87,
-//   ...
-// }
+const patterns = await memory.recall({ domain: "workflow" });
 ```
 
 ## API Reference
 
-### `CacheBashMemory`
-
-Main client class for memory operations.
-
-#### Constructor
+### Constructor
 
 ```typescript
 new CacheBashMemory(config: CacheBashMemoryConfig)
 ```
 
-**Config:**
-- `apiKey` (string, required) — Your CacheBash API key
-- `programId` (string, required) — Program ID for memory isolation
-- `endpoint` (string, optional) — MCP endpoint URL (default: `https://api.cachebash.dev/v1/mcp`)
+| Parameter   | Type            | Required | Description                                      |
+| ----------- | --------------- | -------- | ------------------------------------------------ |
+| `apiKey`    | `string`        | Yes      | Your CacheBash API key                           |
+| `programId` | `string`        | Yes      | Program ID for memory isolation                  |
+| `transport` | `"rest" \| "mcp"` | No     | Transport mode (default: `"rest"`)               |
+| `endpoint`  | `string`        | No       | Custom API endpoint URL                          |
 
-#### Methods
-
-##### `store(pattern: StorePatternInput): Promise<void>`
+### `store(input: StorePatternInput): Promise<void>`
 
 Store or update a memory pattern. If a pattern with the same `id` exists, it will be replaced.
 
-**Pattern fields:**
-- `id` (string) — Unique pattern identifier
-- `domain` (string) — Domain category (e.g., "workflow", "security", "performance")
-- `pattern` (string) — The learned pattern or rule
-- `confidence` (number) — Confidence score (0-1)
-- `evidence` (string) — Supporting evidence or context
+```typescript
+await memory.store({
+  id: "p-001",
+  domain: "security",
+  pattern: "Rate-limit all public endpoints",
+  confidence: 0.92,
+  evidence: "Blocked 3 brute-force attempts",
+});
+```
 
-##### `recall(options?: RecallOptions): Promise<MemoryPattern[]>`
+**StorePatternInput fields:**
 
-Recall memory patterns with optional filters.
+| Field        | Type     | Description                            |
+| ------------ | -------- | -------------------------------------- |
+| `id`         | `string` | Unique pattern identifier              |
+| `domain`     | `string` | Domain category (e.g. "security")      |
+| `pattern`    | `string` | The learned pattern or rule            |
+| `confidence` | `number` | Confidence score (0-1)                 |
+| `evidence`   | `string` | Supporting evidence or context         |
 
-**Options:**
-- `domain` (string, optional) — Filter by domain
-- `search` (string, optional) — Text search across pattern and evidence fields
+### `recall(options?: RecallOptions): Promise<MemoryPattern[]>`
 
-**Returns:** Array of `MemoryPattern` objects (excludes stale patterns by default)
+Recall memory patterns with optional filters. Excludes stale patterns by default.
 
-##### `health(): Promise<MemoryHealth>`
+```typescript
+const all = await memory.recall();
+const security = await memory.recall({ domain: "security" });
+const search = await memory.recall({ search: "rate-limit" });
+const withStale = await memory.recall({ includeStale: true });
+```
+
+**RecallOptions:**
+
+| Field          | Type      | Description                         |
+| -------------- | --------- | ----------------------------------- |
+| `domain`       | `string`  | Filter by domain                    |
+| `search`       | `string`  | Text search across pattern/evidence |
+| `includeStale` | `boolean` | Include stale patterns (default: false) |
+
+**Returns:** `MemoryPattern[]`
+
+### `health(): Promise<MemoryHealth>`
 
 Get memory health statistics.
 
-**Returns:**
-- `totalPatterns` — Total pattern count
-- `promotedPatterns` — Patterns promoted to permanent storage
-- `stalePatterns` — Patterns marked as stale
-- `domains` — List of all domains
-- `avgConfidence` — Average confidence score
-- `oldestPattern` — Timestamp of oldest pattern
-- `newestPattern` — Timestamp of newest pattern
-- `decay` — Decay configuration (TTL, max age, etc.)
+```typescript
+const health = await memory.health();
+console.log(health.totalPatterns, health.activePatterns);
+```
 
-## Types
+**Returns:**
+
+| Field              | Type       | Description                          |
+| ------------------ | ---------- | ------------------------------------ |
+| `totalPatterns`    | `number`   | Total pattern count                  |
+| `activePatterns`   | `number`   | Non-stale patterns                   |
+| `promotedPatterns` | `number`   | Patterns promoted to permanent store |
+| `stalePatterns`    | `number`   | Patterns marked as stale             |
+| `domains`          | `string[]` | All domain names                     |
+| `lastUpdatedAt`    | `string \| null` | Last update timestamp          |
+| `lastUpdatedBy`    | `string \| null` | Last updating program          |
+| `decay`            | `object`   | Decay configuration                  |
+
+### `delete(patternId: string): Promise<void>`
+
+Delete a memory pattern by ID.
 
 ```typescript
-interface MemoryPattern {
-  id: string;
-  domain: string;
-  pattern: string;
-  confidence: number;
-  evidence: string;
-  discoveredAt: string;
-  lastReinforced: string;
-  promotedToStore: boolean;
-  stale: boolean;
-}
+await memory.delete("p-001");
+```
 
-interface MemoryHealth {
-  totalPatterns: number;
-  promotedPatterns: number;
-  stalePatterns: number;
-  domains: string[];
-  avgConfidence: number;
-  oldestPattern: string | null;
-  newestPattern: string | null;
-  decay: {
-    contextSummaryTTLDays: number;
-    learnedPatternMaxAge: number;
-    maxUnpromotedPatterns: number;
-    lastDecayRun: string;
-  };
+### `reinforce(patternId: string, options?: ReinforceOptions): Promise<void>`
+
+Reinforce an existing pattern. Bumps `lastReinforced` timestamp and optionally updates confidence or evidence.
+
+```typescript
+await memory.reinforce("p-001", {
+  confidence: 0.97,
+  evidence: "Confirmed again in latest deploy",
+});
+```
+
+**ReinforceOptions:**
+
+| Field        | Type     | Description                   |
+| ------------ | -------- | ----------------------------- |
+| `confidence` | `number` | Updated confidence score      |
+| `evidence`   | `string` | Updated evidence text         |
+
+## Configuration
+
+### Transport Modes
+
+**REST (default):** Simple HTTP transport. Endpoint defaults to `https://api.cachebash.dev`.
+
+```typescript
+const memory = new CacheBashMemory({
+  apiKey: "your-key",
+  programId: "your-program",
+  transport: "rest",
+});
+```
+
+**MCP:** JSON-RPC over MCP transport. Endpoint defaults to `https://api.cachebash.dev/v1/mcp`.
+
+```typescript
+const memory = new CacheBashMemory({
+  apiKey: "your-key",
+  programId: "your-program",
+  transport: "mcp",
+});
+```
+
+### Custom Endpoint
+
+```typescript
+const memory = new CacheBashMemory({
+  apiKey: "your-key",
+  programId: "your-program",
+  endpoint: "https://your-custom-endpoint.example.com",
+});
+```
+
+## Error Handling
+
+All methods throw standard `Error` objects on failure. Errors fall into three categories:
+
+**HTTP errors** — The API returned a non-2xx status code. The error message includes the status code.
+
+```typescript
+try {
+  await memory.store(pattern);
+} catch (err) {
+  // "HTTP 401: Unauthorized"
+  // "HTTP 403: Forbidden"
+  // "HTTP 404: Not Found"
+  // "HTTP 500: Internal Server Error"
 }
+```
+
+**API errors** — The API returned a 200 response with `success: false`.
+
+```typescript
+try {
+  await memory.store(pattern);
+} catch (err) {
+  // "API error: <message from server>"
+}
+```
+
+**Network errors** — The fetch call itself failed (DNS resolution, timeout, connection refused).
+
+```typescript
+try {
+  await memory.store(pattern);
+} catch (err) {
+  // "fetch failed: network timeout"
+  // "TypeError: Failed to fetch"
+}
+```
+
+## Examples
+
+See the [`examples/`](./examples/) directory for runnable scripts:
+
+- [`basic-usage.ts`](./examples/basic-usage.ts) — Store, recall, reinforce, and delete patterns
+
+Run an example:
+
+```bash
+CACHEBASH_API_KEY=your-key npx tsx packages/memory/examples/basic-usage.ts
+```
+
+## Running Tests
+
+```bash
+cd packages/memory
+npm test
+```
+
+Or with watch mode:
+
+```bash
+npm run test:watch
 ```
 
 ## License
 
 MIT
-
-## Links
-
-- [CacheBash Documentation](https://rezzed.ai/cachebash)
-- [GitHub Repository](https://github.com/rezzedai/cachebash)
-- [Report Issues](https://github.com/rezzedai/cachebash/issues)
