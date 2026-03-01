@@ -1,6 +1,6 @@
 {
   "name": "@rezzed.ai/memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CacheBash Memory SDK — Lightweight client for memory pattern storage and recall",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -17,7 +17,9 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run src/__tests__/integration.test.ts",
+    "benchmark": "tsx benchmarks/latency.ts"
   },
   "dependencies": {},
   "devDependencies": {
