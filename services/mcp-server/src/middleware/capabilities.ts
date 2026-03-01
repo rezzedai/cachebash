@@ -133,6 +133,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   castor: ["*"],
   vector: ["*"],
   bit: ["*"],
+  dispatcher: ["*"],
   // External users — restricted, no admin/audit/keys/state-write
   default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "signal.read", "signal.write",
