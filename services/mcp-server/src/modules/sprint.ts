@@ -10,6 +10,7 @@ import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 import { syncSprintCreated, syncSprintCompleted, syncStoryUpdated } from "./github-sync.js";
 import { emitAnalyticsEvent } from "./analytics.js";
+import { generateSpanId } from "../utils/trace.js";
 
 const StorySchema = z.object({
   id: z.string(),
@@ -31,6 +32,10 @@ const CreateSprintSchema = z.object({
     subagentModel: z.string().optional(),
     maxConcurrent: z.number().optional(),
   }).optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const UpdateStorySchema = z.object({
@@ -40,12 +45,20 @@ const UpdateStorySchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   currentAction: z.string().max(200).optional(),
   model: z.string().optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const AddStorySchema = z.object({
   sprintId: z.string(),
   story: StorySchema,
   insertionMode: z.enum(["current_wave", "next_wave", "backlog"]).default("next_wave"),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 const CompleteSprintSchema = z.object({
@@ -106,6 +119,9 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const now = serverTimestamp();
 
+  // Agent Trace L2: sprint gets its own spanId as parent for child stories
+  const sprintSpanId = args.spanId || generateSpanId();
+
   // Create parent sprint task
   const sprintData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,
@@ -136,6 +152,10 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
     startedAt: now,
     encrypted: false,
     archived: false,
+    // Agent Trace L2
+    traceId: args.traceId || null,
+    spanId: sprintSpanId,
+    parentSpanId: args.parentSpanId || null,
   };
 
   const sprintRef = await db.collection(`tenants/${auth.userId}/tasks`).add(sprintData);
@@ -172,6 +192,10 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
       createdAt: now,
       encrypted: false,
       archived: false,
+      // Agent Trace L2: child spans inherit traceId, parent is sprint's spanId
+      traceId: args.traceId || null,
+      spanId: generateSpanId(),
+      parentSpanId: sprintSpanId,
     });
   }
   await batch.commit();
@@ -228,6 +252,10 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
   if (args.progress !== undefined) updateData["sprint.currentAction"] = args.currentAction || null;
   if (args.currentAction) updateData["sprint.currentAction"] = args.currentAction;
   if (args.model) updateData.model = args.model;
+  // Agent Trace L2: propagate trace context on story update
+  if (args.traceId) updateData.traceId = args.traceId;
+  if (args.spanId) updateData.spanId = args.spanId;
+  if (args.parentSpanId) updateData.parentSpanId = args.parentSpanId;
 
   // Retry/escalation logic
   if (args.status === "failed") {
@@ -328,6 +356,10 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
     encrypted: false,
     archived: false,
     addedDynamically: true,
+    // Agent Trace L2
+    traceId: args.traceId || null,
+    spanId: args.spanId || generateSpanId(),
+    parentSpanId: args.parentSpanId || null,
   });
 
   return jsonResult({
