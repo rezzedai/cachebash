@@ -41,6 +41,7 @@ function auth(programId: string): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId: programId as any,
     capabilities: ["*"],
+    rateLimitTier: "internal",
   };
 }
 

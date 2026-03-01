@@ -57,6 +57,7 @@ function auth(userId = "u1"): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId: "test-program" as any,
     capabilities: ["*"],
+    rateLimitTier: "internal",
   };
 }
 
