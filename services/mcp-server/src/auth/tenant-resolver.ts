@@ -81,6 +81,31 @@ export async function seedCanonicalAccounts(db: Firestore): Promise<void> {
 }
 
 /**
+ * Seed the authorizedEmails collection for Grid Portal auto-linking.
+ * This enables the Grid Portal (Google auth) to automatically link to the CacheBash data UID.
+ * Idempotent — safe to call on every server boot.
+ */
+export async function seedAuthorizedEmails(db: Firestore): Promise<void> {
+  const email = "christian@rezzed.ai";
+  const dataUid = "7viFKVtl5lgzguhFoZlnYYrqeDG2"; // Canonical UID
+  const ref = db.doc(`authorizedEmails/${email}`);
+
+  try {
+    const doc = await ref.get();
+    if (!doc.exists) {
+      const { FieldValue } = await import("firebase-admin/firestore");
+      await ref.set({
+        dataUid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      console.log("[TenantResolver] Seeded authorizedEmails for", email);
+    }
+  } catch (err) {
+    console.error("[TenantResolver] Failed to seed authorizedEmails:", err);
+  }
+}
+
+/**
  * Merge an alternate UID into a canonical account.
  * Adds the alternate UID to the alternateUids array in Firestore.
  */
