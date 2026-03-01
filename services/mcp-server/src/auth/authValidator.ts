@@ -12,6 +12,8 @@ export interface AuthContext {
   capabilities: string[];
   /** OAuth granted scopes — only present for OAuth tokens */
   oauthScopes?: string[];
+  /** Rate limit tier — resolved from API key doc, defaults to "free" */
+  rateLimitTier: string;
 }
 
 function hashApiKey(apiKey: string): string {
@@ -61,6 +63,7 @@ export async function validateApiKey(
       encryptionKey: deriveEncryptionKey(apiKey),
       programId,
       capabilities,
+      rateLimitTier: data.rateLimitTier || "free",
     };
   } catch (error) {
     console.error("API key validation error:", error);

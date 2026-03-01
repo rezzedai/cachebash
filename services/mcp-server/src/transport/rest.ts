@@ -165,10 +165,10 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 }
 
 async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: string, args: unknown): Promise<unknown> {
-  // Per-key + per-tenant + per-tool rate limiting (SPEC 2)
-  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName);
+  // Per-key + per-tenant + per-tool rate limiting (tier-aware sliding window)
+  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName, auth.rateLimitTier, auth.programId);
   if (!rateResult.allowed) {
-    const err = new Error(`Rate limit exceeded for ${toolName}. Try again in ${rateResult.retryAfter}s.`);
+    const err = new Error(`Rate limit exceeded. Retry after ${rateResult.retryAfter} seconds.`);
     (err as any).rateLimitResult = rateResult;
     throw err;
   }
