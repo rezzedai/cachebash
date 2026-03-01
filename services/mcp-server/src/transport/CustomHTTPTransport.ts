@@ -18,6 +18,9 @@ export class CustomHTTPTransport implements Transport {
   private pendingResponses: Map<string, JSONRPCMessage[]> = new Map();
   public sessionId?: string;
 
+  /** Auth context for the current request — set per-request, read by tool handlers */
+  public currentAuth: any | null = null;
+
   public onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void;
   public onerror?: (error: Error) => void;
   public onclose?: () => void;
@@ -115,15 +118,16 @@ export class CustomHTTPTransport implements Transport {
       }
       const validation = await this.sessionManager.validateSession(parsed.sessionId, authContext.userId);
       if (!validation.valid) {
-        // Emit session death telemetry
+        // Emit session death telemetry (keep for monitoring)
         emitEvent(authContext.userId, {
           event_type: "SESSION_DEATH",
           session_id: parsed.sessionId,
           program_id: (authContext as any).programId || "unknown",
         });
-        return this.toResponse(jsonRpcError(-32001, `Session expired or invalid: ${validation.error}. Use REST API fallback: POST https://api.cachebash.dev/v1/{tool_name} with Bearer auth. See /v1/health for status.`, null));
+        console.warn(`[Transport] Session ${parsed.sessionId} invalid but proceeding with Bearer auth`);
+        // DO NOT return error — auth comes from Bearer token, not session state
       }
-      session = validation.session!;
+      session = validation.session || { sessionId: parsed.sessionId, userId: authContext.userId, lastActivity: Date.now(), createdAt: Date.now() };
       this.sessionId = session.sessionId;
 
     // Heartbeat recognition: notifications/heartbeat refreshes session, returns immediately
@@ -132,6 +136,9 @@ export class CustomHTTPTransport implements Transport {
       return new Response(null, { status: 204, headers: { "Mcp-Session-Id": this.sessionId } });
     }
     }
+
+    // Set current auth for tool handler to read (stateless — derived from Bearer token this request)
+    this.currentAuth = authContext;
 
     this.pendingResponses.delete(this.sessionId);
     for (const msg of messages) {
