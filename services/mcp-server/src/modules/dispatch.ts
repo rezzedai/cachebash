@@ -16,6 +16,7 @@ import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorC
 import { emitAnalyticsEvent } from "./analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "./budget.js";
 import { generateSpanId } from "../utils/trace.js";
+import { notifyDispatcher } from "../webhooks/dispatcher-notify.js";
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
@@ -422,6 +423,15 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     priority: args.priority,
     action: args.action,
     success: true,
+  });
+
+  // Fire-and-forget: notify Grid Dispatcher via webhook
+  notifyDispatcher({
+    taskId: ref.id,
+    target: args.target,
+    priority: args.priority || 'normal',
+    title: args.title,
+    timestamp: new Date().toISOString(),
   });
 
   // Fire-and-forget: sync to GitHub Issues + Project board
