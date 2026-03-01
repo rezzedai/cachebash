@@ -61,6 +61,7 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
       programId: programId as import("../config/programs.js").ValidProgramId,
       capabilities: getDefaultCapabilities(programId),
       oauthScopes: grantedScopes,
+      rateLimitTier: "free",
     };
   } catch (error) {
     console.error("[Auth] OAuth token validation failed:", error instanceof Error ? error.message : String(error));
