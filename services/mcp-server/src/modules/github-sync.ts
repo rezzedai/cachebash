@@ -4,7 +4,7 @@
  * Errors are caught and logged, never thrown.
  */
 
-// @ts-expect-error — @octokit/rest v22 is ESM-only; Node 20.19+ handles require() of ESM at runtime
+// @ts-ignore — @octokit/rest v22 is ESM-only; TS1479 in Node 18 CI, resolves fine in Node 24+
 import { Octokit } from "@octokit/rest";
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 
