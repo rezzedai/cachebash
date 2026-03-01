@@ -109,6 +109,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Fleet snapshots: read-only for clients. Server writes via Admin SDK.
+    match /tenants/{userId}/fleet_snapshots/{snapshotId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // Rate limit events: read-only for clients. Server writes via Admin SDK.
+    match /tenants/{userId}/rate_limit_events/{eventId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // Program state: read-only for clients. Server writes via Admin SDK.
+    match /tenants/{userId}/program_state/{programId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
     // User root document: read-only
     match /tenants/{userId} {
       allow read: if isOwner(userId);
