@@ -117,18 +117,21 @@ async function main() {
 
     console.log(`[TENANT] Tool=${name} userId=${auth.userId} programId=${auth.programId}`);
 
-    // Per-key + per-tenant + per-tool rate limiting (SPEC 2)
-    const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, name);
+    // Per-key + per-tenant + per-tool rate limiting (tier-aware sliding window)
+    const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, name, auth.rateLimitTier, auth.programId);
     if (sessionId) setRateLimitResult(sessionId, rateResult);
     if (!rateResult.allowed) {
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
-            error: "rate_limited",
+            error: "RATE_LIMIT_EXCEEDED",
+            message: `Rate limit exceeded. Retry after ${rateResult.retryAfter} seconds.`,
+            tier: rateResult.tier,
             retryAfter: rateResult.retryAfter,
             limit: rateResult.limit,
             remaining: 0,
+            resetAt: rateResult.resetAt.toISOString(),
             scope: rateResult.scope,
           }),
         }],

@@ -31,6 +31,7 @@ export async function validateFirebaseToken(
       encryptionKey,
       programId: "mobile",
       capabilities: getDefaultCapabilities("mobile"),
+      rateLimitTier: "free",
     };
   } catch (error) {
     // Token expired, invalid, or revoked
