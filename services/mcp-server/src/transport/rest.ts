@@ -14,7 +14,7 @@ import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
-import { checkSessionCompliance, resetTransportCompliance, clearComplianceCache } from "../middleware/sessionCompliance.js";
+import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
 
@@ -763,9 +763,8 @@ const routes: Route[] = [
       return restResponse(res, false, { code: "VALIDATION_ERROR", message: "programId is required" }, 400);
     }
 
-    const found = clearComplianceCache(programId);
-
-    // Audit log
+    // No-op: in-memory compliance cache removed (BUG-005 stateless sweep).
+    // Compliance state is read from Firestore on every request.
     const correlationId = generateCorrelationId();
     const audit = createAuditLogger(correlationId, auth.userId);
     audit.log("admin.reset_program_cache", {
@@ -777,8 +776,8 @@ const routes: Route[] = [
     restResponse(res, true, {
       success: true,
       programId,
-      cacheEntryFound: found,
-      message: found ? "Cache cleared" : "No cache entry found (idempotent)",
+      cacheEntryFound: false,
+      message: "No in-memory cache (stateless architecture)",
     });
   }),
 ];

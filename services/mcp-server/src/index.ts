@@ -19,7 +19,7 @@ import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
 import { generateSpanId } from "./utils/trace.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
-import { createIsoServer, setIsoSessionAuth, cleanupIsoSessions } from "./iso/isoServer.js";
+import { createIsoServer } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
 import { handleGithubWebhook } from "./modules/github-webhook.js";
 import { SessionManager } from "./transport/SessionManager.js";
@@ -536,10 +536,8 @@ async function main() {
         return sendJson(res, 401, { error: "Invalid API key" });
       }
 
-      const isoMcpSessionId = req.headers['mcp-session-id'] as string | undefined;
-      if (isoMcpSessionId) setIsoSessionAuth(isoMcpSessionId, auth);
-
       const webReq = await nodeToWebRequest(req);
+      // Auth passed directly to handleRequest — stateless, no session Map needed
       const webRes = await iso.transport.handleRequest(webReq, auth);
 
       res.writeHead(webRes.status, Object.fromEntries(webRes.headers.entries()));
@@ -692,9 +690,8 @@ async function main() {
     sendJson(res, 404, { error: "Not found" });
   });
 
-  // Cleanup intervals (no sessions Map to prune — auth is stateless now)
+  // Cleanup intervals (rate limiters only — all auth/compliance/billing caches removed)
   setInterval(() => {
-    cleanupIsoSessions(SESSION_TIMEOUT_MS);
     cleanupRateLimits();
     cleanupDcrRateLimits();
     cleanupCcRateLimits();
