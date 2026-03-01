@@ -568,7 +568,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
       const claimingSession = data.sessionId as string | undefined;
       const isClaimingSession = claimingSession && claimingSession === auth.programId;
       const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
-      const isAdmin = auth.programId === "legacy";
+      const isAdmin = auth.programId === "legacy" || auth.programId === "dispatcher";
       if (!isClaimingSession && !isIso && !isAdmin) {
         return { error: `Unauthorized: only the claiming session, ISO, or admin can unclaim this task.` };
       }
