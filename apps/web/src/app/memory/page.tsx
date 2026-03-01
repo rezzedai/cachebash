@@ -88,6 +88,7 @@ export default function MemoryPage() {
         <Link href="/" className={styles.logo}>CacheBash</Link>
         <div className={styles.navLinks}>
           <Link href="/memory" className={styles.navActive}>Memory SDK</Link>
+          <Link href="/clu">CLU</Link>
           <a
             href="https://github.com/rezzedai/cachebash"
             target="_blank"
