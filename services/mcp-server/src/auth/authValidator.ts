@@ -75,6 +75,7 @@ export { hashApiKey };
 
 import { validateFirebaseToken, isFirebaseToken } from "./firebaseAuthValidator.js";
 import { validateOAuthToken, isOAuthToken } from "./oauthTokenValidator.js";
+import { resolveTenant } from "./tenant-resolver.js";
 
 /**
  * Combined auth validator — detection order:
@@ -82,17 +83,33 @@ import { validateOAuthToken, isOAuthToken } from "./oauthTokenValidator.js";
  * 2. API key (cb_ prefix)
  * 3. OAuth access token (cbo_ prefix)
  * Unknown prefixes rejected immediately (SARK F-6).
+ *
+ * After auth succeeds, tenant resolution maps alternate UIDs to the
+ * canonical tenant ID so all downstream Firestore ops use a single path.
  */
 export async function validateAuth(token: string): Promise<AuthContext | null> {
+  let auth: AuthContext | null = null;
+
   if (isFirebaseToken(token)) {
-    return validateFirebaseToken(token);
+    auth = await validateFirebaseToken(token);
+  } else if (token.startsWith("cb_")) {
+    auth = await validateApiKey(token);
+  } else if (isOAuthToken(token)) {
+    auth = await validateOAuthToken(token);
   }
-  if (token.startsWith("cb_")) {
-    return validateApiKey(token);
+
+  if (!auth) return null;
+
+  // Resolve tenant: map alternate UIDs to canonical tenant ID
+  try {
+    const db = getFirestore();
+    const resolution = await resolveTenant(auth.userId, db);
+    if (!resolution.canonical) {
+      auth.userId = resolution.tenantId;
+    }
+  } catch {
+    // Tenant resolution failure must not block auth — pass through raw UID
   }
-  if (isOAuthToken(token)) {
-    return validateOAuthToken(token);
-  }
-  // Unknown prefix — reject immediately, no database round-trip
-  return null;
+
+  return auth;
 }

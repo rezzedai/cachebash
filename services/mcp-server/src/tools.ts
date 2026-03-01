@@ -21,6 +21,7 @@ import { submitFeedbackHandler } from "./modules/feedback.js";
 import { logRateLimitEventHandler, getRateLimitEventsHandler } from "./modules/rate-limits.js";
 import { cluIngestHandler, cluAnalyzeHandler, cluReportHandler } from "./modules/clu.js";
 import { getAckComplianceHandler } from "./modules/ack-compliance.js";
+import { mergeAccountsHandler } from "./modules/account-merge.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -110,6 +111,9 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
 
   // ACK Compliance (W1.2.3)
   get_ack_compliance: getAckComplianceHandler,
+
+  // Account Unification (admin only)
+  merge_accounts: mergeAccountsHandler,
 
   // CLU Intelligence Service
   clu_ingest: cluIngestHandler,
@@ -946,6 +950,20 @@ export const TOOL_DEFINITIONS = [
         programId: { type: "string", maxLength: 100, description: "Filter by source program ID" },
         period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to query" },
       },
+    },
+  },
+  // === Account Unification ===
+  {
+    name: "merge_accounts",
+    description: "Merge an alternate Firebase UID into a canonical account. Admin only. Maps the alternate UID to the canonical tenant so all data access is unified.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        email: { type: "string", description: "Email address for the account" },
+        canonicalUid: { type: "string", description: "The canonical Firebase UID to merge into" },
+        alternateUid: { type: "string", description: "The alternate Firebase UID to merge from" },
+      },
+      required: ["email", "canonicalUid", "alternateUid"],
     },
   },
   // === CLU Intelligence Service ===
