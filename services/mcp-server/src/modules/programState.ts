@@ -58,6 +58,10 @@ const UpdateProgramStateSchema = z.object({
     learnedPatternMaxAge: z.number().min(1).max(365).optional(),
     maxUnpromotedPatterns: z.number().min(5).max(200).optional(),
   }).optional(),
+  // Agent Trace L2
+  traceId: z.string().optional(),
+  spanId: z.string().optional(),
+  parentSpanId: z.string().optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -593,6 +597,20 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
   }
 
   await docRef.set(updated);
+
+  // Agent Trace L2: write trace context to usage ledger for audit trail
+  if (args.traceId) {
+    const { getFirestore: getDb } = await import("../firebase/client.js");
+    const ledgerDb = getDb();
+    ledgerDb.collection(`tenants/${auth.userId}/usage_ledger`).add({
+      type: "program_state_update",
+      programId: args.programId,
+      traceId: args.traceId,
+      spanId: args.spanId || null,
+      parentSpanId: args.parentSpanId || null,
+      completedAt: new Date().toISOString(),
+    }).catch((err: unknown) => console.error("[UsageLedger] Failed to write program state trace:", err));
+  }
 
   return jsonResult({
     success: true,
