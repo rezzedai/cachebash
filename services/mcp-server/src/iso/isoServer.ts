@@ -46,23 +46,20 @@ const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promis
   get_sprint: getSprintHandler,
 };
 
-const isoSessions = new Map<string, { authContext: AuthContext; lastActivity: number }>();
-
-const isoSessionAuth = {
-  get: (sessionId: string) => isoSessions.get(sessionId)?.authContext,
-  set: (sessionId: string, auth: AuthContext) => {
-    isoSessions.set(sessionId, { authContext: auth, lastActivity: Date.now() });
-  },
-};
-
 export async function createIsoServer(): Promise<{
   transport: CustomHTTPTransport;
-  sessions: typeof isoSessions;
 }> {
   const server = new Server(
     { name: "cachebash-iso", version: "2.0.0" },
     { capabilities: { tools: {} } }
   );
+
+  const transport = new CustomHTTPTransport({
+    sessionTimeout: 60 * 60 * 1000,
+    enableDnsRebindingProtection: false,
+    strictAcceptHeader: false,
+    responseQueueTimeout: 2000,
+  });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: ISO_TOOL_DEFINITIONS,
@@ -71,7 +68,8 @@ export async function createIsoServer(): Promise<{
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
     const sessionId = extra?.sessionId;
-    const authContext = sessionId ? isoSessionAuth.get(sessionId) : null;
+    // Stateless: auth derived from Bearer token via transport.currentAuth (set per-request)
+    const authContext = transport.currentAuth as AuthContext | null;
     const correlationId = generateCorrelationId();
     const audit = createAuditLogger(correlationId, authContext?.userId || "unknown");
     const startTime = Date.now();
@@ -81,10 +79,6 @@ export async function createIsoServer(): Promise<{
         content: [{ type: "text", text: "Error: Not authenticated." }],
         isError: true,
       };
-    }
-
-    if (sessionId && isoSessions.has(sessionId)) {
-      isoSessions.get(sessionId)!.lastActivity = Date.now();
     }
 
     if (!checkRateLimit(authContext.userId, name)) {
@@ -125,29 +119,6 @@ export async function createIsoServer(): Promise<{
     }
   });
 
-  const transport = new CustomHTTPTransport({
-    sessionTimeout: 60 * 60 * 1000,
-    enableDnsRebindingProtection: false,
-    strictAcceptHeader: false,
-    responseQueueTimeout: 2000,
-  });
-
   await server.connect(transport);
-  return { transport, sessions: isoSessions };
-}
-
-export function setIsoSessionAuth(sessionId: string, auth: AuthContext): void {
-  isoSessionAuth.set(sessionId, auth);
-}
-
-export function cleanupIsoSessions(timeoutMs: number): number {
-  const now = Date.now();
-  let cleaned = 0;
-  for (const [id, info] of isoSessions.entries()) {
-    if (now - info.lastActivity > timeoutMs) {
-      isoSessions.delete(id);
-      cleaned++;
-    }
-  }
-  return cleaned;
+  return { transport };
 }
