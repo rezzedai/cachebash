@@ -4,7 +4,10 @@ import CodeBlock from '@/components/CodeBlock';
 import styles from './page.module.css';
 
 export const metadata: Metadata = {
-  title: 'Memory SDK — CacheBash',
+  title: 'Memory SDK — CacheBash | Rezzed.ai',
+  alternates: {
+    canonical: 'https://cachebash.dev/memory',
+  },
   description:
     'Persistent pattern storage for AI agents. Store learned patterns, recall insights across sessions, and build compound intelligence over time.',
 };
@@ -85,6 +88,20 @@ export default function MemoryPage() {
         <Link href="/" className={styles.logo}>CacheBash</Link>
         <div className={styles.navLinks}>
           <Link href="/memory" className={styles.navActive}>Memory SDK</Link>
+          <a
+            href="https://github.com/rezzedai/cachebash"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub &#8599;
+          </a>
+          <a
+            href="https://rezzed.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Rezzed.ai
+          </a>
         </div>
       </nav>
 
@@ -253,8 +270,8 @@ export default function MemoryPage() {
             <div className={styles.pricingPrice}>$0</div>
             <ul className={styles.pricingFeatures}>
               <li>100 stored patterns</li>
-              <li>10 analyses per month</li>
-              <li>3 sources per session</li>
+              <li>1,000 recall queries/mo</li>
+              <li>3 agents</li>
               <li>Community support</li>
             </ul>
             <a
@@ -272,9 +289,9 @@ export default function MemoryPage() {
               $29<span className={styles.pricingPeriod}>/month</span>
             </div>
             <ul className={styles.pricingFeatures}>
-              <li>1,000 stored patterns</li>
-              <li>100 analyses per month</li>
-              <li>10 sources per session</li>
+              <li>10,000 stored patterns</li>
+              <li>50,000 recall queries/mo</li>
+              <li>Unlimited agents</li>
               <li>Email support</li>
             </ul>
             <a href="mailto:dev@rezzed.ai" className={styles.pricingBtnPrimary}>
@@ -286,8 +303,8 @@ export default function MemoryPage() {
             <div className={styles.pricingPrice}>Custom</div>
             <ul className={styles.pricingFeatures}>
               <li>Unlimited patterns</li>
-              <li>Unlimited analyses</li>
-              <li>Unlimited sources</li>
+              <li>Unlimited recall queries</li>
+              <li>Unlimited agents</li>
               <li>Dedicated support + SLA</li>
             </ul>
             <a href="mailto:dev@rezzed.ai" className={styles.pricingBtnPrimary}>
@@ -322,8 +339,34 @@ export default function MemoryPage() {
       {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <span className={styles.footerBrand}>CacheBash</span>
+          <span className={styles.footerBrand}>
+            CacheBash &mdash; a Rezzed.ai product
+          </span>
           <span className={styles.footerLinks}>
+            <a
+              href="https://github.com/rezzedai/cachebash"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+            {' | '}
+            <a
+              href="https://www.npmjs.com/package/@rezzed.ai/memory"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              npm
+            </a>
+            {' | '}
+            <a
+              href="https://rezzed.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              rezzed.ai
+            </a>
+            {' | '}
             <a href="mailto:dev@rezzed.ai">dev@rezzed.ai</a>
           </span>
         </div>

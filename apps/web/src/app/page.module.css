@@ -12,7 +12,7 @@
   border-bottom: 1px solid var(--cb-border);
   position: sticky;
   top: 0;
-  background: rgba(10, 10, 15, 0.9);
+  background: color-mix(in srgb, var(--cb-bg-primary) 92%, transparent);
   backdrop-filter: blur(12px);
   z-index: 100;
 }
@@ -109,4 +109,133 @@
 .ctaSecondary:hover {
   border-color: var(--cb-border-hover);
   color: var(--cb-text-primary);
+}
+
+/* Products Grid */
+.products {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 2rem 4rem;
+  width: 100%;
+}
+
+.productCard {
+  background: var(--cb-bg-card);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius-lg);
+  padding: 2rem;
+}
+
+.productTitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.productDesc {
+  color: var(--cb-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.productLink {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.productSoon {
+  font-size: 0.85rem;
+  color: var(--cb-text-muted);
+  font-style: italic;
+}
+
+/* Built by Rezzed.ai */
+.builtBy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  border-top: 1px solid var(--cb-border);
+  background: var(--cb-bg-secondary);
+  gap: 1.25rem;
+}
+
+.builtByText {
+  font-size: 1.1rem;
+  color: var(--cb-text-secondary);
+}
+
+/* Footer */
+.footer {
+  border-top: 1px solid var(--cb-border);
+  padding: 1.5rem 2rem;
+}
+
+.footerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.footerBrand {
+  font-family: var(--cb-font-mono);
+  font-size: 0.85rem;
+  color: var(--cb-text-muted);
+}
+
+.footerLinks {
+  font-size: 0.85rem;
+}
+
+.footerLinks a {
+  color: var(--cb-text-muted);
+  transition: color 0.2s;
+}
+
+.footerLinks a:hover {
+  color: var(--cb-text-secondary);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .nav {
+    padding: 1rem;
+  }
+
+  .hero {
+    padding: 3rem 1.25rem;
+  }
+
+  .products {
+    grid-template-columns: 1fr;
+    padding: 0 1.25rem 3rem;
+  }
+
+  .cta {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ctaPrimary,
+  .ctaSecondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .builtBy {
+    padding: 3rem 1.25rem;
+  }
+
+  .footerInner {
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+  }
 }

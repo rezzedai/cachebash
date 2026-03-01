@@ -1,8 +1,9 @@
 :root {
-  --cb-bg-primary: #0a0a0f;
-  --cb-bg-secondary: #12121a;
-  --cb-bg-tertiary: #1a1a26;
-  --cb-bg-card: #16161f;
+  /* Background: deep charcoal */
+  --cb-bg-primary: #101018;
+  --cb-bg-secondary: #14141e;
+  --cb-bg-tertiary: #1c1c2a;
+  --cb-bg-card: #18181f;
   --cb-border: #2a2a3a;
   --cb-border-hover: #3a3a4e;
   --cb-text-primary: #e8e8f0;
@@ -17,7 +18,16 @@
   --cb-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --cb-radius: 8px;
   --cb-radius-lg: 12px;
+
+  /* Syntax highlighting */
+  --cb-syn-keyword: #c792ea;
+  --cb-syn-type: #82aaff;
+  --cb-syn-string: #c3e88d;
+  --cb-syn-number: #f78c6c;
+  --cb-syn-comment: #546e7a;
 }
+
+/* @media (prefers-color-scheme: light) { :root { ... } } — future light mode tokens */
 
 *, *::before, *::after {
   box-sizing: border-box;

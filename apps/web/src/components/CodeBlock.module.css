@@ -60,23 +60,23 @@
 }
 
 .keyword {
-  color: #c792ea;
+  color: var(--cb-syn-keyword);
 }
 
 .type {
-  color: #82aaff;
+  color: var(--cb-syn-type);
 }
 
 .string {
-  color: #c3e88d;
+  color: var(--cb-syn-string);
 }
 
 .number {
-  color: #f78c6c;
+  color: var(--cb-syn-number);
 }
 
 .comment {
-  color: #546e7a;
+  color: var(--cb-syn-comment);
   font-style: italic;
 }
 
