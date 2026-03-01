@@ -95,6 +95,13 @@ async function getActiveUserIds(): Promise<string[]> {
 async function main() {
   initializeFirebase();
 
+  // Seed canonical accounts (idempotent, fire-and-forget)
+  import("./auth/tenant-resolver.js").then(({ seedCanonicalAccounts }) => {
+    seedCanonicalAccounts(getFirestore()).catch((err: unknown) =>
+      console.error("[Boot] Failed to seed canonical accounts:", err)
+    );
+  });
+
   // Create MCP server
   const server = new Server(
     { name: "cachebash-mcp", version: "2.0.0" },
