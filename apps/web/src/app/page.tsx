@@ -7,7 +7,9 @@ export default function Home() {
       <nav className={styles.nav}>
         <Link href="/" className={styles.logo}>CacheBash</Link>
         <div className={styles.navLinks}>
+          <Link href="/overview">Overview</Link>
           <Link href="/memory">Memory SDK</Link>
+          <Link href="/clu">CLU</Link>
           <a
             href="https://rezzed.ai"
             target="_blank"
