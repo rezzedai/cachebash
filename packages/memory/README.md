@@ -234,6 +234,24 @@ Or with watch mode:
 npm run test:watch
 ```
 
+## Integration Tests
+
+Run against the live API:
+
+```bash
+CACHEBASH_API_KEY=your-key npm run test:integration
+```
+
+Integration tests are skipped automatically when no API key is set.
+
+## Benchmarks
+
+Measure API latency:
+
+```bash
+CACHEBASH_API_KEY=your-key npm run benchmark
+```
+
 ## License
 
 MIT
