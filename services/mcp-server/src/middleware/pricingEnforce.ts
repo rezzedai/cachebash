@@ -2,7 +2,7 @@
  * Pricing Enforcement Middleware — Enforces tier limits on write operations.
  *
  * Checks write operations against billing tier limits (free, pro, team).
- * Reads billing config from Firestore with 30s cache TTL.
+ * Reads billing config from Firestore on every request (stateless).
  * Fails open on errors to avoid blocking legitimate requests.
  */
 
@@ -24,31 +24,16 @@ const WRITE_OPERATIONS = new Set([
   "create_key",
 ]);
 
-const CACHE_TTL_MS = 30_000;
-const billingCache = new Map<string, { config: BillingConfig; expires: number }>();
-
 async function getBillingConfig(userId: string): Promise<BillingConfig> {
-  const now = Date.now();
-  const cached = billingCache.get(userId);
-  if (cached && cached.expires > now) return cached.config;
-
   try {
     const db = getFirestore();
     const doc = await db.doc(`tenants/${userId}/config/billing`).get();
     const data = doc.data();
     const tier = data?.tier || "free";
 
-    let config: BillingConfig;
-    if (tier === "team") {
-      config = TEAM_BILLING_CONFIG;
-    } else if (tier === "pro") {
-      config = PRO_BILLING_CONFIG;
-    } else {
-      config = DEFAULT_BILLING_CONFIG;
-    }
-
-    billingCache.set(userId, { config, expires: now + CACHE_TTL_MS });
-    return config;
+    if (tier === "team") return TEAM_BILLING_CONFIG;
+    if (tier === "pro") return PRO_BILLING_CONFIG;
+    return DEFAULT_BILLING_CONFIG;
   } catch (err) {
     console.error("[Pricing] Failed to load billing config:", err);
     return DEFAULT_BILLING_CONFIG;

@@ -12,11 +12,6 @@ type ComplianceContext = {
   endpoint: "mcp" | "rest";
 };
 
-type CachedState = { state: ComplianceState; expires: number };
-
-const CACHE_TTL_MS = 30_000;
-const complianceCache = new Map<string, CachedState>();
-
 export const COMPLIANCE_EXEMPT_TOOLS = new Set([
   "get_audit",
   "query_traces",
@@ -41,17 +36,7 @@ export const COMPLIANCE_EXEMPT_TOOLS = new Set([
  */
 export function resetTransportCompliance(userId: string, sessionId: string): void {
   const freshState = initializeCompliance(userId, sessionId);
-  cacheCompliance(sessionId, freshState);
   persistCompliance(userId, sessionId, freshState);
-}
-
-/**
- * Clear the in-memory compliance cache entry for a given programId.
- * The next auth request will re-fetch fresh state from Firestore.
- * Returns true if an entry was found and deleted, false otherwise.
- */
-export function clearComplianceCache(programId: string): boolean {
-  return complianceCache.delete(programId);
 }
 
 export const EXEMPT_PROGRAMS = new Set(["legacy", "mobile", "admin", "admin-mirror", "bit"]);
@@ -107,22 +92,10 @@ function persistCompliance(userId: string, sessionId: string, state: ComplianceS
 }
 
 async function loadComplianceState(userId: string, sessionId: string): Promise<ComplianceState> {
-  const now = Date.now();
-  const cached = complianceCache.get(sessionId);
-  if (cached && cached.expires > now) {
-    return cached.state;
-  }
-
   const db = getFirestore();
   const doc = await db.doc(`tenants/${userId}/sessions/${sessionId}`).get();
   const persisted = doc.data()?.compliance as ComplianceState | undefined;
-  const state = persisted || initializeCompliance(userId, sessionId);
-  complianceCache.set(sessionId, { state, expires: now + CACHE_TTL_MS });
-  return state;
-}
-
-function cacheCompliance(sessionId: string, state: ComplianceState): void {
-  complianceCache.set(sessionId, { state, expires: Date.now() + CACHE_TTL_MS });
+  return persisted || initializeCompliance(userId, sessionId);
 }
 
 export async function checkSessionCompliance(
@@ -161,7 +134,6 @@ export async function checkSessionCompliance(
         endpoint: context.endpoint,
       });
       mutated = true;
-      cacheCompliance(context.sessionId, state);
       persistCompliance(auth.userId, context.sessionId, state);
       return {
         allowed: false,
@@ -297,7 +269,6 @@ export async function checkSessionCompliance(
     }
 
     if (mutated) {
-      cacheCompliance(context.sessionId, state);
       persistCompliance(auth.userId, context.sessionId, state);
     }
 
