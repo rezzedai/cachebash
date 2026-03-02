@@ -81,3 +81,6 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
 /** Default budget caps for sessions and dreams */
 export const DEFAULT_SESSION_BUDGET_USD = 20;
 export const DEFAULT_DREAM_BUDGET_USD = 50;
+
+// Re-export dynamic program registry functions
+export { isProgramRegistered, resolveTargetsAsync, seedPrograms, registerProgram } from "../modules/programRegistry.js";

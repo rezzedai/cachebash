@@ -102,6 +102,18 @@ async function main() {
     );
   });
 
+  // Seed programs for known tenants (idempotent, fire-and-forget)
+  import("./modules/programRegistry.js").then(({ seedPrograms }) => {
+    // Seed for active tenants on boot
+    getActiveUserIds().then((userIds) => {
+      for (const userId of userIds) {
+        seedPrograms(userId).catch((err: unknown) =>
+          console.error(`[Boot] Failed to seed programs for ${userId}:`, err)
+        );
+      }
+    });
+  });
+
   // Create MCP server
   const server = new Server(
     { name: "cachebash-mcp", version: "2.0.0" },

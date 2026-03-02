@@ -10,7 +10,8 @@ import { AuthContext } from "../auth/authValidator.js";
 import { decrypt, isEncrypted } from "../encryption/crypto.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
-import { isRegisteredProgram, isValidProgram, REGISTERED_PROGRAMS, isGroupTarget } from "../config/programs.js";
+import { isGroupTarget } from "../config/programs.js";
+import { isProgramRegistered } from "./programRegistry.js";
 import { syncTaskCreated, syncTaskClaimed, syncTaskCompleted } from "./github-sync.js";
 import { emitEvent, classifyTask, computeHash, type CompletedStatus, type ErrorClass, type TaskClass } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
@@ -360,8 +361,11 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const verifiedSource = verifySource(args.source, auth, "mcp");
 
   // Phase 2: Validate target is a known program or group
-  if (args.target !== "all" && !isValidProgram(args.target) && !isRegisteredProgram(args.target) && !isGroupTarget(args.target)) {
-    return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid program ID or "all" for broadcast.` });
+  if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {
+    const isKnown = await isProgramRegistered(auth.userId, args.target);
+    if (!isKnown) {
+      return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid program ID, group name, or @role for role-based targeting.` });
+    }
   }
 
   const db = getFirestore();
