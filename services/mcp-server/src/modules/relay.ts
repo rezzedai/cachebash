@@ -8,7 +8,8 @@ import { verifySource } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
-import { resolveTargets, isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
+import { isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
+import { resolveTargetsAsync } from "./programRegistry.js";
 import { validatePayload } from "../types/relay-schemas.js";
 import { emitEvent } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
@@ -128,7 +129,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
 
   // Resolve target — may be a group (fan-out) or single program
-  const targets = resolveTargets(args.target);
+  const targets = await resolveTargetsAsync(auth.userId, args.target);
   const isMulticast = targets.length > 1;
   const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
 
@@ -720,6 +721,11 @@ export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): 
     groups[name] = [...members];
   }
   return {
-    content: [{ type: "text", text: JSON.stringify({ success: true, groups, message: `${Object.keys(groups).length} groups available` }) }],
+    content: [{ type: "text", text: JSON.stringify({
+      success: true,
+      groups,
+      roleTargeting: "Use @role prefix (e.g., @builder) to target all programs with that role",
+      message: `${Object.keys(groups).length} groups available`
+    }) }],
   };
 }

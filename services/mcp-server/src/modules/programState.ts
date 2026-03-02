@@ -5,7 +5,7 @@
 
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
-import { isValidProgram } from "../config/programs.js";
+import { isProgramRegistered } from "./programRegistry.js";
 import { verifySource } from "../middleware/gate.js";
 import { STATE_READERS, STATE_WRITERS } from "../config/access-tiers.js";
 import { z } from "zod";
@@ -226,7 +226,7 @@ function applyDecay(state: any): DecayResult {
 export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetProgramStateSchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -317,7 +317,7 @@ const MemoryHealthSchema = z.object({
 export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = StoreMemorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -377,7 +377,7 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
 export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = RecallMemorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -443,7 +443,7 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): 
 export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = MemoryHealthSchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -506,7 +506,7 @@ export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown): 
 export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UpdateProgramStateSchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -659,7 +659,7 @@ const DeleteMemorySchema = z.object({
 export async function deleteMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = DeleteMemorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -716,7 +716,7 @@ const ReinforceMemorySchema = z.object({
 export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = ReinforceMemorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
@@ -776,7 +776,7 @@ const GetContextHistorySchema = z.object({
 export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetContextHistorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 

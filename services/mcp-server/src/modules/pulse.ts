@@ -9,6 +9,7 @@ import { AuthContext } from "../auth/authValidator.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
+import { isProgramRegistered } from "./programRegistry.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 
