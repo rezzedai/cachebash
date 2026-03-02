@@ -92,10 +92,13 @@ async function getActiveUserIds(): Promise<string[]> {
 async function main() {
   initializeFirebase();
 
-  // Seed canonical accounts (idempotent, fire-and-forget)
-  import("./auth/tenant-resolver.js").then(({ seedCanonicalAccounts }) => {
+  // Seed canonical accounts and authorized emails (idempotent, fire-and-forget)
+  import("./auth/tenant-resolver.js").then(({ seedCanonicalAccounts, seedAuthorizedEmails }) => {
     seedCanonicalAccounts(getFirestore()).catch((err: unknown) =>
       console.error("[Boot] Failed to seed canonical accounts:", err)
+    );
+    seedAuthorizedEmails(getFirestore()).catch((err: unknown) =>
+      console.error("[Boot] Failed to seed authorized emails:", err)
     );
   });
 
