@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onAnalyticsEventCreate = exports.onRelayCreate = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.cliAuthStatus = exports.cliAuthApprove = exports.updateKeyLabel = exports.revokeUserKey = exports.createUserKey = exports.onUserCreate = void 0;
+exports.onEasBuild = exports.submitFeedback = exports.aggregateUsage = exports.cleanupAudit = exports.processDeadLetters = exports.cleanupLedger = exports.cleanupExpiredRelay = exports.cleanupOrphanedTasks = exports.cleanupExpiredSessions = exports.onSessionComplete = exports.onTaskCompleteFailed = exports.onProgramStateWrite = exports.onAnalyticsEventCreate = exports.onRelayCreate = exports.onSessionUpdate = exports.onTaskUpdate = exports.onTaskCreate = exports.exchangeGithubCode = exports.cliAuthStatus = exports.cliAuthApprove = exports.updateKeyLabel = exports.rotateApiKey = exports.revokeUserKey = exports.createUserKey = exports.onUserCreate = void 0;
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 // Auth triggers
@@ -43,11 +43,15 @@ Object.defineProperty(exports, "onUserCreate", { enumerable: true, get: function
 var keyManagement_1 = require("./auth/keyManagement");
 Object.defineProperty(exports, "createUserKey", { enumerable: true, get: function () { return keyManagement_1.createUserKey; } });
 Object.defineProperty(exports, "revokeUserKey", { enumerable: true, get: function () { return keyManagement_1.revokeUserKey; } });
+Object.defineProperty(exports, "rotateApiKey", { enumerable: true, get: function () { return keyManagement_1.rotateApiKey; } });
 Object.defineProperty(exports, "updateKeyLabel", { enumerable: true, get: function () { return keyManagement_1.updateKeyLabel; } });
 // CLI auth (HTTP)
 var cliAuth_1 = require("./auth/cliAuth");
 Object.defineProperty(exports, "cliAuthApprove", { enumerable: true, get: function () { return cliAuth_1.cliAuthApprove; } });
 Object.defineProperty(exports, "cliAuthStatus", { enumerable: true, get: function () { return cliAuth_1.cliAuthStatus; } });
+// GitHub OAuth token exchange (HTTP)
+var githubOAuthExchange_1 = require("./auth/githubOAuthExchange");
+Object.defineProperty(exports, "exchangeGithubCode", { enumerable: true, get: function () { return githubOAuthExchange_1.exchangeGithubCode; } });
 // Notification triggers (new collection paths)
 var onTaskCreate_1 = require("./notifications/onTaskCreate");
 Object.defineProperty(exports, "onTaskCreate", { enumerable: true, get: function () { return onTaskCreate_1.onTaskCreate; } });
@@ -60,6 +64,13 @@ Object.defineProperty(exports, "onRelayCreate", { enumerable: true, get: functio
 // Analytics aggregation
 var onAnalyticsEventCreate_1 = require("./analytics/onAnalyticsEventCreate");
 Object.defineProperty(exports, "onAnalyticsEventCreate", { enumerable: true, get: function () { return onAnalyticsEventCreate_1.onAnalyticsEventCreate; } });
+// Pattern promotion, enforcement, and gap detection
+var onProgramStateWrite_1 = require("./patterns/onProgramStateWrite");
+Object.defineProperty(exports, "onProgramStateWrite", { enumerable: true, get: function () { return onProgramStateWrite_1.onProgramStateWrite; } });
+var onTaskComplete_1 = require("./patterns/onTaskComplete");
+Object.defineProperty(exports, "onTaskCompleteFailed", { enumerable: true, get: function () { return onTaskComplete_1.onTaskCompleteFailed; } });
+var onSessionComplete_1 = require("./patterns/onSessionComplete");
+Object.defineProperty(exports, "onSessionComplete", { enumerable: true, get: function () { return onSessionComplete_1.onSessionComplete; } });
 // Scheduled cleanup
 var cleanupExpiredSessions_1 = require("./cleanup/cleanupExpiredSessions");
 Object.defineProperty(exports, "cleanupExpiredSessions", { enumerable: true, get: function () { return cleanupExpiredSessions_1.cleanupExpiredSessions; } });
@@ -73,4 +84,13 @@ var processDeadLetters_1 = require("./cleanup/processDeadLetters");
 Object.defineProperty(exports, "processDeadLetters", { enumerable: true, get: function () { return processDeadLetters_1.processDeadLetters; } });
 var cleanupAudit_1 = require("./cleanup/cleanupAudit");
 Object.defineProperty(exports, "cleanupAudit", { enumerable: true, get: function () { return cleanupAudit_1.cleanupAudit; } });
+// Usage tracking (W1.1.5)
+var aggregateUsage_1 = require("./usage/aggregateUsage");
+Object.defineProperty(exports, "aggregateUsage", { enumerable: true, get: function () { return aggregateUsage_1.aggregateUsage; } });
+// Feedback
+var submitFeedback_1 = require("./feedback/submitFeedback");
+Object.defineProperty(exports, "submitFeedback", { enumerable: true, get: function () { return submitFeedback_1.submitFeedback; } });
+// Webhooks (HTTP)
+var onEasBuild_1 = require("./webhooks/onEasBuild");
+Object.defineProperty(exports, "onEasBuild", { enumerable: true, get: function () { return onEasBuild_1.onEasBuild; } });
 //# sourceMappingURL=index.js.map

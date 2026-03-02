@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onSessionUpdate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -46,7 +46,7 @@ const MAX_UPDATES_PER_WINDOW = 20;
  * Updated for v2 lifecycle statuses.
  */
 exports.onSessionUpdate = functions.firestore
-    .document("users/{userId}/sessions/{sessionId}")
+    .document("tenants/{userId}/sessions/{sessionId}")
     .onUpdate(async (change, context) => {
     const { userId, sessionId } = context.params;
     const before = change.before.data();
@@ -57,13 +57,13 @@ exports.onSessionUpdate = functions.firestore
         return;
     try {
         // Check notification preferences
-        const userDoc = await db.doc(`users/${userId}`).get();
+        const userDoc = await db.doc(`tenants/${userId}`).get();
         const prefs = userDoc.data()?.notificationPreferences;
         if (prefs?.sessionUpdates === false)
             return;
         // Rate limit
         const now = Date.now();
-        const rateLimitRef = db.doc(`users/${userId}/rateLimits/sessionUpdates`);
+        const rateLimitRef = db.doc(`tenants/${userId}/rateLimits/sessionUpdates`);
         const rateLimitDoc = await rateLimitRef.get();
         const rateLimitData = rateLimitDoc.data();
         if (rateLimitData) {
@@ -83,7 +83,7 @@ exports.onSessionUpdate = functions.firestore
         else {
             await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
         }
-        const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+        const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
         if (devicesSnapshot.empty)
             return;
         const tokens = [];

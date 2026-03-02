@@ -34,9 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onUserCreate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
+const structuredLog_1 = require("../util/structuredLog");
 const db = admin.firestore();
 /**
  * Triggered when a new user is created in Firebase Auth.
@@ -45,6 +46,7 @@ const db = admin.firestore();
 exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
     const { uid, email, displayName, photoURL, providerData } = user;
     const provider = providerData?.[0]?.providerId || "unknown";
+    const startTime = Date.now();
     try {
         // 1. Generate first API key
         const rawKey = `cb_${crypto.randomBytes(32).toString("hex")}`;
@@ -70,7 +72,14 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
             userId: uid,
             programId: "default",
             label: "Default API Key",
-            capabilities: ["*"],
+            capabilities: [
+                "dispatch.read", "dispatch.write",
+                "relay.read", "relay.write",
+                "pulse.read",
+                "signal.read", "signal.write",
+                "sprint.read",
+                "metrics.read", "fleet.read",
+            ],
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             active: true,
         });
@@ -78,8 +87,8 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
         await db.doc(`tenants/${uid}/config/firstKey`).set({
             key: Buffer.from(rawKey).toString("base64"),
             keyHash,
-            expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
             retrieved: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         // 6. Create billing config (free tier default)
         await db.doc(`tenants/${uid}/config/billing`).set({
@@ -92,10 +101,28 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
             softWarnOnly: false,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        functions.logger.info(`Tenant provisioned for ${uid} (${email}), provider: ${provider}`);
+        // 7. W1.3.1: Create usage-based billing config
+        await db.doc(`tenants/${uid}/_meta/billing`).set({
+            monthlyBudgetUsd: null, // unlimited by default
+            tokenBudgetMonthly: null, // unlimited by default
+            alertThresholds: [], // no alerts by default
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        (0, structuredLog_1.logSuccess)({
+            function: "onUserCreate",
+            uid,
+            action: "create_tenant_and_firstkey",
+            durationMs: Date.now() - startTime,
+        });
     }
     catch (error) {
-        functions.logger.error(`Failed to provision tenant for ${uid}`, error);
+        (0, structuredLog_1.logError)({
+            function: "onUserCreate",
+            uid,
+            action: "create_tenant_and_firstkey",
+            durationMs: Date.now() - startTime,
+        }, error);
         throw error;
     }
 });
