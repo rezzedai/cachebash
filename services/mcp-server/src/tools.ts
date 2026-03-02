@@ -131,7 +131,7 @@ export const TOOL_DEFINITIONS = [
   // === Dispatch ===
   {
     name: "get_tasks",
-    description: "Get tasks created for programs to work on. Replaces get_pending_tasks.",
+    description: "Get tasks created for programs to work on.",
     inputSchema: {
       type: "object" as const,
       properties: {
