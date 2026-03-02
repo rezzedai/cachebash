@@ -12,7 +12,7 @@ import { dreamPeekHandler, dreamActivateHandler } from "./modules/dream.js";
 import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprintHandler, getSprintHandler } from "./modules/sprint.js";
 import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "./modules/keys.js";
 import { getAuditHandler } from "./modules/audit.js";
-import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, recallMemoryHandler, memoryHealthHandler, deleteMemoryHandler, reinforceMemoryHandler } from "./modules/programState.js";
+import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, recallMemoryHandler, memoryHealthHandler, deleteMemoryHandler, reinforceMemoryHandler, getContextHistoryHandler } from "./modules/programState.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "./modules/metrics.js";
 import { getUsageHandler, getInvoiceHandler, setBudgetHandler } from "./modules/usage.js";
 import { queryTracesHandler, queryTraceHandler } from "./modules/trace.js";
@@ -71,6 +71,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   // Program State
   get_program_state: getProgramStateHandler,
   update_program_state: updateProgramStateHandler,
+  get_context_history: getContextHistoryHandler,
 
   // Memory (Phase 1)
   store_memory: storeMemoryHandler,
@@ -706,6 +707,18 @@ export const TOOL_DEFINITIONS = [
         traceId: { type: "string", description: "Trace correlation ID" },
         spanId: { type: "string", description: "Span ID for this operation" },
         parentSpanId: { type: "string", description: "Parent span ID" },
+      },
+      required: ["programId"],
+    },
+  },
+  {
+    name: "get_context_history",
+    description: "Query timestamped context snapshots (shadow journal). Returns entries newest-first. Same access rules as get_program_state.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", description: "Program ID to query context history for", maxLength: 100 },
+        limit: { type: "number", minimum: 1, maximum: 50, default: 20, description: "Max entries to return (newest first)" },
       },
       required: ["programId"],
     },
