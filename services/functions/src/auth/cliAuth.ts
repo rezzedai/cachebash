@@ -9,7 +9,7 @@
  * calls approve → CLI polls status → gets API key → session deleted.
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import { randomBytes, createHash } from "crypto";
 import { logSuccess, logError } from "../util/structuredLog";

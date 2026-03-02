@@ -5,7 +5,7 @@
  * Collection group query for scalability.
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;

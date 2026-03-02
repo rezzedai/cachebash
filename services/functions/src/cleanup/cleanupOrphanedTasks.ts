@@ -4,7 +4,7 @@
  * Reverts tasks back to created status.
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
 const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000;

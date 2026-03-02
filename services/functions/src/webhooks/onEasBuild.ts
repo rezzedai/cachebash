@@ -8,13 +8,16 @@
  * Signature: expo-signature header, HMAC-SHA1 of body with webhook secret.
  *
  * Setup:
- *   firebase functions:config:set eas.webhook_secret="<secret>"
+ *   firebase functions:secrets:set EAS_WEBHOOK_SECRET
  *   eas webhook:create --url <function_url> --event BUILD --secret <secret>
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
+import { defineSecret } from "firebase-functions/params";
+
+const easWebhookSecret = defineSecret("EAS_WEBHOOK_SECRET");
 
 interface EasBuildPayload {
   id: string;
@@ -48,14 +51,14 @@ function verifySignature(body: string, signature: string, secret: string): boole
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
-export const onEasBuild = functions.https.onRequest(async (req, res) => {
+export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).https.onRequest(async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
   // Verify webhook signature
-  const secret = functions.config().eas?.webhook_secret;
+  const secret = easWebhookSecret.value();
   if (!secret) {
     console.error("[EAS Webhook] No webhook secret configured");
     res.status(500).json({ error: "Webhook not configured" });
