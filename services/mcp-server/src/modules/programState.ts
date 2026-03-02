@@ -776,7 +776,7 @@ const GetContextHistorySchema = z.object({
 export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetContextHistorySchema.parse(rawArgs);
 
-  if (!isValidProgram(args.programId)) {
+  if (!(await isProgramRegistered(auth.userId, args.programId))) {
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 

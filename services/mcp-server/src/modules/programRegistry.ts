@@ -154,10 +154,6 @@ export async function resolveTargetsAsync(userId: string, target: string): Promi
     return [...PROGRAM_GROUPS[target]];
   }
 
-  // 2. Also check Firestore for programs in this group
-  if (target in PROGRAM_GROUPS) {
-    // Already handled above
-  }
 
   // 3. Role-based: @builder, @orchestrator, etc.
   if (target.startsWith("@")) {
@@ -187,6 +183,7 @@ export async function seedPrograms(userId: string): Promise<{ seeded: number; sk
     const chunk = allPrograms.slice(i, i + BATCH_SIZE);
     const batch = db.batch();
 
+      let chunkSeeded = 0;
     for (const programId of chunk) {
       const ref = db.doc(`tenants/${userId}/programs/${programId}`);
       const existing = await ref.get();
@@ -210,9 +207,10 @@ export async function seedPrograms(userId: string): Promise<{ seeded: number; sk
         active: true,
       });
       seeded++;
+      chunkSeeded++;
     }
 
-    if (seeded > 0 || chunk.length > 0) {
+    if (chunkSeeded > 0) {
       await batch.commit();
     }
   }
