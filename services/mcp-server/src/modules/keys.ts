@@ -51,9 +51,10 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
 
   // Phase 4: Accept scoped capabilities, default to program defaults
   const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+  const defaultCaps = getDefaultCapabilities(programId);
   const requestedCapabilities: string[] = args.capabilities && Array.isArray(args.capabilities) && args.capabilities.length > 0
     ? args.capabilities
-    : getDefaultCapabilities(programId);
+    : defaultCaps.length > 0 ? defaultCaps : ["*"];
 
   const keyDoc: Omit<ApiKeyDoc, "createdAt" | "lastUsedAt"> & { createdAt: any } = {
     userId: auth.userId,
