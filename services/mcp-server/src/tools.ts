@@ -4,7 +4,7 @@
  */
 
 import { AuthContext } from "./auth/authValidator.js";
-import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, getTaskByIdHandler } from "./modules/dispatch.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler } from "./modules/dispatch/index.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler, getContextUtilizationHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
