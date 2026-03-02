@@ -63,6 +63,7 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   // Program State
   get_program_state: "state.read",
   update_program_state: "state.write",
+  get_context_history: "state.read",
   // Metrics
   get_cost_summary: "metrics.read",
   get_comms_metrics: "metrics.read",

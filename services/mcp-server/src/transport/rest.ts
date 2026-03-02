@@ -17,6 +17,7 @@ import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
+import { ADMIN_READERS } from "../config/access-tiers.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -109,7 +110,7 @@ function coerceQueryParams(params: Record<string, string>): Record<string, unkno
 
 /** Admin gate — requires wildcard capability or admin-class programId */
 function requireAdmin(auth: AuthContext, res: http.ServerResponse): boolean {
-  if (auth.capabilities.includes("*") || ["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (auth.capabilities.includes("*") || (ADMIN_READERS as readonly string[]).includes(auth.programId)) {
     return true;
   }
   restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
@@ -615,6 +616,11 @@ const routes: Route[] = [
   route("PATCH", "/v1/program-state/:programId", async (auth, req, res, p) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "update_program_state", { programId: p.programId, ...body });
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/program-state/:programId/context-history", async (auth, req, res, p) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "get_context_history", { programId: p.programId, ...query });
     restResponse(res, true, data);
   }),
 
