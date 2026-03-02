@@ -20,7 +20,8 @@ export type Capability =
   | "state.read" | "state.write"
   | "metrics.read"
   | "fleet.read"
-  | "trace.read";
+  | "trace.read"
+  | "programs.read" | "programs.write";
 
 /** Map every tool name to its required capability */
 export const TOOL_CAPABILITIES: Record<string, Capability> = {
@@ -72,6 +73,9 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   get_fleet_health: "fleet.read",
   // Trace
   query_traces: "trace.read",
+  // Programs
+  list_programs: "programs.read",
+  update_program: "programs.write",
 };
 
 /** Default capabilities for each program role */
@@ -85,43 +89,44 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read",
     "signal.read", "signal.write",
     "fleet.read", "metrics.read", "sprint.read",
+    "programs.read",
   ],
   // Builder programs — standard operational set
   builder: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   architect: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   auditor: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "audit.read"],
+    "state.read", "state.write", "sprint.read", "audit.read", "programs.read", "programs.write"],
   reviewer: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   designer: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   growth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   ops: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   memory: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   strategist: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   // OAuth external clients — standard operational access, no admin
   oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   // OAuth service accounts (client_credentials) — same as oauth
   "oauth-service": ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
   // Grid programs — full operational access
   iso: ["*"],
   basher: ["*"],
@@ -138,7 +143,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   // External users — restricted, no admin/audit/keys/state-write
   default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "signal.read", "signal.write",
-    "sprint.read", "metrics.read", "fleet.read"],
+    "sprint.read", "metrics.read", "fleet.read", "programs.read"],
 };
 
 /**

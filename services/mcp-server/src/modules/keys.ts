@@ -9,7 +9,7 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
-import { isValidProgram } from "../config/programs.js";
+import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
 function generateApiKey(): string {
@@ -33,10 +33,19 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
     };
   }
 
-  if (!isValidProgram(programId)) {
-    return {
-      content: [{ type: "text", text: JSON.stringify({ success: false, error: `Unknown program: ${programId}` }) }],
-    };
+  let registered = false;
+  const isKnown = await isProgramRegistered(auth.userId, programId);
+  if (!isKnown) {
+    await registerProgram(auth.userId, {
+      programId,
+      displayName: programId,
+      role: "custom",
+      color: "#808080",
+      groups: [],
+      tags: [],
+      createdBy: auth.programId,
+    });
+    registered = true;
   }
 
   if (!label) {
@@ -77,6 +86,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
         programId,
         label,
         capabilities: requestedCapabilities,
+        registered,
         message: "Store this key securely. It will not be shown again.",
       }),
     }],
