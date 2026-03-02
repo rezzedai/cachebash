@@ -569,6 +569,11 @@ export const TOOL_DEFINITIONS = [
       properties: {
         programId: { type: "string", description: "Program this key authenticates as", maxLength: 50 },
         label: { type: "string", description: "Human-readable label for key management", maxLength: 200 },
+        capabilities: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Optional capability scopes. Defaults to program defaults or ["*"] if unknown.',
+        },
       },
       required: ["programId", "label"],
     },
