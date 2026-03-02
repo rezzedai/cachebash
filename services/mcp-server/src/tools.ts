@@ -4,7 +4,7 @@
  */
 
 import { AuthContext } from "./auth/authValidator.js";
-import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler } from "./modules/dispatch.js";
+import { getTasksHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, getTaskByIdHandler } from "./modules/dispatch.js";
 import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "./modules/relay.js";
 import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler, getContextUtilizationHandler } from "./modules/pulse.js";
 import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "./modules/signal.js";
@@ -29,6 +29,7 @@ type Handler = (auth: AuthContext, args: any) => Promise<any>;
 export const TOOL_HANDLERS: Record<string, Handler> = {
   // Dispatch
   get_tasks: getTasksHandler,
+  get_task_by_id: getTaskByIdHandler,
   create_task: createTaskHandler,
   claim_task: claimTaskHandler,
   unclaim_task: unclaimTaskHandler,

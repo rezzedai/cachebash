@@ -332,6 +332,12 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         fallback: data.fallback || null,
         expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+        // Completion fields (populated after complete_task)
+        result: data.result || null,
+        completed_status: data.completed_status || null,
+        completedAt: data.completedAt?.toDate?.()?.toISOString() || null,
+        claimedBy: data.claimedBy || null,
+        claimedAt: data.claimedAt?.toDate?.()?.toISOString() || null,
       };
     });
 
@@ -351,6 +357,49 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     count: tasks.length,
     tasks,
     message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
+  });
+}
+
+export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = z.object({ taskId: z.string() }).parse(rawArgs);
+  const db = getFirestore();
+  const doc = await db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`).get();
+
+  if (!doc.exists) {
+    return jsonResult({ success: false, error: "Task not found" });
+  }
+
+  const data = doc.data()!;
+  const decrypted = decryptTaskFields(data, auth.encryptionKey);
+
+  return jsonResult({
+    success: true,
+    task: {
+      id: doc.id,
+      type: data.type || "task",
+      title: decrypted.title,
+      instructions: decrypted.instructions,
+      action: data.action || "queue",
+      priority: data.priority || "normal",
+      status: data.status,
+      source: data.source,
+      target: data.target,
+      projectId: data.projectId || null,
+      requires_action: data.requires_action ?? true,
+      auto_archived: data.auto_archived || false,
+      ttl: data.ttl || null,
+      replyTo: data.replyTo || null,
+      threadId: data.threadId || null,
+      provenance: data.provenance || null,
+      fallback: data.fallback || null,
+      expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+      result: data.result || null,
+      completed_status: data.completed_status || null,
+      completedAt: data.completedAt?.toDate?.()?.toISOString() || null,
+      claimedBy: data.claimedBy || null,
+      claimedAt: data.claimedAt?.toDate?.()?.toISOString() || null,
+    },
   });
 }
 
