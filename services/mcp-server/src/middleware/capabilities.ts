@@ -175,8 +175,8 @@ export function checkToolCapability(
 export function getDefaultCapabilities(programId: string): Capability[] {
   const caps = DEFAULT_CAPABILITIES[programId];
   if (!caps) {
-    console.warn(`[Capabilities] Unknown programId "${programId}" — returning empty capabilities`);
-    return [];
+    console.warn(`[Capabilities] Unknown programId "${programId}" — falling back to default capabilities`);
+    return DEFAULT_CAPABILITIES["default"] || [];
   }
   return caps;
 }
