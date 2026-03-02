@@ -572,7 +572,7 @@ export const TOOL_DEFINITIONS = [
         capabilities: {
           type: "array",
           items: { type: "string" },
-          description: "Optional capability scopes. Defaults to program defaults or ["*"] if unknown.",
+          description: 'Optional capability scopes. Defaults to program defaults or ["*"] if unknown.',
         },
       },
       required: ["programId", "label"],
