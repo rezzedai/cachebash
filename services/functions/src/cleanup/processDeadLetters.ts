@@ -5,7 +5,7 @@
  * them to the dead_letters collection after max attempts exceeded.
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
 const MAX_DELIVERY_ATTEMPTS = 3;
