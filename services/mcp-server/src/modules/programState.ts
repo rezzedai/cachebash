@@ -7,6 +7,7 @@ import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { isValidProgram } from "../config/programs.js";
 import { verifySource } from "../middleware/gate.js";
+import { STATE_READERS, STATE_WRITERS } from "../config/access-tiers.js";
 import { z } from "zod";
 import type { ProgramState } from "../types/programState.js";
 
@@ -114,8 +115,8 @@ function defaultState(programId: string, sessionId: string): ProgramState {
  * - Admin (legacy/mobile) can read any program's state
  */
 function canRead(auth: AuthContext, targetProgramId: string): boolean {
-  if (auth.programId === "legacy" || auth.programId === "mobile") return true;
-  if (auth.programId === "orchestrator" || auth.programId === "iso" || auth.programId === "auditor" || auth.programId === "dispatcher") return true;
+  if ((STATE_WRITERS as readonly string[]).includes(auth.programId)) return true;
+  if ((STATE_READERS as readonly string[]).includes(auth.programId)) return true;
   return auth.programId === targetProgramId;
 }
 
@@ -125,7 +126,7 @@ function canRead(auth: AuthContext, targetProgramId: string): boolean {
  * - Admin (legacy/mobile) can write any state
  */
 function canWrite(auth: AuthContext, targetProgramId: string): boolean {
-  if (auth.programId === "legacy" || auth.programId === "mobile") return true;
+  if ((STATE_WRITERS as readonly string[]).includes(auth.programId)) return true;
   return auth.programId === targetProgramId;
 }
 
@@ -598,6 +599,30 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
 
   await docRef.set(updated);
 
+  // Shadow Journal: append context history entry when contextSummary is provided
+  if (args.contextSummary) {
+    const historyRef = db.collection(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}/context_history`);
+
+    // Append new entry
+    await historyRef.add({
+      timestamp: now,
+      contextSummary: updated.contextSummary,
+      sessionId: updated.sessionId,
+      updatedBy: updated.lastUpdatedBy,
+    });
+
+    // FIFO cap at 50 entries — delete oldest on overflow
+    const countSnap = await historyRef.orderBy("timestamp", "asc").get();
+    if (countSnap.size > 50) {
+      const toDelete = countSnap.docs.slice(0, countSnap.size - 50);
+      const batch = db.batch();
+      for (const doc of toDelete) {
+        batch.delete(doc.ref);
+      }
+      await batch.commit();
+    }
+  }
+
   // Agent Trace L2: write trace context to usage ledger for audit trail
   if (args.traceId) {
     const { getFirestore: getDb } = await import("../firebase/client.js");
@@ -736,5 +761,43 @@ export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown
     patternId: args.patternId,
     confidence: pattern.confidence,
     message: `Pattern "${args.patternId}" reinforced for "${args.programId}".`,
+  });
+}
+
+const GetContextHistorySchema = z.object({
+  programId: z.string().max(100),
+  limit: z.number().min(1).max(50).default(20),
+});
+
+/**
+ * get_context_history — Query timestamped context snapshots (shadow journal).
+ * Returns entries newest-first. Same access rules as get_program_state.
+ */
+export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GetContextHistorySchema.parse(rawArgs);
+
+  if (!isValidProgram(args.programId)) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  if (!canRead(auth, args.programId)) {
+    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read context history for "${args.programId}"` });
+  }
+
+  const db = getFirestore();
+  const historyRef = db.collection(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}/context_history`);
+  const snap = await historyRef.orderBy("timestamp", "desc").limit(args.limit).get();
+
+  const entries = snap.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  return jsonResult({
+    success: true,
+    programId: args.programId,
+    entries,
+    count: entries.length,
+    message: `Retrieved ${entries.length} context history entries for "${args.programId}".`,
   });
 }
