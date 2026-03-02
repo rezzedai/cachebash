@@ -315,6 +315,10 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "create_task", body);
     restResponse(res, true, data, 201);
   }),
+  route("GET", "/v1/tasks/:id", async (auth, req, res, p) => {
+    const data = await callTool(auth, req, "get_task_by_id", { taskId: p.id });
+    restResponse(res, true, data);
+  }),
   route("POST", "/v1/tasks/:id/claim", async (auth, req, res, p) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "claim_task", { taskId: p.id, ...body });
