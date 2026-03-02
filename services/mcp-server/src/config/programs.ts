@@ -10,6 +10,8 @@ export const REGISTERED_PROGRAMS = [
   'coordinator', 'renderer', 'broker', 'memory', 'scribe',
   'sage', 'link', 'gateway', 'healthbot', 'bit', 'byte',
   'tester', 'admin-mirror', 'council', 'codex', 'strategist', 'vector',
+  // Grid program identities (named programs)
+  'basher', 'alan', 'sark', 'quorra', 'casp', 'ram', 'radia', 'castor', 'able', 'beck',
 ] as const;
 
 export type ProgramId = typeof REGISTERED_PROGRAMS[number];
@@ -33,7 +35,7 @@ export function isValidProgram(id: string): id is ValidProgramId {
 /** Named groups for multicast routing */
 export const PROGRAM_GROUPS: Record<string, readonly ProgramId[]> = {
   council: ['orchestrator', 'architect', 'reviewer', 'auditor', 'planner', 'designer', 'strategist', 'vector'],
-  builders: ['builder', 'growth', 'ops'],
+  builders: ['builder', 'basher', 'able', 'beck', 'growth', 'ops'],
   intelligence: ['analyzer', 'ops', 'scribe'],
   all: [...REGISTERED_PROGRAMS].filter(p => p !== 'council'),
 };
@@ -70,6 +72,10 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
   codex:        { displayName: "Codex",         color: "#10A37F", role: "Cross-Model Builder" },
   strategist:   { displayName: "Strategist",    color: "#C4A052", role: "Strategic Counsel" },
   vector:       { displayName: "VECTOR",        color: "#FFFFFF", role: "Flynn's Strategic Interface" },
+  basher:       { displayName: "BASHER",        color: "#E87040", role: "Builder" },
+  alan:         { displayName: "ALAN",          color: "#6FC3DF", role: "Historian & Analyst" },
+  sark:         { displayName: "SARK",          color: "#C44040", role: "Security & Risk" },
+  quorra:       { displayName: "QUORRA",        color: "#9B6FC0", role: "Orchestrator" },
 };
 
 /** Default budget caps for sessions and dreams */
