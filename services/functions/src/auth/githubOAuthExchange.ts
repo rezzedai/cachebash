@@ -8,12 +8,17 @@
  * Returns: { access_token: string }
  *
  * Setup:
- *   firebase functions:config:set github.client_id="..." github.client_secret="..."
+ *   firebase functions:secrets:set GITHUB_CLIENT_ID
+ *   firebase functions:secrets:set GITHUB_CLIENT_SECRET
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
+import { defineSecret } from "firebase-functions/params";
 
-export const exchangeGithubCode = functions.https.onRequest(async (req, res) => {
+const githubClientId = defineSecret("GITHUB_CLIENT_ID");
+const githubClientSecret = defineSecret("GITHUB_CLIENT_SECRET");
+
+export const exchangeGithubCode = functions.runWith({ secrets: [githubClientId, githubClientSecret] }).https.onRequest(async (req, res) => {
   // CORS
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -37,12 +42,11 @@ export const exchangeGithubCode = functions.https.onRequest(async (req, res) => 
       return;
     }
 
-    const config = functions.config();
-    const clientId = config.github?.client_id;
-    const clientSecret = config.github?.client_secret;
+    const clientId = githubClientId.value();
+    const clientSecret = githubClientSecret.value();
 
     if (!clientId || !clientSecret) {
-      console.error("[githubOAuth] Missing github.client_id or github.client_secret in functions config");
+      console.error("[githubOAuth] Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET secrets");
       res.status(500).json({ error: "Server configuration error" });
       return;
     }

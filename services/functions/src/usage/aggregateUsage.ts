@@ -7,7 +7,7 @@
  * 3. Writes pre-computed aggregates to usage_aggregates collection
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
 const db = admin.firestore();
