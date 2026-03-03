@@ -20,6 +20,7 @@ import * as trace from "./trace.js";
 import * as feedback from "./feedback.js";
 import * as clu from "./clu.js";
 import * as admin from "./admin.js";
+import * as gsp from "./gsp.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -40,6 +41,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...feedback.handlers,
   ...clu.handlers,
   ...admin.handlers,
+  ...gsp.handlers,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -59,4 +61,5 @@ export const TOOL_DEFINITIONS = [
   ...feedback.definitions,
   ...clu.definitions,
   ...admin.definitions,
+  ...gsp.definitions,
 ];
