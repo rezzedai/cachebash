@@ -9,6 +9,7 @@ import {
   gspWriteHandler,
   gspDiffHandler,
   gspBootstrapHandler,
+  gspSeedHandler,
   gspProposeHandler,
   gspSubscribeHandler,
   gspResolveHandler,
@@ -21,6 +22,7 @@ export const handlers: Record<string, Handler> = {
   gsp_write: gspWriteHandler,
   gsp_diff: gspDiffHandler,
   gsp_bootstrap: gspBootstrapHandler,
+  gsp_seed: gspSeedHandler,
   gsp_propose: gspProposeHandler,
   gsp_subscribe: gspSubscribeHandler,
   gsp_resolve: gspResolveHandler,
@@ -82,15 +84,39 @@ export const definitions = [
   },
   {
     name: "gsp_bootstrap",
-    description: "Bootstrap constitutional state from git into GSP Firestore. Phase 2 — not yet implemented.",
+    description: "Get full context payload for a program boot. Single call replaces 4+ boot API calls. Returns identity, constitutional state, operational state, program memory, and pending context.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        namespace: { type: "string", description: "Target namespace", maxLength: 100 },
-        commitHash: { type: "string", description: "Git commit hash to sync from" },
-        dryRun: { type: "boolean", description: "Preview without writing", default: false },
+        programId: { type: "string", description: "Program ID to bootstrap (e.g., 'vector', 'iso', 'basher')", minLength: 1, maxLength: 100 },
       },
-      required: ["namespace"],
+      required: ["programId"],
+    },
+  },
+  {
+    name: "gsp_seed",
+    description: "Seed constitutional or architectural state into GSP. Admin/orchestrator only. Bypasses gsp_write governance enforcement for authorized seeding.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        namespace: { type: "string", description: "Target namespace (e.g., 'constitution', 'architecture')", minLength: 1, maxLength: 100 },
+        entries: {
+          type: "array",
+          description: "Array of entries to seed",
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string", maxLength: 200 },
+              value: { description: "The state value" },
+              tier: { type: "string", enum: ["constitutional", "architectural"] },
+              description: { type: "string", maxLength: 500 },
+            },
+            required: ["key", "value", "tier"],
+          },
+        },
+        overwrite: { type: "boolean", description: "Overwrite existing entries (default false)", default: false },
+      },
+      required: ["namespace", "entries"],
     },
   },
   {
