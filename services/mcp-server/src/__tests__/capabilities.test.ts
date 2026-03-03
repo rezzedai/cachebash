@@ -58,7 +58,7 @@ describe('Capability System', () => {
     it('every tool in the map has a valid capability', () => {
       const validPrefixes = [
         'dispatch', 'relay', 'pulse', 'signal', 'dream',
-        'sprint', 'keys', 'audit', 'state', 'metrics', 'fleet', 'trace', 'programs'
+        'sprint', 'keys', 'audit', 'state', 'metrics', 'fleet', 'trace', 'programs', 'gsp'
       ];
       for (const [tool, cap] of Object.entries(TOOL_CAPABILITIES)) {
         if (cap === '*') continue;

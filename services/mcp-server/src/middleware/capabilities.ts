@@ -21,7 +21,8 @@ export type Capability =
   | "metrics.read"
   | "fleet.read"
   | "trace.read"
-  | "programs.read" | "programs.write";
+  | "programs.read" | "programs.write"
+  | "gsp.read" | "gsp.write";
 
 /** Map every tool name to its required capability */
 export const TOOL_CAPABILITIES: Record<string, Capability> = {
@@ -76,6 +77,14 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   // Programs
   list_programs: "programs.read",
   update_program: "programs.write",
+  // GSP (Grid State Protocol)
+  gsp_read: "gsp.read",
+  gsp_write: "gsp.write",
+  gsp_diff: "gsp.read",
+  gsp_bootstrap: "gsp.write",
+  gsp_propose: "gsp.write",
+  gsp_subscribe: "gsp.read",
+  gsp_resolve: "gsp.write",
 };
 
 /** Default capabilities for each program role */
@@ -94,39 +103,50 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   // Builder programs — standard operational set
   builder: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   architect: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   auditor: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "audit.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "audit.read", "programs.read", "programs.write",
+    "gsp.read"],
   reviewer: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   designer: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read"],
   growth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read"],
   ops: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   memory: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   strategist: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read"],
   // OAuth external clients — standard operational access, no admin
   oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   // OAuth service accounts (client_credentials) — same as oauth
   "oauth-service": ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write"],
+    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+    "gsp.read", "gsp.write"],
   // Grid programs — full operational access
   iso: ["*"],
   basher: ["*"],
