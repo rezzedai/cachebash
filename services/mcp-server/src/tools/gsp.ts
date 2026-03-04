@@ -88,7 +88,18 @@ export const definitions = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        programId: { type: "string", description: "Program ID to bootstrap (e.g., 'vector', 'iso', 'basher')", minLength: 1, maxLength: 100 },
+        programId: { 
+          type: "string", 
+          description: "Program ID to bootstrap (e.g., 'vector', 'iso', 'basher')", 
+          minLength: 1, 
+          maxLength: 100 
+        },
+        depth: {
+          type: "string",
+          description: "Payload depth tier: 'essential' (~2KB, builders), 'standard' (~5KB, default), 'full' (~10-15KB, VECTOR/ISO)",
+          enum: ["essential", "standard", "full"],
+          default: "standard"
+        },
       },
       required: ["programId"],
     },
