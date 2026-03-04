@@ -90,6 +90,20 @@ export const SPAWNABLE_PROGRAMS: Map<string, ProgramLaunchConfig> = new Map([
     repo: "rezzed-ai",
     description: "Flynn's exclusive strategic interface — directive authority over ISO",
   }],
+  ["sonnet-enrichment", {
+    programId: "sonnet-enrichment",
+    spawnable: true,
+    model: "sonnet",
+    repo: "",
+    description: "CIS enrichment processor — ephemeral Sonnet session for stages 2-3",
+  }],
+  ["opus-enrichment", {
+    programId: "opus-enrichment",
+    spawnable: true,
+    model: "opus",
+    repo: "",
+    description: "CIS enrichment processor — ephemeral Opus session for stages 4-5",
+  }],
 ]);
 
 /** Check if a program is spawnable by the wake daemon */

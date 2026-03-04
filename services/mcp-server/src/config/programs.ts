@@ -78,6 +78,8 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
   alan:         { displayName: "ALAN",          color: "#6FC3DF", role: "Historian & Analyst" },
   sark:         { displayName: "SARK",          color: "#C44040", role: "Security & Risk" },
   quorra:       { displayName: "QUORRA",        color: "#9B6FC0", role: "Orchestrator" },
+  "sonnet-enrichment": { displayName: "Sonnet Enrichment", color: "#40C4FF", role: "CIS Enrichment (Sonnet)" },
+  "opus-enrichment":   { displayName: "Opus Enrichment",   color: "#FF6E40", role: "CIS Enrichment (Opus)" },
 };
 
 /** Default budget caps for sessions and dreams */
