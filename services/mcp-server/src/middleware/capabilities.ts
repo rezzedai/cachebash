@@ -82,6 +82,7 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   gsp_write: "gsp.write",
   gsp_diff: "gsp.read",
   gsp_bootstrap: "gsp.write",
+  gsp_seed: "gsp.write",
   gsp_propose: "gsp.write",
   gsp_subscribe: "gsp.read",
   gsp_resolve: "gsp.write",
