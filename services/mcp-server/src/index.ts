@@ -325,7 +325,8 @@ async function main() {
       const regToken = extractBearerToken(req.headers.authorization);
       let regUserId: string | undefined;
       if (regToken) {
-        const regAuth = await validateAuth(regToken);
+        const regProgramId = req.headers["x-program-id"] as string | undefined;
+        const regAuth = await validateAuth(regToken, regProgramId);
         if (regAuth) regUserId = regAuth.userId;
       }
       return handleOAuthRegister(req, res, regUserId);
@@ -350,7 +351,8 @@ async function main() {
     if (url?.startsWith("/oauth/service-accounts")) {
       const saToken = extractBearerToken(req.headers.authorization);
       if (!saToken) return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required" });
-      const saAuth = await validateAuth(saToken);
+      const saProgramId = req.headers["x-program-id"] as string | undefined;
+      const saAuth = await validateAuth(saToken, saProgramId);
       if (!saAuth) return sendJson(res, 401, { error: "unauthorized", error_description: "Invalid token" });
       return handleServiceAccounts(req, res, saAuth);
     }
@@ -361,7 +363,8 @@ async function main() {
     if (url === "/v1/mcp/heartbeat" && req.method === "POST") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateAuth(token);
+      const tokenProgramId = req.headers["x-program-id"] as string | undefined;
+      const auth = await validateAuth(token, tokenProgramId);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -399,7 +402,8 @@ async function main() {
       if (!internalToken) {
         return sendJson(res, 401, { error: "Missing Authorization header" });
       }
-      const internalAuth = await validateAuth(internalToken);
+      const internalProgramId = req.headers["x-program-id"] as string | undefined;
+      const internalAuth = await validateAuth(internalToken, internalProgramId);
       if (!internalAuth) {
         return sendJson(res, 401, { error: "Invalid API key" });
       }
@@ -543,7 +547,8 @@ async function main() {
         checkAuthRateLimit(clientIp);
         return sendJson(res, 401, { error: "Missing Authorization header" });
       }
-      const auth = await validateAuth(token);
+      const isoProgramId = req.headers["x-program-id"] as string | undefined;
+      const auth = await validateAuth(token, isoProgramId);
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
@@ -671,7 +676,8 @@ async function main() {
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
-      const auth = await validateAuth(token);
+      const mcpProgramId = req.headers["x-program-id"] as string | undefined;
+      const auth = await validateAuth(token, mcpProgramId);
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
