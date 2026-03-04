@@ -228,6 +228,7 @@ export async function gspDiffHandler(auth: AuthContext, rawArgs: unknown): Promi
 
 const GspBootstrapSchema = z.object({
   programId: z.string().min(1).max(100),
+  depth: z.enum(["essential", "standard", "full"]).default("standard"),
 });
 
 interface BootstrapPayload {
@@ -250,6 +251,7 @@ interface BootstrapPayload {
     activeDecisions: Array<{ key: string; value: unknown; description?: string }>;
     serviceMap: Array<{ key: string; value: unknown; description?: string }>;
     pendingProposals: Array<{ id: string; namespace: string; key: string; status: string }>;
+    decisionsOmitted?: number;
   };
   operational: {
     fleetStatus: {
@@ -303,6 +305,7 @@ function buildReportingChain(role: string | null): string[] {
 
 export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspBootstrapSchema.parse(rawArgs);
+  const depth = args.depth;
   const db = getFirestore();
   const now = new Date().toISOString();
 
@@ -393,7 +396,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
         if (data.key.startsWith("hardRules")) {
           hardRules.push(entry);
-        } else if (data.key.startsWith("escalationPolicy")) {
+        } else if (data.key.startsWith("escalationPolicy") && depth !== "essential") {
           escalationPolicy.push(entry);
         }
       });
@@ -408,54 +411,63 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       console.warn("[GSP Bootstrap] Failed to load constitutional state:", err);
     }
 
-    // 3. Architectural — Read from GSP architecture namespace
-    try {
-      const architecturalSnap = await db
-        .collection(`tenants/${auth.userId}/gsp/architecture/entries`)
-        .limit(50)
-        .get();
-
-      const activeDecisions: Array<{ key: string; value: unknown; description?: string }> = [];
-      const serviceMap: Array<{ key: string; value: unknown; description?: string }> = [];
-
-      architecturalSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        const entry = {
-          key: data.key,
-          value: data.value,
-          description: data.description,
-        };
-
-        if (data.key.startsWith("decision")) {
-          activeDecisions.push(entry);
-        } else if (data.key.startsWith("service")) {
-          serviceMap.push(entry);
-        }
-      });
-
-      payload.architectural.activeDecisions = activeDecisions;
-      payload.architectural.serviceMap = serviceMap;
-
-      // Check for pending proposals (only for orchestrators)
-      if (payload.identity.role === "orchestrator" || payload.identity.role === "admin") {
-        const proposalsSnap = await db
-          .collection(`tenants/${auth.userId}/gsp/_proposals`)
-          .where("status", "==", "pending")
-          .limit(20)
+    // 3. Architectural — Read from GSP architecture namespace (skip for essential depth)
+    if (depth !== "essential") {
+      try {
+        const architecturalSnap = await db
+          .collection(`tenants/${auth.userId}/gsp/architecture/entries`)
+          .limit(50)
           .get();
 
-        payload.architectural.pendingProposals = proposalsSnap.docs.map((doc) => {
+        const activeDecisions: Array<{ key: string; value: unknown; description?: string }> = [];
+        const serviceMap: Array<{ key: string; value: unknown; description?: string }> = [];
+
+        architecturalSnap.docs.forEach((doc) => {
           const data = doc.data();
-          return {
-            id: doc.id,
-            namespace: data.namespace || "",
-            key: data.key || "",
-            status: data.status || "pending",
+          const entry = {
+            key: data.key,
+            value: data.value,
+            description: data.description,
           };
+
+          if (data.key.startsWith("decision")) {
+            activeDecisions.push(entry);
+          } else if (data.key.startsWith("service")) {
+            serviceMap.push(entry);
+          }
         });
+
+        // Cap decisions at 20 for standard depth, track omissions
+        if (depth === "standard" && activeDecisions.length > 20) {
+          payload.architectural.decisionsOmitted = activeDecisions.length - 20;
+          payload.architectural.activeDecisions = activeDecisions.slice(0, 20);
+        } else {
+          payload.architectural.activeDecisions = activeDecisions;
+        }
+        
+        payload.architectural.serviceMap = serviceMap;
+
+        // Check for pending proposals (only for full depth and orchestrators/admin)
+        if (depth === "full" && (payload.identity.role === "orchestrator" || payload.identity.role === "admin")) {
+          const proposalsSnap = await db
+            .collection(`tenants/${auth.userId}/gsp/_proposals`)
+            .where("status", "==", "pending")
+            .limit(20)
+            .get();
+
+          payload.architectural.pendingProposals = proposalsSnap.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              namespace: data.namespace || "",
+              key: data.key || "",
+              status: data.status || "pending",
+            };
+          });
+        }
+      } catch (err) {
+        console.warn("[GSP Bootstrap] Failed to load architectural state:", err);
       }
-    } catch (err) {
-      console.warn("[GSP Bootstrap] Failed to load architectural state:", err);
     }
 
     // 4. Operational — Fleet and runtime state
@@ -521,13 +533,21 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       if (stateDoc.exists) {
         const stateData = stateDoc.data()!;
 
-        // Learned patterns
+        // Learned patterns - apply depth-based limits
         const patterns = stateData.learnedPatterns || [];
-        const limit = payload.identity.role === "builder" ? 10 : 20;
+        let patternLimit: number;
+        if (depth === "essential") {
+          patternLimit = 5;
+        } else if (depth === "standard") {
+          patternLimit = 10;
+        } else {
+          patternLimit = 20;
+        }
+        
         payload.memory.learnedPatterns = patterns
           .filter((p: any) => !p.stale)
           .sort((a: any, b: any) => (b.confidence || 0) - (a.confidence || 0))
-          .slice(0, limit)
+          .slice(0, patternLimit)
           .map((p: any) => ({
             id: p.id,
             domain: p.domain,
@@ -537,7 +557,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
             discoveredAt: p.discoveredAt,
           }));
 
-        // Context summary
+        // Context summary (always included, all depths)
         if (stateData.contextSummary) {
           payload.memory.contextSummary = {
             lastTask: stateData.contextSummary.lastTask || null,
@@ -553,6 +573,9 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
     // 6. Context — Pending tasks and unread messages
     try {
+      // Determine limits based on depth
+      const contextLimit = depth === "essential" ? 10 : 20;
+      
       // Pending tasks
       const tasksSnap = await db
         .collection(`tenants/${auth.userId}/tasks`)
@@ -560,7 +583,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         .where("status", "==", "created")
         .orderBy("priority")
         .orderBy("createdAt", "desc")
-        .limit(20)
+        .limit(contextLimit)
         .get();
 
       payload.context.pendingTasks = tasksSnap.docs.map((doc) => {
@@ -580,7 +603,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         .where("status", "==", "pending")
         .orderBy("priority")
         .orderBy("createdAt", "desc")
-        .limit(20)
+        .limit(contextLimit)
         .get();
 
       payload.context.unreadMessages = messagesSnap.docs.map((doc) => {
@@ -596,12 +619,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       console.warn("[GSP Bootstrap] Failed to load context:", err);
     }
 
-    // Apply role-based filtering
-    if (payload.identity.role === "builder") {
-      // Builders: trim constitutional to hardRules only, skip pending proposals
-      payload.constitutional.escalationPolicy = [];
-      payload.architectural.pendingProposals = [];
-    }
+    // Depth-based filtering applied inline during data collection
 
     return jsonResult({
       success: true,
