@@ -60,6 +60,11 @@ export interface Session {
   // Context Health (Phase 4)
   contextBytes?: number;
   handoffRequired?: boolean;
+  contextHistory?: Array<{
+    timestamp: string;
+    contextBytes: number;
+    contextPercent: number;
+  }>;
 
   // Advisory session compliance state (fail-open)
   compliance?: ComplianceState;
