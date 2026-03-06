@@ -1,9 +1,10 @@
 /**
- * TTL Reaper — Auto-expire tasks and relay messages past their TTL.
+ * TTL Reaper — Auto-expire tasks, relay messages, and proposals past their TTL.
  * Runs every 15 minutes.
  *
  * Tasks: Set status=done, completed_status=CANCELLED, result="TTL expired"
  * Relay: Set status=expired, add expiredAt timestamp
+ * Proposals: Set status=expired (frees proposer quota, preserves audit trail)
  *
  * Collection group queries for scalability.
  */
@@ -18,7 +19,7 @@ export const reapExpiredByTTL = functions.pubsub
     const now = admin.firestore.Timestamp.now();
 
     functions.logger.info(
-      `[reapExpiredByTTL] Reaping expired tasks and relay messages (expiresAt < ${now.toDate().toISOString()})`
+      `[reapExpiredByTTL] Reaping expired tasks, relay messages, and proposals (expiresAt < ${now.toDate().toISOString()})`
     );
 
     try {
@@ -38,11 +39,20 @@ export const reapExpiredByTTL = functions.pubsub
         .limit(500)
         .get();
 
-      const totalExpired = expiredTasks.size + expiredRelay.size;
+      // Query expired proposals (status=pending, expiresAt < now)
+      // Path: tenants/{userId}/gsp/_proposals/{proposalId}
+      const expiredProposals = await db
+        .collectionGroup("_proposals")
+        .where("expiresAt", "<", now)
+        .where("status", "==", "pending")
+        .limit(500)
+        .get();
+
+      const totalExpired = expiredTasks.size + expiredRelay.size + expiredProposals.size;
 
       if (totalExpired === 0) {
         functions.logger.info("[reapExpiredByTTL] No expired items found");
-        return { tasksReaped: 0, relayReaped: 0 };
+        return { tasksReaped: 0, relayReaped: 0, proposalsReaped: 0 };
       }
 
       // Process tasks in batches (max 500 per batch)
@@ -75,11 +85,27 @@ export const reapExpiredByTTL = functions.pubsub
         await relayBatch.commit();
       }
 
+      // Process proposals in batches (max 500 per batch)
+      let proposalsReaped = 0;
+      if (!expiredProposals.empty) {
+        const proposalBatch = db.batch();
+        for (const doc of expiredProposals.docs) {
+          const data = doc.data();
+          proposalBatch.update(doc.ref, {
+            status: "expired",
+            resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+            version: (data.version || 1) + 1,
+          });
+          proposalsReaped++;
+        }
+        await proposalBatch.commit();
+      }
+
       functions.logger.info(
-        `[reapExpiredByTTL] Reaped ${tasksReaped} task(s) and ${relayReaped} relay message(s)`
+        `[reapExpiredByTTL] Reaped ${tasksReaped} task(s), ${relayReaped} relay message(s), and ${proposalsReaped} proposal(s)`
       );
 
-      return { tasksReaped, relayReaped };
+      return { tasksReaped, relayReaped, proposalsReaped };
     } catch (error) {
       functions.logger.error("[reapExpiredByTTL] Error:", error);
       throw error;

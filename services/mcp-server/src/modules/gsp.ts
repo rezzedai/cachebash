@@ -115,6 +115,170 @@ export async function gspReadHandler(auth: AuthContext, rawArgs: unknown): Promi
   });
 }
 
+
+// ── Subscription Notification Helper ───────────────────────────────────────
+
+/**
+ * notifySubscribers — Send notifications to all active subscribers for a state change
+ * 
+ * @param auth - Auth context for sending messages
+ * @param namespace - GSP namespace that changed
+ * @param key - GSP key that changed
+ * @param version - New version number
+ * @param changedBy - Program ID or source that made the change
+ */
+async function notifySubscribers(
+  auth: AuthContext,
+  namespace: string,
+  key: string,
+  version: number,
+  changedBy: string
+): Promise<void> {
+  const db = getFirestore();
+  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+  const now = new Date().toISOString();
+
+  try {
+    // Query for active subscriptions matching this change
+    // 1. Exact match: namespace + key
+    // 2. Namespace-wide: namespace + null key
+    const exactMatchQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", key)
+      .where("active", "==", true);
+
+    const namespaceWideQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", null)
+      .where("active", "==", true);
+
+    const [exactMatches, namespaceWide] = await Promise.all([
+      exactMatchQuery.get(),
+      namespaceWideQuery.get(),
+    ]);
+
+    // Combine results
+    const allSubscriptions = [...exactMatches.docs, ...namespaceWide.docs];
+
+    if (allSubscriptions.length === 0) {
+      return; // No subscribers to notify
+    }
+
+    // Import sendMessageHandler
+    const { sendMessageHandler } = await import("./relay.js");
+
+    // Send notification to each subscriber
+    for (const subDoc of allSubscriptions) {
+      const subscription = subDoc.data();
+
+      // Dedup check: skip if already notified of this version or later
+      if (subscription.lastNotifiedVersion && subscription.lastNotifiedVersion >= version) {
+        continue;
+      }
+
+      const messageArgs = {
+        source: "gsp",
+        target: subscription.programId,
+        message_type: "RESULT" as const,
+        message: `[GSP_CHANGE] ${namespace}/${key} v${version} changed by ${changedBy} at ${now}. Use gsp_read() to fetch current value.`,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+
+        // Update subscription with notification tracking
+        await subDoc.ref.update({
+          lastNotifiedAt: now,
+          lastNotifiedVersion: version,
+        });
+      } catch (error) {
+        console.error(`[GSP Notify] Failed to notify subscriber ${subscription.programId}:`, error);
+        // Fire-and-forget: don't fail the state change if notification fails
+      }
+    }
+  } catch (error) {
+    console.error(`[GSP Notify] Error in notifySubscribers for ${namespace}/${key}:`, error);
+    // Fire-and-forget: don't propagate errors
+  }
+}
+
+// ── notifyProposalSubscribers ──────────────────────────────────────────────
+
+/**
+ * notifyProposalSubscribers — Send proposal lifecycle notifications to subscribers
+ * 
+ * @param auth - Auth context for sending messages
+ * @param namespace - GSP namespace of the proposal
+ * @param key - GSP key of the proposal
+ * @param message - Notification message to send
+ */
+async function notifyProposalSubscribers(
+  auth: AuthContext,
+  namespace: string,
+  key: string,
+  message: string
+): Promise<void> {
+  const db = getFirestore();
+  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+
+  try {
+    // Query for active subscriptions matching this proposal's target
+    // 1. Exact match: namespace + key
+    // 2. Namespace-wide: namespace + null key
+    const exactMatchQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", key)
+      .where("active", "==", true);
+
+    const namespaceWideQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", null)
+      .where("active", "==", true);
+
+    const [exactMatches, namespaceWide] = await Promise.all([
+      exactMatchQuery.get(),
+      namespaceWideQuery.get(),
+    ]);
+
+    // Combine results
+    const allSubscriptions = [...exactMatches.docs, ...namespaceWide.docs];
+
+    if (allSubscriptions.length === 0) {
+      return; // No subscribers to notify
+    }
+
+    // Import sendMessageHandler
+    const { sendMessageHandler } = await import("./relay.js");
+
+    // Send notification to each subscriber
+    for (const subDoc of allSubscriptions) {
+      const subscription = subDoc.data();
+
+      const messageArgs = {
+        source: "gsp",
+        target: subscription.programId,
+        message_type: "RESULT" as const,
+        message,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+      } catch (error) {
+        console.error(`[GSP Proposal Notify] Failed to notify subscriber ${subscription.programId}:`, error);
+        // Fire-and-forget: don't fail the proposal operation if notification fails
+      }
+    }
+  } catch (error) {
+    console.error(`[GSP Proposal Notify] Error in notifyProposalSubscribers for ${namespace}/${key}:`, error);
+    // Fire-and-forget: don't propagate errors
+  }
+}
+
+
 // ── gsp_write ───────────────────────────────────────────────────────────────
 
 export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -122,6 +286,8 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   // Governance enforcement: reject constitutional/architectural writes
   if (PROTECTED_TIERS.includes(args.tier as Tier)) {
+
+
     return jsonResult({
       success: false,
       error: "GOVERNANCE_VIOLATION",
@@ -175,6 +341,10 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
       version: newVersion,
     };
   });
+
+
+  // Notify subscribers of state change
+  await notifySubscribers(auth, args.namespace, args.key, result.version, args.source || auth.programId);
 
   return jsonResult({
     success: true,
@@ -815,32 +985,484 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   }
 }
 
-export async function gspProposeHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_propose called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_propose",
-    message: "gsp_propose is a Phase 2 feature. It will allow proposing changes to constitutional/architectural state.",
-  });
+
+// ── Story GSP-9a: gsp_propose implementation ────────────────────────────────
+
+const GspProposeSchema = z.object({
+  namespace: z.string().min(1).max(100),
+  key: z.string().min(1).max(200),
+  proposedValue: z.unknown(),
+  rationale: z.string().min(1).max(1000),
+  evidence: z.string().max(2000).optional(),
+});
+
+const GspResolveSchema = z.object({
+  proposalId: z.string().min(1),
+  decision: z.enum(["approved", "rejected", "withdrawn"]),
+  reasoning: z.string().max(1000).optional(),
+});
+
+const GspSubscribeSchema = z.object({
+  namespace: z.string().min(1).max(100),
+  key: z.string().min(1).max(200).optional(),
+  unsubscribe: z.boolean().optional().default(false),
+});
+
+
+export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspProposeSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Validate namespace/key and determine tier
+    const colPath = gspCollectionPath(auth.userId, args.namespace);
+    const docRef = db.doc(`${colPath}/${args.key}`);
+    const currentDoc = await docRef.get();
+
+    let tier: Tier;
+    let currentValue: unknown = null;
+
+    if (currentDoc.exists) {
+      // Key exists - get tier from existing entry
+      const data = currentDoc.data()!;
+      tier = data.tier as Tier;
+      currentValue = data.value;
+    } else {
+      // Key doesn't exist - check if namespace has any entries to infer tier
+      const namespaceSnap = await db.collection(colPath).limit(1).get();
+      
+      if (namespaceSnap.empty) {
+        return jsonResult({
+          success: false,
+          error: "NAMESPACE_NOT_FOUND",
+          message: `Namespace "${args.namespace}" does not exist or is empty. Cannot propose changes to non-existent namespace.`,
+        });
+      }
+      
+      // Infer tier from first entry in namespace
+      tier = namespaceSnap.docs[0].data().tier as Tier;
+    }
+
+    // Validate tier is constitutional or architectural
+    if (tier === "operational") {
+      return jsonResult({
+        success: false,
+        error: "GOVERNANCE_VIOLATION",
+        message: `Cannot propose changes to operational tier. Use gsp_write instead.`,
+      });
+    }
+
+    // Step 2: Check proposer's pending proposal quota (max 5)
+    const proposalsRef = db.collection(`tenants/${auth.userId}/gsp/_proposals`);
+    const pendingQuery = proposalsRef
+      .where("proposedBy", "==", auth.programId)
+      .where("status", "==", "pending");
+    
+    const pendingSnap = await pendingQuery.get();
+    if (pendingSnap.size >= 5) {
+      return jsonResult({
+        success: false,
+        error: "QUOTA_EXCEEDED",
+        message: `Proposal quota exceeded. Program "${auth.programId}" has ${pendingSnap.size} pending proposals (max 5).`,
+      });
+    }
+
+    // Step 3: Check for duplicate proposals
+    const duplicateQuery = proposalsRef
+      .where("namespace", "==", args.namespace)
+      .where("key", "==", args.key)
+      .where("proposedBy", "==", auth.programId)
+      .where("status", "==", "pending");
+    
+    const duplicateSnap = await duplicateQuery.get();
+    if (!duplicateSnap.empty) {
+      const existingProposalId = duplicateSnap.docs[0].id;
+      return jsonResult({
+        success: false,
+        error: "DUPLICATE_PROPOSAL",
+        message: `A pending proposal already exists for ${args.namespace}/${args.key} by ${auth.programId}. Proposal ID: ${existingProposalId}`,
+      });
+    }
+
+    // Step 4: Auto-assign reviewers based on tier
+    const reviewers = tier === "constitutional" ? ["flynn"] : ["vector"];
+
+    // Step 5: Set TTL (30 days from now)
+    const createdAt = now;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Step 6: Write proposal to Firestore
+    const proposalRef = proposalsRef.doc();
+    const proposalId = proposalRef.id;
+
+    const proposal = {
+      id: proposalId,
+      namespace: args.namespace,
+      key: args.key,
+      currentValue,
+      proposedValue: args.proposedValue,
+      rationale: args.rationale,
+      evidence: args.evidence || null,
+      proposedBy: auth.programId,
+      status: "pending",
+      reviewers,
+      createdAt,
+      expiresAt,
+      version: 1,
+    };
+
+    await proposalRef.set(proposal);
+
+    // Step 7: Send notification to each reviewer via send_message
+    const { sendMessageHandler } = await import("./relay.js");
+
+    for (const reviewer of reviewers) {
+      const messageArgs = {
+        source: "gsp",
+        target: reviewer,
+        message_type: "DIRECTIVE" as const,
+        message: `[GSP] New proposal: ${args.namespace}/${args.key} by ${auth.programId}. Rationale: ${args.rationale}. Use gsp_resolve(proposalId: '${proposalId}') to review.`,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+      } catch (error) {
+        console.error(`[GSP Propose] Failed to notify reviewer ${reviewer}:`, error);
+        // Don't fail the proposal if notification fails
+      }
+    }
+
+    // Step 7b: Notify subscribers of proposal creation
+    const proposalCreationMessage = `[GSP_PROPOSAL] New proposal for ${args.namespace}/${args.key} by ${auth.programId}: ${args.rationale}. ProposalId: ${proposalId}. Status: pending.`;
+    await notifyProposalSubscribers(auth, args.namespace, args.key, proposalCreationMessage);
+
+    // Step 8: Return success
+    return jsonResult({
+      success: true,
+      proposalId,
+      status: "pending",
+      reviewers,
+      expiresAt,
+      message: `Proposal created for ${tier} state: ${args.namespace}/${args.key}. Reviewers: ${reviewers.join(", ")}. Expires: ${expiresAt}`,
+    });
+
+  } catch (error) {
+    console.error("[GSP Propose] Error:", error);
+    return jsonResult({
+      success: false,
+      error: "PROPOSE_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error during proposal creation",
+    });
+  }
 }
 
-export async function gspSubscribeHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_subscribe called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_subscribe",
-    message: "gsp_subscribe is a Phase 2 feature. It will allow subscribing to state change notifications.",
-  });
+export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspSubscribeSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Validate namespace exists
+    const colPath = gspCollectionPath(auth.userId, args.namespace);
+    const namespaceSnap = await db.collection(colPath).limit(1).get();
+
+    if (namespaceSnap.empty) {
+      return jsonResult({
+        success: false,
+        error: "NAMESPACE_NOT_FOUND",
+        namespace: args.namespace,
+        message: `Namespace "${args.namespace}" does not exist. Cannot subscribe to non-existent namespace.`,
+      });
+    }
+
+    // Step 2: Get subscriber identity
+    const programId = auth.programId;
+
+    // Step 3: If unsubscribe === true, deactivate subscription
+    if (args.unsubscribe) {
+      const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+      const query = subsRef
+        .where("programId", "==", programId)
+        .where("namespace", "==", args.namespace)
+        .where("key", "==", args.key ?? null)
+        .where("active", "==", true)
+        .limit(1);
+
+      const existingSubs = await query.get();
+
+      if (existingSubs.empty) {
+        return jsonResult({
+          success: false,
+          error: "SUBSCRIPTION_NOT_FOUND",
+          programId,
+          namespace: args.namespace,
+          key: args.key ?? null,
+          message: `No active subscription found for ${programId} on ${args.namespace}${args.key ? `/${args.key}` : ""}`,
+        });
+      }
+
+      const subDoc = existingSubs.docs[0];
+      await subDoc.ref.update({ active: false, updatedAt: now });
+
+      return jsonResult({
+        success: true,
+        action: "unsubscribed",
+        subscriptionId: subDoc.id,
+        programId,
+        namespace: args.namespace,
+        key: args.key ?? null,
+      });
+    }
+
+    // Step 4: Check for duplicate subscription
+    const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+    const duplicateQuery = subsRef
+      .where("programId", "==", programId)
+      .where("namespace", "==", args.namespace)
+      .where("key", "==", args.key ?? null)
+      .where("active", "==", true)
+      .limit(1);
+
+    const duplicates = await duplicateQuery.get();
+
+    if (!duplicates.empty) {
+      return jsonResult({
+        success: false,
+        error: "DUPLICATE_SUBSCRIPTION",
+        existingSubscriptionId: duplicates.docs[0].id,
+        programId,
+        namespace: args.namespace,
+        key: args.key ?? null,
+        message: `Subscription already exists for ${programId} on ${args.namespace}${args.key ? `/${args.key}` : ""}`,
+      });
+    }
+
+    // Step 5: Write subscription to Firestore
+    const newSubRef = subsRef.doc(); // Auto-generate ID
+    const subscription = {
+      id: newSubRef.id,
+      programId,
+      namespace: args.namespace,
+      key: args.key ?? null,
+      callbackType: "message" as const,
+      createdAt: now,
+      lastNotifiedAt: null,
+      lastNotifiedVersion: null,
+      active: true,
+    };
+
+    await newSubRef.set(subscription);
+
+    // Step 6: Return success
+    return jsonResult({
+      success: true,
+      subscriptionId: newSubRef.id,
+      programId,
+      namespace: args.namespace,
+      key: args.key ?? null,
+      callbackType: "message",
+      message: `Subscribed to ${args.namespace}${args.key ? `/${args.key}` : ""} — will receive send_message callbacks on state changes.`,
+    });
+  } catch (error: unknown) {
+    console.error("[GSP] gsp_subscribe error:", error);
+    return jsonResult({
+      success: false,
+      error: "INTERNAL_ERROR",
+      message: error instanceof Error ? error.message : "Unknown error during subscription",
+    });
+  }
 }
 
-export async function gspResolveHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_resolve called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_resolve",
-    message: "gsp_resolve is a Phase 2 feature. It will resolve pending governance proposals.",
-  });
+export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspResolveSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Load proposal by ID
+    const proposalRef = db.doc(`tenants/${auth.userId}/gsp/_proposals/${args.proposalId}`);
+    const proposalDoc = await proposalRef.get();
+
+    if (!proposalDoc.exists) {
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_NOT_FOUND",
+        proposalId: args.proposalId,
+        message: `Proposal ${args.proposalId} not found.`,
+      });
+    }
+
+    const proposal = proposalDoc.data()!;
+
+    // Step 2: Check proposal status
+    if (proposal.status !== "pending") {
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_ALREADY_RESOLVED",
+        proposalId: args.proposalId,
+        currentStatus: proposal.status,
+        message: `Proposal ${args.proposalId} already resolved with status: ${proposal.status}`,
+      });
+    }
+
+    // Step 3: Check expiration
+    if (new Date(proposal.expiresAt) < new Date()) {
+      // Auto-expire the proposal
+      await proposalRef.update({
+        status: "expired",
+        resolvedAt: now,
+        version: proposal.version + 1,
+      });
+
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_EXPIRED",
+        proposalId: args.proposalId,
+        expiresAt: proposal.expiresAt,
+        message: `Proposal ${args.proposalId} expired at ${proposal.expiresAt}`,
+      });
+    }
+
+    // Step 4: Validate resolver authorization
+    if (args.decision === "withdrawn") {
+      // Only the proposer can withdraw
+      if (auth.programId !== proposal.proposedBy) {
+        return jsonResult({
+          success: false,
+          error: "UNAUTHORIZED",
+          proposalId: args.proposalId,
+          message: `Only the proposer (${proposal.proposedBy}) can withdraw this proposal. You are: ${auth.programId}`,
+        });
+      }
+    } else {
+      // approved or rejected - only reviewers can resolve
+      if (!proposal.reviewers.includes(auth.programId)) {
+        return jsonResult({
+          success: false,
+          error: "UNAUTHORIZED",
+          proposalId: args.proposalId,
+          reviewers: proposal.reviewers,
+          message: `Only assigned reviewers can approve/reject. Reviewers: ${proposal.reviewers.join(", ")}. You are: ${auth.programId}`,
+        });
+      }
+    }
+
+    // Step 5: If approved, apply state change atomically with proposal update
+    let stateUpdated = false;
+    let newVersionApplied = 0;
+    
+    if (args.decision === "approved") {
+      await db.runTransaction(async (txn) => {
+        // Apply the state change
+        const colPath = gspCollectionPath(auth.userId, proposal.namespace);
+        const stateDocRef = db.doc(`${colPath}/${proposal.key}`);
+        const existingState = await txn.get(stateDocRef);
+        const prevVersion = existingState.exists ? (existingState.data()!.version || 0) : 0;
+        const newVersion = prevVersion + 1;
+        newVersionApplied = newVersion;
+
+        // Get tier from existing entry or infer from namespace
+        let tier: Tier;
+        if (existingState.exists) {
+          tier = existingState.data()!.tier as Tier;
+        } else {
+          // Infer tier from namespace (we validated this during proposal creation)
+          const namespaceSnap = await db.collection(colPath).limit(1).get();
+          tier = namespaceSnap.empty ? "operational" : (namespaceSnap.docs[0].data().tier as Tier);
+        }
+
+        const stateEntry = {
+          key: proposal.key,
+          namespace: proposal.namespace,
+          value: proposal.proposedValue,
+          tier,
+          schemaVersion: GSP_SCHEMA_VERSION,
+          version: newVersion,
+          description: `Applied from proposal ${args.proposalId}`,
+          updatedAt: now,
+          updatedBy: `gsp:proposal:${args.proposalId}`,
+          ...(existingState.exists ? {} : { createdAt: now }),
+        };
+
+        txn.set(stateDocRef, stateEntry, { merge: true });
+
+        // Update the proposal document
+        txn.update(proposalRef, {
+          status: args.decision,
+          resolvedBy: auth.programId,
+          resolvedAt: now,
+          resolution: args.reasoning || "",
+          version: proposal.version + 1,
+        });
+      });
+
+      stateUpdated = true;
+    } else {
+      // For rejected or withdrawn, just update the proposal
+      await proposalRef.update({
+        status: args.decision,
+        resolvedBy: auth.programId,
+        resolvedAt: now,
+        resolution: args.reasoning || "",
+        version: proposal.version + 1,
+      });
+    }
+
+
+    // Notify subscribers if state was updated
+    if (stateUpdated) {
+      await notifySubscribers(auth, proposal.namespace, proposal.key, newVersionApplied, "gsp");
+    }
+
+    // Step 6: Notify proposer
+    const { sendMessageHandler } = await import("./relay.js");
+    
+    const notificationMessage = args.reasoning
+      ? `[GSP] Proposal ${args.proposalId} ${args.decision}: ${proposal.namespace}/${proposal.key}. ${args.reasoning}`
+      : `[GSP] Proposal ${args.proposalId} ${args.decision}: ${proposal.namespace}/${proposal.key}`;
+
+    const messageArgs = {
+      source: "gsp",
+      target: proposal.proposedBy,
+      message_type: "RESULT" as const,
+      message: notificationMessage,
+      priority: "normal" as const,
+      action: "queue" as const,
+    };
+
+    try {
+      await sendMessageHandler(auth, messageArgs);
+    } catch (error) {
+      console.error(`[GSP Resolve] Failed to notify proposer ${proposal.proposedBy}:`, error);
+      // Don't fail the resolution if notification fails
+    }
+
+    // Step 6b: Notify subscribers of proposal resolution
+    const resolutionMessage = args.reasoning
+      ? `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}. ${args.reasoning}`
+      : `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}.`;
+    await notifyProposalSubscribers(auth, proposal.namespace, proposal.key, resolutionMessage);
+
+    // Step 7: Return success
+    return jsonResult({
+      success: true,
+      proposalId: args.proposalId,
+      decision: args.decision,
+      stateUpdated,
+      message: stateUpdated 
+        ? `Proposal ${args.proposalId} approved. State updated: ${proposal.namespace}/${proposal.key}`
+        : `Proposal ${args.proposalId} ${args.decision}.`,
+    });
+
+  } catch (error) {
+    console.error("[GSP Resolve] Error:", error);
+    return jsonResult({
+      success: false,
+      error: "RESOLVE_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error during proposal resolution",
+    });
+  }
 }
