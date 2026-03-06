@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
+import { isAdmin } from "../middleware/gate.js";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -58,7 +59,7 @@ const CommsMetricsSchema = z.object({
 
 export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
-  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (!isAdmin(auth)) {
     return jsonResult({
       success: false,
       error: "get_comms_metrics is only accessible by admin.",
@@ -206,7 +207,7 @@ const OperationalMetricsSchema = z.object({
 
 export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
-  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (!isAdmin(auth)) {
     return jsonResult({ success: false, error: "get_operational_metrics is only accessible by admin." });
   }
 

@@ -5,6 +5,7 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
+import { isAdmin } from "../middleware/gate.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
@@ -22,7 +23,7 @@ function jsonResult(data: unknown): ToolResult {
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only (legacy/mobile keys)
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator" && auth.programId !== "dispatcher") {
+  if (!isAdmin(auth)) {
     return jsonResult({
       success: false,
       error: "Audit log is only accessible by admin.",
