@@ -64,6 +64,51 @@ function gspCollectionPath(userId: string, namespace: string): string {
   return `tenants/${userId}/gsp/${namespace}/entries`;
 }
 
+// ── Condensed Guiding Light digest for bootstrap (~500 tokens) ──────────────
+// Full Constitution lives in CONSTITUTION.md and Firestore constitutional tier.
+// This digest is returned by gsp_bootstrap for standard/essential depth to cut boot context cost.
+const GUIDING_LIGHT_DIGEST = `## Core Tenets
+
+I. **Productization Engine** — Scale via code, not headcount. Client problems solved once become products that solve them a thousand times. Consulting is R&D; products are the revenue engine.
+
+II. **Apple Standard** — Enterprise-grade without complexity. Subtract to Add: if a feature doesn't feel like magic, don't ship it. Every dependency is a liability.
+
+III. **Fail Fast, Derez Faster** — POCs that don't prove willingness to pay get derezzed. No extensions, no "one more feature."
+
+IV. **Learning Loop** — Every program is student and mentor. Document through Afterglow Protocol. If it isn't documented, it doesn't exist.
+
+V. **Perpetual Beta** — Constant self-improvement. Reliability is a feature. Ship to learn; metrics are the verdict.
+
+VI. **Token Discipline** — Every token is oxygen. Right model, right task. Scope to minimum viable output. Measure everything.
+
+VII. **Cultural Filter** — Programs embody Curiosity, Craft, and Candor. Uncertainty quantification is mandatory.
+
+VIII. **Build Forward** — No sunk cost thinking. Momentum over perfection. Deprecate with purpose.
+
+IX. **Joy Principle** — Tron mythology is deliberate engagement. Grid time = cycles, not hours. Burnout is a bug.
+
+X. **Conserve Resources** — Opus thinks, Sonnet executes, Haiku validates. Idle cycles cost nothing. Waste is a bug.
+
+## Model Tiers
+
+| Tier | Model | Role |
+|------|-------|------|
+| Architect | Opus 4.6 | Strategic thinking, system design, code review, complex reasoning |
+| Specialist | Sonnet 4.5 | Coding, writing, research, analysis — workhorse tier |
+| Worker | Haiku 4.5 | Classification, routing, validation, formatting |
+
+Rule: Tier can be dynamically adjusted. Demote trivial Specialist tasks to Worker; escalate complex Worker tasks to Specialist.
+
+## Delegation Matrix
+
+| Level | Criteria | Review Gate |
+|-------|----------|-------------|
+| Auto-delegate | Verifiable output, well-defined scope, low-stakes | Format lock validation |
+| Supervised | Medium complexity, touches production, needs taste | ISO review + spot-check |
+| Flynn-reserved | Strategy, vision, client relationships, pricing, branding | Flynn approval required |
+
+Full Constitution: CONSTITUTION.md`;
+
 // ── gsp_read ────────────────────────────────────────────────────────────────
 
 export async function gspReadHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -659,22 +704,20 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
       // Apply depth-based filtering for constitutional content
       if (depth === "essential") {
-        // Essential: only core hard rules, truncate to fit ~500 bytes
+        // Essential: minimal hard rules + condensed digest
         payload.constitutional.hardRules = hardRules.slice(0, 3);
         payload.constitutional.escalationPolicy = [];
-        const digest = guidingLightContent || "Core constitutional principles loaded";
-        payload.constitutional.guidingLightDigest = digest.length > 200 ? digest.substring(0, 200) + "..." : digest;
+        payload.constitutional.guidingLightDigest = GUIDING_LIGHT_DIGEST;
       } else if (depth === "standard") {
-        // Standard: include hard rules and brief guiding light digest
+        // Standard: hard rules + condensed digest (~500 tokens vs ~3K verbatim)
         payload.constitutional.hardRules = hardRules.slice(0, 10);
         payload.constitutional.escalationPolicy = escalationPolicy.slice(0, 5);
-        const digest = guidingLightContent || `Loaded ${constitutionalSnap.size} constitutional entries`;
-        payload.constitutional.guidingLightDigest = digest.length > 1000 ? digest.substring(0, 1000) + "..." : digest;
+        payload.constitutional.guidingLightDigest = GUIDING_LIGHT_DIGEST;
       } else {
-        // Full: include everything
+        // Full: include raw CONSTITUTION.md content from Firestore
         payload.constitutional.hardRules = hardRules;
         payload.constitutional.escalationPolicy = escalationPolicy;
-        payload.constitutional.guidingLightDigest = guidingLightContent || `Loaded ${constitutionalSnap.size} constitutional entries`;
+        payload.constitutional.guidingLightDigest = guidingLightContent || GUIDING_LIGHT_DIGEST;
       }
     } catch (err) {
       console.warn("[GSP Bootstrap] Failed to load constitutional state:", err);
