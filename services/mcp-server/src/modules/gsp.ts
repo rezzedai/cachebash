@@ -164,8 +164,15 @@ async function notifySubscribers(
       return; // No subscribers to notify
     }
 
-    // Import sendMessageHandler
+    // Fetch current state value for webhook payloads
+    const colPath = gspCollectionPath(auth.userId, namespace);
+    const docRef = db.doc(`${colPath}/${key}`);
+    const currentDoc = await docRef.get();
+    const currentValue = currentDoc.exists ? currentDoc.data()!.value : null;
+
+    // Import dependencies
     const { sendMessageHandler } = await import("./relay.js");
+    const { dispatchWebhook } = await import("./webhookDispatcher.js");
 
     // Send notification to each subscriber
     for (const subDoc of allSubscriptions) {
@@ -176,23 +183,54 @@ async function notifySubscribers(
         continue;
       }
 
-      const messageArgs = {
-        source: "gsp",
-        target: subscription.programId,
-        message_type: "RESULT" as const,
-        message: `[GSP_CHANGE] ${namespace}/${key} v${version} changed by ${changedBy} at ${now}. Use gsp_read() to fetch current value.`,
-        priority: "normal" as const,
-        action: "queue" as const,
-      };
-
       try {
-        await sendMessageHandler(auth, messageArgs);
+        // Route based on callback type
+        if (subscription.callbackType === "webhook") {
+          // Webhook notification
+          const webhookEvent = {
+            event: "state_change" as const,
+            namespace,
+            key,
+            value: currentValue,
+            version,
+            updatedAt: now,
+            updatedBy: changedBy,
+          };
+
+          const webhookSub = {
+            id: subscription.id,
+            callbackUrl: subscription.callbackUrl,
+            secret: subscription.secret,
+            programId: subscription.programId,
+            namespace: subscription.namespace,
+            key: subscription.key,
+          };
+
+          // Fire webhook asynchronously (don't await - fire-and-forget)
+          dispatchWebhook(webhookSub, webhookEvent, auth.userId).catch(error => {
+            console.error(`[GSP Notify] Webhook dispatch failed for ${subscription.id}:`, error);
+          });
+
+        } else {
+          // Message-based notification (original behavior)
+          const messageArgs = {
+            source: "gsp",
+            target: subscription.programId,
+            message_type: "RESULT" as const,
+            message: `[GSP_CHANGE] ${namespace}/${key} v${version} changed by ${changedBy} at ${now}. Use gsp_read() to fetch current value.`,
+            priority: "normal" as const,
+            action: "queue" as const,
+          };
+
+          await sendMessageHandler(auth, messageArgs);
+        }
 
         // Update subscription with notification tracking
         await subDoc.ref.update({
           lastNotifiedAt: now,
           lastNotifiedVersion: version,
         });
+
       } catch (error) {
         console.error(`[GSP Notify] Failed to notify subscriber ${subscription.programId}:`, error);
         // Fire-and-forget: don't fail the state change if notification fails
@@ -1005,8 +1043,23 @@ const GspResolveSchema = z.object({
 const GspSubscribeSchema = z.object({
   namespace: z.string().min(1).max(100),
   key: z.string().min(1).max(200).optional(),
+  callbackType: z.enum(["message", "webhook"]).optional().default("message"),
+  callbackUrl: z.string().max(500).url().optional(),
+  secret: z.string().max(200).optional(),
   unsubscribe: z.boolean().optional().default(false),
-});
+}).refine(
+  (data) => {
+    // If callbackType is webhook, callbackUrl is required
+    if (data.callbackType === "webhook" && !data.callbackUrl) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "callbackUrl is required when callbackType is 'webhook'",
+    path: ["callbackUrl"],
+  }
+);
 
 
 export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -1242,17 +1295,25 @@ export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): 
 
     // Step 5: Write subscription to Firestore
     const newSubRef = subsRef.doc(); // Auto-generate ID
-    const subscription = {
+    const subscription: any = {
       id: newSubRef.id,
       programId,
       namespace: args.namespace,
       key: args.key ?? null,
-      callbackType: "message" as const,
+      callbackType: args.callbackType ?? "message",
       createdAt: now,
       lastNotifiedAt: null,
       lastNotifiedVersion: null,
       active: true,
     };
+
+    // Add webhook-specific fields if callbackType is webhook
+    if (args.callbackType === "webhook") {
+      subscription.callbackUrl = args.callbackUrl;
+      if (args.secret) {
+        subscription.secret = args.secret; // Store plaintext for now; encrypt in production
+      }
+    }
 
     await newSubRef.set(subscription);
 
@@ -1263,8 +1324,11 @@ export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): 
       programId,
       namespace: args.namespace,
       key: args.key ?? null,
-      callbackType: "message",
-      message: `Subscribed to ${args.namespace}${args.key ? `/${args.key}` : ""} — will receive send_message callbacks on state changes.`,
+      callbackType: args.callbackType ?? "message",
+      callbackUrl: args.callbackType === "webhook" ? args.callbackUrl : undefined,
+      message: args.callbackType === "webhook" 
+        ? `Subscribed to ${args.namespace}${args.key ? `/${args.key}` : ""} — webhooks will be POSTed to ${args.callbackUrl} on state changes.`
+        : `Subscribed to ${args.namespace}${args.key ? `/${args.key}` : ""} — will receive send_message callbacks on state changes.`,
     });
   } catch (error: unknown) {
     console.error("[GSP] gsp_subscribe error:", error);
