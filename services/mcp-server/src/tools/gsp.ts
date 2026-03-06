@@ -13,6 +13,7 @@ import {
   gspProposeHandler,
   gspSubscribeHandler,
   gspResolveHandler,
+  gspSearchHandler,
 } from "../modules/gsp.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -26,6 +27,7 @@ export const handlers: Record<string, Handler> = {
   gsp_propose: gspProposeHandler,
   gsp_subscribe: gspSubscribeHandler,
   gsp_resolve: gspResolveHandler,
+  gsp_search: gspSearchHandler,
 };
 
 export const definitions = [
@@ -186,6 +188,40 @@ export const definitions = [
         reasoning: { type: "string", description: "Reason for the decision (optional)", maxLength: 1000 },
       },
       required: ["proposalId", "decision"],
+    },
+  },
+  {
+    name: "gsp_search",
+    description: "Search GSP state entries by text query. Searches across keys, values, and descriptions. Returns scored results ranked by relevance.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: { 
+          type: "string", 
+          description: "Search text to match against keys, descriptions, and values", 
+          minLength: 1, 
+          maxLength: 200 
+        },
+        namespace: { 
+          type: "string", 
+          description: "Optional: limit search to specific namespace. Omit to search across all namespaces.", 
+          minLength: 1, 
+          maxLength: 100 
+        },
+        tier: {
+          type: "string",
+          description: "Optional: filter by governance tier",
+          enum: ["constitutional", "architectural", "operational"],
+        },
+        limit: { 
+          type: "number", 
+          description: "Max results to return (default 20, max 50)", 
+          minimum: 1, 
+          maximum: 50, 
+          default: 20 
+        },
+      },
+      required: ["query"],
     },
   },
 ];
