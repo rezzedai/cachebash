@@ -204,6 +204,81 @@ async function notifySubscribers(
   }
 }
 
+// ── notifyProposalSubscribers ──────────────────────────────────────────────
+
+/**
+ * notifyProposalSubscribers — Send proposal lifecycle notifications to subscribers
+ * 
+ * @param auth - Auth context for sending messages
+ * @param namespace - GSP namespace of the proposal
+ * @param key - GSP key of the proposal
+ * @param message - Notification message to send
+ */
+async function notifyProposalSubscribers(
+  auth: AuthContext,
+  namespace: string,
+  key: string,
+  message: string
+): Promise<void> {
+  const db = getFirestore();
+  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+
+  try {
+    // Query for active subscriptions matching this proposal's target
+    // 1. Exact match: namespace + key
+    // 2. Namespace-wide: namespace + null key
+    const exactMatchQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", key)
+      .where("active", "==", true);
+
+    const namespaceWideQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", null)
+      .where("active", "==", true);
+
+    const [exactMatches, namespaceWide] = await Promise.all([
+      exactMatchQuery.get(),
+      namespaceWideQuery.get(),
+    ]);
+
+    // Combine results
+    const allSubscriptions = [...exactMatches.docs, ...namespaceWide.docs];
+
+    if (allSubscriptions.length === 0) {
+      return; // No subscribers to notify
+    }
+
+    // Import sendMessageHandler
+    const { sendMessageHandler } = await import("./relay.js");
+
+    // Send notification to each subscriber
+    for (const subDoc of allSubscriptions) {
+      const subscription = subDoc.data();
+
+      const messageArgs = {
+        source: "gsp",
+        target: subscription.programId,
+        message_type: "RESULT" as const,
+        message,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+      } catch (error) {
+        console.error(`[GSP Proposal Notify] Failed to notify subscriber ${subscription.programId}:`, error);
+        // Fire-and-forget: don't fail the proposal operation if notification fails
+      }
+    }
+  } catch (error) {
+    console.error(`[GSP Proposal Notify] Error in notifyProposalSubscribers for ${namespace}/${key}:`, error);
+    // Fire-and-forget: don't propagate errors
+  }
+}
+
+
 // ── gsp_write ───────────────────────────────────────────────────────────────
 
 export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -1060,6 +1135,10 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
       }
     }
 
+    // Step 7b: Notify subscribers of proposal creation
+    const proposalCreationMessage = `[GSP_PROPOSAL] New proposal for ${args.namespace}/${args.key} by ${auth.programId}: ${args.rationale}. ProposalId: ${proposalId}. Status: pending.`;
+    await notifyProposalSubscribers(auth, args.namespace, args.key, proposalCreationMessage);
+
     // Step 8: Return success
     return jsonResult({
       success: true,
@@ -1360,6 +1439,12 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
       console.error(`[GSP Resolve] Failed to notify proposer ${proposal.proposedBy}:`, error);
       // Don't fail the resolution if notification fails
     }
+
+    // Step 6b: Notify subscribers of proposal resolution
+    const resolutionMessage = args.reasoning
+      ? `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}. ${args.reasoning}`
+      : `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}.`;
+    await notifyProposalSubscribers(auth, proposal.namespace, proposal.key, resolutionMessage);
 
     // Step 7: Return success
     return jsonResult({
