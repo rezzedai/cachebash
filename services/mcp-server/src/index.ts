@@ -37,6 +37,7 @@ import { handleOAuthCallback } from "./oauth/callback.js";
 import { handleOAuthToken, cleanupCcRateLimits } from "./oauth/token.js";
 import { handleOAuthRevoke } from "./oauth/revoke.js";
 import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
+import { validateOidcToken } from "./auth/oidcValidator.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -396,16 +397,15 @@ async function main() {
       return restRouter(req, res);
     }
 
-    // Auth guard for all /v1/internal/* endpoints (SARK C-1)
+    // Auth guard for all /v1/internal/* endpoints — OIDC JWT from Cloud Scheduler SA
     if (url?.startsWith("/v1/internal/")) {
       const internalToken = extractBearerToken(req.headers.authorization);
       if (!internalToken) {
         return sendJson(res, 401, { error: "Missing Authorization header" });
       }
-      const internalProgramId = req.headers["x-program-id"] as string | undefined;
-      const internalAuth = await validateAuth(internalToken, internalProgramId);
-      if (!internalAuth) {
-        return sendJson(res, 401, { error: "Invalid API key" });
+      const verifiedEmail = await validateOidcToken(internalToken);
+      if (!verifiedEmail) {
+        return sendJson(res, 403, { error: "Invalid or unauthorized OIDC token" });
       }
     }
 
