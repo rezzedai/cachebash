@@ -1530,3 +1530,141 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
     });
   }
 }
+
+
+// ── Search schema ───────────────────────────────────────────────────────────
+const GspSearchSchema = z.object({
+  query: z.string().min(1).max(200),
+  namespace: z.string().min(1).max(100).optional(),
+  tier: z.enum(TIERS).optional(),
+  limit: z.number().min(1).max(50).default(20),
+});
+
+// ── Search handler ──────────────────────────────────────────────────────────
+export async function gspSearchHandler(
+  auth: AuthContext,
+  rawArgs: unknown
+): Promise<ToolResult> {
+  const args = GspSearchSchema.parse(rawArgs);
+  const db = getFirestore();
+  const userId = auth.userId;
+  const queryLower = args.query.toLowerCase();
+
+  try {
+    let entriesRef;
+    if (args.namespace) {
+      // Search within a specific namespace
+      entriesRef = db
+        .collection(`tenants/${userId}/gsp/${args.namespace}/entries`);
+    } else {
+      // Cross-namespace search using collection group
+      entriesRef = db
+        .collectionGroup('entries')
+        .where('__name__', '>=', `tenants/${userId}/gsp/`)
+        .where('__name__', '<', `tenants/${userId}/gsp/\uffff`);
+    }
+
+    // Apply tier filter if specified
+    if (args.tier) {
+      entriesRef = entriesRef.where('tier', '==', args.tier);
+    }
+
+    const snapshot = await entriesRef.get();
+    
+    interface ScoredEntry {
+      namespace: string;
+      key: string;
+      tier: Tier;
+      description?: string;
+      value: any;
+      score: number;
+      updatedAt: string;
+      updatedBy: string;
+      valueTruncated?: boolean;
+    }
+
+    const scoredEntries: ScoredEntry[] = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const entryKey = data.key || doc.id;
+      const entryNamespace = args.namespace || doc.ref.parent.parent?.id || 'unknown';
+      
+      let score = 0;
+
+      // Score based on key match
+      const keyLower = entryKey.toLowerCase();
+      if (keyLower === queryLower) {
+        score += 10; // Exact match
+      } else if (keyLower.includes(queryLower)) {
+        score += 7; // Contains query
+      }
+
+      // Score based on description match
+      if (data.description) {
+        const descLower = data.description.toLowerCase();
+        if (descLower.includes(queryLower)) {
+          score += 5;
+        }
+      }
+
+      // Score based on value match (stringify and search)
+      try {
+        const valueStr = JSON.stringify(data.value).toLowerCase();
+        if (valueStr.includes(queryLower)) {
+          score += 3;
+        }
+      } catch {
+        // Skip if value can't be stringified
+      }
+
+      // Only include entries with non-zero scores
+      if (score > 0) {
+        // Truncate large values for display
+        let displayValue = data.value;
+        let valueTruncated = false;
+        const valueStr = JSON.stringify(data.value);
+        if (valueStr.length > 500) {
+          displayValue = valueStr.substring(0, 500) + '...';
+          valueTruncated = true;
+        }
+
+        scoredEntries.push({
+          namespace: entryNamespace,
+          key: entryKey,
+          tier: data.tier,
+          description: data.description,
+          value: displayValue,
+          score,
+          updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || 'unknown',
+          updatedBy: data.updatedBy || 'unknown',
+          valueTruncated,
+        });
+      }
+    });
+
+    // Sort by score descending, then by key ascending
+    scoredEntries.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.key.localeCompare(b.key);
+    });
+
+    // Apply limit
+    const results = scoredEntries.slice(0, args.limit);
+
+    return jsonResult({
+      success: true,
+      query: args.query,
+      namespace: args.namespace || 'all',
+      tier: args.tier || 'all',
+      matchCount: scoredEntries.length,
+      returnedCount: results.length,
+      results,
+    });
+  } catch (err: any) {
+    return jsonResult({
+      success: false,
+      error: `Search failed: ${err.message}`,
+    });
+  }
+}
