@@ -4,7 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import { verifySource } from "../middleware/gate.js";
+import { verifySource, isAdmin } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
@@ -470,7 +470,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const db = getFirestore();
 
   // Programs see own sent only; admin can pass optional source to see any
-  const isPrivileged = ["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId);
+  const isPrivileged = isAdmin(auth);
   const source = isPrivileged && args.source ? args.source : auth.programId;
 
   let query: admin.firestore.Query = db
@@ -514,7 +514,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only (legacy/mobile keys)
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "orchestrator" && auth.programId !== "dispatcher") {
+  if (!isAdmin(auth)) {
     return jsonResult({
       success: false,
       error: "Dead letter queue is only accessible by admin.",
@@ -585,7 +585,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   }
 
   // Admin only gate
-  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (!isAdmin(auth)) {
     return jsonResult({
       success: false,
       error: "query_message_history is only accessible by admin.",
