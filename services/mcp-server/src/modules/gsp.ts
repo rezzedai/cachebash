@@ -115,6 +115,95 @@ export async function gspReadHandler(auth: AuthContext, rawArgs: unknown): Promi
   });
 }
 
+
+// ── Subscription Notification Helper ───────────────────────────────────────
+
+/**
+ * notifySubscribers — Send notifications to all active subscribers for a state change
+ * 
+ * @param auth - Auth context for sending messages
+ * @param namespace - GSP namespace that changed
+ * @param key - GSP key that changed
+ * @param version - New version number
+ * @param changedBy - Program ID or source that made the change
+ */
+async function notifySubscribers(
+  auth: AuthContext,
+  namespace: string,
+  key: string,
+  version: number,
+  changedBy: string
+): Promise<void> {
+  const db = getFirestore();
+  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+  const now = new Date().toISOString();
+
+  try {
+    // Query for active subscriptions matching this change
+    // 1. Exact match: namespace + key
+    // 2. Namespace-wide: namespace + null key
+    const exactMatchQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", key)
+      .where("active", "==", true);
+
+    const namespaceWideQuery = db.collection(subscriptionsPath)
+      .where("namespace", "==", namespace)
+      .where("key", "==", null)
+      .where("active", "==", true);
+
+    const [exactMatches, namespaceWide] = await Promise.all([
+      exactMatchQuery.get(),
+      namespaceWideQuery.get(),
+    ]);
+
+    // Combine results
+    const allSubscriptions = [...exactMatches.docs, ...namespaceWide.docs];
+
+    if (allSubscriptions.length === 0) {
+      return; // No subscribers to notify
+    }
+
+    // Import sendMessageHandler
+    const { sendMessageHandler } = await import("./relay.js");
+
+    // Send notification to each subscriber
+    for (const subDoc of allSubscriptions) {
+      const subscription = subDoc.data();
+
+      // Dedup check: skip if already notified of this version or later
+      if (subscription.lastNotifiedVersion && subscription.lastNotifiedVersion >= version) {
+        continue;
+      }
+
+      const messageArgs = {
+        source: "gsp",
+        target: subscription.programId,
+        message_type: "RESULT" as const,
+        message: `[GSP_CHANGE] ${namespace}/${key} v${version} changed by ${changedBy} at ${now}. Use gsp_read() to fetch current value.`,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+
+        // Update subscription with notification tracking
+        await subDoc.ref.update({
+          lastNotifiedAt: now,
+          lastNotifiedVersion: version,
+        });
+      } catch (error) {
+        console.error(`[GSP Notify] Failed to notify subscriber ${subscription.programId}:`, error);
+        // Fire-and-forget: don't fail the state change if notification fails
+      }
+    }
+  } catch (error) {
+    console.error(`[GSP Notify] Error in notifySubscribers for ${namespace}/${key}:`, error);
+    // Fire-and-forget: don't propagate errors
+  }
+}
+
 // ── gsp_write ───────────────────────────────────────────────────────────────
 
 export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -122,6 +211,8 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   // Governance enforcement: reject constitutional/architectural writes
   if (PROTECTED_TIERS.includes(args.tier as Tier)) {
+
+
     return jsonResult({
       success: false,
       error: "GOVERNANCE_VIOLATION",
@@ -175,6 +266,10 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
       version: newVersion,
     };
   });
+
+
+  // Notify subscribers of state change
+  await notifySubscribers(auth, args.namespace, args.key, result.version, args.source || auth.programId);
 
   return jsonResult({
     success: true,
@@ -1178,6 +1273,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
 
     // Step 5: If approved, apply state change atomically with proposal update
     let stateUpdated = false;
+    let newVersionApplied = 0;
     
     if (args.decision === "approved") {
       await db.runTransaction(async (txn) => {
@@ -1187,6 +1283,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         const existingState = await txn.get(stateDocRef);
         const prevVersion = existingState.exists ? (existingState.data()!.version || 0) : 0;
         const newVersion = prevVersion + 1;
+        newVersionApplied = newVersion;
 
         // Get tier from existing entry or infer from namespace
         let tier: Tier;
@@ -1233,6 +1330,12 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         resolution: args.reasoning || "",
         version: proposal.version + 1,
       });
+    }
+
+
+    // Notify subscribers if state was updated
+    if (stateUpdated) {
+      await notifySubscribers(auth, proposal.namespace, proposal.key, newVersionApplied, "gsp");
     }
 
     // Step 6: Notify proposer
