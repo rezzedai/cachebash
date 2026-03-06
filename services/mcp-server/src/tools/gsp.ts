@@ -63,7 +63,7 @@ export const definitions = [
           default: "operational",
         },
         description: { type: "string", description: "Human-readable description of this entry", maxLength: 500 },
-        source: { type: "string", description: "Override the updatedBy field (defaults to programId)", maxLength: 100 },
+        source: { type: "string", description: "Override the updatedBy field (defaults to agentId)", maxLength: 100 },
       },
       required: ["namespace", "key", "value"],
     },
@@ -84,15 +84,15 @@ export const definitions = [
   },
   {
     name: "gsp_bootstrap",
-    description: "Get full context payload for a program boot. Single call replaces 4+ boot API calls. Returns identity, constitutional state, operational state, program memory, and pending context.",
+    description: "Get full context payload for an agent boot. Single call replaces 4+ boot API calls. Returns identity, constitutional state, operational state, agent memory, and pending context.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        programId: { 
-          type: "string", 
-          description: "Program ID to bootstrap (e.g., 'vector', 'iso', 'basher')", 
-          minLength: 1, 
-          maxLength: 100 
+        agentId: {
+          type: "string",
+          description: "The agent identifier (program name) to bootstrap (e.g., 'vector', 'iso', 'basher')",
+          minLength: 1,
+          maxLength: 100
         },
         depth: {
           type: "string",
@@ -101,7 +101,7 @@ export const definitions = [
           default: "standard"
         },
       },
-      required: ["programId"],
+      required: ["agentId"],
     },
   },
   {

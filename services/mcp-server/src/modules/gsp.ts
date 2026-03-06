@@ -397,12 +397,12 @@ export async function gspDiffHandler(auth: AuthContext, rawArgs: unknown): Promi
 // ── Phase 2 stubs ───────────────────────────────────────────────────────────
 
 const GspBootstrapSchema = z.object({
-  programId: z.string().min(1).max(100),
+  agentId: z.string().min(1).max(100),
   depth: z.enum(["essential", "standard", "full"]).default("standard"),
 });
 
 interface BootstrapPayload {
-  programId: string;
+  agentId: string;
   gspVersion: string;
   generatedAt: string;
   identity: {
@@ -482,7 +482,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
   try {
     // Initialize payload
     const payload: BootstrapPayload = {
-      programId: args.programId,
+      agentId: args.agentId,
       gspVersion: "1.0",
       generatedAt: now,
       identity: {
@@ -527,7 +527,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
     // 1. Identity — Read from program registry
     try {
-      const programDoc = await db.doc(`tenants/${auth.userId}/programs/${args.programId}`).get();
+      const programDoc = await db.doc(`tenants/${auth.userId}/programs/${args.agentId}`).get();
       if (programDoc.exists) {
         const programData = programDoc.data()!;
         payload.identity.role = programData.role || null;
@@ -539,10 +539,10 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
         payload.identity.capabilities = programData.capabilities && programData.capabilities.length > 0
           ? programData.capabilities
-          : getDefaultCapabilities(args.programId as ValidProgramId);
+          : getDefaultCapabilities(args.agentId as ValidProgramId);
       }
     } catch (err) {
-      console.warn(`[GSP Bootstrap] Failed to load identity for ${args.programId}:`, err);
+      console.warn(`[GSP Bootstrap] Failed to load identity for ${args.agentId}:`, err);
     }
 
     // 2. Constitutional — Read from GSP constitutional namespace
@@ -781,7 +781,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
     // 5. Memory — Program state
     try {
-      const stateDoc = await db.doc(`tenants/${auth.userId}/programs/${args.programId}/state`).get();
+      const stateDoc = await db.doc(`tenants/${auth.userId}/programs/${args.agentId}/state`).get();
 
       if (stateDoc.exists) {
         const stateData = stateDoc.data()!;
@@ -832,7 +832,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       // Pending tasks
       const tasksSnap = await db
         .collection(`tenants/${auth.userId}/tasks`)
-        .where("target", "==", args.programId)
+        .where("target", "==", args.agentId)
         .where("status", "==", "created")
         .orderBy("priority")
         .orderBy("createdAt", "desc")
@@ -852,7 +852,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       // Unread messages
       const messagesSnap = await db
         .collection(`tenants/${auth.userId}/relay`)
-        .where("target", "==", args.programId)
+        .where("target", "==", args.agentId)
         .where("status", "==", "pending")
         .orderBy("priority")
         .orderBy("createdAt", "desc")
@@ -877,7 +877,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({
       success: true,
       payload,
-      message: `Bootstrap payload generated for ${args.programId}`,
+      message: `Bootstrap payload generated for ${args.agentId}`,
     });
   } catch (error) {
     console.error("[GSP Bootstrap] Error:", error);
