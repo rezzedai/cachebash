@@ -135,7 +135,7 @@ async function notifySubscribers(
   changedBy: string
 ): Promise<void> {
   const db = getFirestore();
-  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+  const subscriptionsPath = `tenants/${auth.userId}/gsp_subscriptions`;
   const now = new Date().toISOString();
 
   try {
@@ -221,7 +221,7 @@ async function notifyProposalSubscribers(
   message: string
 ): Promise<void> {
   const db = getFirestore();
-  const subscriptionsPath = `tenants/${auth.userId}/gsp/_subscriptions`;
+  const subscriptionsPath = `tenants/${auth.userId}/gsp_subscriptions`;
 
   try {
     // Query for active subscriptions matching this proposal's target
@@ -703,7 +703,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         // Check for pending proposals (only for full depth and orchestrators/admin)
         if (depth === "full" && (payload.identity.role === "orchestrator" || payload.identity.role === "admin")) {
           const proposalsSnap = await db
-            .collection(`tenants/${auth.userId}/gsp/_proposals`)
+            .collection(`tenants/${auth.userId}/gsp_proposals`)
             .where("status", "==", "pending")
             .limit(20)
             .get();
@@ -1054,7 +1054,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
     }
 
     // Step 2: Check proposer's pending proposal quota (max 5)
-    const proposalsRef = db.collection(`tenants/${auth.userId}/gsp/_proposals`);
+    const proposalsRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
     const pendingQuery = proposalsRef
       .where("proposedBy", "==", auth.programId)
       .where("status", "==", "pending");
@@ -1183,7 +1183,7 @@ export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): 
 
     // Step 3: If unsubscribe === true, deactivate subscription
     if (args.unsubscribe) {
-      const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+      const subsRef = db.collection(`tenants/${auth.userId}/gsp_subscriptions`);
       const query = subsRef
         .where("programId", "==", programId)
         .where("namespace", "==", args.namespace)
@@ -1218,7 +1218,7 @@ export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): 
     }
 
     // Step 4: Check for duplicate subscription
-    const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+    const subsRef = db.collection(`tenants/${auth.userId}/gsp_subscriptions`);
     const duplicateQuery = subsRef
       .where("programId", "==", programId)
       .where("namespace", "==", args.namespace)
@@ -1283,7 +1283,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
 
   try {
     // Step 1: Load proposal by ID
-    const proposalRef = db.doc(`tenants/${auth.userId}/gsp/_proposals/${args.proposalId}`);
+    const proposalRef = db.doc(`tenants/${auth.userId}/gsp_proposals/${args.proposalId}`);
     const proposalDoc = await proposalRef.get();
 
     if (!proposalDoc.exists) {

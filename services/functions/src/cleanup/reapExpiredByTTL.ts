@@ -40,7 +40,7 @@ export const reapExpiredByTTL = functions.pubsub
         .get();
 
       // Query expired proposals (status=pending, expiresAt < now)
-      // Path: tenants/{userId}/gsp/_proposals/{proposalId}
+      // Path: tenants/{userId}/gsp_proposals/{proposalId}
       const expiredProposals = await db
         .collectionGroup("_proposals")
         .where("expiresAt", "<", now)
