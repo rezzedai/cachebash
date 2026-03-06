@@ -39,6 +39,7 @@ import { handleOAuthRevoke } from "./oauth/revoke.js";
 import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+const MAX_BODY_BYTES = 64 * 1024; // 64KB body limit
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
 // Session manager for lifecycle tracking (audit trail, not auth)
@@ -53,12 +54,20 @@ function sendJson(res: http.ServerResponse, status: number, data: object): void 
   res.end(JSON.stringify(data));
 }
 
-async function nodeToWebRequest(req: http.IncomingMessage): Promise<Request> {
+async function nodeToWebRequest(req: http.IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<Request> {
   const protocol = (req.socket as any).encrypted ? "https" : "http";
   const host = req.headers.host || "localhost";
   const url = `${protocol}://${host}${req.url}`;
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let totalBytes = 0;
+  for await (const chunk of req) {
+    totalBytes += chunk.length;
+    if (totalBytes > maxBytes) {
+      req.destroy();
+      throw new Error(`Request body exceeds ${maxBytes} byte limit`);
+    }
+    chunks.push(Buffer.from(chunk));
+  }
   const body = chunks.length > 0 ? Buffer.concat(chunks) : null;
   return new Request(url, {
     method: req.method,
@@ -556,7 +565,12 @@ async function main() {
         return sendJson(res, 401, { error: "Invalid API key" });
       }
 
-      const webReq = await nodeToWebRequest(req);
+      let webReq: Request;
+      try {
+        webReq = await nodeToWebRequest(req);
+      } catch (err) {
+        return sendJson(res, 413, { error: "Request body too large" });
+      }
       // Auth passed directly to handleRequest — stateless, no session Map needed
       const webRes = await iso.transport.handleRequest(webReq, auth);
 
@@ -689,7 +703,12 @@ async function main() {
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
 
-      const webReq = await nodeToWebRequest(req);
+      let webReq: Request;
+      try {
+        webReq = await nodeToWebRequest(req);
+      } catch (err) {
+        return sendJson(res, 413, { error: "Request body too large" });
+      }
       const webRes = await transport.handleRequest(webReq, auth);
 
       // Inject rate limit headers (SPEC 2)
