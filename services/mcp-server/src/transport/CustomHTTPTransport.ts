@@ -133,6 +133,16 @@ export class CustomHTTPTransport implements Transport {
     // Heartbeat recognition: notifications/heartbeat refreshes session, returns immediately
     const isHeartbeat = messages.every((m: any) => m.method === "notifications/heartbeat");
     if (isHeartbeat) {
+      // Update Firestore sessions document lastHeartbeat to prevent false stale session detection
+      const db = (await import("../firebase/client.js")).getFirestore();
+      const admin = await import("firebase-admin");
+      await db.doc(`tenants/${authContext.userId}/sessions/${this.sessionId}`).update({
+        lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+      }).catch((err) => {
+        // Session may not exist in sessions collection (e.g., MCP client without Grid program)
+        // This is not an error — only Grid programs create entries in the sessions collection
+        console.debug(`[Heartbeat] Session ${this.sessionId} not in sessions collection (expected for non-Grid MCP clients)`);
+      });
       return new Response(null, { status: 204, headers: { "Mcp-Session-Id": this.sessionId } });
     }
     }
