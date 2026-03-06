@@ -35,6 +35,7 @@ export { cleanupExpiredRelay } from "./cleanup/cleanupExpiredRelay";
 export { cleanupLedger } from "./cleanup/cleanupLedger";
 export { processDeadLetters } from "./cleanup/processDeadLetters";
 export { cleanupAudit } from "./cleanup/cleanupAudit";
+export { decayProgramState } from "./cleanup/decayProgramState";
 
 // Usage tracking (W1.1.5)
 export { aggregateUsage } from "./usage/aggregateUsage";
