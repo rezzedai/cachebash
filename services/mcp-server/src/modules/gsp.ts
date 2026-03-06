@@ -385,6 +385,8 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
       const hardRules: Array<{ key: string; value: unknown; description?: string }> = [];
       const escalationPolicy: Array<{ key: string; value: unknown; description?: string }> = [];
+      let guidingLightContent: string | null = null;
+      let sharedExecutionRulesContent: string | null = null;
 
       constitutionalSnap.docs.forEach((doc) => {
         const data = doc.data();
@@ -394,18 +396,77 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
           description: data.description,
         };
 
-        if (data.key.startsWith("hardRules")) {
+        // Handle actual seeded keys
+        if (data.key === "guiding-light") {
+          guidingLightContent = typeof data.value === "string" ? data.value : JSON.stringify(data.value);
+        } else if (data.key === "shared-execution-rules") {
+          sharedExecutionRulesContent = typeof data.value === "string" ? data.value : JSON.stringify(data.value);
+
+          // Extract hard rules from shared execution rules
+          if (typeof data.value === "object" && data.value !== null) {
+            const rulesObj = data.value as any;
+            if (rulesObj.hardRules) {
+              // If hardRules is an array of objects
+              if (Array.isArray(rulesObj.hardRules)) {
+                rulesObj.hardRules.forEach((rule: any) => {
+                  hardRules.push({
+                    key: rule.key || rule.title || "unnamed-rule",
+                    value: rule.value || rule.content || rule,
+                    description: rule.description,
+                  });
+                });
+              }
+              // If hardRules is an object with named rules
+              else if (typeof rulesObj.hardRules === "object") {
+                Object.entries(rulesObj.hardRules).forEach(([key, value]) => {
+                  hardRules.push({ key, value, description: undefined });
+                });
+              }
+            }
+
+            if (rulesObj.escalationPolicy && depth !== "essential") {
+              if (Array.isArray(rulesObj.escalationPolicy)) {
+                rulesObj.escalationPolicy.forEach((policy: any) => {
+                  escalationPolicy.push({
+                    key: policy.key || policy.title || "unnamed-policy",
+                    value: policy.value || policy.content || policy,
+                    description: policy.description,
+                  });
+                });
+              } else if (typeof rulesObj.escalationPolicy === "object") {
+                Object.entries(rulesObj.escalationPolicy).forEach(([key, value]) => {
+                  escalationPolicy.push({ key, value, description: undefined });
+                });
+              }
+            }
+          }
+        }
+        // Legacy support for prefixed keys (if they exist)
+        else if (data.key.startsWith("hardRules")) {
           hardRules.push(entry);
         } else if (data.key.startsWith("escalationPolicy") && depth !== "essential") {
           escalationPolicy.push(entry);
         }
       });
 
-      payload.constitutional.hardRules = hardRules;
-      payload.constitutional.escalationPolicy = escalationPolicy;
-
-      if (constitutionalSnap.size > 0) {
-        payload.constitutional.guidingLightDigest = `Loaded ${constitutionalSnap.size} constitutional entries`;
+      // Apply depth-based filtering for constitutional content
+      if (depth === "essential") {
+        // Essential: only core hard rules, truncate to fit ~500 bytes
+        payload.constitutional.hardRules = hardRules.slice(0, 3);
+        payload.constitutional.escalationPolicy = [];
+        const digest = guidingLightContent || "Core constitutional principles loaded";
+        payload.constitutional.guidingLightDigest = digest.length > 200 ? digest.substring(0, 200) + "..." : digest;
+      } else if (depth === "standard") {
+        // Standard: include hard rules and brief guiding light digest
+        payload.constitutional.hardRules = hardRules.slice(0, 10);
+        payload.constitutional.escalationPolicy = escalationPolicy.slice(0, 5);
+        const digest = guidingLightContent || `Loaded ${constitutionalSnap.size} constitutional entries`;
+        payload.constitutional.guidingLightDigest = digest.length > 1000 ? digest.substring(0, 1000) + "..." : digest;
+      } else {
+        // Full: include everything
+        payload.constitutional.hardRules = hardRules;
+        payload.constitutional.escalationPolicy = escalationPolicy;
+        payload.constitutional.guidingLightDigest = guidingLightContent || `Loaded ${constitutionalSnap.size} constitutional entries`;
       }
     } catch (err) {
       console.warn("[GSP Bootstrap] Failed to load constitutional state:", err);
@@ -416,7 +477,8 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       try {
         const architecturalSnap = await db
           .collection(`tenants/${auth.userId}/gsp/architecture/entries`)
-          .limit(50)
+          .where("tier", "==", "architectural")
+          .limit(depth === "standard" ? 30 : 100)
           .get();
 
         const activeDecisions: Array<{ key: string; value: unknown; description?: string }> = [];
@@ -424,28 +486,49 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
         architecturalSnap.docs.forEach((doc) => {
           const data = doc.data();
+
+          // Create entry with depth-aware value truncation
+          let entryValue = data.value;
+          if (depth === "standard" && typeof entryValue === "string" && entryValue.length > 500) {
+            entryValue = entryValue.substring(0, 500) + "...";
+          } else if (depth === "standard" && typeof entryValue === "object" && entryValue !== null) {
+            // For objects, try to extract summary if available
+            const valueObj = entryValue as any;
+            if (valueObj.summary) {
+              entryValue = valueObj.summary;
+            } else if (valueObj.description) {
+              entryValue = valueObj.description;
+            }
+          }
+
           const entry = {
             key: data.key,
-            value: data.value,
+            value: entryValue,
             description: data.description,
           };
 
-          if (data.key.startsWith("decision")) {
+          if (data.key.startsWith("decision") || data.key.startsWith("adr-")) {
             activeDecisions.push(entry);
           } else if (data.key.startsWith("service")) {
             serviceMap.push(entry);
           }
         });
 
-        // Cap decisions at 20 for standard depth, track omissions
-        if (depth === "standard" && activeDecisions.length > 20) {
-          payload.architectural.decisionsOmitted = activeDecisions.length - 20;
-          payload.architectural.activeDecisions = activeDecisions.slice(0, 20);
+        // Apply depth-based limits
+        if (depth === "standard") {
+          // Standard: Cap decisions at 20, summarize serviceMap
+          if (activeDecisions.length > 20) {
+            payload.architectural.decisionsOmitted = activeDecisions.length - 20;
+            payload.architectural.activeDecisions = activeDecisions.slice(0, 20);
+          } else {
+            payload.architectural.activeDecisions = activeDecisions;
+          }
+          payload.architectural.serviceMap = serviceMap.slice(0, 10);
         } else {
+          // Full: Include everything
           payload.architectural.activeDecisions = activeDecisions;
+          payload.architectural.serviceMap = serviceMap;
         }
-        
-        payload.architectural.serviceMap = serviceMap;
 
         // Check for pending proposals (only for full depth and orchestrators/admin)
         if (depth === "full" && (payload.identity.role === "orchestrator" || payload.identity.role === "admin")) {
