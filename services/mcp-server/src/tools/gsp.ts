@@ -147,12 +147,29 @@ export const definitions = [
   },
   {
     name: "gsp_subscribe",
-    description: "Subscribe to GSP state change notifications. Receive messages when subscribed namespace/key values change. Use unsubscribe: true to deactivate.",
+    description: "Subscribe to GSP state change notifications. Supports message-based and webhook callbacks. Use unsubscribe: true to deactivate.",
     inputSchema: {
       type: "object" as const,
       properties: {
         namespace: { type: "string", description: "Namespace to watch", maxLength: 100 },
         key: { type: "string", description: "Specific key to watch (optional; omit to watch all keys in namespace)", maxLength: 200 },
+        callbackType: { 
+          type: "string", 
+          enum: ["message", "webhook"], 
+          description: "Notification delivery method: 'message' sends to CacheBash inbox, 'webhook' POSTs to callbackUrl (default: message)",
+          default: "message"
+        },
+        callbackUrl: { 
+          type: "string", 
+          description: "Required when callbackType is 'webhook'. HTTP(S) endpoint to receive POST notifications.",
+          format: "uri",
+          maxLength: 500
+        },
+        secret: { 
+          type: "string", 
+          description: "Optional shared secret for webhook HMAC-SHA256 signing. Signature sent in X-GSP-Signature header.",
+          maxLength: 200
+        },
         unsubscribe: { type: "boolean", description: "Set to true to deactivate this subscription" },
       },
       required: ["namespace"],
