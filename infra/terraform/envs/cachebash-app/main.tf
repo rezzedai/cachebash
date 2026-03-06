@@ -60,6 +60,7 @@ module "mcp_server" {
   min_instances         = var.mcp_min_instances
   max_instances         = var.mcp_max_instances
   allow_unauthenticated = true
+  request_timeout       = "3600s"
 
   env_vars = merge(
     {
