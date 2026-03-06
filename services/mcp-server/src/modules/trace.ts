@@ -7,6 +7,7 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
+import { isAdmin } from "../middleware/gate.js";
 import { z } from "zod";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -88,7 +89,7 @@ const QueryTraceSchema = z.object({
 /** Fan-out query: find all tasks, messages, and ledger entries for a traceId */
 export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
-  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (!isAdmin(auth)) {
     return jsonResult({ success: false, error: "query_trace is only accessible by admin." });
   }
 
@@ -193,7 +194,7 @@ const QueryTracesSchema = z.object({
 
 export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
-  if (!["orchestrator", "admin", "legacy", "mobile"].includes(auth.programId)) {
+  if (!isAdmin(auth)) {
     return jsonResult({
       success: false,
       error: "query_traces is only accessible by admin.",
