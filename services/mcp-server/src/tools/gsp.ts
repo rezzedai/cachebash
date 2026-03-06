@@ -147,13 +147,13 @@ export const definitions = [
   },
   {
     name: "gsp_subscribe",
-    description: "Subscribe to GSP state change notifications. Phase 2 — not yet implemented.",
+    description: "Subscribe to GSP state change notifications. Receive messages when subscribed namespace/key values change. Use unsubscribe: true to deactivate.",
     inputSchema: {
       type: "object" as const,
       properties: {
         namespace: { type: "string", description: "Namespace to watch", maxLength: 100 },
-        key: { type: "string", description: "Specific key to watch (omit for all keys)", maxLength: 200 },
-        tier: { type: "string", enum: ["constitutional", "architectural", "operational"] },
+        key: { type: "string", description: "Specific key to watch (optional; omit to watch all keys in namespace)", maxLength: 200 },
+        unsubscribe: { type: "boolean", description: "Set to true to deactivate this subscription" },
       },
       required: ["namespace"],
     },

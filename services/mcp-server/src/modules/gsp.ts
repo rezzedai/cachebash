@@ -832,6 +832,12 @@ const GspResolveSchema = z.object({
   reasoning: z.string().max(1000).optional(),
 });
 
+const GspSubscribeSchema = z.object({
+  namespace: z.string().min(1).max(100),
+  key: z.string().min(1).max(200).optional(),
+  unsubscribe: z.boolean().optional().default(false),
+});
+
 
 export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspProposeSchema.parse(rawArgs);
@@ -979,14 +985,121 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
   }
 }
 
-export async function gspSubscribeHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_subscribe called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_subscribe",
-    message: "gsp_subscribe is a Phase 2 feature. It will allow subscribing to state change notifications.",
-  });
+export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspSubscribeSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Validate namespace exists
+    const colPath = gspCollectionPath(auth.userId, args.namespace);
+    const namespaceSnap = await db.collection(colPath).limit(1).get();
+
+    if (namespaceSnap.empty) {
+      return jsonResult({
+        success: false,
+        error: "NAMESPACE_NOT_FOUND",
+        namespace: args.namespace,
+        message: `Namespace "${args.namespace}" does not exist. Cannot subscribe to non-existent namespace.`,
+      });
+    }
+
+    // Step 2: Get subscriber identity
+    const programId = auth.programId;
+
+    // Step 3: If unsubscribe === true, deactivate subscription
+    if (args.unsubscribe) {
+      const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+      const query = subsRef
+        .where("programId", "==", programId)
+        .where("namespace", "==", args.namespace)
+        .where("key", "==", args.key ?? null)
+        .where("active", "==", true)
+        .limit(1);
+
+      const existingSubs = await query.get();
+
+      if (existingSubs.empty) {
+        return jsonResult({
+          success: false,
+          error: "SUBSCRIPTION_NOT_FOUND",
+          programId,
+          namespace: args.namespace,
+          key: args.key ?? null,
+          message: `No active subscription found for ${programId} on ${args.namespace}${args.key ? `/${args.key}` : ""}`,
+        });
+      }
+
+      const subDoc = existingSubs.docs[0];
+      await subDoc.ref.update({ active: false, updatedAt: now });
+
+      return jsonResult({
+        success: true,
+        action: "unsubscribed",
+        subscriptionId: subDoc.id,
+        programId,
+        namespace: args.namespace,
+        key: args.key ?? null,
+      });
+    }
+
+    // Step 4: Check for duplicate subscription
+    const subsRef = db.collection(`tenants/${auth.userId}/gsp/_subscriptions`);
+    const duplicateQuery = subsRef
+      .where("programId", "==", programId)
+      .where("namespace", "==", args.namespace)
+      .where("key", "==", args.key ?? null)
+      .where("active", "==", true)
+      .limit(1);
+
+    const duplicates = await duplicateQuery.get();
+
+    if (!duplicates.empty) {
+      return jsonResult({
+        success: false,
+        error: "DUPLICATE_SUBSCRIPTION",
+        existingSubscriptionId: duplicates.docs[0].id,
+        programId,
+        namespace: args.namespace,
+        key: args.key ?? null,
+        message: `Subscription already exists for ${programId} on ${args.namespace}${args.key ? `/${args.key}` : ""}`,
+      });
+    }
+
+    // Step 5: Write subscription to Firestore
+    const newSubRef = subsRef.doc(); // Auto-generate ID
+    const subscription = {
+      id: newSubRef.id,
+      programId,
+      namespace: args.namespace,
+      key: args.key ?? null,
+      callbackType: "message" as const,
+      createdAt: now,
+      lastNotifiedAt: null,
+      lastNotifiedVersion: null,
+      active: true,
+    };
+
+    await newSubRef.set(subscription);
+
+    // Step 6: Return success
+    return jsonResult({
+      success: true,
+      subscriptionId: newSubRef.id,
+      programId,
+      namespace: args.namespace,
+      key: args.key ?? null,
+      callbackType: "message",
+      message: `Subscribed to ${args.namespace}${args.key ? `/${args.key}` : ""} — will receive send_message callbacks on state changes.`,
+    });
+  } catch (error: unknown) {
+    console.error("[GSP] gsp_subscribe error:", error);
+    return jsonResult({
+      success: false,
+      error: "INTERNAL_ERROR",
+      message: error instanceof Error ? error.message : "Unknown error during subscription",
+    });
+  }
 }
 
 export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
