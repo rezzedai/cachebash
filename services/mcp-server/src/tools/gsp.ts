@@ -132,17 +132,17 @@ export const definitions = [
   },
   {
     name: "gsp_propose",
-    description: "Propose a change to constitutional or architectural state. Phase 2 — not yet implemented.",
+    description: "Propose a change to constitutional or architectural state. Creates a governance proposal for review. Operational state should use gsp_write instead.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        namespace: { type: "string", description: "Target namespace", maxLength: 100 },
-        key: { type: "string", description: "Entry key", maxLength: 200 },
-        value: { description: "Proposed new value" },
-        tier: { type: "string", enum: ["constitutional", "architectural"] },
-        rationale: { type: "string", description: "Reason for the proposed change", maxLength: 1000 },
+        namespace: { type: "string", description: "Target namespace", minLength: 1, maxLength: 100 },
+        key: { type: "string", description: "Entry key", minLength: 1, maxLength: 200 },
+        proposedValue: { description: "Proposed new value (any JSON-serializable value)" },
+        rationale: { type: "string", description: "Reason for the proposed change", minLength: 1, maxLength: 1000 },
+        evidence: { type: "string", description: "Optional supporting evidence or context", maxLength: 2000 },
       },
-      required: ["namespace", "key", "value", "tier", "rationale"],
+      required: ["namespace", "key", "proposedValue", "rationale"],
     },
   },
   {

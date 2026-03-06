@@ -815,14 +815,162 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   }
 }
 
-export async function gspProposeHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_propose called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_propose",
-    message: "gsp_propose is a Phase 2 feature. It will allow proposing changes to constitutional/architectural state.",
-  });
+
+// ── Story GSP-9a: gsp_propose implementation ────────────────────────────────
+
+const GspProposeSchema = z.object({
+  namespace: z.string().min(1).max(100),
+  key: z.string().min(1).max(200),
+  proposedValue: z.unknown(),
+  rationale: z.string().min(1).max(1000),
+  evidence: z.string().max(2000).optional(),
+});
+
+
+export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspProposeSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Validate namespace/key and determine tier
+    const colPath = gspCollectionPath(auth.userId, args.namespace);
+    const docRef = db.doc(`${colPath}/${args.key}`);
+    const currentDoc = await docRef.get();
+
+    let tier: Tier;
+    let currentValue: unknown = null;
+
+    if (currentDoc.exists) {
+      // Key exists - get tier from existing entry
+      const data = currentDoc.data()!;
+      tier = data.tier as Tier;
+      currentValue = data.value;
+    } else {
+      // Key doesn't exist - check if namespace has any entries to infer tier
+      const namespaceSnap = await db.collection(colPath).limit(1).get();
+      
+      if (namespaceSnap.empty) {
+        return jsonResult({
+          success: false,
+          error: "NAMESPACE_NOT_FOUND",
+          message: `Namespace "${args.namespace}" does not exist or is empty. Cannot propose changes to non-existent namespace.`,
+        });
+      }
+      
+      // Infer tier from first entry in namespace
+      tier = namespaceSnap.docs[0].data().tier as Tier;
+    }
+
+    // Validate tier is constitutional or architectural
+    if (tier === "operational") {
+      return jsonResult({
+        success: false,
+        error: "GOVERNANCE_VIOLATION",
+        message: `Cannot propose changes to operational tier. Use gsp_write instead.`,
+      });
+    }
+
+    // Step 2: Check proposer's pending proposal quota (max 5)
+    const proposalsRef = db.collection(`tenants/${auth.userId}/gsp/_proposals`);
+    const pendingQuery = proposalsRef
+      .where("proposedBy", "==", auth.programId)
+      .where("status", "==", "pending");
+    
+    const pendingSnap = await pendingQuery.get();
+    if (pendingSnap.size >= 5) {
+      return jsonResult({
+        success: false,
+        error: "QUOTA_EXCEEDED",
+        message: `Proposal quota exceeded. Program "${auth.programId}" has ${pendingSnap.size} pending proposals (max 5).`,
+      });
+    }
+
+    // Step 3: Check for duplicate proposals
+    const duplicateQuery = proposalsRef
+      .where("namespace", "==", args.namespace)
+      .where("key", "==", args.key)
+      .where("proposedBy", "==", auth.programId)
+      .where("status", "==", "pending");
+    
+    const duplicateSnap = await duplicateQuery.get();
+    if (!duplicateSnap.empty) {
+      const existingProposalId = duplicateSnap.docs[0].id;
+      return jsonResult({
+        success: false,
+        error: "DUPLICATE_PROPOSAL",
+        message: `A pending proposal already exists for ${args.namespace}/${args.key} by ${auth.programId}. Proposal ID: ${existingProposalId}`,
+      });
+    }
+
+    // Step 4: Auto-assign reviewers based on tier
+    const reviewers = tier === "constitutional" ? ["flynn"] : ["vector"];
+
+    // Step 5: Set TTL (30 days from now)
+    const createdAt = now;
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Step 6: Write proposal to Firestore
+    const proposalRef = proposalsRef.doc();
+    const proposalId = proposalRef.id;
+
+    const proposal = {
+      id: proposalId,
+      namespace: args.namespace,
+      key: args.key,
+      currentValue,
+      proposedValue: args.proposedValue,
+      rationale: args.rationale,
+      evidence: args.evidence || null,
+      proposedBy: auth.programId,
+      status: "pending",
+      reviewers,
+      createdAt,
+      expiresAt,
+      version: 1,
+    };
+
+    await proposalRef.set(proposal);
+
+    // Step 7: Send notification to each reviewer via send_message
+    const { sendMessageHandler } = await import("./relay.js");
+
+    for (const reviewer of reviewers) {
+      const messageArgs = {
+        source: "gsp",
+        target: reviewer,
+        message_type: "DIRECTIVE" as const,
+        message: `[GSP] New proposal: ${args.namespace}/${args.key} by ${auth.programId}. Rationale: ${args.rationale}. Use gsp_resolve(proposalId: '${proposalId}') to review.`,
+        priority: "normal" as const,
+        action: "queue" as const,
+      };
+
+      try {
+        await sendMessageHandler(auth, messageArgs);
+      } catch (error) {
+        console.error(`[GSP Propose] Failed to notify reviewer ${reviewer}:`, error);
+        // Don't fail the proposal if notification fails
+      }
+    }
+
+    // Step 8: Return success
+    return jsonResult({
+      success: true,
+      proposalId,
+      status: "pending",
+      reviewers,
+      expiresAt,
+      message: `Proposal created for ${tier} state: ${args.namespace}/${args.key}. Reviewers: ${reviewers.join(", ")}. Expires: ${expiresAt}`,
+    });
+
+  } catch (error) {
+    console.error("[GSP Propose] Error:", error);
+    return jsonResult({
+      success: false,
+      error: "PROPOSE_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error during proposal creation",
+    });
+  }
 }
 
 export async function gspSubscribeHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
