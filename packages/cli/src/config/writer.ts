@@ -91,7 +91,7 @@ export async function writeConfig(apiKey: string): Promise<string> {
   // Ensure directory exists
   const dir = dirname(target.path);
   if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
+    await mkdir(dir, { recursive: true, mode: 0o700 });
   }
 
   await writeFile(target.path, JSON.stringify(config, null, 2) + "\n", { encoding: "utf-8", mode: 0o600 });
