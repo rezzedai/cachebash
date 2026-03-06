@@ -826,6 +826,12 @@ const GspProposeSchema = z.object({
   evidence: z.string().max(2000).optional(),
 });
 
+const GspResolveSchema = z.object({
+  proposalId: z.string().min(1),
+  decision: z.enum(["approved", "rejected", "withdrawn"]),
+  reasoning: z.string().max(1000).optional(),
+});
+
 
 export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspProposeSchema.parse(rawArgs);
@@ -983,12 +989,179 @@ export async function gspSubscribeHandler(_auth: AuthContext, rawArgs: unknown):
   });
 }
 
-export async function gspResolveHandler(_auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  console.log("[GSP] gsp_resolve called (Phase 2 stub)", JSON.stringify(rawArgs));
-  return jsonResult({
-    success: false,
-    error: "NOT_YET_IMPLEMENTED",
-    tool: "gsp_resolve",
-    message: "gsp_resolve is a Phase 2 feature. It will resolve pending governance proposals.",
-  });
+export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = GspResolveSchema.parse(rawArgs);
+  const db = getFirestore();
+  const now = new Date().toISOString();
+
+  try {
+    // Step 1: Load proposal by ID
+    const proposalRef = db.doc(`tenants/${auth.userId}/gsp/_proposals/${args.proposalId}`);
+    const proposalDoc = await proposalRef.get();
+
+    if (!proposalDoc.exists) {
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_NOT_FOUND",
+        proposalId: args.proposalId,
+        message: `Proposal ${args.proposalId} not found.`,
+      });
+    }
+
+    const proposal = proposalDoc.data()!;
+
+    // Step 2: Check proposal status
+    if (proposal.status !== "pending") {
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_ALREADY_RESOLVED",
+        proposalId: args.proposalId,
+        currentStatus: proposal.status,
+        message: `Proposal ${args.proposalId} already resolved with status: ${proposal.status}`,
+      });
+    }
+
+    // Step 3: Check expiration
+    if (new Date(proposal.expiresAt) < new Date()) {
+      // Auto-expire the proposal
+      await proposalRef.update({
+        status: "expired",
+        resolvedAt: now,
+        version: proposal.version + 1,
+      });
+
+      return jsonResult({
+        success: false,
+        error: "PROPOSAL_EXPIRED",
+        proposalId: args.proposalId,
+        expiresAt: proposal.expiresAt,
+        message: `Proposal ${args.proposalId} expired at ${proposal.expiresAt}`,
+      });
+    }
+
+    // Step 4: Validate resolver authorization
+    if (args.decision === "withdrawn") {
+      // Only the proposer can withdraw
+      if (auth.programId !== proposal.proposedBy) {
+        return jsonResult({
+          success: false,
+          error: "UNAUTHORIZED",
+          proposalId: args.proposalId,
+          message: `Only the proposer (${proposal.proposedBy}) can withdraw this proposal. You are: ${auth.programId}`,
+        });
+      }
+    } else {
+      // approved or rejected - only reviewers can resolve
+      if (!proposal.reviewers.includes(auth.programId)) {
+        return jsonResult({
+          success: false,
+          error: "UNAUTHORIZED",
+          proposalId: args.proposalId,
+          reviewers: proposal.reviewers,
+          message: `Only assigned reviewers can approve/reject. Reviewers: ${proposal.reviewers.join(", ")}. You are: ${auth.programId}`,
+        });
+      }
+    }
+
+    // Step 5: If approved, apply state change atomically with proposal update
+    let stateUpdated = false;
+    
+    if (args.decision === "approved") {
+      await db.runTransaction(async (txn) => {
+        // Apply the state change
+        const colPath = gspCollectionPath(auth.userId, proposal.namespace);
+        const stateDocRef = db.doc(`${colPath}/${proposal.key}`);
+        const existingState = await txn.get(stateDocRef);
+        const prevVersion = existingState.exists ? (existingState.data()!.version || 0) : 0;
+        const newVersion = prevVersion + 1;
+
+        // Get tier from existing entry or infer from namespace
+        let tier: Tier;
+        if (existingState.exists) {
+          tier = existingState.data()!.tier as Tier;
+        } else {
+          // Infer tier from namespace (we validated this during proposal creation)
+          const namespaceSnap = await db.collection(colPath).limit(1).get();
+          tier = namespaceSnap.empty ? "operational" : (namespaceSnap.docs[0].data().tier as Tier);
+        }
+
+        const stateEntry = {
+          key: proposal.key,
+          namespace: proposal.namespace,
+          value: proposal.proposedValue,
+          tier,
+          schemaVersion: GSP_SCHEMA_VERSION,
+          version: newVersion,
+          description: `Applied from proposal ${args.proposalId}`,
+          updatedAt: now,
+          updatedBy: `gsp:proposal:${args.proposalId}`,
+          ...(existingState.exists ? {} : { createdAt: now }),
+        };
+
+        txn.set(stateDocRef, stateEntry, { merge: true });
+
+        // Update the proposal document
+        txn.update(proposalRef, {
+          status: args.decision,
+          resolvedBy: auth.programId,
+          resolvedAt: now,
+          resolution: args.reasoning || "",
+          version: proposal.version + 1,
+        });
+      });
+
+      stateUpdated = true;
+    } else {
+      // For rejected or withdrawn, just update the proposal
+      await proposalRef.update({
+        status: args.decision,
+        resolvedBy: auth.programId,
+        resolvedAt: now,
+        resolution: args.reasoning || "",
+        version: proposal.version + 1,
+      });
+    }
+
+    // Step 6: Notify proposer
+    const { sendMessageHandler } = await import("./relay.js");
+    
+    const notificationMessage = args.reasoning
+      ? `[GSP] Proposal ${args.proposalId} ${args.decision}: ${proposal.namespace}/${proposal.key}. ${args.reasoning}`
+      : `[GSP] Proposal ${args.proposalId} ${args.decision}: ${proposal.namespace}/${proposal.key}`;
+
+    const messageArgs = {
+      source: "gsp",
+      target: proposal.proposedBy,
+      message_type: "RESULT" as const,
+      message: notificationMessage,
+      priority: "normal" as const,
+      action: "queue" as const,
+    };
+
+    try {
+      await sendMessageHandler(auth, messageArgs);
+    } catch (error) {
+      console.error(`[GSP Resolve] Failed to notify proposer ${proposal.proposedBy}:`, error);
+      // Don't fail the resolution if notification fails
+    }
+
+    // Step 7: Return success
+    return jsonResult({
+      success: true,
+      proposalId: args.proposalId,
+      decision: args.decision,
+      stateUpdated,
+      message: stateUpdated 
+        ? `Proposal ${args.proposalId} approved. State updated: ${proposal.namespace}/${proposal.key}`
+        : `Proposal ${args.proposalId} ${args.decision}.`,
+    });
+
+  } catch (error) {
+    console.error("[GSP Resolve] Error:", error);
+    return jsonResult({
+      success: false,
+      error: "RESOLVE_FAILED",
+      message: error instanceof Error ? error.message : "Unknown error during proposal resolution",
+    });
+  }
 }

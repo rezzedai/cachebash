@@ -160,13 +160,13 @@ export const definitions = [
   },
   {
     name: "gsp_resolve",
-    description: "Resolve a pending governance proposal. Phase 2 — not yet implemented.",
+    description: "Resolve a pending governance proposal. Approve, reject, or withdraw. Approved proposals apply state changes atomically.",
     inputSchema: {
       type: "object" as const,
       properties: {
         proposalId: { type: "string", description: "ID of the proposal to resolve" },
-        decision: { type: "string", enum: ["approve", "reject"], description: "Approval decision" },
-        reason: { type: "string", description: "Reason for the decision", maxLength: 1000 },
+        decision: { type: "string", enum: ["approved", "rejected", "withdrawn"], description: "Resolution decision" },
+        reasoning: { type: "string", description: "Reason for the decision (optional)", maxLength: 1000 },
       },
       required: ["proposalId", "decision"],
     },
