@@ -3,7 +3,7 @@
  *
  * Runs health checks against Firestore data and emits alerts based on thresholds.
  * Critical alerts route to admin's mobile (via relay + tasks mirror).
- * Warning alerts route to orchestrator (via relay STATUS message).
+ * Warning events emitted for telemetry (no relay STATUS — see ADR adr-comms-pattern).
  */
 
 import * as admin from "firebase-admin";
@@ -194,45 +194,6 @@ export async function runHealthCheck(
 
     // No output — session is stuck
     stuckSessionCount++;
-
-    // Create ISO alert (deduplicate via stuckSessionAlertSent flag)
-    if (!data.stuckSessionAlertSent) {
-      try {
-        const alertMessage = `STUCK SESSION: ${programId} session "${data.name || doc.id}" is alive (heartbeat OK) but has produced no output for 10+ minutes. It may be deadlocked or spinning.`;
-        const alertExpiry = admin.firestore.Timestamp.fromDate(
-          new Date(now.toDate().getTime() + 3600 * 1000)
-        );
-
-        await firestore.collection(`tenants/${userId}/tasks`).add({
-          schemaVersion: "2.2",
-          type: "task",
-          title: `[dispatcher] STUCK SESSION: ${programId}`,
-          instructions: alertMessage,
-          preview: `Session ${doc.id} alive but no output for 10+ min`,
-          source: "dispatcher",
-          target: "iso",
-          priority: "high",
-          action: "queue",
-          status: "created",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: alertExpiry,
-          metadata: {
-            sessionId: doc.id,
-            programId,
-            alertType: "stuck_session",
-          },
-        });
-
-        await doc.ref.update({
-          stuckSessionAlertSent: true,
-          stuckSessionAlertAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        alertsSent.push(`STUCK_SESSION alert for ${programId}`);
-      } catch (err) {
-        console.error(`[HealthCheck] Failed to create stuck session alert for ${doc.id}:`, err);
-      }
-    }
   }
 
   indicators.push({
@@ -296,31 +257,6 @@ export async function runHealthCheck(
   }
 
   if (hasWarning) {
-    // Warning: relay message to orchestrator
-    try {
-      const warningIndicators = indicators.filter((i) => i.status === "warning");
-      const warningMessage = `HEALTH WARNING: ${warningIndicators
-        .map((i) => `${i.name}=${i.value}`)
-        .join(", ")}`;
-
-      await firestore.collection(`tenants/${userId}/relay`).add({
-        message: warningMessage,
-        source: "system",
-        target: "orchestrator",
-        message_type: "STATUS",
-        status: "pending",
-        priority: "normal",
-        createdAt: now,
-        expiresAt: admin.firestore.Timestamp.fromDate(
-          new Date(now.toDate().getTime() + 3600 * 1000)
-        ),
-      });
-
-      alertsSent.push("HEALTH_WARNING status to orchestrator");
-    } catch (err) {
-      console.error("[GRIDBOT] Failed to send warning:", err);
-    }
-
     emitEvent(userId, {
       event_type: "HEALTH_WARNING",
       program_id: "system",

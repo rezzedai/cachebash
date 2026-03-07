@@ -140,11 +140,11 @@ describe("Health Monitor", () => {
     expect(result.overall_status).toBe("critical");
     expect(result.alerts_sent).toContain("HEALTH_CRITICAL alert to admin (mobile)");
     
-    // Verify alert was written to relay and tasks
-    expect(mockCollection.add).toHaveBeenCalledTimes(3); // relay + tasks + health_checks
+    // Verify alert was written to relay + tasks (mobile alert) + health_checks
+    expect(mockCollection.add).toHaveBeenCalledTimes(3);
   });
 
-  it("should route warning alerts to orchestrator", async () => {
+  it("should emit warning event without relay STATUS message", async () => {
     // Create warning-level wake failures
     const mockWakeEvents = [
       { data: () => ({ event_type: "PROGRAM_WAKE", wake_result: "failed" }) },
@@ -167,10 +167,14 @@ describe("Health Monitor", () => {
     const result = await runHealthCheck(testUserId);
 
     expect(result.overall_status).toBe("warning");
-    expect(result.alerts_sent).toContain("HEALTH_WARNING status to orchestrator");
+    // Warning events are emitted via telemetry, not via relay STATUS
+    expect(result.alerts_sent).not.toContain("HEALTH_WARNING status to orchestrator");
 
-    // Verify warning was written to relay
-    expect(mockCollection.add).toHaveBeenCalled();
+    // Verify emitEvent was called for HEALTH_WARNING
+    const { emitEvent } = require("../modules/events");
+    expect(emitEvent).toHaveBeenCalledWith(testUserId, expect.objectContaining({
+      event_type: "HEALTH_WARNING",
+    }));
   });
 
   it("should write health check results to Firestore", async () => {
