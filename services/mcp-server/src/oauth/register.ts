@@ -10,10 +10,11 @@ import type http from "http";
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { CONSTANTS } from "../config/constants.js";
 
-// In-memory sliding window rate limit for DCR (10/hr/IP)
-const DCR_LIMIT = 10;
-const DCR_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+// In-memory sliding window rate limit for DCR
+const DCR_LIMIT = CONSTANTS.oauth.dcrLimit;
+const DCR_WINDOW_MS = CONSTANTS.oauth.dcrWindowMs;
 const dcrRateLimits = new Map<string, number[]>();
 
 function checkDcrRateLimit(ip: string): boolean {

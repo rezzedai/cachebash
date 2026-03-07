@@ -1594,26 +1594,6 @@ export async function gspSearchHandler(
   const queryLower = args.query.toLowerCase();
 
   try {
-    let entriesRef;
-    if (args.namespace) {
-      // Search within a specific namespace
-      entriesRef = db
-        .collection(`tenants/${userId}/gsp/${args.namespace}/entries`);
-    } else {
-      // Cross-namespace search using collection group
-      entriesRef = db
-        .collectionGroup('entries')
-        .where('__name__', '>=', `tenants/${userId}/gsp/`)
-        .where('__name__', '<', `tenants/${userId}/gsp/\uffff`);
-    }
-
-    // Apply tier filter if specified
-    if (args.tier) {
-      entriesRef = entriesRef.where('tier', '==', args.tier);
-    }
-
-    const snapshot = await entriesRef.get();
-    
     interface ScoredEntry {
       namespace: string;
       key: string;
@@ -1628,11 +1608,13 @@ export async function gspSearchHandler(
 
     const scoredEntries: ScoredEntry[] = [];
 
-    snapshot.forEach((doc) => {
+    // Score and collect a single document
+    function scoreDoc(doc: FirebaseFirestore.DocumentSnapshot, nsId: string): void {
       const data = doc.data();
+      if (!data) return;
+
       const entryKey = data.key || doc.id;
-      const entryNamespace = args.namespace || doc.ref.parent.parent?.id || 'unknown';
-      
+
       let score = 0;
 
       // Score based on key match
@@ -1673,7 +1655,7 @@ export async function gspSearchHandler(
         }
 
         scoredEntries.push({
-          namespace: entryNamespace,
+          namespace: nsId,
           key: entryKey,
           tier: data.tier,
           description: data.description,
@@ -1684,7 +1666,24 @@ export async function gspSearchHandler(
           valueTruncated,
         });
       }
-    });
+    }
+
+    if (args.namespace) {
+      // Single-namespace: direct collection query
+      let ref: FirebaseFirestore.Query = db.collection(`tenants/${userId}/gsp/${args.namespace}/entries`);
+      if (args.tier) ref = ref.where('tier', '==', args.tier);
+      const snap = await ref.get();
+      snap.forEach(doc => scoreDoc(doc, args.namespace!));
+    } else {
+      // Cross-namespace: enumerate namespace docs, query each
+      const nsDocs = await db.collection(`tenants/${userId}/gsp`).listDocuments();
+      for (const nsDoc of nsDocs) {
+        let ref: FirebaseFirestore.Query = db.collection(`${nsDoc.path}/entries`);
+        if (args.tier) ref = ref.where('tier', '==', args.tier);
+        const snap = await ref.get();
+        snap.forEach(doc => scoreDoc(doc, nsDoc.id));
+      }
+    }
 
     // Sort by score descending, then by key ascending
     scoredEntries.sort((a, b) => {
