@@ -111,6 +111,9 @@ export default function ProgramDetailScreen({ route, navigation }: Props) {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        alwaysBounceVertical={true}
+        bounces={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
