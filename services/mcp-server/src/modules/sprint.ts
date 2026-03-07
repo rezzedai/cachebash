@@ -77,14 +77,14 @@ function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 
-/** Fire-and-forget escalation to ISO via relay */
-function escalateToIso(
+/** Escalate story failure to ISO via relay */
+async function escalateToIso(
   auth: AuthContext,
   sprintId: string,
   storyId: string,
   storyTitle: string
-): void {
-  (async () => {
+): Promise<void> {
+  try {
     const { sendMessageHandler } = await import("./relay.js");
     await sendMessageHandler(auth, {
       message: `Sprint story failed after retries exhausted. Sprint: ${sprintId}, Story: ${storyId} (${storyTitle})`,
@@ -99,7 +99,29 @@ function escalateToIso(
         summary: `Story "${storyTitle}" failed in sprint ${sprintId} — retries exhausted or escalation policy triggered`,
       },
     });
-  })().catch((err) => console.error("[Sprint] Escalation to ISO failed:", err));
+  } catch (err) {
+    console.error("[Sprint] Escalation to ISO failed:", err);
+    // Fallback: create an alert task so the failure isn't silently lost
+    try {
+      const db = getFirestore();
+      await db.collection(`tenants/${auth.userId}/tasks`).add({
+        schemaVersion: '2.2' as const,
+        type: "task",
+        title: `[ESCALATION FAILED] Sprint story ${storyId} failed in ${sprintId}`,
+        instructions: `Escalation relay failed. Story "${storyTitle}" failed in sprint ${sprintId} — retries exhausted. Original error: ${err instanceof Error ? err.message : String(err)}`,
+        source: "sprint-engine",
+        target: "iso",
+        priority: "high",
+        action: "interrupt",
+        status: "created",
+        createdAt: serverTimestamp(),
+        encrypted: false,
+        archived: false,
+      });
+    } catch (fallbackErr) {
+      console.error("[Sprint] Fallback alert task also failed:", fallbackErr);
+    }
+  }
 }
 
 /** Map sprint story status to lifecycle */
@@ -293,7 +315,7 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
       });
     } else if (retry.policy === "escalate" || (retry.policy === "auto_retry" && retry.retryCount >= retry.maxRetries)) {
       // Escalate to ISO
-      escalateToIso(auth, args.sprintId, args.storyId, storyData.title || args.storyId);
+      await escalateToIso(auth, args.sprintId, args.storyId, storyData.title || args.storyId);
       
       // Emit exhaustion event
       const { emitEvent } = await import("./events.js");

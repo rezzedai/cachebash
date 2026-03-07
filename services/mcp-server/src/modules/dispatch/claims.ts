@@ -12,6 +12,7 @@ import { syncTaskClaimed } from "../github-sync.js";
 import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
+import { CONSTANTS } from "../../config/constants.js";
 
 const ClaimTaskSchema = z.object({
   taskId: z.string(),
@@ -24,15 +25,13 @@ const UnclaimTaskSchema = z.object({
 });
 
 const BatchClaimTasksSchema = z.object({
-  taskIds: z.array(z.string()).min(1).max(50),
+  taskIds: z.array(z.string()).min(1).max(CONSTANTS.limits.batchClaimMax),
   sessionId: z.string().optional(),
   // Agent Trace L2
   traceId: z.string().optional(),
   spanId: z.string().optional(),
   parentSpanId: z.string().optional(),
 });
-
-const CLAIM_EVENT_TTL_DAYS = 7;
 
 /**
  * Fire-and-forget: emit a claim event to the claim_events collection.
@@ -46,7 +45,7 @@ function emitClaimEvent(
   outcome: "claimed" | "contention",
 ): void {
   const ttl = admin.firestore.Timestamp.fromMillis(
-    Date.now() + CLAIM_EVENT_TTL_DAYS * 24 * 60 * 60 * 1000,
+    Date.now() + CONSTANTS.ttl.claimEventDays * 24 * 60 * 60 * 1000,
   );
   db.collection(`tenants/${userId}/claim_events`).add({
     taskId,

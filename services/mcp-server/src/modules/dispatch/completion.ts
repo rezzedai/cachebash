@@ -13,6 +13,7 @@ import { emitEvent, computeHash } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
 import { type ToolResult, jsonResult } from "./shared.js";
+import { CONSTANTS } from "../../config/constants.js";
 
 const CompleteTaskSchema = z.object({
   taskId: z.string(),
@@ -32,7 +33,7 @@ const CompleteTaskSchema = z.object({
 });
 
 const BatchCompleteTasksSchema = z.object({
-  taskIds: z.array(z.string()).min(1).max(50),
+  taskIds: z.array(z.string()).min(1).max(CONSTANTS.limits.batchCompleteMax),
   completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
   result: z.string().max(4000).optional(),
   model: z.string().optional(),
@@ -143,27 +144,16 @@ async function validateTelemetryCompliance(
 }
 
 // ISO Self-Recycling: Handle program self-recycle request
-const SPAWN_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+const SPAWN_COOLDOWN_MS = CONSTANTS.cooldowns.spawnCooldownMs;
 
 async function handleSelfRecycle(
   db: admin.firestore.Firestore,
   userId: string,
   programId: string
 ): Promise<void> {
-  // 1. Check spawn cooldown
-  const metaDoc = await db.doc(`tenants/${userId}/sessions/_meta/programs/${programId}`).get();
-  if (metaDoc.exists) {
-    const lastSpawn = metaDoc.data()?.lastSpawnAt?.toDate();
-    if (lastSpawn) {
-      const timeSinceSpawn = Date.now() - lastSpawn.getTime();
-      if (timeSinceSpawn < SPAWN_COOLDOWN_MS) {
-        console.log(`[SelfRecycle] ${programId} in cooldown (${Math.round(timeSinceSpawn / 1000)}s since last spawn)`);
-        return;
-      }
-    }
-  }
+  const metaRef = db.doc(`tenants/${userId}/sessions/_meta/programs/${programId}`);
 
-  // 2. Fleet gate: Check for active tasks
+  // Fleet gate: Check for active tasks (outside transaction — safe false positive)
   const activeTasksSnapshot = await db
     .collection(`tenants/${userId}/tasks`)
     .where("target", "==", programId)
@@ -176,36 +166,48 @@ async function handleSelfRecycle(
     return;
   }
 
-  // 3. Spawn new orchestrator session
-  const newSessionId = `${programId}.recycle-${Date.now()}`;
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  // Atomic cooldown check + session creation via transaction
+  const result = await db.runTransaction(async (tx) => {
+    const metaDoc = await tx.get(metaRef);
+    if (metaDoc.exists) {
+      const lastSpawn = metaDoc.data()?.lastSpawnAt?.toDate();
+      if (lastSpawn && Date.now() - lastSpawn.getTime() < SPAWN_COOLDOWN_MS) {
+        return { spawned: false, reason: "cooldown" } as const;
+      }
+    }
 
-  await db.doc(`tenants/${userId}/sessions/${newSessionId}`).set({
-    name: `${programId} - Self-Recycle`,
-    programId,
-    status: "active",
-    bootType: "orchestrator",
-    currentAction: "Recycling from high context",
-    progress: 0,
-    projectName: null,
-    lastUpdate: now,
-    createdAt: now,
-    lastHeartbeat: now,
-    archived: false,
+    const sessionId = `${programId}.recycle-${Date.now()}`;
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    tx.set(db.doc(`tenants/${userId}/sessions/${sessionId}`), {
+      name: `${programId} - Self-Recycle`,
+      programId,
+      status: "active",
+      bootType: "orchestrator",
+      currentAction: "Recycling from high context",
+      progress: 0,
+      projectName: null,
+      lastUpdate: now,
+      createdAt: now,
+      lastHeartbeat: now,
+      archived: false,
+    });
+
+    tx.set(metaRef, { lastSpawnAt: now }, { merge: true });
+
+    return { spawned: true, sessionId } as const;
   });
 
-  // Update spawn timestamp
-  await db.doc(`tenants/${userId}/sessions/_meta/programs/${programId}`).set({
-    lastSpawnAt: now,
-  }, { merge: true });
-
-  console.log(`[SelfRecycle] Spawned new session for ${programId}: ${newSessionId}`);
-
-  emitEvent(userId, {
-    event_type: "PROGRAM_WAKE",
-    program_id: programId,
-    session_id: newSessionId,
-  });
+  if (result.spawned) {
+    console.log(`[SelfRecycle] Spawned new session for ${programId}: ${result.sessionId}`);
+    emitEvent(userId, {
+      event_type: "PROGRAM_WAKE",
+      program_id: programId,
+      session_id: result.sessionId,
+    });
+  } else {
+    console.log(`[SelfRecycle] ${programId} in cooldown, skipping`);
+  }
 }
 
 // W1.3.6: Budget threshold alerting helper
@@ -427,29 +429,33 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
               remaining: budgetCheck.remaining,
             });
 
-            // Send alert to Flynn (fire-and-forget)
+            // Send budget alert (synchronous — user must know about budget breach)
             const alertMessage = `Dream ${dreamId} has exceeded its budget cap.
 
 Consumed: $${budgetCheck.consumed.toFixed(4)}
 Cap: $${budgetCheck.cap.toFixed(4)}
 Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
 
-            db.collection(`tenants/${auth.userId}/relay`).add({
-              schemaVersion: '2.2' as const,
-              source: "system",
-              target: "user",
-              message_type: "STATUS",
-              payload: alertMessage,
-              priority: "high",
-              action: "queue",
-              sessionId: null,
-              status: "pending",
-              ttl: 3600,
-              expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 3600 * 1000),
-              alertType: "BUDGET_EXCEEDED",
-              context: { dreamId, consumed: budgetCheck.consumed, cap: budgetCheck.cap },
-              createdAt: serverTimestamp(),
-            }).catch((err) => console.error("[Budget] Failed to send alert:", err));
+            try {
+              await db.collection(`tenants/${auth.userId}/relay`).add({
+                schemaVersion: '2.2' as const,
+                source: "system",
+                target: "user",
+                message_type: "STATUS",
+                payload: alertMessage,
+                priority: "high",
+                action: "queue",
+                sessionId: null,
+                status: "pending",
+                ttl: CONSTANTS.ttl.budgetAlertSeconds,
+                expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.budgetAlertSeconds * 1000),
+                alertType: "BUDGET_EXCEEDED",
+                context: { dreamId, consumed: budgetCheck.consumed, cap: budgetCheck.cap },
+                createdAt: serverTimestamp(),
+              });
+            } catch (err) {
+              console.error("[Budget] Failed to send alert:", err);
+            }
           }
         } catch (err) {
           console.error("[Budget] Failed to track dream budget:", err);
@@ -485,24 +491,28 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       errorClass: args.error_class,
     });
 
-    // W1.1.4: Write immutable ledger entry (fire-and-forget)
+    // W1.1.4: Write immutable ledger entry (synchronous — billing audit trail)
     if (args.model || args.tokens_in || args.tokens_out || args.cost_usd) {
-      db.collection(`tenants/${auth.userId}/usage_ledger`).add({
-        taskId: args.taskId,
-        model: args.model || null,
-        provider: args.provider || null,
-        tokens_in: args.tokens_in || 0,
-        tokens_out: args.tokens_out || 0,
-        cost_usd: args.cost_usd || 0,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        programId: auth.programId,
-        taskType: taskData.source || "unknown",
-        completed_status: args.completed_status,
-        // Agent Trace L2
-        traceId: args.traceId || null,
-        spanId: args.spanId || null,
-        parentSpanId: args.parentSpanId || null,
-      }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
+      try {
+        await db.collection(`tenants/${auth.userId}/usage_ledger`).add({
+          taskId: args.taskId,
+          model: args.model || null,
+          provider: args.provider || null,
+          tokens_in: args.tokens_in || 0,
+          tokens_out: args.tokens_out || 0,
+          cost_usd: args.cost_usd || 0,
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          programId: auth.programId,
+          taskType: taskData.source || "unknown",
+          completed_status: args.completed_status,
+          // Agent Trace L2
+          traceId: args.traceId || null,
+          spanId: args.spanId || null,
+          parentSpanId: args.parentSpanId || null,
+        });
+      } catch (err) {
+        console.error("[UsageLedger] Failed to write entry:", err);
+      }
     }
 
     // W1.3.6: Check alert thresholds and emit alerts
@@ -517,9 +527,11 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     if (taskDoc.exists) {
       const taskTitle = taskDoc.data()?.title as string;
       if (taskTitle && (taskTitle.includes("[RECYCLE]") || taskTitle.toLowerCase().includes("recycle"))) {
-        handleSelfRecycle(db, auth.userId, auth.programId).catch((err) =>
-          console.error("[SelfRecycle] Failed:", err)
-        );
+        try {
+          await handleSelfRecycle(db, auth.userId, auth.programId);
+        } catch (err) {
+          console.error("[SelfRecycle] Failed:", err);
+        }
       }
     }
 
@@ -609,23 +621,27 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         success: args.completed_status !== "FAILED",
       });
 
-      // W1.1.4: Write immutable ledger entry (fire-and-forget) - batch complete doesn't have cost data but we track it anyway
-      db.collection(`tenants/${auth.userId}/usage_ledger`).add({
-        taskId,
-        model: args.model || null,
-        provider: args.provider || null,
-        tokens_in: 0,
-        tokens_out: 0,
-        cost_usd: 0,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        programId: auth.programId,
-        taskType: taskData.source || "unknown",
-        completed_status: args.completed_status,
-        // Agent Trace L2
-        traceId: args.traceId || null,
-        spanId: args.spanId || null,
-        parentSpanId: args.parentSpanId || null,
-      }).catch((err) => console.error("[UsageLedger] Failed to write entry:", err));
+      // W1.1.4: Write immutable ledger entry (synchronous — billing audit trail)
+      try {
+        await db.collection(`tenants/${auth.userId}/usage_ledger`).add({
+          taskId,
+          model: args.model || null,
+          provider: args.provider || null,
+          tokens_in: 0,
+          tokens_out: 0,
+          cost_usd: 0,
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          programId: auth.programId,
+          taskType: taskData.source || "unknown",
+          completed_status: args.completed_status,
+          // Agent Trace L2
+          traceId: args.traceId || null,
+          spanId: args.spanId || null,
+          parentSpanId: args.parentSpanId || null,
+        });
+      } catch (err) {
+        console.error("[UsageLedger] Failed to write entry:", err);
+      }
 
       // Budget tracking per task
       if (taskData.dreamId) {
