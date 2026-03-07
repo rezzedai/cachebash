@@ -18,6 +18,7 @@ import { checkSessionCompliance, resetTransportCompliance } from "../middleware/
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
+import { CONSTANTS } from "../config/constants.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -53,7 +54,7 @@ function extractBearerToken(header: string | undefined): string | null {
   return header?.startsWith("Bearer ") ? header.slice(7) : null;
 }
 
-const MAX_BODY_SIZE = 64 * 1024; // 64KB
+const MAX_BODY_SIZE = CONSTANTS.limits.maxBodySizeBytes;
 async function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let totalSize = 0;
