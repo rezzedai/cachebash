@@ -240,7 +240,58 @@ export function enforceRateLimit(
   };
 }
 
-// --- Auth rate limiting (per-IP, in-memory only) ---
+// --- Auth rate limiting (per-IP, Firestore-backed) ---
+
+/**
+ * Load persisted auth rate counters from Firestore on startup.
+ * Called once at module init to survive Cloud Run restarts.
+ */
+let authCountersLoaded = false;
+
+export async function loadAuthCounters(): Promise<void> {
+  if (authCountersLoaded) return;
+  try {
+    const db = getFirestore();
+    const windowKey = getWindowKey();
+    const snapshot = await db
+      .collectionGroup("rate")
+      .where("windowKey", "==", windowKey)
+      .get();
+    const now = Date.now();
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const cacheKey = data.cacheKey as string;
+      if (!cacheKey || !cacheKey.startsWith("auth:")) continue;
+      const count = (data.count as number) || 0;
+      // Reconstruct timestamps spread across the window
+      const existing = windows.get(cacheKey) || [];
+      for (let i = 0; i < count - existing.length; i++) {
+        existing.push(now - Math.floor(Math.random() * WINDOW_MS));
+      }
+      if (existing.length > 0) windows.set(cacheKey, existing);
+    }
+    authCountersLoaded = true;
+  } catch (err) {
+    console.error("[RateLimiter] Failed to load auth counters from Firestore:", err);
+    authCountersLoaded = true; // Don't retry on failure — degrade to in-memory
+  }
+}
+
+function persistAuthCounter(ip: string): void {
+  try {
+    const db = getFirestore();
+    const windowKey = getWindowKey();
+    const cacheKey = `auth:${ip}`;
+    const ref = db.doc(`_system/rateLimits/auth/${windowKey}_${ip.replace(/[/.]/g, "_")}`);
+    const expiresAt = new Date(Date.now() + COUNTER_TTL_MS);
+    ref.set(
+      { cacheKey, windowKey, count: FieldValue.increment(1), expiresAt, updatedAt: serverTimestamp() },
+      { merge: true },
+    ).catch(() => {});
+  } catch {
+    // Fire-and-forget
+  }
+}
 
 export function checkAuthRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -248,6 +299,7 @@ export function checkAuthRateLimit(ip: string): boolean {
   const count = slidingWindowCount(cacheKey, now);
   if (count >= AUTH_ATTEMPT.limit) return false;
   slidingWindowAdd(cacheKey, now);
+  persistAuthCounter(ip);
   return true;
 }
 

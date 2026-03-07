@@ -18,9 +18,19 @@ import { defineSecret } from "firebase-functions/params";
 const githubClientId = defineSecret("GITHUB_CLIENT_ID");
 const githubClientSecret = defineSecret("GITHUB_CLIENT_SECRET");
 
+const CORS_ALLOWLIST = [
+  "https://app.cachebash.dev",
+  "https://grid-portal.web.app",
+  "http://localhost:3000",
+];
+
 export const exchangeGithubCode = functions.runWith({ secrets: [githubClientId, githubClientSecret] }).https.onRequest(async (req, res) => {
-  // CORS
-  res.set("Access-Control-Allow-Origin", "*");
+  // CORS — restrict to known origins
+  const origin = req.headers.origin || "";
+  if (CORS_ALLOWLIST.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+  }
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
 

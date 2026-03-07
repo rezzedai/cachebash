@@ -14,6 +14,9 @@ export { cliAuthApprove, cliAuthStatus } from "./auth/cliAuth";
 // GitHub OAuth token exchange (HTTP)
 export { exchangeGithubCode } from "./auth/githubOAuthExchange";
 
+// Google OAuth token exchange (HTTP)
+export { exchangeGoogleCode } from "./auth/googleOAuthExchange";
+
 // Notification triggers (new collection paths)
 export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";
