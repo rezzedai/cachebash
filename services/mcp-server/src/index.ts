@@ -634,9 +634,6 @@ async function main() {
           totalIsoAlerts += result.isoAlertsCreated;
 
           for (const session of result.stale) {
-            // Skip creating admin alerts for sessions that got ISO alerts (ISO will handle it)
-            if (session.action === "iso_alerted") continue;
-
             const alertType = session.action === "archived" ? "error" : "warning";
             const message = session.action === "archived"
               ? `${session.programId} session archived (no heartbeat for ${session.ageMinutes}min)`

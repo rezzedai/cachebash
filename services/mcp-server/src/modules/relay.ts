@@ -102,6 +102,14 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
   }
 
+  // Advisory warning: STATUS messages between programs should use update_program_state
+  if (args.message_type === "STATUS" && args.target !== "user" && args.target !== "admin") {
+    console.warn(
+      `[Comms Pattern] ${args.source}→${args.target} STATUS via relay. ` +
+      `Consider update_program_state(contextSummary) instead. See ADR adr-comms-pattern.`
+    );
+  }
+
   // Phase 2: Enforce source identity
   const verifiedSource = verifySource(args.source, auth, "mcp");
   const db = getFirestore();
