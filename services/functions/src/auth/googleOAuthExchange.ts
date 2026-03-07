@@ -1,22 +1,22 @@
 /**
- * GitHub OAuth Token Exchange
+ * Google OAuth Token Exchange
  *
- * Exchanges a GitHub OAuth authorization code for an access token.
+ * Exchanges a Google OAuth authorization code for an access token.
  * Required because the client secret cannot be stored in mobile code.
  *
  * POST body: { code: string, redirectUri: string }
- * Returns: { access_token: string }
+ * Returns: { access_token: string, id_token: string }
  *
  * Setup:
- *   firebase functions:secrets:set GITHUB_CLIENT_ID
- *   firebase functions:secrets:set GITHUB_CLIENT_SECRET
+ *   firebase functions:secrets:set GOOGLE_CLIENT_ID
+ *   firebase functions:secrets:set GOOGLE_CLIENT_SECRET
  */
 
 import * as functions from "firebase-functions/v1";
 import { defineSecret } from "firebase-functions/params";
 
-const githubClientId = defineSecret("GITHUB_CLIENT_ID");
-const githubClientSecret = defineSecret("GITHUB_CLIENT_SECRET");
+const googleClientId = defineSecret("GOOGLE_CLIENT_ID");
+const googleClientSecret = defineSecret("GOOGLE_CLIENT_SECRET");
 
 const CORS_ALLOWLIST = [
   "https://app.cachebash.dev",
@@ -24,7 +24,7 @@ const CORS_ALLOWLIST = [
   "http://localhost:3000",
 ];
 
-export const exchangeGithubCode = functions.runWith({ secrets: [githubClientId, githubClientSecret] }).https.onRequest(async (req, res) => {
+export const exchangeGoogleCode = functions.runWith({ secrets: [googleClientId, googleClientSecret] }).https.onRequest(async (req, res) => {
   // CORS — restrict to known origins
   const origin = req.headers.origin || "";
   if (CORS_ALLOWLIST.includes(origin)) {
@@ -52,46 +52,49 @@ export const exchangeGithubCode = functions.runWith({ secrets: [githubClientId, 
       return;
     }
 
-    const clientId = githubClientId.value();
-    const clientSecret = githubClientSecret.value();
+    const clientId = googleClientId.value();
+    const clientSecret = googleClientSecret.value();
 
     if (!clientId || !clientSecret) {
-      console.error("[githubOAuth] Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET secrets");
+      console.error("[googleOAuth] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET secrets");
       res.status(500).json({ error: "Server configuration error" });
       return;
     }
 
-    const response = await fetch("https://github.com/login/oauth/access_token", {
+    const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
       },
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
         code,
         redirect_uri: redirectUri,
+        grant_type: "authorization_code",
       }),
     });
 
     const data = await response.json();
 
     if (data.error) {
-      console.error("[githubOAuth] Token exchange failed:", data.error_description || data.error);
+      console.error("[googleOAuth] Token exchange failed:", data.error_description || data.error);
       res.status(400).json({ error: data.error_description || data.error });
       return;
     }
 
     if (!data.access_token) {
-      console.error("[githubOAuth] No access_token in response");
+      console.error("[googleOAuth] No access_token in response");
       res.status(500).json({ error: "Token exchange failed" });
       return;
     }
 
-    res.status(200).json({ access_token: data.access_token });
+    res.status(200).json({
+      access_token: data.access_token,
+      id_token: data.id_token || null,
+    });
   } catch (err: any) {
-    console.error("[githubOAuth] Exchange failed:", err);
+    console.error("[googleOAuth] Exchange failed:", err);
     res.status(500).json({ error: "Token exchange failed" });
   }
 });
