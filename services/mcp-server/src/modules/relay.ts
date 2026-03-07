@@ -727,6 +727,23 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<{ exp
   return { expired, cleaned: count };
 }
 
+export async function sendDirectiveHandler(auth: AuthContext, args: unknown): Promise<ToolResult> {
+  const schema = z.object({
+    source: z.string().max(100),
+    target: z.string().max(100),
+    message: z.string().max(2000),
+    priority: z.enum(["low", "normal", "high"]).default("high"),
+    threadId: z.string().optional(),
+  });
+  const parsed = schema.parse(args);
+
+  return sendMessageHandler(auth, {
+    ...parsed,
+    message_type: "DIRECTIVE",
+    action: "interrupt",
+  });
+}
+
 export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
   const groups: Record<string, string[]> = {};
   for (const [name, members] of Object.entries(PROGRAM_GROUPS)) {
