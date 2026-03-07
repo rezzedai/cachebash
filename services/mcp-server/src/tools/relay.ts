@@ -2,7 +2,7 @@
  * Relay Domain Registry — Inter-program messaging tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler } from "../modules/relay.js";
+import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGroupsHandler, getSentMessagesHandler, queryMessageHistoryHandler, sendDirectiveHandler } from "../modules/relay.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -13,6 +13,7 @@ export const handlers: Record<string, Handler> = {
   list_groups: listGroupsHandler,
   get_sent_messages: getSentMessagesHandler,
   query_message_history: queryMessageHistoryHandler,
+  send_directive: sendDirectiveHandler,
 };
 
 export const definitions = [
@@ -101,6 +102,21 @@ export const definitions = [
         until: { type: "string", description: "End date (ISO 8601)" },
         limit: { type: "number", minimum: 1, maximum: 100, default: 50 },
       },
+    },
+  },
+  {
+    name: "send_directive",
+    description: "Send a directive to another program. Convenience wrapper for send_message that auto-sets message_type=DIRECTIVE and action=interrupt. Use for orchestrator→worker commands.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source: { type: "string", maxLength: 100, description: "Sending program ID" },
+        target: { type: "string", maxLength: 100, description: "Target program ID" },
+        message: { type: "string", maxLength: 2000, description: "The directive text" },
+        priority: { type: "string", enum: ["low", "normal", "high"], default: "high" },
+        threadId: { type: "string", description: "Optional thread grouping" },
+      },
+      required: ["source", "target", "message"],
     },
   },
 ];
