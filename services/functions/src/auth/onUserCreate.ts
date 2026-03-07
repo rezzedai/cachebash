@@ -5,6 +5,10 @@ import { logSuccess, logError } from "../util/structuredLog";
 
 const db = admin.firestore();
 
+function hashEmail(email: string): string {
+  return crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
+}
+
 /**
  * Triggered when a new user is created in Firebase Auth.
  * Auto-provisions tenant namespace with config, first API key, and preferences.
@@ -82,6 +86,48 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // 8. Track 2 Gate 1: Set telemetry compliance to strict for new tenants
+    await db.doc(`tenants/${uid}/_meta/compliance`).set({
+      telemetryMode: "strict",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 9. Track 2 Gate 1: Seed canonical_accounts for multi-provider account linking
+    if (email) {
+      const emailHash = hashEmail(email);
+      const canonicalRef = db.doc(`canonical_accounts/${emailHash}`);
+      const existingCanonical = await canonicalRef.get();
+      if (!existingCanonical.exists) {
+        // First sign-up for this email — this UID becomes canonical
+        await canonicalRef.set({
+          email,
+          canonicalUid: uid,
+          alternateUids: [],
+          provider,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Email already has a canonical account — link this UID as alternate
+        const canonicalData = existingCanonical.data()!;
+        const existingAlts = (canonicalData.alternateUids as string[]) || [];
+        if (canonicalData.canonicalUid !== uid && !existingAlts.includes(uid)) {
+          await canonicalRef.update({
+            alternateUids: admin.firestore.FieldValue.arrayUnion(uid),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // Seed authorizedEmails for Grid Portal auto-linking
+      await db.doc(`authorizedEmails/${email}`).set({
+        dataUid: uid,
+        provider,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     logSuccess({
       function: "onUserCreate",

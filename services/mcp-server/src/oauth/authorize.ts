@@ -2,12 +2,52 @@
  * OAuth Authorization Endpoint — GET /authorize
  * Validates params, stores pending auth state, redirects to consent.
  * SARK F-1 CRITICAL: state parameter required for CSRF protection.
+ * Track 2 Gate 1 H-4: per-clientId (30/min) + per-IP rate limits.
  */
 
 import type http from "http";
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+
+// --- OAuth /authorize rate limiting ---
+
+const OAUTH_CLIENT_LIMIT = 30; // per clientId per minute
+const OAUTH_IP_LIMIT = 30;     // per IP per minute
+const OAUTH_WINDOW_MS = 60_000;
+
+const oauthWindows = new Map<string, number[]>();
+
+function oauthSlidingWindowCheck(key: string, limit: number, now: number): boolean {
+  const cutoff = now - OAUTH_WINDOW_MS;
+  let timestamps = oauthWindows.get(key);
+  if (!timestamps) {
+    timestamps = [];
+    oauthWindows.set(key, timestamps);
+  }
+  // Prune expired
+  const pruned = timestamps.filter((t) => t > cutoff);
+  if (pruned.length !== timestamps.length) {
+    oauthWindows.set(key, pruned);
+    timestamps = pruned;
+  }
+  if (timestamps.length >= limit) return false;
+  timestamps.push(now);
+  return true;
+}
+
+/** Cleanup stale OAuth rate limit windows (called from main cleanup cycle) */
+export function cleanupOAuthRateLimits(): void {
+  const cutoff = Date.now() - OAUTH_WINDOW_MS * 2;
+  for (const [key, timestamps] of oauthWindows.entries()) {
+    const pruned = timestamps.filter((t) => t > cutoff);
+    if (pruned.length === 0) {
+      oauthWindows.delete(key);
+    } else {
+      oauthWindows.set(key, pruned);
+    }
+  }
+}
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -32,6 +72,7 @@ function redirectWithError(res: http.ServerResponse, redirectUri: string, error:
 
 export async function handleOAuthAuthorize(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const reqUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
 
   const responseType = reqUrl.searchParams.get("response_type");
   const clientId = reqUrl.searchParams.get("client_id");
@@ -41,9 +82,24 @@ export async function handleOAuthAuthorize(req: http.IncomingMessage, res: http.
   const state = reqUrl.searchParams.get("state");
   const scope = reqUrl.searchParams.get("scope") || "mcp:full";
 
+  // Rate limit per IP before any Firestore reads
+  const rateLimitNow = Date.now();
+  if (!oauthSlidingWindowCheck(`oauth:ip:${clientIp}`, OAUTH_IP_LIMIT, rateLimitNow)) {
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+    res.end(JSON.stringify({ error: "too_many_requests", error_description: "Rate limit exceeded. Try again later." }));
+    return;
+  }
+
   // Validate client_id first — need it to check redirect_uri
   if (!clientId) {
     return sendErrorPage(res, "invalid_request", "client_id is required");
+  }
+
+  // Rate limit per clientId
+  if (!oauthSlidingWindowCheck(`oauth:client:${clientId}`, OAUTH_CLIENT_LIMIT, rateLimitNow)) {
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+    res.end(JSON.stringify({ error: "too_many_requests", error_description: "Rate limit exceeded for this client. Try again later." }));
+    return;
   }
 
   const db = getFirestore();
