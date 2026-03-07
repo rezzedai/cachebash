@@ -953,7 +953,27 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       console.warn("[GSP Bootstrap] Failed to load context:", err);
     }
 
-    // Depth-based filtering applied inline during data collection
+    // 7. Fleet Health — lightweight program heartbeat summary (standard + full only)
+    if (depth !== "essential") {
+      try {
+        const programsSnap = await db
+          .collection(`tenants/${auth.userId}/sessions/_meta/programs`)
+          .get();
+        const fleetNow = Date.now();
+        let staleCount = 0, workingCount = 0;
+        const programs = programsSnap.docs.map(doc => {
+          const data = doc.data();
+          const hbAge = data.lastHeartbeat?.toDate?.()
+            ? Math.round((fleetNow - data.lastHeartbeat.toDate().getTime()) / 60000) : null;
+          const isStale = hbAge !== null && hbAge > 10;
+          if (isStale) staleCount++; else if (data.currentState === "working") workingCount++;
+          return { programId: doc.id, state: isStale ? "stale" : (data.currentState || "idle"), heartbeatAgeMinutes: hbAge };
+        });
+        (payload.context as any).fleetHealth = { programs, summary: { working: workingCount, stale: staleCount, total: programsSnap.size } };
+      } catch (err) {
+        console.warn("[GSP Bootstrap] Failed to load fleet health:", err);
+      }
+    }
 
     return jsonResult({
       success: true,
