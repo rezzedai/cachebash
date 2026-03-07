@@ -86,7 +86,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
   }
 
-  // Advisory schema validation for structured payload
+  // Schema validation for structured payload (enforced)
   let schemaValid: boolean | null = null;
   let structuredPayload: unknown = null;
   if (args.payload) {
@@ -94,7 +94,11 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     schemaValid = validation.valid;
     structuredPayload = args.payload;
     if (!validation.valid) {
-      console.warn(`[Relay] Schema validation warning for ${args.message_type}:`, validation.errors);
+      return jsonResult({
+        success: false,
+        error: `Schema validation failed for ${args.message_type}`,
+        details: validation.errors,
+      });
     }
   }
 

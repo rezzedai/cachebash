@@ -7,6 +7,7 @@
  */
 
 import { FirestoreTimestamp, Envelope } from "./envelope.js";
+import { CONSTANTS } from "../config/constants.js";
 
 /** Relay message types — the CacheBash protocol vocabulary */
 export type RelayMessageType =
@@ -57,7 +58,7 @@ export interface RelayMessage extends Omit<Envelope, "action"> {
 }
 
 /** Default TTL for relay messages: 24 hours */
-export const RELAY_DEFAULT_TTL_SECONDS = 86400;
+export const RELAY_DEFAULT_TTL_SECONDS = CONSTANTS.ttl.relayMessageSeconds;
 
 /** Default max delivery attempts before dead-lettering */
-export const RELAY_MAX_DELIVERY_ATTEMPTS = 3;
+export const RELAY_MAX_DELIVERY_ATTEMPTS = CONSTANTS.limits.maxDeliveryAttempts;

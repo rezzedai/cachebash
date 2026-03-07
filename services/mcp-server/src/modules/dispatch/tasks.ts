@@ -16,6 +16,7 @@ import { emitAnalyticsEvent } from "../analytics.js";
 import { generateSpanId } from "../../utils/trace.js";
 import { notifyDispatcher } from "../../webhooks/dispatcher-notify.js";
 import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
+import { CONSTANTS } from "../../config/constants.js";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -244,8 +245,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     taskData.attempt_count = 0;
 
   // Default 24h TTL for type=task; other types (dream, sprint, question) have no default TTL
-  const DEFAULT_TASK_TTL_S = 24 * 60 * 60;
-  const effectiveTtl = args.ttl || (args.type === "task" ? DEFAULT_TASK_TTL_S : null);
+  const effectiveTtl = args.ttl || (args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : null);
   if (effectiveTtl) {
     taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
   }
