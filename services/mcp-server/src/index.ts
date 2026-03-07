@@ -13,7 +13,7 @@ import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
 import { validateAuth, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
-import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult } from "./middleware/rateLimiter.js";
+import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult, loadAuthCounters } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
 import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
@@ -31,7 +31,7 @@ import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
 import { handleOAuthMetadata } from "./oauth/metadata.js";
 import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
-import { handleOAuthAuthorize } from "./oauth/authorize.js";
+import { handleOAuthAuthorize, cleanupOAuthRateLimits } from "./oauth/authorize.js";
 import { handleOAuthConsent } from "./oauth/consent.js";
 import { handleOAuthCallback } from "./oauth/callback.js";
 import { handleOAuthToken, cleanupCcRateLimits } from "./oauth/token.js";
@@ -111,6 +111,11 @@ async function main() {
       console.error("[Boot] Failed to seed authorized emails:", err)
     );
   });
+
+  // Load persisted auth rate counters from Firestore (survive Cloud Run restarts)
+  loadAuthCounters().catch((err) =>
+    console.error("[Boot] Failed to load auth rate counters:", err)
+  );
 
   // Seed programs for known tenants (idempotent, fire-and-forget)
   import("./modules/programRegistry.js").then(({ seedPrograms }) => {
@@ -733,6 +738,7 @@ async function main() {
   // Cleanup intervals (rate limiters only — all auth/compliance/billing caches removed)
   setInterval(() => {
     cleanupRateLimits();
+    cleanupOAuthRateLimits();
     cleanupDcrRateLimits();
     cleanupCcRateLimits();
   }, 5 * 60 * 1000);
