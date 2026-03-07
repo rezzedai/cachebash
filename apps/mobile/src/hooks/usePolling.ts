@@ -133,9 +133,9 @@ export function usePolling<T>({
             setData(cachedData);
             setLastUpdated(new Date(timestamp));
             setIsCached(true);
-            // Don't set isLoading=false here — let the real fetch do that
-            // But do clear isInitialLoad so the UI shows cached data
             setIsInitialLoad(false);
+            // Set isLoading=false when showing cached data for instant UI
+            setIsLoading(false);
           }
         }
       } catch (e) {

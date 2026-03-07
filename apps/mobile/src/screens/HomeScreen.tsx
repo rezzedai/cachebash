@@ -75,9 +75,13 @@ export default function HomeScreen({ navigation }: Props) {
   // Total fleet programs count
   const programCount = useMemo(() => programs.length, [programs]);
 
-  // Active sessions count (non-complete)
+  // Active sessions count (non-complete, excluding heartbeat sessions)
   const activeSessions = useMemo(
-    () => sessions.filter((s) => s.state !== 'complete' && s.state !== 'done'),
+    () => sessions.filter((s) =>
+      s.state !== 'complete' &&
+      s.state !== 'done' &&
+      !s.name?.toLowerCase().includes('heartbeat')
+    ),
     [sessions]
   );
 
@@ -121,6 +125,9 @@ export default function HomeScreen({ navigation }: Props) {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + theme.spacing.sm }]}
+        showsVerticalScrollIndicator={true}
+        alwaysBounceVertical={true}
+        bounces={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -291,10 +298,10 @@ export default function HomeScreen({ navigation }: Props) {
 
           {expandedCard === 'sessions' && (
             <View style={styles.expandedContent}>
-              {sessions.length === 0 ? (
+              {activeSessions.length === 0 ? (
                 <Text style={styles.expandedEmptyText}>No sessions</Text>
               ) : (
-                sessions.slice(0, 10).map((session) => (
+                activeSessions.slice(0, 10).map((session) => (
                   <TouchableOpacity
                     key={session.id}
                     style={styles.expandedItem}
@@ -555,7 +562,7 @@ export default function HomeScreen({ navigation }: Props) {
             style={styles.quickActionButton}
             onPress={() => {
               haptic.light();
-              navigation.navigate('ChannelDetail', { programId: 'iso' });
+              navigation.navigate('ComposeMessage');
             }}
             activeOpacity={0.7}
             accessibilityLabel="Send a message"

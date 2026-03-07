@@ -25,17 +25,17 @@ interface Program {
 }
 
 const PROGRAMS: Program[] = [
-  { id: 'iso', name: 'ISO', color: '#6FC3DF' },
-  { id: 'basher', name: 'BASHER', color: '#E87040' },
   { id: 'vector', name: 'VECTOR', color: '#4A8ED4' },
-  { id: 'alan', name: 'ALAN', color: '#9B6FC0' },
-  { id: 'sark', name: 'SARK', color: '#C44040' },
-  { id: 'quorra', name: 'QUORRA', color: '#8B4A8E' },
-  { id: 'casp', name: 'CASP', color: '#7C8C4A' },
-  { id: 'radia', name: 'RADIA', color: '#E8E0D0' },
+  { id: 'iso', name: 'ISO', color: '#6FC3DF' },
   { id: 'able', name: 'ABLE', color: '#4DB870' },
+  { id: 'alan', name: 'ALAN', color: '#9B6FC0' },
+  { id: 'basher', name: 'BASHER', color: '#E87040' },
   { id: 'beck', name: 'BECK', color: '#40A8A0' },
+  { id: 'casp', name: 'CASP', color: '#7C8C4A' },
   { id: 'codex', name: 'CODEX', color: '#D4A04A' },
+  { id: 'quorra', name: 'QUORRA', color: '#8B4A8E' },
+  { id: 'radia', name: 'RADIA', color: '#E8E0D0' },
+  { id: 'sark', name: 'SARK', color: '#C44040' },
   { id: 'tesler', name: 'TESLER', color: '#8A4A8A' },
 ];
 
@@ -93,6 +93,9 @@ const CreateTaskScreen = () => {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        alwaysBounceVertical={true}
+        bounces={true}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}

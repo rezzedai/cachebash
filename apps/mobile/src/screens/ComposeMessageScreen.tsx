@@ -13,14 +13,15 @@ interface Program {
 }
 
 const PROGRAMS: Program[] = [
+  { id: 'vector', name: 'VECTOR', color: '#4A8ED4' },
   { id: 'iso', name: 'ISO', color: '#6FC3DF' },
-  { id: 'builder', name: 'BASHER', color: '#E87040' },
-  { id: 'architect', name: 'ALAN', color: '#4A8ED4' },
-  { id: 'reviewer', name: 'QUORRA', color: '#9B6FC0' },
-  { id: 'auditor', name: 'SARK', color: '#C44040' },
   { id: 'able', name: 'ABLE', color: '#4DB870' },
+  { id: 'alan', name: 'ALAN', color: '#4A8ED4' },
+  { id: 'basher', name: 'BASHER', color: '#E87040' },
   { id: 'beck', name: 'BECK', color: '#40A8A0' },
-  { id: 'designer', name: 'RADIA', color: '#E8E0D0' },
+  { id: 'quorra', name: 'QUORRA', color: '#9B6FC0' },
+  { id: 'radia', name: 'RADIA', color: '#E8E0D0' },
+  { id: 'sark', name: 'SARK', color: '#C44040' },
 ];
 
 export default function ComposeMessageScreen({ navigation }: Props) {
