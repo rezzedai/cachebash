@@ -384,7 +384,7 @@ function firebaseAuthPage(callbackUrl: string, pendingAuthId: string): string {
     import { getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyCIVp0MFpi5B4pCkFXKUCbD33y7NpFZ7Rs",
+      apiKey: "AIzaSyChgdJSsv0__YpYBdIOzPvSFMwPgwMZFak",
       authDomain: "cachebash-app.firebaseapp.com",
       projectId: "cachebash-app",
     };
