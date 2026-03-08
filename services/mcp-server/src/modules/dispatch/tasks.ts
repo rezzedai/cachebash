@@ -29,7 +29,7 @@ const GetTasksSchema = z.object({
 
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
-  instructions: z.string().max(4000).optional(),
+  instructions: z.string().max(32000).optional(),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story"]).default("task"),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),

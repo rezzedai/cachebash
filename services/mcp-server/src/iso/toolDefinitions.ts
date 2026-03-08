@@ -87,7 +87,7 @@ export const ISO_TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         title: { type: "string", maxLength: 200 },
-        instructions: { type: "string", maxLength: 4000 },
+        instructions: { type: "string", maxLength: 32000 },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
         source: { type: "string", maxLength: 100 },

@@ -52,7 +52,7 @@ export const definitions = [
       type: "object" as const,
       properties: {
         title: { type: "string", maxLength: 200 },
-        instructions: { type: "string", maxLength: 4000 },
+        instructions: { type: "string", maxLength: 32000 },
         type: { type: "string", enum: ["task", "question", "dream", "sprint", "sprint-story"], default: "task" },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
