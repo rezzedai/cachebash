@@ -7,14 +7,14 @@ import { askQuestionHandler, getResponseHandler, sendAlertHandler } from "../mod
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  ask_question: askQuestionHandler,
-  get_response: getResponseHandler,
-  send_alert: sendAlertHandler,
+  signal_ask_question: askQuestionHandler,
+  signal_get_response: getResponseHandler,
+  signal_send_alert: sendAlertHandler,
 };
 
 export const definitions = [
   {
-    name: "ask_question",
+    name: "signal_ask_question",
     description: "Send a question to the user's mobile device and wait for a response",
     inputSchema: {
       type: "object" as const,
@@ -32,7 +32,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_response",
+    name: "signal_get_response",
     description: "Check if the user has responded to a question",
     inputSchema: {
       type: "object" as const,
@@ -43,7 +43,7 @@ export const definitions = [
     },
   },
   {
-    name: "send_alert",
+    name: "signal_send_alert",
     description: "Send an alert notification to the user's mobile device (one-way, no response needed)",
     inputSchema: {
       type: "object" as const,

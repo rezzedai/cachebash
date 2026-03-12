@@ -7,15 +7,15 @@ import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler }
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  create_key: createKeyHandler,
-  revoke_key: revokeKeyHandler,
-  rotate_key: rotateKeyHandler,
-  list_keys: listKeysHandler,
+  keys_create_key: createKeyHandler,
+  keys_revoke_key: revokeKeyHandler,
+  keys_rotate_key: rotateKeyHandler,
+  keys_list_keys: listKeysHandler,
 };
 
 export const definitions = [
   {
-    name: "create_key",
+    name: "keys_create_key",
     description: "Create a new per-program API key. Returns the raw key (only shown once).",
     inputSchema: {
       type: "object" as const,
@@ -32,7 +32,7 @@ export const definitions = [
     },
   },
   {
-    name: "revoke_key",
+    name: "keys_revoke_key",
     description: "Revoke an API key by its hash. Soft revoke — key stays in DB for audit.",
     inputSchema: {
       type: "object" as const,
@@ -43,7 +43,7 @@ export const definitions = [
     },
   },
   {
-    name: "rotate_key",
+    name: "keys_rotate_key",
     description: "Rotate the calling API key. Atomically creates a new key and grace-expires the old one (30s window).",
     inputSchema: {
       type: "object" as const,
@@ -51,7 +51,7 @@ export const definitions = [
     },
   },
   {
-    name: "list_keys",
+    name: "keys_list_keys",
     description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
     inputSchema: {
       type: "object" as const,

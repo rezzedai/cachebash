@@ -7,12 +7,12 @@ import { submitFeedbackHandler } from "../modules/feedback.js";
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  submit_feedback: submitFeedbackHandler,
+  feedback_submit_feedback: submitFeedbackHandler,
 };
 
 export const definitions = [
   {
-    name: "submit_feedback",
+    name: "feedback_submit_feedback",
     description: "Submit feedback (bug report, feature request, or general) which creates a GitHub Issue",
     inputSchema: {
       type: "object" as const,

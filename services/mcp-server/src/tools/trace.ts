@@ -7,13 +7,13 @@ import { queryTracesHandler, queryTraceHandler } from "../modules/trace.js";
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  query_traces: queryTracesHandler,
-  query_trace: queryTraceHandler,
+  trace_query_traces: queryTracesHandler,
+  trace_query_trace: queryTraceHandler,
 };
 
 export const definitions = [
   {
-    name: "query_traces",
+    name: "trace_query_traces",
     description: "Query execution traces for debugging. Admin only. Filters: sprintId, taskId, programId, tool, since/until.",
     inputSchema: {
       type: "object" as const,
@@ -29,7 +29,7 @@ export const definitions = [
     },
   },
   {
-    name: "query_trace",
+    name: "trace_query_trace",
     description: "Query a complete agent trace by traceId. Fan-out query across tasks, relay messages, and ledger spans. Reconstructs span tree. Admin only.",
     inputSchema: {
       type: "object" as const,

@@ -8,9 +8,9 @@ import { getUsageHandler, getInvoiceHandler, setBudgetHandler } from "../modules
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  get_usage: getUsageHandler,
-  get_invoice: getInvoiceHandler,
-  set_budget: setBudgetHandler,
+  usage_get_usage: getUsageHandler,
+  usage_get_invoice: getInvoiceHandler,
+  usage_set_budget: setBudgetHandler,
 };
 
 export const definitions: Array<{ name: string; description: string; inputSchema: any }> = [];
