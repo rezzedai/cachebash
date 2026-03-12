@@ -6,6 +6,8 @@
  * Wildcard "*" grants unrestricted access.
  */
 
+import { resolveToolAlias } from "../tools/tool-aliases.js";
+
 /** All valid capability strings */
 export type Capability =
   | "*"
@@ -210,7 +212,9 @@ export function checkToolCapability(
   toolName: string,
   capabilities: string[]
 ): { allowed: true } | { allowed: false; required: string; held: string[] } {
-  const required = TOOL_CAPABILITIES[toolName];
+  // Resolve alias to canonical name before lookup
+  const canonical = resolveToolAlias(toolName);
+  const required = TOOL_CAPABILITIES[canonical];
   if (!required) {
     // Unknown tool — let the handler deal with it
     return { allowed: true };

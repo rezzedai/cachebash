@@ -316,6 +316,7 @@ async function main() {
           health: "/v1/health",
           cleanup: "/v1/internal/cleanup",
           wake: "/v1/internal/wake",
+          wakeTarget: "/v1/internal/wake-target",
           healthCheck: "/v1/internal/health-check",
           staleSessions: "/v1/internal/stale-sessions",
           executeSchedules: "/v1/internal/execute-schedules",
@@ -506,6 +507,52 @@ async function main() {
         });
       } catch (error) {
         console.error("[WakeDaemon] Wake poll failed:", error);
+        return sendJson(res, 500, {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // On-demand targeted wake endpoint (called by dispatch() or external triggers)
+    if (url === "/v1/internal/wake-target" && req.method === "POST") {
+      const startTime = Date.now();
+
+      try {
+        // Parse request body
+        let body = "";
+        for await (const chunk of req) body += chunk;
+        const params = JSON.parse(body || "{}");
+
+        if (!params.target) {
+          return sendJson(res, 400, { success: false, error: "Missing required field: target" });
+        }
+
+        const activeUserIds = await getActiveUserIds();
+        if (activeUserIds.length === 0) {
+          return sendJson(res, 200, { success: false, error: "No active users" });
+        }
+
+        const { wakeTarget } = await import("./modules/wake/onDemandWake.js");
+
+        // Wake for the first active user (single-tenant assumption for now)
+        const userId = activeUserIds[0];
+        const result = await wakeTarget({
+          userId,
+          target: params.target,
+          waitForAlive: params.waitForAlive ?? true,
+          callerSource: params.callerSource || "internal-api",
+          taskId: params.taskId,
+        });
+
+        const duration = Date.now() - startTime;
+        return sendJson(res, 200, {
+          success: result.outcome === "success" || result.outcome === "already_alive",
+          ...result,
+          duration_ms: duration,
+        });
+      } catch (error) {
+        console.error("[WakeTarget] Targeted wake failed:", error);
         return sendJson(res, 500, {
           success: false,
           error: error instanceof Error ? error.message : String(error),

@@ -297,13 +297,30 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     args.boardItemId
   );
 
-  return jsonResult({
+  // Enrich response with target state (best-effort)
+  const baseResult = {
     success: true,
     taskId: ref.id,
     title: args.title,
     action: args.action,
     message: `Task created. ID: "${ref.id}"`,
-  });
+  };
+
+  try {
+    const { queryTargetState } = await import("../wake/onDemandWake.js");
+    const targetInfo = await queryTargetState(auth.userId, args.target);
+    const enriched: Record<string, unknown> = {
+      ...baseResult,
+      targetState: targetInfo.targetState,
+      heartbeatAge: targetInfo.heartbeatAge,
+    };
+    if (targetInfo.targetState !== "alive") {
+      enriched.warning = `Target "${args.target}" is ${targetInfo.targetState} (heartbeat: ${targetInfo.heartbeatAge}). Task queued but target may not pick it up. Consider using dispatch() for enforced delivery.`;
+    }
+    return jsonResult(enriched);
+  } catch {
+    return jsonResult(baseResult);
+  }
 }
 
 export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {

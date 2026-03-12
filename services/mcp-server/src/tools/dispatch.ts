@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -16,6 +16,7 @@ export const handlers: Record<string, Handler> = {
   dispatch_batch_claim_tasks: batchClaimTasksHandler,
   dispatch_batch_complete_tasks: batchCompleteTasksHandler,
   dispatch_get_contention_metrics: getContentionMetricsHandler,
+  dispatch_dispatch: dispatchHandler,
 };
 
 export const definitions = [
@@ -157,6 +158,30 @@ export const definitions = [
       properties: {
         period: { type: "string", enum: ["today", "this_week", "this_month", "all"], default: "this_month", description: "Time period to aggregate" },
       },
+    },
+  },
+  {
+    name: "dispatch_dispatch",
+    description: "Dispatch work to a target program with enforced pre-flight checks, auto-wake, and uptake verification. Replaces the manual multi-step dispatch flow (create_task + send_directive + verify uptake) with a single atomic operation. Returns success only when the target has actually claimed the task.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        source: { type: "string", maxLength: 100, description: "Sending program ID" },
+        target: { type: "string", maxLength: 100, description: "Target program ID (required). The program that should receive and execute the work." },
+        title: { type: "string", maxLength: 200, description: "Task title — concise description of the work" },
+        instructions: { type: "string", maxLength: 32000, description: "Full task instructions with context, constraints, and acceptance criteria" },
+        priority: { type: "string", enum: ["low", "normal", "high"], default: "high", description: "Task priority (default: high)" },
+        action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "interrupt", description: "Task action classification (default: interrupt)" },
+        waitForUptake: { type: "boolean", default: true, description: "Wait for target to claim the task before returning (default: true). Set false to fire-and-forget." },
+        uptakeTimeoutSeconds: { type: "number", minimum: 5, maximum: 120, default: 45, description: "Seconds to wait for uptake confirmation (default: 45)" },
+        autoWake: { type: "boolean", default: true, description: "Trigger wake daemon if target is stale/absent (default: true)" },
+        threadId: { type: "string", description: "Optional conversation thread grouping" },
+        projectId: { type: "string", description: "Optional project ID" },
+        traceId: { type: "string", description: "Trace correlation ID" },
+        spanId: { type: "string", description: "Span ID for this operation" },
+        parentSpanId: { type: "string", description: "Parent span ID" },
+      },
+      required: ["source", "target", "title"],
     },
   },
 ];

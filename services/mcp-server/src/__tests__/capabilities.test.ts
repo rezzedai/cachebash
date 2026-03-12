@@ -69,20 +69,20 @@ describe('Capability System', () => {
 
     it('maps all 25 known tools', () => {
       const knownTools = [
-        'get_tasks', 'create_task', 'claim_task', 'complete_task',
-        'send_message', 'get_messages', 'get_dead_letters', 'list_groups',
-        'get_sent_messages', 'query_message_history',
-        'create_session', 'update_session', 'list_sessions',
-        'ask_question', 'get_response', 'send_alert',
+        'dispatch_get_tasks', 'dispatch_create_task', 'dispatch_claim_task', 'dispatch_complete_task',
+        'relay_send_message', 'relay_get_messages', 'relay_get_dead_letters', 'relay_list_groups',
+        'relay_get_sent_messages', 'relay_query_message_history',
+        'pulse_create_session', 'pulse_update_session', 'pulse_list_sessions',
+        'signal_ask_question', 'signal_get_response', 'signal_send_alert',
         'dream_peek', 'dream_activate',
-        'create_sprint', 'update_sprint_story', 'add_story_to_sprint',
-        'complete_sprint', 'get_sprint',
-        'create_key', 'revoke_key', 'list_keys',
-        'get_audit',
-        'get_program_state', 'update_program_state',
-        'get_cost_summary', 'get_comms_metrics', 'get_operational_metrics',
-        'get_fleet_health',
-        'query_traces',
+        'sprint_create_sprint', 'sprint_update_sprint_story', 'sprint_add_story_to_sprint',
+        'sprint_complete_sprint', 'sprint_get_sprint',
+        'keys_create_key', 'keys_revoke_key', 'keys_list_keys',
+        'audit_get_audit',
+        'state_get_program_state', 'state_update_program_state',
+        'metrics_get_cost_summary', 'metrics_get_comms_metrics', 'metrics_get_operational_metrics',
+        'pulse_get_fleet_health',
+        'trace_query_traces',
       ];
       for (const tool of knownTools) {
         expect(TOOL_CAPABILITIES[tool]).toBeDefined();
