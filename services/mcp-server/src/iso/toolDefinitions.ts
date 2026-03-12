@@ -5,7 +5,7 @@
 
 export const ISO_TOOL_DEFINITIONS = [
   {
-    name: "get_tasks",
+    name: "dispatch_get_tasks",
     description: "Get tasks created for programs to work on",
     inputSchema: {
       type: "object" as const,
@@ -18,7 +18,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_messages",
+    name: "relay_get_messages",
     description: "Check for pending messages from programs",
     inputSchema: {
       type: "object" as const,
@@ -33,7 +33,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_dead_letters",
+    name: "relay_get_dead_letters",
     description: "View messages that failed delivery. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -43,7 +43,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "update_session",
+    name: "pulse_update_session",
     description: "Update working status visible in the app",
     inputSchema: {
       type: "object" as const,
@@ -61,7 +61,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "send_message",
+    name: "relay_send_message",
     description: "Send a message to a running program. Relay v0.2.",
     inputSchema: {
       type: "object" as const,
@@ -81,7 +81,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "create_task",
+    name: "dispatch_create_task",
     description: "Create a new task for a program to work on",
     inputSchema: {
       type: "object" as const,
@@ -98,7 +98,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "claim_task",
+    name: "dispatch_claim_task",
     description: "Claim a pending task to start working on it",
     inputSchema: {
       type: "object" as const,
@@ -110,7 +110,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "complete_task",
+    name: "dispatch_complete_task",
     description: "Mark a task as complete (done) or failed",
     inputSchema: {
       type: "object" as const,
@@ -129,7 +129,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "send_alert",
+    name: "signal_send_alert",
     description: "Send an alert notification to the user's mobile device",
     inputSchema: {
       type: "object" as const,
@@ -144,7 +144,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "list_keys",
+    name: "keys_list_keys",
     description: "List all API keys for the authenticated user. Returns metadata, never raw keys.",
     inputSchema: {
       type: "object" as const,
@@ -154,7 +154,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_audit",
+    name: "audit_get_audit",
     description: "Query the Gate audit log. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -166,7 +166,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_sent_messages",
+    name: "relay_get_sent_messages",
     description: "Query sent messages from a program's outbox. Admin can query any source.",
     inputSchema: {
       type: "object" as const,
@@ -180,7 +180,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_comms_metrics",
+    name: "metrics_get_comms_metrics",
     description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown.",
     inputSchema: {
       type: "object" as const,
@@ -190,7 +190,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_fleet_health",
+    name: "pulse_get_fleet_health",
     description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program.",
     inputSchema: {
       type: "object" as const,
@@ -198,7 +198,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "query_message_history",
+    name: "relay_query_message_history",
     description: "Query full message history with bodies. Requires at least one of: threadId, source, target.",
     inputSchema: {
       type: "object" as const,
@@ -215,7 +215,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_cost_summary",
+    name: "metrics_get_cost_summary",
     description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",
     inputSchema: {
       type: "object" as const,
@@ -227,7 +227,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_operational_metrics",
+    name: "metrics_get_operational_metrics",
     description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -237,7 +237,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "query_traces",
+    name: "trace_query_traces",
     description: "Query execution traces for debugging. Filters: sprintId, taskId, programId, tool, since/until.",
     inputSchema: {
       type: "object" as const,
@@ -253,7 +253,7 @@ export const ISO_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "get_sprint",
+    name: "sprint_get_sprint",
     description: "Get a sprint's full state including definition, stories, and stats.",
     inputSchema: {
       type: "object" as const,

@@ -25,6 +25,7 @@ const LearnedPatternSchema = z.object({
   lastReinforced: z.string(),
   promotedToStore: z.boolean().default(false),
   stale: z.boolean().default(false),
+  projectId: z.string().max(100).optional(),
 });
 
 const UpdateProgramStateSchema = z.object({
@@ -303,6 +304,7 @@ const RecallMemorySchema = z.object({
   domain: z.string().max(100).optional(),
   query: z.string().max(200).optional(),
   includeStale: z.boolean().default(false),
+  projectId: z.string().max(100).optional(),
 });
 
 const MemoryHealthSchema = z.object({
@@ -412,6 +414,11 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): 
     patterns = patterns.filter((p: any) => p.domain === args.domain);
   }
 
+  // Project filter (exact match)
+  if (args.projectId) {
+    patterns = patterns.filter((p: any) => p.projectId === args.projectId);
+  }
+
   // Text search (case-insensitive substring match across pattern + evidence + domain)
   if (args.query) {
     const q = args.query.toLowerCase();
@@ -431,6 +438,7 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): 
       domain: args.domain || null,
       query: args.query || null,
       includeStale: args.includeStale,
+      projectId: args.projectId || null,
     },
     message: `Found ${patterns.length} pattern(s) for "${args.programId}".`,
   });

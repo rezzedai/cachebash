@@ -8,18 +8,18 @@ import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "../modules/f
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  create_session: createSessionHandler,
-  update_session: updateSessionHandler,
-  list_sessions: listSessionsHandler,
-  get_fleet_health: getFleetHealthHandler,
-  get_fleet_timeline: getFleetTimelineHandler,
-  write_fleet_snapshot: writeFleetSnapshotHandler,
-  get_context_utilization: getContextUtilizationHandler,
+  pulse_create_session: createSessionHandler,
+  pulse_update_session: updateSessionHandler,
+  pulse_list_sessions: listSessionsHandler,
+  pulse_get_fleet_health: getFleetHealthHandler,
+  pulse_get_fleet_timeline: getFleetTimelineHandler,
+  pulse_write_fleet_snapshot: writeFleetSnapshotHandler,
+  pulse_get_context_utilization: getContextUtilizationHandler,
 };
 
 export const definitions = [
   {
-    name: "create_session",
+    name: "pulse_create_session",
     description: "Create a new session to track work progress",
     inputSchema: {
       type: "object" as const,
@@ -36,7 +36,7 @@ export const definitions = [
     },
   },
   {
-    name: "update_session",
+    name: "pulse_update_session",
     description: "Update working status visible in the app. Also handles heartbeat (set lastHeartbeat: true). Replaces update_status and send_heartbeat.",
     inputSchema: {
       type: "object" as const,
@@ -54,7 +54,7 @@ export const definitions = [
     },
   },
   {
-    name: "list_sessions",
+    name: "pulse_list_sessions",
     description: "List active sessions for the authenticated user",
     inputSchema: {
       type: "object" as const,
@@ -67,7 +67,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_fleet_health",
+    name: "pulse_get_fleet_health",
     description: "Get health status of all programs. Shows heartbeat age, pending messages/tasks per program. Admin only. Use detail='full' for telemetry dashboard (context health, task contention, rate limits).",
     inputSchema: {
       type: "object" as const,
@@ -77,7 +77,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_fleet_timeline",
+    name: "pulse_get_fleet_timeline",
     description: "Query historical fleet snapshots with configurable resolution. Returns time-series data for fleet health visualization.",
     inputSchema: {
       type: "object" as const,
@@ -88,7 +88,7 @@ export const definitions = [
     },
   },
   {
-    name: "write_fleet_snapshot",
+    name: "pulse_write_fleet_snapshot",
     description: "Write a fleet health snapshot for time-series tracking. Called by the Grid Dispatcher daemon.",
     inputSchema: {
       type: "object" as const,
@@ -110,7 +110,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_context_utilization",
+    name: "pulse_get_context_utilization",
     description: "Query context window utilization time-series. Returns contextHistory from session docs. If sessionId provided, returns that session; otherwise aggregates across active sessions.",
     inputSchema: {
       type: "object" as const,

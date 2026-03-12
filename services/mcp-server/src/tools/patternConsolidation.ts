@@ -39,6 +39,11 @@ export const definitions = [
           description: "Optional domain filter - only consolidate patterns from this domain",
           maxLength: 100,
         },
+        projectId: {
+          type: "string",
+          description: "Optional: only consolidate patterns from this project",
+          maxLength: 100,
+        },
       },
     },
   },

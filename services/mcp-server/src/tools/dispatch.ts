@@ -7,20 +7,20 @@ import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandle
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  get_tasks: getTasksHandler,
-  get_task_by_id: getTaskByIdHandler,
-  create_task: createTaskHandler,
-  claim_task: claimTaskHandler,
-  unclaim_task: unclaimTaskHandler,
-  complete_task: completeTaskHandler,
-  batch_claim_tasks: batchClaimTasksHandler,
-  batch_complete_tasks: batchCompleteTasksHandler,
-  get_contention_metrics: getContentionMetricsHandler,
+  dispatch_get_tasks: getTasksHandler,
+  dispatch_get_task_by_id: getTaskByIdHandler,
+  dispatch_create_task: createTaskHandler,
+  dispatch_claim_task: claimTaskHandler,
+  dispatch_unclaim_task: unclaimTaskHandler,
+  dispatch_complete_task: completeTaskHandler,
+  dispatch_batch_claim_tasks: batchClaimTasksHandler,
+  dispatch_batch_complete_tasks: batchCompleteTasksHandler,
+  dispatch_get_contention_metrics: getContentionMetricsHandler,
 };
 
 export const definitions = [
   {
-    name: "get_tasks",
+    name: "dispatch_get_tasks",
     description: "Get tasks created for programs to work on.",
     inputSchema: {
       type: "object" as const,
@@ -35,7 +35,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_task_by_id",
+    name: "dispatch_get_task_by_id",
     description: "Get a single task by ID with full details including completion status and result",
     inputSchema: {
       type: "object" as const,
@@ -46,7 +46,7 @@ export const definitions = [
     },
   },
   {
-    name: "create_task",
+    name: "dispatch_create_task",
     description: "Create a new task for a program to work on",
     inputSchema: {
       type: "object" as const,
@@ -70,7 +70,7 @@ export const definitions = [
     },
   },
   {
-    name: "claim_task",
+    name: "dispatch_claim_task",
     description: "Claim a pending task to start working on it. Uses transactions to prevent double-claiming.",
     inputSchema: {
       type: "object" as const,
@@ -82,7 +82,7 @@ export const definitions = [
     },
   },
   {
-    name: "unclaim_task",
+    name: "dispatch_unclaim_task",
     description: "Unclaim an active task, returning it to created status for re-claiming. Circuit breaker flags tasks with 3+ unclaims.",
     inputSchema: {
       type: "object" as const,
@@ -94,7 +94,7 @@ export const definitions = [
     },
   },
   {
-    name: "complete_task",
+    name: "dispatch_complete_task",
     description: "Mark a task as complete (done) or failed",
     inputSchema: {
       type: "object" as const,
@@ -117,7 +117,7 @@ export const definitions = [
     },
   },
   {
-    name: "batch_claim_tasks",
+    name: "dispatch_batch_claim_tasks",
     description: "Claim multiple pending tasks in a single call. Each task claims independently (not all-or-nothing).",
     inputSchema: {
       type: "object" as const,
@@ -132,7 +132,7 @@ export const definitions = [
     },
   },
   {
-    name: "batch_complete_tasks",
+    name: "dispatch_batch_complete_tasks",
     description: "Complete multiple tasks in a single call. Each task completes independently (not all-or-nothing).",
     inputSchema: {
       type: "object" as const,
@@ -150,7 +150,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_contention_metrics",
+    name: "dispatch_get_contention_metrics",
     description: "Get task claim contention metrics. Shows claims attempted, won, contention events, and mean time to claim.",
     inputSchema: {
       type: "object" as const,

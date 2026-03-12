@@ -175,3 +175,18 @@ module "scheduler_stale_sessions" {
 
   depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
 }
+
+module "scheduler_execute_schedules" {
+  source = "../../modules/cloud-scheduler-job"
+
+  name             = "cachebash-execute-schedules"
+  project_id       = var.project_id
+  region           = var.region
+  schedule         = "* * * * *"
+  uri              = "${local.service_url}/v1/internal/execute-schedules"
+  headers          = local.scheduler_auth_headers
+  attempt_deadline = "60s"
+  description      = "Schedule Executor: fires user-defined scheduled tasks"
+
+  depends_on = [google_project_service.apis["cloudscheduler.googleapis.com"]]
+}

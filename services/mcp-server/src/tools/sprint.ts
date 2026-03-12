@@ -7,16 +7,16 @@ import { createSprintHandler, updateStoryHandler, addStoryHandler, completeSprin
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  create_sprint: createSprintHandler,
-  update_sprint_story: updateStoryHandler,
-  add_story_to_sprint: addStoryHandler,
-  complete_sprint: completeSprintHandler,
-  get_sprint: getSprintHandler,
+  sprint_create_sprint: createSprintHandler,
+  sprint_update_sprint_story: updateStoryHandler,
+  sprint_add_story_to_sprint: addStoryHandler,
+  sprint_complete_sprint: completeSprintHandler,
+  sprint_get_sprint: getSprintHandler,
 };
 
 export const definitions = [
   {
-    name: "create_sprint",
+    name: "sprint_create_sprint",
     description: "Create a new sprint to track parallel story execution",
     inputSchema: {
       type: "object" as const,
@@ -56,7 +56,7 @@ export const definitions = [
     },
   },
   {
-    name: "update_sprint_story",
+    name: "sprint_update_sprint_story",
     description: "Update a story's progress within a sprint",
     inputSchema: {
       type: "object" as const,
@@ -75,7 +75,7 @@ export const definitions = [
     },
   },
   {
-    name: "add_story_to_sprint",
+    name: "sprint_add_story_to_sprint",
     description: "Add a new story to a running sprint",
     inputSchema: {
       type: "object" as const,
@@ -100,7 +100,7 @@ export const definitions = [
     },
   },
   {
-    name: "complete_sprint",
+    name: "sprint_complete_sprint",
     description: "Mark a sprint as complete",
     inputSchema: {
       type: "object" as const,
@@ -120,7 +120,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_sprint",
+    name: "sprint_get_sprint",
     description: "Get a sprint's full state including definition, stories, and stats. Any authenticated program can read.",
     inputSchema: {
       type: "object" as const,

@@ -7,19 +7,19 @@ import { getProgramStateHandler, updateProgramStateHandler, storeMemoryHandler, 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  get_program_state: getProgramStateHandler,
-  update_program_state: updateProgramStateHandler,
-  get_context_history: getContextHistoryHandler,
-  store_memory: storeMemoryHandler,
-  recall_memory: recallMemoryHandler,
-  memory_health: memoryHealthHandler,
-  delete_memory: deleteMemoryHandler,
-  reinforce_memory: reinforceMemoryHandler,
+  state_get_program_state: getProgramStateHandler,
+  state_update_program_state: updateProgramStateHandler,
+  state_get_context_history: getContextHistoryHandler,
+  state_store_memory: storeMemoryHandler,
+  state_recall_memory: recallMemoryHandler,
+  state_memory_health: memoryHealthHandler,
+  state_delete_memory: deleteMemoryHandler,
+  state_reinforce_memory: reinforceMemoryHandler,
 };
 
 export const definitions = [
   {
-    name: "get_program_state",
+    name: "state_get_program_state",
     description: "Read a program's persistent operational state. Programs can read their own state; admin/auditor can read any.",
     inputSchema: {
       type: "object" as const,
@@ -30,7 +30,7 @@ export const definitions = [
     },
   },
   {
-    name: "update_program_state",
+    name: "state_update_program_state",
     description: "Write a program's persistent operational state. Programs can only write their own state. Partial updates merge with existing.",
     inputSchema: {
       type: "object" as const,
@@ -72,6 +72,7 @@ export const definitions = [
               lastReinforced: { type: "string" },
               promotedToStore: { type: "boolean" },
               stale: { type: "boolean" },
+              projectId: { type: "string", maxLength: 100 },
             },
             required: ["id", "domain", "pattern", "confidence", "evidence", "discoveredAt", "lastReinforced"],
           },
@@ -113,7 +114,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_context_history",
+    name: "state_get_context_history",
     description: "Query timestamped context snapshots (shadow journal). Returns entries newest-first. Same access rules as get_program_state.",
     inputSchema: {
       type: "object" as const,
@@ -125,7 +126,7 @@ export const definitions = [
     },
   },
   {
-    name: "store_memory",
+    name: "state_store_memory",
     description: "Store a learned pattern into agent memory. Upserts by pattern ID — existing patterns with the same ID are replaced.",
     inputSchema: {
       type: "object" as const,
@@ -144,6 +145,7 @@ export const definitions = [
             lastReinforced: { type: "string" },
             promotedToStore: { type: "boolean" },
             stale: { type: "boolean" },
+            projectId: { type: "string", maxLength: 100, description: "Optional project ID to scope this pattern" },
           },
           required: ["id", "domain", "pattern", "confidence", "evidence", "discoveredAt", "lastReinforced"],
         },
@@ -152,7 +154,7 @@ export const definitions = [
     },
   },
   {
-    name: "recall_memory",
+    name: "state_recall_memory",
     description: "Recall learned patterns from agent memory. Supports optional domain filter and text search (grep-style, case-insensitive substring match across pattern, evidence, and domain fields).",
     inputSchema: {
       type: "object" as const,
@@ -161,12 +163,13 @@ export const definitions = [
         domain: { type: "string", description: "Filter by knowledge domain (exact match)", maxLength: 100 },
         query: { type: "string", description: "Text search across pattern, evidence, and domain fields", maxLength: 200 },
         includeStale: { type: "boolean", default: false, description: "Include stale/expired patterns in results" },
+        projectId: { type: "string", description: "Filter by project ID (exact match)", maxLength: 100 },
       },
       required: ["programId"],
     },
   },
   {
-    name: "memory_health",
+    name: "state_memory_health",
     description: "Get memory health summary for a program. Returns pattern counts (total, active, stale, promoted), domains list, last update timestamp, and decay configuration.",
     inputSchema: {
       type: "object" as const,
@@ -177,7 +180,7 @@ export const definitions = [
     },
   },
   {
-    name: "delete_memory",
+    name: "state_delete_memory",
     description: "Delete a learned pattern from agent memory by ID. Hard delete — pattern is removed, not just marked stale.",
     inputSchema: {
       type: "object" as const,
@@ -189,7 +192,7 @@ export const definitions = [
     },
   },
   {
-    name: "reinforce_memory",
+    name: "state_reinforce_memory",
     description: "Reinforce an existing memory pattern. Bumps lastReinforced timestamp, optionally updates confidence and evidence. Resets stale flag.",
     inputSchema: {
       type: "object" as const,

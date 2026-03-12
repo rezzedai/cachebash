@@ -8,13 +8,13 @@ import { getAckComplianceHandler } from "../modules/ack-compliance.js";
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  get_audit: getAuditHandler,
-  get_ack_compliance: getAckComplianceHandler,
+  audit_get_audit: getAuditHandler,
+  audit_get_ack_compliance: getAckComplianceHandler,
 };
 
 export const definitions = [
   {
-    name: "get_audit",
+    name: "audit_get_audit",
     description: "Query the Gate audit log. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -26,7 +26,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_ack_compliance",
+    name: "audit_get_ack_compliance",
     description: "Get ACK compliance report. Returns statistics on DIRECTIVE messages and their ACK status.",
     inputSchema: {
       type: "object" as const,

@@ -7,12 +7,12 @@ import { mergeAccountsHandler } from "../modules/account-merge.js";
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  merge_accounts: mergeAccountsHandler,
+  admin_merge_accounts: mergeAccountsHandler,
 };
 
 export const definitions = [
   {
-    name: "merge_accounts",
+    name: "admin_merge_accounts",
     description: "Merge an alternate Firebase UID into a canonical account. Admin only. Maps the alternate UID to the canonical tenant so all data access is unified.",
     inputSchema: {
       type: "object" as const,
