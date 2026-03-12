@@ -22,6 +22,7 @@ export { onTaskCreate } from "./notifications/onTaskCreate";
 export { onTaskUpdate } from "./notifications/onTaskUpdate";
 export { onSessionUpdate } from "./notifications/onSessionUpdate";
 export { onRelayCreate } from "./notifications/onRelayCreate";
+export { onSlackBridge } from "./notifications/onSlackBridge";
 
 // Analytics aggregation
 export { onAnalyticsEventCreate } from "./analytics/onAnalyticsEventCreate";
