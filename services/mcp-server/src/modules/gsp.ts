@@ -1601,6 +1601,7 @@ const GspSearchSchema = z.object({
   namespace: z.string().min(1).max(100).optional(),
   tier: z.enum(TIERS).optional(),
   limit: z.number().min(1).max(50).default(20),
+  scope: z.enum(["gsp", "memory", "all"]).default("gsp"),
 });
 
 // ── Search handler ──────────────────────────────────────────────────────────
@@ -1624,6 +1625,9 @@ export async function gspSearchHandler(
       updatedAt: string;
       updatedBy: string;
       valueTruncated?: boolean;
+      source: "gsp" | "memory";
+      programId?: string;
+      confidence?: number;
     }
 
     const scoredEntries: ScoredEntry[] = [];
@@ -1684,24 +1688,86 @@ export async function gspSearchHandler(
           updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt || 'unknown',
           updatedBy: data.updatedBy || 'unknown',
           valueTruncated,
+          source: "gsp" as const,
         });
       }
     }
 
-    if (args.namespace) {
-      // Single-namespace: direct collection query
-      let ref: FirebaseFirestore.Query = db.collection(`tenants/${userId}/gsp/${args.namespace}/entries`);
-      if (args.tier) ref = ref.where('tier', '==', args.tier);
-      const snap = await ref.get();
-      snap.forEach(doc => scoreDoc(doc, args.namespace!));
-    } else {
-      // Cross-namespace: enumerate namespace docs, query each
-      const nsDocs = await db.collection(`tenants/${userId}/gsp`).listDocuments();
-      for (const nsDoc of nsDocs) {
-        let ref: FirebaseFirestore.Query = db.collection(`${nsDoc.path}/entries`);
+    // ── GSP search ──────────────────────────────────────────────────────
+    if (args.scope !== "memory") {
+      if (args.namespace) {
+        // Single-namespace: direct collection query
+        let ref: FirebaseFirestore.Query = db.collection(`tenants/${userId}/gsp/${args.namespace}/entries`);
         if (args.tier) ref = ref.where('tier', '==', args.tier);
         const snap = await ref.get();
-        snap.forEach(doc => scoreDoc(doc, nsDoc.id));
+        snap.forEach(doc => scoreDoc(doc, args.namespace!));
+      } else {
+        // Cross-namespace: enumerate namespace docs, query each
+        const nsDocs = await db.collection(`tenants/${userId}/gsp`).listDocuments();
+        for (const nsDoc of nsDocs) {
+          let ref: FirebaseFirestore.Query = db.collection(`${nsDoc.path}/entries`);
+          if (args.tier) ref = ref.where('tier', '==', args.tier);
+          const snap = await ref.get();
+          snap.forEach(doc => scoreDoc(doc, nsDoc.id));
+        }
+      }
+    }
+
+    // ── Memory search (when scope includes memory) ────────────────────────
+    if (args.scope !== "gsp") {
+      try {
+        // Query all program states for learned patterns
+        const programsSnap = await db.collection(`tenants/${userId}/sessions/_meta/program_state`).get();
+
+        for (const progDoc of programsSnap.docs) {
+          const progData = progDoc.data();
+          const patterns: any[] = Array.isArray(progData.learnedPatterns) ? progData.learnedPatterns : [];
+
+          for (const p of patterns) {
+            if (p.stale) continue; // Skip stale patterns
+
+            let score = 0;
+            const patternText = (p.pattern || "").toLowerCase();
+            const evidenceText = (p.evidence || "").toLowerCase();
+            const domainText = (p.domain || "").toLowerCase();
+
+            // Score pattern text (equivalent to key scoring)
+            if (patternText === queryLower) {
+              score += 10;
+            } else if (patternText.includes(queryLower)) {
+              score += 7;
+            }
+
+            // Score domain (equivalent to description scoring)
+            if (domainText.includes(queryLower)) {
+              score += 5;
+            }
+
+            // Score evidence (equivalent to value scoring)
+            if (evidenceText.includes(queryLower)) {
+              score += 3;
+            }
+
+            if (score > 0) {
+              scoredEntries.push({
+                namespace: "memory",
+                key: `${progDoc.id}/${p.id}`,
+                tier: "operational" as Tier,
+                description: p.domain ? `[${p.domain}] ${p.pattern}` : p.pattern,
+                value: { pattern: p.pattern, evidence: p.evidence, domain: p.domain },
+                score,
+                updatedAt: p.lastReinforced || p.discoveredAt || "unknown",
+                updatedBy: progDoc.id,
+                source: "memory",
+                programId: progDoc.id,
+                confidence: p.confidence,
+              });
+            }
+          }
+        }
+      } catch (memErr) {
+        console.error("[GSP Search] Memory search error:", memErr);
+        // Don't fail the whole search if memory search fails
       }
     }
 
@@ -1719,6 +1785,7 @@ export async function gspSearchHandler(
       query: args.query,
       namespace: args.namespace || 'all',
       tier: args.tier || 'all',
+      scope: args.scope,
       matchCount: scoredEntries.length,
       returnedCount: results.length,
       results,

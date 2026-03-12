@@ -26,6 +26,7 @@ import { SessionManager } from "./transport/SessionManager.js";
 import { emitEvent } from "./modules/events.js";
 import { reconcileGitHub } from "./modules/github-reconcile.js";
 import { detectStaleSessions } from "./modules/stale-session-detector.js";
+import { executeSchedulesForUser } from "./modules/schedule-executor.js";
 import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
@@ -317,6 +318,7 @@ async function main() {
           wake: "/v1/internal/wake",
           healthCheck: "/v1/internal/health-check",
           staleSessions: "/v1/internal/stale-sessions",
+          executeSchedules: "/v1/internal/execute-schedules",
         },
         restFallback: {
           description: "If MCP session dies, use REST endpoints with the same Bearer auth",
@@ -675,6 +677,36 @@ async function main() {
       } catch (error) {
         console.error("[Stale Sessions] Detection failed:", error);
         return sendJson(res, 500, { error: "Stale session detection failed" });
+      }
+    }
+
+    // Schedule execution endpoint (scheduled job — every minute)
+    if (url === "/v1/internal/execute-schedules" && req.method === "POST") {
+      try {
+        const activeUserIds = await getActiveUserIds();
+        let totalFired = 0;
+        let totalErrors = 0;
+        const results: Record<string, any> = {};
+
+        for (const userId of activeUserIds) {
+          const result = await executeSchedulesForUser(userId);
+          if (result.fired.length === 0 && result.errors === 0) continue;
+
+          results[userId] = result;
+          totalFired += result.fired.length;
+          totalErrors += result.errors;
+        }
+
+        return sendJson(res, 200, {
+          success: true,
+          totalFired,
+          totalErrors,
+          activeUsers: activeUserIds.length,
+          results,
+        });
+      } catch (error) {
+        console.error("[ScheduleExecutor] Execution failed:", error);
+        return sendJson(res, 500, { error: "Schedule execution failed" });
       }
     }
 

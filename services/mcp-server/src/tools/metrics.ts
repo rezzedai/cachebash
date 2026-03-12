@@ -8,16 +8,16 @@ import { logRateLimitEventHandler, getRateLimitEventsHandler } from "../modules/
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  get_cost_summary: getCostSummaryHandler,
-  get_comms_metrics: getCommsMetricsHandler,
-  get_operational_metrics: getOperationalMetricsHandler,
-  log_rate_limit_event: logRateLimitEventHandler,
-  get_rate_limit_events: getRateLimitEventsHandler,
+  metrics_get_cost_summary: getCostSummaryHandler,
+  metrics_get_comms_metrics: getCommsMetricsHandler,
+  metrics_get_operational_metrics: getOperationalMetricsHandler,
+  metrics_log_rate_limit_event: logRateLimitEventHandler,
+  metrics_get_rate_limit_events: getRateLimitEventsHandler,
 };
 
 export const definitions = [
   {
-    name: "get_comms_metrics",
+    name: "metrics_get_comms_metrics",
     description: "Get aggregated relay message metrics by period. Counts by status, avg delivery latency, per-program breakdown. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -27,7 +27,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_cost_summary",
+    name: "metrics_get_cost_summary",
     description: "Get aggregated cost/token spend for completed tasks. Supports period filtering and grouping by program or type.",
     inputSchema: {
       type: "object" as const,
@@ -39,7 +39,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_operational_metrics",
+    name: "metrics_get_operational_metrics",
     description: "Get aggregated operational metrics from the telemetry event stream. Task success rates, latency, safety gate stats, delivery health. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -49,7 +49,7 @@ export const definitions = [
     },
   },
   {
-    name: "log_rate_limit_event",
+    name: "metrics_log_rate_limit_event",
     description: "Log a rate limit/throttle event from a session. Written to rate_limit_events collection with 7-day TTL.",
     inputSchema: {
       type: "object" as const,
@@ -64,7 +64,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_rate_limit_events",
+    name: "metrics_get_rate_limit_events",
     description: "Query rate limit events with optional period and session filtering. Returns events ordered by timestamp desc.",
     inputSchema: {
       type: "object" as const,

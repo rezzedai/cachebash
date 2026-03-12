@@ -28,6 +28,7 @@ const ConsolidateSchema = z.object({
   threshold: z.number().min(1).max(MAX_THRESHOLD).default(DEFAULT_THRESHOLD),
   dryRun: z.boolean().default(false),
   domain: z.string().max(100).optional(), // Filter by domain
+  projectId: z.string().max(100).optional(), // Filter by project
 });
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ interface LearnedPattern {
   lastReinforced: string;
   promotedToStore: boolean;
   stale: boolean;
+  projectId?: string;
 }
 
 interface ProgramState {
@@ -198,7 +200,9 @@ export async function consolidatePatternsHandler(
     for (const pattern of state.learnedPatterns) {
       // Apply domain filter if provided
       if (args.domain && pattern.domain !== args.domain) continue;
-      
+      // Apply projectId filter if provided
+      if (args.projectId && pattern.projectId !== args.projectId) continue;
+
       allPatterns.push({ programId, pattern });
     }
   }
@@ -249,6 +253,7 @@ export async function consolidatePatternsHandler(
           evidenceCount,
           promotedAt: new Date().toISOString(),
           source: "pattern-consolidation",
+          ...(args.projectId ? { projectId: args.projectId } : {}),
         },
         description: `Auto-promoted pattern from ${evidenceCount} agents in domain: ${group.domain}`,
         source: "pattern-consolidation",
@@ -315,6 +320,7 @@ export async function consolidatePatternsHandler(
     dryRun: args.dryRun,
     threshold: args.threshold,
     domainFilter: args.domain || null,
+    projectFilter: args.projectId || null,
     result,
     message: args.dryRun
       ? `Dry run complete. Found ${promotionCandidates.length} patterns ready for promotion.`

@@ -213,12 +213,18 @@ export const definitions = [
           description: "Optional: filter by governance tier",
           enum: ["constitutional", "architectural", "operational"],
         },
-        limit: { 
-          type: "number", 
-          description: "Max results to return (default 20, max 50)", 
-          minimum: 1, 
-          maximum: 50, 
-          default: 20 
+        limit: {
+          type: "number",
+          description: "Max results to return (default 20, max 50)",
+          minimum: 1,
+          maximum: 50,
+          default: 20
+        },
+        scope: {
+          type: "string",
+          description: "Search scope: 'gsp' (GSP state only), 'memory' (agent memory only), 'all' (both). Default: 'gsp'.",
+          enum: ["gsp", "memory", "all"],
+          default: "gsp",
         },
       },
       required: ["query"],

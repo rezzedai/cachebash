@@ -7,13 +7,13 @@ import { listProgramsHandler, updateProgramHandler } from "../modules/programReg
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  list_programs: listProgramsHandler,
-  update_program: updateProgramHandler,
+  programs_list_programs: listProgramsHandler,
+  programs_update_program: updateProgramHandler,
 };
 
 export const definitions = [
   {
-    name: "list_programs",
+    name: "programs_list_programs",
     description: "List all registered programs for the tenant. Filterable by role, group, active status.",
     inputSchema: {
       type: "object" as const,
@@ -25,7 +25,7 @@ export const definitions = [
     },
   },
   {
-    name: "update_program",
+    name: "programs_update_program",
     description: "Update a program's metadata. Programs can update their own entry; admin can update any.",
     inputSchema: {
       type: "object" as const,

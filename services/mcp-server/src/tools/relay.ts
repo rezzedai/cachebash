@@ -7,18 +7,18 @@ import { sendMessageHandler, getMessagesHandler, getDeadLettersHandler, listGrou
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
 export const handlers: Record<string, Handler> = {
-  send_message: sendMessageHandler,
-  get_messages: getMessagesHandler,
-  get_dead_letters: getDeadLettersHandler,
-  list_groups: listGroupsHandler,
-  get_sent_messages: getSentMessagesHandler,
-  query_message_history: queryMessageHistoryHandler,
-  send_directive: sendDirectiveHandler,
+  relay_send_message: sendMessageHandler,
+  relay_get_messages: getMessagesHandler,
+  relay_get_dead_letters: getDeadLettersHandler,
+  relay_list_groups: listGroupsHandler,
+  relay_get_sent_messages: getSentMessagesHandler,
+  relay_query_message_history: queryMessageHistoryHandler,
+  relay_send_directive: sendDirectiveHandler,
 };
 
 export const definitions = [
   {
-    name: "send_message",
+    name: "relay_send_message",
     description: "Send a message to another program. Relay v0.2 — requires source, target, message_type.",
     inputSchema: {
       type: "object" as const,
@@ -41,7 +41,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_messages",
+    name: "relay_get_messages",
     description: "Check for pending messages from programs. Replaces get_interrupts.",
     inputSchema: {
       type: "object" as const,
@@ -56,7 +56,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_dead_letters",
+    name: "relay_get_dead_letters",
     description: "View messages that failed delivery. Admin only.",
     inputSchema: {
       type: "object" as const,
@@ -66,7 +66,7 @@ export const definitions = [
     },
   },
   {
-    name: "list_groups",
+    name: "relay_list_groups",
     description: "List available multicast groups and their members. Use group names as targets in send_message for multicast.",
     inputSchema: {
       type: "object" as const,
@@ -74,7 +74,7 @@ export const definitions = [
     },
   },
   {
-    name: "get_sent_messages",
+    name: "relay_get_sent_messages",
     description: "Query sent messages from a program's outbox. Programs see own sent only; admin can query any source.",
     inputSchema: {
       type: "object" as const,
@@ -88,7 +88,7 @@ export const definitions = [
     },
   },
   {
-    name: "query_message_history",
+    name: "relay_query_message_history",
     description: "Query full message history with bodies. Admin only. Requires at least one of: threadId, source, target.",
     inputSchema: {
       type: "object" as const,
@@ -105,7 +105,7 @@ export const definitions = [
     },
   },
   {
-    name: "send_directive",
+    name: "relay_send_directive",
     description: "Send a directive to another program. Convenience wrapper for send_message that auto-sets message_type=DIRECTIVE and action=interrupt. Use for orchestrator→worker commands.",
     inputSchema: {
       type: "object" as const,
