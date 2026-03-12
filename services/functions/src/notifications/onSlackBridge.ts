@@ -159,7 +159,9 @@ async function postToSlack(channel: string, blocks: SlackBlock[], text: string):
  * Formats the message with Slack Block Kit and posts to #grid-ops.
  * Rate limited to 30 messages/hour. Deduplicates within 5-minute windows.
  */
-export const onSlackBridge = functions.firestore
+export const onSlackBridge = functions
+  .runWith({ secrets: ["SLACK_BOT_TOKEN"] })
+  .firestore
   .document("tenants/{userId}/relay/{relayId}")
   .onCreate(async (snapshot, context) => {
     const { userId, relayId } = context.params;
