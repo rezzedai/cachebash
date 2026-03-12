@@ -7,3 +7,4 @@ export { getTasksHandler, getTaskByIdHandler, createTaskHandler } from "./tasks.
 export { claimTaskHandler, unclaimTaskHandler, batchClaimTasksHandler } from "./claims.js";
 export { completeTaskHandler, batchCompleteTasksHandler } from "./completion.js";
 export { getContentionMetricsHandler } from "./contention.js";
+export { dispatchHandler } from "./dispatchHandler.js";

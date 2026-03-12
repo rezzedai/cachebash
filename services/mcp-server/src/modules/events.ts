@@ -43,7 +43,11 @@ export type EventType =
   | "COMPLIANCE_DEREZ_STARTED"
   | "COMPLIANCE_DEREZ_COMPLETED"
   | "COMPLIANCE_CHECK_FAILED"
-  | "SCHEDULE_FIRED";
+  | "SCHEDULE_FIRED"
+  | "DISPATCH_PREFLIGHT"
+  | "DISPATCH_WAKE"
+  | "DISPATCH_COMPLETE"
+  | "RELAY_SENT";
 export type TaskClass = "WORK" | "CONTROL";
 
 export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";

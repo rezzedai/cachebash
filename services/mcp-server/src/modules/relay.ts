@@ -737,11 +737,27 @@ export async function sendDirectiveHandler(auth: AuthContext, args: unknown): Pr
   });
   const parsed = schema.parse(args);
 
-  return sendMessageHandler(auth, {
+  const result = await sendMessageHandler(auth, {
     ...parsed,
     message_type: "DIRECTIVE",
     action: "interrupt",
   });
+
+  // Enrich response with target state (soft warning, backwards compatible)
+  try {
+    const { queryTargetState } = await import("./wake/onDemandWake.js");
+    const targetInfo = await queryTargetState(auth.userId, parsed.target);
+    const resultData = JSON.parse(result.content[0].text);
+    resultData.targetState = targetInfo.targetState;
+    resultData.heartbeatAge = targetInfo.heartbeatAge;
+    if (targetInfo.targetState !== "alive") {
+      resultData.warning = `Target "${parsed.target}" is ${targetInfo.targetState} (heartbeat: ${targetInfo.heartbeatAge}). Directive stored but may not be received. Consider using dispatch() for enforced delivery.`;
+    }
+    return jsonResult(resultData);
+  } catch {
+    // Enrichment is best-effort — return original result on any failure
+    return result;
+  }
 }
 
 export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {

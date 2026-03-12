@@ -2,48 +2,60 @@
  * Domain-Prefixed Tool Alias Tests
  */
 
+// Mock modules that import @octokit/rest to avoid ESM import issues
+jest.mock('../modules/github-sync', () => ({}));
+jest.mock('../tools/feedback', () => ({
+  handlers: {
+    feedback_submit_feedback: async () => ({ content: [{ type: 'text', text: 'mocked' }] })
+  },
+  definitions: [
+    { name: 'feedback_submit_feedback', description: 'Mocked feedback tool', inputSchema: { type: 'object', properties: {} } },
+    { name: 'submit_feedback', description: 'Alias → feedback_submit_feedback', inputSchema: { type: 'object', properties: {} } }
+  ]
+}));
+
 import { TOOL_ALIASES, resolveToolAlias, getToolAlias } from '../tools/tool-aliases';
 import { TOOL_HANDLERS, TOOL_DEFINITIONS } from '../tools/index';
 
 describe('Tool Aliases', () => {
   describe('resolveToolAlias', () => {
     it('resolves dispatch aliases to canonical names', () => {
-      expect(resolveToolAlias('dispatch_create_task')).toBe('create_task');
-      expect(resolveToolAlias('dispatch_claim_task')).toBe('claim_task');
-      expect(resolveToolAlias('dispatch_complete_task')).toBe('complete_task');
-      expect(resolveToolAlias('dispatch_get_tasks')).toBe('get_tasks');
-      expect(resolveToolAlias('dispatch_batch_claim')).toBe('batch_claim_tasks');
+      expect(resolveToolAlias('create_task')).toBe('dispatch_create_task');
+      expect(resolveToolAlias('claim_task')).toBe('dispatch_claim_task');
+      expect(resolveToolAlias('complete_task')).toBe('dispatch_complete_task');
+      expect(resolveToolAlias('get_tasks')).toBe('dispatch_get_tasks');
+      expect(resolveToolAlias('dispatch_batch_claim')).toBe('dispatch_batch_claim_tasks');
     });
 
     it('resolves relay aliases to canonical names', () => {
-      expect(resolveToolAlias('relay_send')).toBe('send_message');
-      expect(resolveToolAlias('relay_get_messages')).toBe('get_messages');
-      expect(resolveToolAlias('relay_get_sent')).toBe('get_sent_messages');
-      expect(resolveToolAlias('relay_query_history')).toBe('query_message_history');
+      expect(resolveToolAlias('relay_send')).toBe('relay_send_message');
+      expect(resolveToolAlias('get_messages')).toBe('relay_get_messages');
+      expect(resolveToolAlias('relay_get_sent')).toBe('relay_get_sent_messages');
+      expect(resolveToolAlias('relay_query_history')).toBe('relay_query_message_history');
     });
 
     it('resolves session aliases to canonical names', () => {
-      expect(resolveToolAlias('session_create')).toBe('create_session');
-      expect(resolveToolAlias('session_update')).toBe('update_session');
-      expect(resolveToolAlias('session_list')).toBe('list_sessions');
+      expect(resolveToolAlias('session_create')).toBe('pulse_create_session');
+      expect(resolveToolAlias('session_update')).toBe('pulse_update_session');
+      expect(resolveToolAlias('session_list')).toBe('pulse_list_sessions');
     });
 
     it('resolves state aliases to canonical names', () => {
-      expect(resolveToolAlias('state_get')).toBe('get_program_state');
-      expect(resolveToolAlias('state_update')).toBe('update_program_state');
-      expect(resolveToolAlias('state_store_memory')).toBe('store_memory');
-      expect(resolveToolAlias('state_recall_memory')).toBe('recall_memory');
+      expect(resolveToolAlias('state_get')).toBe('state_get_program_state');
+      expect(resolveToolAlias('state_update')).toBe('state_update_program_state');
+      expect(resolveToolAlias('store_memory')).toBe('state_store_memory');
+      expect(resolveToolAlias('recall_memory')).toBe('state_recall_memory');
     });
 
     it('resolves sprint aliases to canonical names', () => {
-      expect(resolveToolAlias('sprint_create')).toBe('create_sprint');
-      expect(resolveToolAlias('sprint_get')).toBe('get_sprint');
-      expect(resolveToolAlias('sprint_complete')).toBe('complete_sprint');
+      expect(resolveToolAlias('sprint_create')).toBe('sprint_create_sprint');
+      expect(resolveToolAlias('sprint_get')).toBe('sprint_get_sprint');
+      expect(resolveToolAlias('sprint_complete')).toBe('sprint_complete_sprint');
     });
 
     it('passes through canonical names unchanged', () => {
-      expect(resolveToolAlias('create_task')).toBe('create_task');
-      expect(resolveToolAlias('send_message')).toBe('send_message');
+      expect(resolveToolAlias('dispatch_create_task')).toBe('dispatch_create_task');
+      expect(resolveToolAlias('relay_send_message')).toBe('relay_send_message');
       expect(resolveToolAlias('gsp_bootstrap')).toBe('gsp_bootstrap');
     });
 
@@ -54,9 +66,10 @@ describe('Tool Aliases', () => {
 
   describe('getToolAlias', () => {
     it('returns alias for canonical names', () => {
-      expect(getToolAlias('create_task')).toBe('dispatch_create_task');
-      expect(getToolAlias('send_message')).toBe('relay_send');
-      expect(getToolAlias('create_session')).toBe('session_create');
+      expect(getToolAlias('dispatch_create_task')).toBe('create_task');
+      // Note: when multiple aliases exist, reverse map returns last one in iteration order
+      expect(getToolAlias('relay_send_message')).toBe('relay_send');
+      expect(getToolAlias('pulse_create_session')).toBe('session_create');
     });
 
     it('returns undefined for tools without aliases', () => {
@@ -72,11 +85,21 @@ describe('Tool Aliases', () => {
       }
     });
 
-    it('every alias has a corresponding tool definition', () => {
+    it('every canonical tool has a corresponding definition', () => {
       const definedNames = new Set(TOOL_DEFINITIONS.map((d: any) => d.name));
-      for (const alias of Object.keys(TOOL_ALIASES)) {
-        expect(definedNames.has(alias)).toBe(true);
+      const canonicalNames = new Set(Object.values(TOOL_ALIASES));
+      // Internal/hidden tools (usage_*) may not have public definitions
+      const internalTools = new Set(['usage_get_usage', 'usage_get_invoice', 'usage_set_budget']);
+      const missing = [];
+      for (const canonical of canonicalNames) {
+        if (!definedNames.has(canonical) && !internalTools.has(canonical)) {
+          missing.push(canonical);
+        }
       }
+      if (missing.length > 0) {
+        console.log('Missing canonical tools:', missing.slice(0, 5));
+      }
+      expect(missing.length).toBe(0);
     });
 
     it('alias definitions reference canonical in description', () => {
