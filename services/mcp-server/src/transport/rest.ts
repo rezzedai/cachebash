@@ -19,6 +19,7 @@ import { checkPricing } from "../middleware/pricingEnforce.js";
 import { incrementUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
+import { resolveToolAlias } from "../tools/tool-aliases.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -207,7 +208,8 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
     console.error("[Pricing] Check failed, failing open:", err);
   }
 
-  const handler = TOOL_HANDLERS[toolName];
+  const canonicalName = resolveToolAlias(toolName);
+  const handler = TOOL_HANDLERS[canonicalName];
   if (!handler) throw new Error(`Unknown tool: ${toolName}`);
   const start = Date.now();
   const correlationId = generateCorrelationId();
