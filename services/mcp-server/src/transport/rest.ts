@@ -615,6 +615,36 @@ const routes: Route[] = [
   }),
 
 
+  // GSP
+  route("POST", "/v1/gsp/read", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "gsp_read", body);
+    restResponse(res, true, data);
+  }),
+  route("POST", "/v1/gsp/write", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "gsp_write", body);
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/gsp/namespaces", async (auth, req, res) => {
+    const data = await callTool(auth, req, "gsp_read", {});
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/gsp/namespaces/:namespace/entries", async (auth, req, res, p) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const data = await callTool(auth, req, "gsp_read", { namespace: p.namespace, ...query });
+    restResponse(res, true, data);
+  }),
+  route("GET", "/v1/gsp/entries/:namespace/:key", async (auth, req, res, p) => {
+    const data = await callTool(auth, req, "gsp_read", { namespace: p.namespace, key: p.key });
+    restResponse(res, true, data);
+  }),
+  route("POST", "/v1/gsp/search", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "gsp_search", body);
+    restResponse(res, true, data);
+  }),
+
   // Program State
   route("GET", "/v1/program-state/:programId", async (auth, req, res, p) => {
     const data = await callTool(auth, req, "get_program_state", { programId: p.programId });
