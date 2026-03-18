@@ -19,6 +19,7 @@ import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { isProgramRegistered } from "../programRegistry.js";
 import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
+import { dispatchTaskWebhooks } from "../webhook.js";
 
 // ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,15 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       success: true,
     });
 
+    // Fire-and-forget: dispatch task webhooks
+    dispatchTaskWebhooks(auth.userId, {
+      event: "task.retried",
+      taskId: args.taskId,
+      task: { id: args.taskId, retryCount: result.newRetryCount, newTarget: result.newTarget, reason: args.reason },
+      timestamp: new Date().toISOString(),
+      tenantId: auth.userId,
+    }).catch((err) => console.error("[TaskWebhook] Failed:", err));
+
     return jsonResult({
       success: true,
       taskId: args.taskId,
@@ -237,6 +247,15 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       toolName: "abort_task",
       success: true,
     });
+
+    // Fire-and-forget: dispatch task webhooks
+    dispatchTaskWebhooks(auth.userId, {
+      event: "task.aborted",
+      taskId: args.taskId,
+      task: { id: args.taskId, previousStatus: result.previousStatus, reason: args.reason, abortedBy: auth.programId },
+      timestamp: new Date().toISOString(),
+      tenantId: auth.userId,
+    }).catch((err) => console.error("[TaskWebhook] Failed:", err));
 
     return jsonResult({
       success: true,
