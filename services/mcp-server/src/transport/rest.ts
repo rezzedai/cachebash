@@ -347,6 +347,12 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "batch_complete_tasks", body);
     restResponse(res, true, data);
   }),
+  // Dispatch meta-tool
+  route("POST", "/v1/dispatch", async (auth, req, res) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "dispatch", body);
+    restResponse(res, true, data, 201);
+  }),
   // Relay
   route("GET", "/v1/messages/unread", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));

@@ -58,7 +58,7 @@ export async function createIsoServer(): Promise<{
     sessionTimeout: 60 * 60 * 1000,
     enableDnsRebindingProtection: false,
     strictAcceptHeader: false,
-    responseQueueTimeout: 2000,
+    responseQueueTimeout: 120_000,
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({

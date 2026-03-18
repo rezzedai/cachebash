@@ -19,6 +19,7 @@ import { logToolCall } from "./modules/ledger.js";
 import { traceToolCall } from "./modules/trace.js";
 import { generateSpanId } from "./utils/trace.js";
 import { TOOL_DEFINITIONS, TOOL_HANDLERS } from "./tools.js";
+import { resolveToolAlias } from "./tools/tool-aliases.js";
 import { createIsoServer } from "./iso/isoServer.js";
 import { createRestRouter } from "./transport/rest.js";
 import { handleGithubWebhook } from "./modules/github-webhook.js";
@@ -242,9 +243,10 @@ async function main() {
       spanId: generateSpanId(),
     });
 
-    const handler = TOOL_HANDLERS[name];
+    const canonicalName = resolveToolAlias(name);
+    const handler = TOOL_HANDLERS[canonicalName];
     if (!handler) {
-      return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+      return { content: [{ type: "text", text: `Unknown tool: ${name}${name !== canonicalName ? ` (resolved to ${canonicalName})` : ""}` }], isError: true };
     }
 
     try {
@@ -289,7 +291,7 @@ async function main() {
     sessionTimeout: SESSION_TIMEOUT_MS,
     enableDnsRebindingProtection: false,
     strictAcceptHeader: false,
-    responseQueueTimeout: 2000,
+    responseQueueTimeout: 120_000,
   });
 
   await server.connect(transport);
