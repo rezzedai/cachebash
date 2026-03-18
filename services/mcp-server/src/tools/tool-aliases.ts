@@ -173,6 +173,15 @@ export const TOOL_ALIASES: Record<string, string> = {
 
   // Admin domain
   merge_accounts: "admin_merge_accounts",
+
+  // Webhook domain
+  register_webhook: "webhook_register",
+  list_webhooks: "webhook_list",
+  delete_webhook: "webhook_delete",
+  get_webhook_deliveries: "webhook_get_deliveries",
+  // Shorthand aliases
+  webhook_create: "webhook_register",
+  webhook_deliveries: "webhook_get_deliveries",
 };
 
 /** Reverse map: canonical -> alias (for description generation) */
