@@ -6,7 +6,7 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
-import { isAdmin } from "../middleware/gate.js";
+import { isAdmin, hasCapability } from "../middleware/gate.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
@@ -324,11 +324,11 @@ const GetFleetHealthSchema = z.object({
 });
 
 export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin gate
-  if (!isAdmin(auth)) {
+  // Capability gate: fleet.read OR admin
+  if (!isAdmin(auth) && !hasCapability(auth, "fleet.read")) {
     return jsonResult({
       success: false,
-      error: "get_fleet_health is only accessible by admins.",
+      error: "get_fleet_health requires fleet.read capability.",
     });
   }
 

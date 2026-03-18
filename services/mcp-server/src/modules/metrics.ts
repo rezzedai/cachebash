@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
-import { isAdmin } from "../middleware/gate.js";
+import { isAdmin, hasCapability } from "../middleware/gate.js";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -58,11 +58,11 @@ const CommsMetricsSchema = z.object({
 });
 
 export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only gate
-  if (!isAdmin(auth)) {
+  // Capability gate: metrics.read OR admin
+  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
     return jsonResult({
       success: false,
-      error: "get_comms_metrics is only accessible by admin.",
+      error: "get_comms_metrics requires metrics.read capability.",
     });
   }
 
@@ -127,6 +127,14 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
 }
 
 export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  // Capability gate: metrics.read OR admin
+  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
+    return jsonResult({
+      success: false,
+      error: "get_cost_summary requires metrics.read capability.",
+    });
+  }
+
   const args = CostSummarySchema.parse(rawArgs || {});
   const db = getFirestore();
   const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
@@ -206,9 +214,9 @@ const OperationalMetricsSchema = z.object({
 });
 
 export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only gate
-  if (!isAdmin(auth)) {
-    return jsonResult({ success: false, error: "get_operational_metrics is only accessible by admin." });
+  // Capability gate: metrics.read OR admin
+  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
+    return jsonResult({ success: false, error: "get_operational_metrics requires metrics.read capability." });
   }
 
   const args = OperationalMetricsSchema.parse(rawArgs || {});
