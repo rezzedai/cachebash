@@ -292,6 +292,62 @@ async function handleSelfRecycle(
   }
 }
 
+// Wave 16: Update program stats with task-type success rates
+async function updateProgramStats(
+  db: admin.firestore.Firestore,
+  userId: string,
+  programId: string,
+  taskData: { taskType: string; success: boolean; durationMs?: number; tags?: string[] }
+): Promise<void> {
+  const statsRef = db.doc(`tenants/${userId}/program_stats/${programId}`);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(statsRef);
+      const data = doc.exists ? doc.data()! : {};
+
+      // Update task type stats
+      const taskTypeStats = (data.taskTypeSuccessRates as Record<string, any>) || {};
+      const currentStats = taskTypeStats[taskData.taskType] || { success: 0, total: 0, totalDurationMs: 0 };
+
+      const newTotal = currentStats.total + 1;
+      const newSuccess = taskData.success ? currentStats.success + 1 : currentStats.success;
+      const newTotalDuration = (currentStats.totalDurationMs || 0) + (taskData.durationMs || 0);
+
+      taskTypeStats[taskData.taskType] = {
+        success: newSuccess,
+        total: newTotal,
+        avgDuration: newTotalDuration / newTotal,
+      };
+
+      // Update tag-based stats if tags present
+      const tagStats = (data.tagSuccessRates as Record<string, any>) || {};
+      if (taskData.tags && taskData.tags.length > 0) {
+        for (const tag of taskData.tags) {
+          const currentTagStats = tagStats[tag] || { success: 0, total: 0 };
+          tagStats[tag] = {
+            success: taskData.success ? currentTagStats.success + 1 : currentTagStats.success,
+            total: currentTagStats.total + 1,
+          };
+        }
+      }
+
+      tx.set(
+        statsRef,
+        {
+          taskTypeSuccessRates: taskTypeStats,
+          tagSuccessRates: tagStats,
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+  } catch (err) {
+    console.error("[ProgramStats] Transaction failed:", err);
+    throw err;
+  }
+}
+
 // W1.3.6: Budget threshold alerting helper
 async function checkBudgetThresholdsAndAlert(
   db: admin.firestore.Firestore,
@@ -666,6 +722,22 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
         await handleAutoQuarantine(db, auth.userId, taskData.target as string);
       } catch (err) {
         console.error("[AutoQuarantine] Failed:", err);
+      }
+    }
+
+    // Wave 16: Update program stats with task-type success tracking
+    if (taskData.target) {
+      try {
+        await updateProgramStats(db, auth.userId, taskData.target as string, {
+          taskType: taskDoc.data()?.type as string || "task",
+          success: args.completed_status === "SUCCESS",
+          durationMs: taskDoc.data()?.startedAt
+            ? Date.now() - (taskDoc.data()?.startedAt as admin.firestore.Timestamp).toMillis()
+            : undefined,
+          tags: taskDoc.data()?.tags as string[] | undefined,
+        });
+      } catch (err) {
+        console.error("[ProgramStats] Failed to update stats:", err);
       }
     }
 

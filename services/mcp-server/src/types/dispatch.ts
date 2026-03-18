@@ -88,4 +88,8 @@ export interface DispatchResponse {
     severity: string;
     message: string;
   }>;
+  /** Wave 16: Suggested alternative target with better historical success rate (advisory only) */
+  suggested_target?: string;
+  /** Wave 16: Reason for target suggestion */
+  suggestion_reason?: string;
 }
