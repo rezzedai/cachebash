@@ -20,6 +20,7 @@ import { incrementUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
+import { generateOpenApiSpec } from "../modules/openapi.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -831,10 +832,31 @@ const routes: Route[] = [
   }),
 ];
 
+// OpenAPI spec cache (1 hour TTL)
+let cachedOpenApiSpec: { spec: any; timestamp: number } | null = null;
+const OPENAPI_CACHE_TTL = 60 * 60 * 1000; // 1 hour in ms
+
 export function createRestRouter(): (req: http.IncomingMessage, res: http.ServerResponse) => void {
   return async (req, res) => {
     const url = (req.url || "").split("?")[0];
     const method = req.method || "GET";
+
+    // Public endpoint: OpenAPI spec (no auth required)
+    if (method === "GET" && url === "/v1/openapi.json") {
+      const now = Date.now();
+      if (!cachedOpenApiSpec || now - cachedOpenApiSpec.timestamp > OPENAPI_CACHE_TTL) {
+        cachedOpenApiSpec = {
+          spec: generateOpenApiSpec(),
+          timestamp: now,
+        };
+      }
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=3600",
+      });
+      res.end(JSON.stringify(cachedOpenApiSpec.spec, null, 2));
+      return;
+    }
 
     // Auth
     const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
