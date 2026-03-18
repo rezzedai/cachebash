@@ -68,6 +68,88 @@ function sleep(ms: number): Promise<void> {
 // Delegated to modules/wake/onDemandWake.ts for shared use across dispatch(),
 // send_directive enrichment, and the /v1/internal/wake-target endpoint.
 
+// ─── WAVE 16: TARGET SUGGESTION ──────────────────────────────────────────────
+
+interface TargetSuggestion {
+  programId: string;
+  successRate: number;
+  sampleSize: number;
+  reason: string;
+}
+
+/**
+ * Suggest a better target based on historical success rates.
+ * Returns a suggestion only if an alternative has >20% higher success rate AND >5 completions.
+ */
+async function suggestBetterTarget(
+  userId: string,
+  context: { currentTarget: string; taskType: string; title: string }
+): Promise<TargetSuggestion | null> {
+  const db = getFirestore();
+
+  // Query all program stats
+  const statsSnapshot = await db.collection(`tenants/${userId}/program_stats`).get();
+
+  if (statsSnapshot.empty) {
+    return null; // No stats available
+  }
+
+  // Calculate success rate for current target
+  let currentSuccessRate = 0;
+  const currentDoc = statsSnapshot.docs.find((doc) => doc.id === context.currentTarget);
+  if (currentDoc) {
+    const data = currentDoc.data();
+    const taskTypeStats = data.taskTypeSuccessRates?.[context.taskType];
+    if (taskTypeStats && taskTypeStats.total > 0) {
+      currentSuccessRate = taskTypeStats.success / taskTypeStats.total;
+    }
+  }
+
+  // Find alternatives with better success rates
+  let bestAlternative: { programId: string; successRate: number; sampleSize: number } | null = null;
+
+  for (const doc of statsSnapshot.docs) {
+    const programId = doc.id;
+    if (programId === context.currentTarget) continue; // Skip current target
+
+    // Check if program is paused or quarantined
+    const isPaused = await isProgramPaused(userId, programId);
+    const isQuarantined = await isProgramQuarantined(userId, programId);
+    if (isPaused || isQuarantined) continue; // Skip unavailable programs
+
+    const data = doc.data();
+    const taskTypeStats = data.taskTypeSuccessRates?.[context.taskType];
+
+    if (!taskTypeStats || taskTypeStats.total < 5) {
+      continue; // Need at least 5 completions
+    }
+
+    const successRate = taskTypeStats.success / taskTypeStats.total;
+
+    // Check if success rate is >20% higher
+    if (successRate > currentSuccessRate + 0.2) {
+      if (!bestAlternative || successRate > bestAlternative.successRate) {
+        bestAlternative = {
+          programId,
+          successRate,
+          sampleSize: taskTypeStats.total,
+        };
+      }
+    }
+  }
+
+  if (!bestAlternative) {
+    return null; // No better alternative found
+  }
+
+  return {
+    programId: bestAlternative.programId,
+    successRate: bestAlternative.successRate,
+    sampleSize: bestAlternative.sampleSize,
+    reason: `${Math.round(bestAlternative.successRate * 100)}% success rate for ${context.taskType} tasks (${bestAlternative.sampleSize} completions) vs ${Math.round(currentSuccessRate * 100)}% for ${context.currentTarget}`,
+  };
+}
+
 // ─── SEND ────────────────────────────────────────────────────────────────────
 
 interface SendResult {
@@ -432,6 +514,31 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     });
   }
 
+  // ── 2.5. WAVE 16: TARGET SUGGESTION (advisory only, before send) ──
+  let suggestedTarget: string | undefined;
+  let suggestionReason: string | undefined;
+
+  try {
+    const suggestion = await suggestBetterTarget(auth.userId, {
+      currentTarget: args.target,
+      taskType: "task", // Default type
+      title: args.title,
+    });
+
+    if (suggestion) {
+      suggestedTarget = suggestion.programId;
+      suggestionReason = suggestion.reason;
+
+      // Add suggestion to governance warnings
+      governance.warnings.push(
+        `[target_suggestion] Consider dispatching to "${suggestion.programId}" instead: ${suggestion.reason}`
+      );
+    }
+  } catch (err) {
+    console.error("[TargetSuggestion] Failed to suggest target:", err);
+    // Non-blocking — continue with original target
+  }
+
   // ── 3. SEND (always — even if target is stale, task queues for later) ──
   const { taskId, directiveId } = await sendTaskAndDirective(auth, args, verifiedSource);
 
@@ -502,6 +609,8 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
             message: p.message,
           }))
         : undefined,
+    suggested_target: suggestedTarget,
+    suggestion_reason: suggestionReason,
   };
 
   // Emit dispatch completion telemetry

@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler, suggestTargetHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -27,6 +27,7 @@ export const handlers: Record<string, Handler> = {
   dispatch_approve_task: approveTaskHandler,
   dispatch_get_task_lineage: getTaskLineageHandler,
   dispatch_export_tasks: exportTasksHandler,
+  dispatch_suggest_target: suggestTargetHandler,
 };
 
 export const definitions = [
@@ -318,6 +319,18 @@ export const definitions = [
         status: { type: "string", description: "Optional status filter (created, active, done, failed, etc.)" },
         since: { type: "string", description: "Optional ISO 8601 date. Only return tasks created on or after this date." },
         limit: { type: "number", minimum: 1, maximum: 500, default: 100, description: "Max tasks to return (default 100, max 500)" },
+      },
+    },
+  },
+  {
+    name: "dispatch_suggest_target",
+    description: "Wave 16: Suggest optimal target programs based on historical success rates. Returns ranked list of programs with success rates for matching task characteristics. Requires dispatch.read capability.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskType: { type: "string", description: "Task type to match (e.g., 'task', 'question', 'dream'). Defaults to 'task'." },
+        title: { type: "string", description: "Optional task title for context" },
+        instructions: { type: "string", description: "Optional task instructions for context" },
       },
     },
   },
