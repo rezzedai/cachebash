@@ -28,6 +28,7 @@ export const TOOL_ALIASES: Record<string, string> = {
   batch_claim_tasks: "dispatch_batch_claim_tasks",
   batch_complete_tasks: "dispatch_batch_complete_tasks",
   get_contention_metrics: "dispatch_get_contention_metrics",
+  dispatch: "dispatch_dispatch",
   // Old aliases that differ from new canonical
   dispatch_batch_claim: "dispatch_batch_claim_tasks",
   dispatch_batch_complete: "dispatch_batch_complete_tasks",

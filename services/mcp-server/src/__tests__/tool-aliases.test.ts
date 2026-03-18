@@ -20,6 +20,7 @@ import { TOOL_HANDLERS, TOOL_DEFINITIONS } from '../tools/index';
 describe('Tool Aliases', () => {
   describe('resolveToolAlias', () => {
     it('resolves dispatch aliases to canonical names', () => {
+      expect(resolveToolAlias('dispatch')).toBe('dispatch_dispatch');
       expect(resolveToolAlias('create_task')).toBe('dispatch_create_task');
       expect(resolveToolAlias('claim_task')).toBe('dispatch_claim_task');
       expect(resolveToolAlias('complete_task')).toBe('dispatch_complete_task');
