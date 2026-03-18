@@ -3,29 +3,28 @@
  * Tests target suggestion logic with mocked program stats.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { suggestTargetHandler } from "../modules/dispatch/suggestion.js";
 import type { AuthContext } from "../auth/authValidator.js";
 
 // Mock dependencies
-vi.mock("../firebase/client.js", () => ({
-  getFirestore: vi.fn(() => mockDb),
-  serverTimestamp: vi.fn(() => ({ _methodName: "serverTimestamp" })),
+jest.mock("../firebase/client.js", () => ({
+  getFirestore: jest.fn(() => mockDb),
+  serverTimestamp: jest.fn(() => ({ _methodName: "serverTimestamp" })),
 }));
 
-vi.mock("../pulse.js", () => ({
-  isProgramPaused: vi.fn((userId: string, programId: string) => {
+jest.mock("../pulse.js", () => ({
+  isProgramPaused: jest.fn((userId: string, programId: string) => {
     return programId === "paused-program";
   }),
-  isProgramQuarantined: vi.fn((userId: string, programId: string) => {
+  isProgramQuarantined: jest.fn((userId: string, programId: string) => {
     return programId === "quarantined-program";
   }),
 }));
 
 // Mock Firestore
 const mockDb = {
-  collection: vi.fn(),
-  doc: vi.fn(),
+  collection: jest.fn(),
+  doc: jest.fn(),
 };
 
 describe("Wave 16: Smart Dispatch", () => {
@@ -69,7 +68,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -116,7 +115,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -158,7 +157,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -198,7 +197,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -237,7 +236,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -259,7 +258,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {
@@ -287,7 +286,7 @@ describe("Wave 16: Smart Dispatch", () => {
       };
 
       mockDb.collection.mockReturnValue({
-        get: vi.fn().mockResolvedValue(mockStatsSnapshot),
+        get: jest.fn().mockResolvedValue(mockStatsSnapshot),
       });
 
       const result = await suggestTargetHandler(mockAuth as any, {});
