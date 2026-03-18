@@ -840,3 +840,13 @@ export async function isProgramPaused(userId: string, programId: string): Promis
   const doc = await db.doc(`tenants/${userId}/programs/${programId}`).get();
   return doc.exists && doc.data()?.paused === true;
 }
+
+/**
+ * Check if a program is quarantined.
+ * Used by dispatch governance to prevent task dispatch to quarantined programs.
+ */
+export async function isProgramQuarantined(userId: string, programId: string): Promise<boolean> {
+  const db = getFirestore();
+  const doc = await db.doc(`tenants/${userId}/programs/${programId}`).get();
+  return doc.exists && doc.data()?.quarantined === true;
+}

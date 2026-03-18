@@ -44,31 +44,47 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cliAuthStatus = exports.cliAuthApprove = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const crypto_1 = require("crypto");
+const structuredLog_1 = require("../util/structuredLog");
 const db = admin.firestore();
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
-/**
- * POST — Called by the browser after user authenticates via Firebase Auth.
- * Creates a CLI session with an auto-generated API key.
- *
- * Body: { sessionToken: string, idToken: string }
- * The idToken is verified to get the userId.
- */
-exports.cliAuthApprove = functions.https.onRequest(async (req, res) => {
-    // CORS
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+// CORS: only allow the Firebase Hosting origin (where cli-auth.html is served)
+const ALLOWED_ORIGINS = [
+    "https://cachebash-app.web.app",
+    "https://cachebash-app.firebaseapp.com",
+    "https://app.cachebash.dev",
+];
+function setCorsHeaders(req, res) {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.set("Access-Control-Allow-Origin", origin);
+    }
+    res.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Vary", "Origin");
     if (req.method === "OPTIONS") {
         res.status(204).send("");
-        return;
+        return true;
     }
+    return false;
+}
+/**
+ * POST — Called by the browser after user authenticates via Firebase Auth.
+ * Idempotent: if session is already approved, returns success without creating
+ * a new key. Uses a transaction to prevent concurrent approve races.
+ *
+ * Body: { sessionToken: string, idToken: string }
+ */
+exports.cliAuthApprove = functions.https.onRequest(async (req, res) => {
+    if (setCorsHeaders(req, res))
+        return;
     if (req.method !== "POST") {
         res.status(405).json({ error: "Method not allowed" });
         return;
     }
+    const startTime = Date.now();
     try {
         const { sessionToken, idToken } = req.body;
         if (!sessionToken || !idToken) {
@@ -78,69 +94,85 @@ exports.cliAuthApprove = functions.https.onRequest(async (req, res) => {
         // Verify the Firebase ID token
         const decoded = await admin.auth().verifyIdToken(idToken);
         const userId = decoded.uid;
-        // Generate API key (same pattern as keyManagement.ts)
-        const rawKey = `cb_live_${(0, crypto_1.randomBytes)(24).toString("hex")}`;
-        const keyHash = (0, crypto_1.createHash)("sha256").update(rawKey).digest("hex");
-        // Check active key count (max 10)
-        const existingKeys = await db
-            .collection("keyIndex")
-            .where("userId", "==", userId)
-            .where("active", "==", true)
-            .get();
-        if (existingKeys.size >= 10) {
-            res.status(400).json({ error: "Maximum 10 active API keys. Revoke an existing key first." });
-            return;
-        }
-        // Write API key to keyIndex
-        const now = admin.firestore.FieldValue.serverTimestamp();
-        await db.collection("keyIndex").doc(keyHash).set({
-            userId,
-            label: "CLI (auto-generated)",
-            active: true,
-            createdAt: now,
-            createdBy: "cli-auth",
+        const sessionRef = db.collection("cli_sessions").doc(sessionToken);
+        await db.runTransaction(async (tx) => {
+            const sessionDoc = await tx.get(sessionRef);
+            // Idempotent: if already approved, do nothing
+            if (sessionDoc.exists && sessionDoc.data()?.status === "approved") {
+                return;
+            }
+            // Check active key count (max 10)
+            const existingKeys = await db
+                .collection("keyIndex")
+                .where("userId", "==", userId)
+                .where("active", "==", true)
+                .get();
+            if (existingKeys.size >= 10) {
+                throw new functions.https.HttpsError("resource-exhausted", "Maximum 10 active API keys. Revoke an existing key first.");
+            }
+            // Generate API key
+            const rawKey = `cb_live_${(0, crypto_1.randomBytes)(24).toString("hex")}`;
+            const keyHash = (0, crypto_1.createHash)("sha256").update(rawKey).digest("hex");
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            // Write API key to keyIndex
+            tx.set(db.collection("keyIndex").doc(keyHash), {
+                userId,
+                programId: "default",
+                label: "CLI (auto-generated)",
+                capabilities: [
+                    "dispatch.read", "dispatch.write",
+                    "relay.read", "relay.write",
+                    "pulse.read",
+                    "signal.read", "signal.write",
+                    "sprint.read",
+                    "metrics.read", "fleet.read",
+                ],
+                active: true,
+                createdAt: now,
+                createdBy: "cli-auth",
+            });
+            // Store CLI session (for polling)
+            tx.set(sessionRef, {
+                userId,
+                apiKey: rawKey,
+                status: "approved",
+                expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+                createdAt: now,
+            });
         });
-        // Write the full API key doc
-        await db.doc(`users/${userId}/apiKeys/${keyHash}`).set({
-            keyHash,
-            userId,
-            label: "CLI (auto-generated)",
-            active: true,
-            createdAt: now,
-            capabilities: ["*"],
-        });
-        // Store CLI session (for polling)
-        await db.collection("cli_sessions").doc(sessionToken).set({
-            userId,
-            apiKey: rawKey,
-            status: "approved",
-            expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-            createdAt: now,
+        (0, structuredLog_1.logSuccess)({
+            function: "cliAuthApprove",
+            uid: userId,
+            action: "approve_cli_session",
+            durationMs: Date.now() - startTime,
         });
         res.status(200).json({ success: true });
     }
     catch (err) {
-        console.error("[cliAuth] Approve failed:", err);
+        if (err.code === "resource-exhausted") {
+            res.status(400).json({ error: err.message });
+            return;
+        }
+        (0, structuredLog_1.logError)({
+            function: "cliAuthApprove",
+            uid: null,
+            action: "approve_cli_session",
+            durationMs: Date.now() - startTime,
+        }, err);
         res.status(500).json({ error: "Authentication failed" });
     }
 });
 /**
  * GET — Called by CLI polling for approval status.
+ * Uses a transaction to atomically read + delete the session (TOCTOU fix).
+ * Only the first successful poll gets the API key; subsequent calls get 404.
  *
  * Query: ?session={token}
  * Returns: { status: "pending" | "approved" | "expired", apiKey?, userId? }
- *
- * After first successful retrieval, deletes the session (one-time use).
  */
 exports.cliAuthStatus = functions.https.onRequest(async (req, res) => {
-    // CORS
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    if (req.method === "OPTIONS") {
-        res.status(204).send("");
+    if (setCorsHeaders(req, res))
         return;
-    }
     if (req.method !== "GET") {
         res.status(405).json({ error: "Method not allowed" });
         return;
@@ -150,34 +182,47 @@ exports.cliAuthStatus = functions.https.onRequest(async (req, res) => {
         res.status(400).json({ error: "Missing session parameter" });
         return;
     }
+    const startTime = Date.now();
     try {
-        const doc = await db.collection("cli_sessions").doc(sessionToken).get();
-        if (!doc.exists) {
-            res.status(200).json({ status: "pending" });
-            return;
-        }
-        const data = doc.data();
-        // Check expiration
-        const expiresAt = data.expiresAt?.toDate?.() || new Date(data.expiresAt);
-        if (expiresAt < new Date()) {
-            await doc.ref.delete();
-            res.status(200).json({ status: "expired" });
-            return;
-        }
-        if (data.status === "approved") {
-            // One-time use — delete after retrieval
-            await doc.ref.delete();
-            res.status(200).json({
-                status: "approved",
-                apiKey: data.apiKey,
-                userId: data.userId,
-            });
-            return;
-        }
-        res.status(200).json({ status: data.status || "pending" });
+        const sessionRef = db.collection("cli_sessions").doc(sessionToken);
+        const result = await db.runTransaction(async (tx) => {
+            const doc = await tx.get(sessionRef);
+            if (!doc.exists) {
+                return { status: "pending" };
+            }
+            const data = doc.data();
+            // Check expiration
+            const expiresAt = data.expiresAt?.toDate?.() || new Date(data.expiresAt);
+            if (expiresAt < new Date()) {
+                tx.delete(sessionRef);
+                return { status: "expired" };
+            }
+            if (data.status === "approved") {
+                // Atomic read + delete — only first caller gets the key
+                tx.delete(sessionRef);
+                return {
+                    status: "approved",
+                    apiKey: data.apiKey,
+                    userId: data.userId,
+                };
+            }
+            return { status: data.status || "pending" };
+        });
+        (0, structuredLog_1.logSuccess)({
+            function: "cliAuthStatus",
+            uid: null,
+            action: "poll_cli_status",
+            durationMs: Date.now() - startTime,
+        });
+        res.status(200).json(result);
     }
     catch (err) {
-        console.error("[cliAuth] Status check failed:", err);
+        (0, structuredLog_1.logError)({
+            function: "cliAuthStatus",
+            uid: null,
+            action: "poll_cli_status",
+            durationMs: Date.now() - startTime,
+        }, err);
         res.status(500).json({ error: "Status check failed" });
     }
 });
