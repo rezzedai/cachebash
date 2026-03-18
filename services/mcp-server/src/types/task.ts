@@ -98,6 +98,10 @@ export interface Task extends Envelope {
   status: LifecycleStatus;
   blockedBy?: string[];
 
+  // Policy mode (Wave 7: Control Plane v2)
+  policy_mode?: "normal" | "supervised" | "strict";
+  awaitingApproval?: boolean;
+
   // Session tracking
   sessionId?: string;
   projectId?: string;

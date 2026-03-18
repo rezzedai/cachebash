@@ -40,7 +40,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processDeadLetters = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const MAX_DELIVERY_ATTEMPTS = 3;
 const DEAD_LETTER_AGE_MS = 60 * 60 * 1000; // 1 hour
@@ -72,10 +72,10 @@ exports.processDeadLetters = functions.pubsub
             const maxAttempts = data.maxDeliveryAttempts || MAX_DELIVERY_ATTEMPTS;
             if (attempts >= maxAttempts) {
                 // Move to dead letter queue
-                // Extract userId from doc path: users/{uid}/relay/{id}
+                // Extract userId from doc path: tenants/{uid}/relay/{id}
                 const pathParts = doc.ref.path.split("/");
                 const userId = pathParts[1];
-                const deadLetterRef = db.doc(`users/${userId}/dead_letters/${doc.id}`);
+                const deadLetterRef = db.doc(`tenants/${userId}/dead_letters/${doc.id}`);
                 batch.set(deadLetterRef, {
                     ...data,
                     status: "dead_letter",

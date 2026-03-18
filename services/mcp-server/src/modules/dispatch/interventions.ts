@@ -47,6 +47,27 @@ const EscalateTaskSchema = z.object({
   reason: z.string().max(500),
 });
 
+const QuarantineProgramSchema = z.object({
+  programId: z.string().max(100),
+  reason: z.string().max(500),
+});
+
+const UnquarantineProgramSchema = z.object({
+  programId: z.string().max(100),
+});
+
+const ReplayTaskSchema = z.object({
+  taskId: z.string(),
+  modifiedInstructions: z.string().max(32000).optional(),
+  newTarget: z.string().max(100).optional(),
+  newPriority: z.enum(["low", "normal", "high"]).optional(),
+  reason: z.string().max(500),
+});
+
+const ApproveTaskSchema = z.object({
+  taskId: z.string(),
+});
+
 // ─── RETRY TASK ───────────────────────────────────────────────────────────────
 
 export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -432,6 +453,310 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({
       success: false,
       error: `Failed to escalate task: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+// ─── QUARANTINE PROGRAM ──────────────────────────────────────────────────────
+
+export async function quarantineProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = QuarantineProgramSchema.parse(rawArgs);
+  const db = getFirestore();
+  const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+
+  // Validate program exists
+  const isKnown = await isProgramRegistered(auth.userId, args.programId);
+  if (!isKnown) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(programRef);
+
+      // Create or update program doc with quarantine fields
+      const updateFields: Record<string, unknown> = {
+        quarantined: true,
+        quarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        quarantineReason: args.reason,
+        quarantinedBy: auth.programId,
+      };
+
+      tx.set(programRef, updateFields, { merge: true });
+
+      return {
+        previouslyQuarantined: doc.exists && doc.data()?.quarantined === true,
+      };
+    });
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: "PROGRAM_QUARANTINED",
+      program_id: args.programId,
+      quarantined_by: auth.programId,
+      reason: args.reason,
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "program_control",
+      programId: auth.programId,
+      toolName: "quarantine_program",
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      quarantined: true,
+      reason: args.reason,
+      message: result.previouslyQuarantined
+        ? `Program "${args.programId}" was already quarantined. Reason updated.`
+        : `Program "${args.programId}" quarantined. All dispatches blocked until unquarantined.`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to quarantine program: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+// ─── UNQUARANTINE PROGRAM ────────────────────────────────────────────────────
+
+export async function unquarantineProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = UnquarantineProgramSchema.parse(rawArgs);
+  const db = getFirestore();
+  const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+
+  // Validate program exists
+  const isKnown = await isProgramRegistered(auth.userId, args.programId);
+  if (!isKnown) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(programRef);
+
+      if (!doc.exists || !doc.data()?.quarantined) {
+        return { error: `Program "${args.programId}" is not quarantined.` };
+      }
+
+      tx.update(programRef, {
+        quarantined: false,
+        unquarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        unquarantinedBy: auth.programId,
+        failureCount: 0,
+        lastFailureAt: null,
+        quarantineReason: admin.firestore.FieldValue.delete(),
+        quarantinedAt: admin.firestore.FieldValue.delete(),
+        quarantinedBy: admin.firestore.FieldValue.delete(),
+      });
+
+      return { success: true };
+    });
+
+    if ("error" in result) return jsonResult({ success: false, error: result.error });
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: "PROGRAM_UNQUARANTINED",
+      program_id: args.programId,
+      unquarantined_by: auth.programId,
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "program_control",
+      programId: auth.programId,
+      toolName: "unquarantine_program",
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      quarantined: false,
+      message: `Program "${args.programId}" unquarantined. Dispatch enabled.`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to unquarantine program: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+// ─── REPLAY TASK ─────────────────────────────────────────────────────────────
+
+export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = ReplayTaskSchema.parse(rawArgs);
+  const db = getFirestore();
+  const originalTaskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
+
+  // Validate new target if provided
+  if (args.newTarget) {
+    const isKnown = await isProgramRegistered(auth.userId, args.newTarget);
+    if (!isKnown) {
+      return jsonResult({ success: false, error: `Unknown target program: "${args.newTarget}"` });
+    }
+  }
+
+  try {
+    // Read original task
+    const originalDoc = await originalTaskRef.get();
+    if (!originalDoc.exists) {
+      return jsonResult({ success: false, error: "Task not found" });
+    }
+
+    const originalData = originalDoc.data()!;
+
+    // Clone task with modifications
+    const newTaskData: Record<string, unknown> = {
+      schemaVersion: originalData.schemaVersion || "2.2",
+      type: originalData.type || "task",
+      title: originalData.title,
+      instructions: args.modifiedInstructions || originalData.instructions || "",
+      preview: originalData.preview,
+      source: originalData.source,
+      target: args.newTarget || originalData.target,
+      priority: args.newPriority || originalData.priority || "normal",
+      action: originalData.action || "interrupt",
+      status: "created",
+      projectId: originalData.projectId || null,
+      boardItemId: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      encrypted: false,
+      archived: false,
+      ttl: originalData.ttl,
+      replyTo: null,
+      threadId: originalData.threadId || null,
+      provenance: null,
+      fallback: null,
+      traceId: originalData.traceId,
+      spanId: originalData.spanId,
+      parentSpanId: originalData.parentSpanId,
+      requires_action: true,
+      auto_archived: false,
+      task_class: originalData.task_class || "WORK",
+      attempt_count: 0,
+      // Link back to original task
+      replayOf: args.taskId,
+      replayReason: args.reason,
+    };
+
+    // Set TTL expiration
+    const effectiveTtl = originalData.ttl as number;
+    if (effectiveTtl) {
+      newTaskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+    }
+
+    // Create new task
+    const newTaskRef = await db.collection(`tenants/${auth.userId}/tasks`).add(newTaskData);
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: "TASK_REPLAYED",
+      program_id: auth.programId,
+      task_id: args.taskId,
+      new_task_id: newTaskRef.id,
+      original_target: originalData.target as string,
+      new_target: args.newTarget || originalData.target as string,
+      modified_instructions: !!args.modifiedInstructions,
+      reason: args.reason,
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "task_intervention",
+      programId: auth.programId,
+      toolName: "replay_task",
+      success: true,
+    });
+
+    const modifications: string[] = [];
+    if (args.modifiedInstructions) modifications.push("instructions");
+    if (args.newTarget) modifications.push(`target: ${originalData.target} → ${args.newTarget}`);
+    if (args.newPriority) modifications.push(`priority: ${originalData.priority} → ${args.newPriority}`);
+
+    return jsonResult({
+      success: true,
+      originalTaskId: args.taskId,
+      newTaskId: newTaskRef.id,
+      modifications: modifications.length > 0 ? modifications : ["none (exact replay)"],
+      message: `Task replayed. New task created: ${newTaskRef.id}${modifications.length > 0 ? ` with modifications: ${modifications.join(", ")}` : ""}`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to replay task: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+// ─── APPROVE TASK ────────────────────────────────────────────────────────────
+
+export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = ApproveTaskSchema.parse(rawArgs);
+  const db = getFirestore();
+  const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(taskRef);
+      if (!doc.exists) return { error: "Task not found" };
+
+      const data = doc.data()!;
+
+      // Validate task is in completing status and awaiting approval
+      if (data.status !== "completing") {
+        return { error: `Task cannot be approved (status: ${data.status}). Only tasks in "completing" status can be approved.` };
+      }
+
+      if (!data.awaitingApproval) {
+        return { error: "Task is not awaiting approval." };
+      }
+
+      // Validate lifecycle transition: completing -> done
+      transition("task", "completing", "done");
+
+      tx.update(taskRef, {
+        status: "done",
+        awaitingApproval: false,
+        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedBy: auth.programId,
+      });
+
+      return {
+        previousStatus: data.status,
+        policyMode: data.policy_mode,
+      };
+    });
+
+    if ("error" in result) return jsonResult({ success: false, error: result.error });
+
+    // Emit telemetry event
+    emitEvent(auth.userId, {
+      event_type: "TASK_APPROVED",
+      program_id: auth.programId,
+      task_id: args.taskId,
+      policy_mode: result.policyMode as string,
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "task_intervention",
+      programId: auth.programId,
+      toolName: "approve_task",
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      taskId: args.taskId,
+      message: `Task approved. Status: completing → done.`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to approve task: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 }

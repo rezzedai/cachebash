@@ -32,7 +32,7 @@ import { CONSTANTS } from "../../config/constants.js";
 import { type ToolResult, jsonResult } from "./shared.js";
 import type { TargetState, WakeResult, SpawnSpec, DispatchResponse } from "../../types/dispatch.js";
 import { checkGovernanceRules } from "./governance.js";
-import { isProgramPaused } from "../pulse.js";
+import { isProgramPaused, isProgramQuarantined } from "../pulse.js";
 
 /** Default uptake polling interval */
 const UPTAKE_POLL_INTERVAL_MS = 5_000;
@@ -47,6 +47,7 @@ const DispatchSchema = z.object({
   instructions: z.string().max(32000).optional(),
   priority: z.enum(["low", "normal", "high"]).default("high"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("interrupt"),
+  policy_mode: z.enum(["normal", "supervised", "strict"]).default("normal"),
   waitForUptake: z.boolean().default(true),
   uptakeTimeoutSeconds: z.number().min(5).max(120).default(DEFAULT_UPTAKE_TIMEOUT_SECONDS),
   autoWake: z.boolean().default(true),
@@ -99,6 +100,7 @@ async function sendTaskAndDirective(
     target: args.target,
     priority: args.priority,
     action: args.action,
+    policy_mode: args.policy_mode,
     status: "created",
     projectId: args.projectId || null,
     boardItemId: null,
@@ -297,6 +299,24 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     );
   }
 
+  // Check if target program is quarantined
+  const targetQuarantined = await isProgramQuarantined(auth.userId, args.target);
+  if (targetQuarantined) {
+    governance.warnings.push(
+      `[target_quarantined] Target program "${args.target}" is quarantined. Dispatch blocked. Use dispatch_unquarantine_program to restore.`
+    );
+  }
+
+  // Strict policy mode enforcement: governance warnings become blocking errors
+  if (args.policy_mode === "strict" && governance.warnings.length > 0) {
+    return jsonResult({
+      success: false,
+      error: "Strict policy violation: governance warnings present",
+      governance_warnings: governance.warnings,
+      message: `Dispatch blocked by strict policy mode. Violations: ${governance.warnings.join("; ")}`,
+    });
+  }
+
   // ── 1. PRE-FLIGHT ──
   const flight = await queryTargetState(auth.userId, args.target);
 
@@ -379,8 +399,8 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   const spawnConfig = SPAWNABLE_PROGRAMS.get(args.target);
   const needsSpawn = !uptakeConfirmed && currentTargetState !== "alive";
 
-  // Override success if target is paused
-  const successResult = targetPaused
+  // Override success if target is paused or quarantined
+  const successResult = targetPaused || targetQuarantined
     ? false
     : uptakeConfirmed || (currentTargetState === "alive" && !args.waitForUptake);
 
@@ -389,13 +409,19 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     taskId,
     directiveId,
     targetState: currentTargetState,
-    uptakeConfirmed: targetPaused ? false : uptakeConfirmed,
+    uptakeConfirmed: targetPaused || targetQuarantined ? false : uptakeConfirmed,
     claimedBy,
     claimedAt,
     heartbeatAge: flight.heartbeatAge,
     wakeAttempted: wakeAttempted || undefined,
     wakeResult: wakeAttempted ? wakeResultStr : undefined,
-    action_required: needsSpawn ? "spawn_target" : uptakeConfirmed && !targetPaused ? "none" : "retry",
+    action_required: targetQuarantined
+      ? "unquarantine"
+      : needsSpawn
+        ? "spawn_target"
+        : uptakeConfirmed && !targetPaused
+          ? "none"
+          : "retry",
     spawnSpec: needsSpawn && spawnConfig
       ? {
           programId: args.target,
@@ -404,13 +430,15 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
           description: spawnConfig.description,
         }
       : undefined,
-    message: targetPaused
-      ? `Task created but target "${args.target}" is PAUSED. Task will remain queued until target is resumed.`
-      : uptakeConfirmed
-        ? `Dispatched to ${args.target} — task claimed${claimedBy ? ` by ${claimedBy}` : ""}.`
-        : currentTargetState === "alive" && !args.waitForUptake
-          ? `Dispatched to ${args.target} (alive, uptake check skipped).`
-          : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
+    message: targetQuarantined
+      ? `Task created but target "${args.target}" is QUARANTINED. Dispatch blocked. Use dispatch_unquarantine_program to restore.`
+      : targetPaused
+        ? `Task created but target "${args.target}" is PAUSED. Task will remain queued until target is resumed.`
+        : uptakeConfirmed
+          ? `Dispatched to ${args.target} — task claimed${claimedBy ? ` by ${claimedBy}` : ""}.`
+          : currentTargetState === "alive" && !args.waitForUptake
+            ? `Dispatched to ${args.target} (alive, uptake check skipped).`
+            : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
     governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
   };
 

@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onTaskUpdate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -46,7 +46,7 @@ const messaging = admin.messaging();
  * - Lifecycle transition notifications (status changes)
  */
 exports.onTaskUpdate = functions.firestore
-    .document("users/{userId}/tasks/{taskId}")
+    .document("tenants/{userId}/tasks/{taskId}")
     .onUpdate(async (change, context) => {
     const { userId, taskId } = context.params;
     const before = change.before.data();
@@ -66,11 +66,11 @@ exports.onTaskUpdate = functions.firestore
  * Dream terminal transitions → push notification.
  */
 async function handleDreamTransition(userId, taskId, before, after) {
-    const terminalStatuses = ["done", "failed", "derezzed"];
+    const terminalStatuses = ["done", "failed", "archived"];
     if (!terminalStatuses.includes(after.status))
         return;
     try {
-        const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+        const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
         if (devicesSnapshot.empty)
             return;
         const tokens = [];
@@ -98,7 +98,7 @@ async function handleDreamTransition(userId, taskId, before, after) {
                 title = "Dream Failed";
                 body = `${agent} encountered an error. ${after.dream?.outcome || "Check logs."}`;
                 break;
-            case "derezzed":
+            case "archived":
                 title = "Dream Stopped";
                 body = `${agent} was stopped.`;
                 break;
@@ -139,7 +139,7 @@ async function handleSprintStoryCascade(userId, storyId, storyData) {
     try {
         // Get all stories for this sprint
         const storiesSnapshot = await db
-            .collection(`users/${userId}/tasks`)
+            .collection(`tenants/${userId}/tasks`)
             .where("type", "==", "sprint-story")
             .where("sprint.parentId", "==", parentId)
             .get();
@@ -147,12 +147,12 @@ async function handleSprintStoryCascade(userId, storyId, storyData) {
             return;
         const stories = storiesSnapshot.docs.map((doc) => doc.data());
         const activeStories = stories.filter((s) => s.status === "active");
-        const completedStories = stories.filter((s) => ["done", "failed", "derezzed"].includes(s.status));
+        const completedStories = stories.filter((s) => ["done", "failed", "archived"].includes(s.status));
         let sprintStatus;
         let sprintProgress;
         if (completedStories.length === stories.length) {
             const failedCount = stories.filter((s) => s.status === "failed").length;
-            const skippedCount = stories.filter((s) => s.status === "derezzed").length;
+            const skippedCount = stories.filter((s) => s.status === "archived").length;
             if (failedCount > 0) {
                 sprintStatus = `Complete (${failedCount} failed)`;
             }
@@ -183,7 +183,7 @@ async function handleSprintStoryCascade(userId, storyId, storyData) {
         if (completedStories.length === stories.length) {
             update.status = "completing";
         }
-        await db.doc(`users/${userId}/tasks/${parentId}`).update(update);
+        await db.doc(`tenants/${userId}/tasks/${parentId}`).update(update);
         functions.logger.info(`Sprint ${parentId} cascade: ${sprintStatus} (${sprintProgress}%)`);
     }
     catch (error) {

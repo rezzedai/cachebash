@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -21,6 +21,10 @@ export const handlers: Record<string, Handler> = {
   dispatch_abort_task: abortTaskHandler,
   dispatch_reassign_task: reassignTaskHandler,
   dispatch_escalate_task: escalateTaskHandler,
+  dispatch_quarantine_program: quarantineProgramHandler,
+  dispatch_unquarantine_program: unquarantineProgramHandler,
+  dispatch_replay_task: replayTaskHandler,
+  dispatch_approve_task: approveTaskHandler,
 };
 
 export const definitions = [
@@ -176,6 +180,7 @@ export const definitions = [
         instructions: { type: "string", maxLength: 32000, description: "Full task instructions with context, constraints, and acceptance criteria" },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "high", description: "Task priority (default: high)" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "interrupt", description: "Task action classification (default: interrupt)" },
+        policy_mode: { type: "string", enum: ["normal", "supervised", "strict"], default: "normal", description: "Execution policy mode. normal: standard execution; supervised: requires approval before done; strict: governance warnings block dispatch (default: normal)" },
         waitForUptake: { type: "boolean", default: true, description: "Wait for target to claim the task before returning (default: true). Set false to fire-and-forget." },
         uptakeTimeoutSeconds: { type: "number", minimum: 5, maximum: 120, default: 45, description: "Seconds to wait for uptake confirmation (default: 45)" },
         autoWake: { type: "boolean", default: true, description: "Trigger wake daemon if target is stale/absent (default: true)" },
@@ -239,6 +244,55 @@ export const definitions = [
         reason: { type: "string", maxLength: 500, description: "Reason for escalation" },
       },
       required: ["taskId", "reason"],
+    },
+  },
+  {
+    name: "dispatch_quarantine_program",
+    description: "Quarantine a program to block all task dispatches. Used for programs experiencing repeated failures. Requires dispatch.write capability.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", maxLength: 100, description: "Program ID to quarantine" },
+        reason: { type: "string", maxLength: 500, description: "Reason for quarantine" },
+      },
+      required: ["programId", "reason"],
+    },
+  },
+  {
+    name: "dispatch_unquarantine_program",
+    description: "Unquarantine a program to restore task dispatch. Resets failure count. Requires dispatch.write capability.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", maxLength: 100, description: "Program ID to unquarantine" },
+      },
+      required: ["programId"],
+    },
+  },
+  {
+    name: "dispatch_replay_task",
+    description: "Replay a completed task with optional modifications. Creates a new task cloned from the original with links preserved. Use this to re-execute tasks with modified instructions, different targets, or changed priorities.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Original task ID to replay" },
+        modifiedInstructions: { type: "string", maxLength: 32000, description: "Optional modified instructions for the replayed task" },
+        newTarget: { type: "string", maxLength: 100, description: "Optional new target program for the replayed task" },
+        newPriority: { type: "string", enum: ["low", "normal", "high"], description: "Optional new priority for the replayed task" },
+        reason: { type: "string", maxLength: 500, description: "Reason for replay" },
+      },
+      required: ["taskId", "reason"],
+    },
+  },
+  {
+    name: "dispatch_approve_task",
+    description: "Approve a task in supervised mode. Transitions task from completing → done. Only works on tasks with policy_mode=supervised that are awaiting approval.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to approve" },
+      },
+      required: ["taskId"],
     },
   },
 ];

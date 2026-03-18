@@ -73,7 +73,7 @@ export interface DispatchResponse {
   /** Wake daemon result */
   wakeResult?: WakeResult;
   /** Action required by caller (present on failure) */
-  action_required?: "spawn_target" | "retry" | "none";
+  action_required?: "spawn_target" | "retry" | "none" | "unquarantine";
   /** Spawn spec for client-side recovery (present when action_required = spawn_target) */
   spawnSpec?: SpawnSpec;
   /** Human-readable message */

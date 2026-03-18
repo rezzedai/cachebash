@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onAnalyticsEventCreate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const helpers_1 = require("./helpers");
 const db = admin.firestore();
@@ -44,7 +44,7 @@ const db = admin.firestore();
  * using atomic increment — no read-before-write.
  */
 exports.onAnalyticsEventCreate = functions.firestore
-    .document("users/{userId}/analytics_events/{eventId}")
+    .document("tenants/{userId}/analytics_events/{eventId}")
     .onCreate(async (snapshot, context) => {
     const { userId } = context.params;
     const data = snapshot.data();
@@ -73,7 +73,7 @@ exports.onAnalyticsEventCreate = functions.firestore
     }
     const keys = (0, helpers_1.buildAggregateKeys)(date);
     const increment = admin.firestore.FieldValue.increment(1);
-    const aggregatesRef = db.collection(`users/${userId}/analytics_aggregates`);
+    const aggregatesRef = db.collection(`tenants/${userId}/analytics_aggregates`);
     // Build the update payload — same shape for all three periods
     const update = {
         totalEvents: increment,
