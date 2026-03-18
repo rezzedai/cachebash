@@ -18,7 +18,7 @@ import { z } from "zod";
 import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { isProgramRegistered } from "../programRegistry.js";
-import { type ToolResult, jsonResult } from "./shared.js";
+import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
 
 // ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +101,10 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       const currentRetryCount = (data.retryCount as number) || 0;
       const newRetryCount = currentRetryCount + 1;
 
+      // Build state transition
+      const transitionEntry = buildTransition(data.status, "created", auth.programId, "retry");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       const updateFields: Record<string, unknown> = {
         status: "created",
         claimedBy: null,
@@ -113,6 +117,7 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         retryCount: newRetryCount,
         lastRetriedAt: admin.firestore.FieldValue.serverTimestamp(),
         retryReason: args.reason || "manual_retry",
+        stateTransitions: updatedTransitions,
       };
 
       // Update target if provided
@@ -195,6 +200,10 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       // Validate lifecycle transition: created/active -> done
       transition("task", data.status, "done");
 
+      // Build state transition
+      const transitionEntry = buildTransition(data.status, "done", auth.programId, "abort");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       tx.update(taskRef, {
         status: "done",
         completed_status: "CANCELLED",
@@ -202,6 +211,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         abortedBy: auth.programId,
         abortedAt: admin.firestore.FieldValue.serverTimestamp(),
+        stateTransitions: updatedTransitions,
       });
 
       return {
@@ -285,6 +295,12 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
         updateFields.startedAt = null;
         updateFields.lastHeartbeat = null;
       }
+
+      // Build state transition
+      const newStatus = data.status === "active" ? "created" : data.status;
+      const transitionEntry = buildTransition(data.status, newStatus, auth.programId, "reassign");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+      updateFields.stateTransitions = updatedTransitions;
 
       tx.update(taskRef, updateFields);
 
@@ -402,6 +418,12 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
           updateFields.lastHeartbeat = null;
         }
       }
+
+      // Build state transition
+      const newStatus = (data.status === "active" && escalationTarget) ? "created" : data.status;
+      const transitionEntry = buildTransition(data.status, newStatus, auth.programId, "escalate");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+      updateFields.stateTransitions = updatedTransitions;
 
       tx.update(taskRef, updateFields);
 
@@ -642,6 +664,7 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
       // Link back to original task
       replayOf: args.taskId,
       replayReason: args.reason,
+      lineageRoot: originalData.lineageRoot || args.taskId,
     };
 
     // Set TTL expiration
@@ -718,11 +741,16 @@ export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): P
       // Validate lifecycle transition: completing -> done
       transition("task", "completing", "done");
 
+      // Build state transition
+      const transitionEntry = buildTransition("completing", "done", auth.programId, "approve");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       tx.update(taskRef, {
         status: "done",
         awaitingApproval: false,
         approvedAt: admin.firestore.FieldValue.serverTimestamp(),
         approvedBy: auth.programId,
+        stateTransitions: updatedTransitions,
       });
 
       return {

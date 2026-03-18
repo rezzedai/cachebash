@@ -70,6 +70,15 @@ export interface SprintData {
   }>;
 }
 
+/** State transition log entry (Wave 11) */
+export interface StateTransition {
+  fromStatus: string;
+  toStatus: string;
+  timestamp: string;   // ISO 8601 string (NOT Firestore timestamp -- arrays of Timestamps are problematic)
+  actor: string;       // programId that caused the transition
+  action?: string;     // optional: "claim", "complete", "retry", "abort", "reassign", "escalate", "approve", "replay"
+}
+
 /** The Task document — lives in tenants/{uid}/tasks/{id} */
 export interface Task extends Envelope {
   id: string;
@@ -101,6 +110,16 @@ export interface Task extends Envelope {
   // Policy mode (Wave 7: Control Plane v2)
   policy_mode?: "normal" | "supervised" | "strict";
   awaitingApproval?: boolean;
+
+  // Lineage tracking (Wave 11)
+  replayOf?: string;        // taskId this was replayed from
+  retriedFrom?: string;     // taskId this was retried from (in-place retry resets same doc, but record origin)
+  reassignedFrom?: string;  // taskId this was reassigned from
+  escalatedFrom?: string;   // taskId this was escalated from
+  lineageRoot?: string;     // root ancestor taskId (for quick chain queries)
+
+  // State transition log (Wave 11)
+  stateTransitions?: StateTransition[];
 
   // Session tracking
   sessionId?: string;

@@ -11,7 +11,7 @@ import { z } from "zod";
 import { syncTaskClaimed } from "../github-sync.js";
 import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
-import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
+import { type ToolResult, jsonResult, decryptTaskFields, buildTransition, appendTransition } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 
 const ClaimTaskSchema = z.object({
@@ -82,12 +82,17 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       // Validate lifecycle transition
       transition("task", "created", "active");
 
+      // Build state transition
+      const transitionEntry = buildTransition("created", "active", auth.programId, "claim");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       tx.update(taskRef, {
         status: "active",
         startedAt: admin.firestore.FieldValue.serverTimestamp(),
         sessionId: args.sessionId || null,
         lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
         attempt_count: admin.firestore.FieldValue.increment(1),
+        stateTransitions: updatedTransitions,
       });
 
       return { data };
@@ -182,6 +187,10 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
       const currentUnclaimCount = (data.unclaimCount as number) || 0;
       const newUnclaimCount = currentUnclaimCount + 1;
 
+      // Build state transition
+      const transitionEntry = buildTransition("active", "created", auth.programId, "unclaim");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       const updateFields: Record<string, unknown> = {
         status: "created",
         sessionId: null,
@@ -190,6 +199,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
         unclaimCount: newUnclaimCount,
         lastUnclaimedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastUnclaimReason: args.reason || "manual",
+        stateTransitions: updatedTransitions,
       };
 
       // Circuit breaker: flag task for manual review at 3+ unclaims
@@ -273,12 +283,17 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
 
         transition("task", "created", "active");
 
+        // Build state transition
+        const transitionEntry = buildTransition("created", "active", auth.programId, "claim");
+        const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
         const claimUpdate: Record<string, unknown> = {
           status: "active",
           startedAt: admin.firestore.FieldValue.serverTimestamp(),
           sessionId: args.sessionId || null,
           lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
           attempt_count: admin.firestore.FieldValue.increment(1),
+          stateTransitions: updatedTransitions,
         };
         // Agent Trace L2: propagate trace context on batch claim
         if (args.traceId) claimUpdate.traceId = args.traceId;

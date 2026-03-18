@@ -37,6 +37,8 @@ export const TOOL_ALIASES: Record<string, string> = {
   unquarantine_program: "dispatch_unquarantine_program",
   replay_task: "dispatch_replay_task",
   approve_task: "dispatch_approve_task",
+  get_task_lineage: "dispatch_get_task_lineage",
+  export_tasks: "dispatch_export_tasks",
   // Old aliases that differ from new canonical
   dispatch_batch_claim: "dispatch_batch_claim_tasks",
   dispatch_batch_complete: "dispatch_batch_complete_tasks",
