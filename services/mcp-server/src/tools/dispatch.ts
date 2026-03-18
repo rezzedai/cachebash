@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -17,6 +17,10 @@ export const handlers: Record<string, Handler> = {
   dispatch_batch_complete_tasks: batchCompleteTasksHandler,
   dispatch_get_contention_metrics: getContentionMetricsHandler,
   dispatch_dispatch: dispatchHandler,
+  dispatch_retry_task: retryTaskHandler,
+  dispatch_abort_task: abortTaskHandler,
+  dispatch_reassign_task: reassignTaskHandler,
+  dispatch_escalate_task: escalateTaskHandler,
 };
 
 export const definitions = [
@@ -182,6 +186,59 @@ export const definitions = [
         parentSpanId: { type: "string", description: "Parent span ID" },
       },
       required: ["source", "target", "title"],
+    },
+  },
+  {
+    name: "dispatch_retry_task",
+    description: "Retry a failed or completed task. Resets the task to created status for re-claiming. Optionally updates target program and/or priority.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to retry" },
+        newTarget: { type: "string", maxLength: 100, description: "Optional new target program for retry" },
+        newPriority: { type: "string", enum: ["low", "normal", "high"], description: "Optional new priority for retry" },
+        reason: { type: "string", maxLength: 500, description: "Reason for retry" },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "dispatch_abort_task",
+    description: "Abort a running or pending task. Marks the task as permanently cancelled (different from unclaim which requeues).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to abort" },
+        reason: { type: "string", maxLength: 500, description: "Reason for aborting the task" },
+      },
+      required: ["taskId", "reason"],
+    },
+  },
+  {
+    name: "dispatch_reassign_task",
+    description: "Reassign a task to a different program without losing context. Preserves original source and instructions.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to reassign" },
+        newTarget: { type: "string", maxLength: 100, description: "New target program ID" },
+        reason: { type: "string", maxLength: 500, description: "Reason for reassignment" },
+      },
+      required: ["taskId", "newTarget", "reason"],
+    },
+  },
+  {
+    name: "dispatch_escalate_task",
+    description: "Escalate a task's priority and/or route it up the chain. Default chain: builder → iso → vector → Flynn.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to escalate" },
+        newPriority: { type: "string", enum: ["low", "normal", "high"], description: "New priority (defaults to high)" },
+        escalateTo: { type: "string", maxLength: 100, description: "Specific escalation target (optional, uses default chain if omitted)" },
+        reason: { type: "string", maxLength: 500, description: "Reason for escalation" },
+      },
+      required: ["taskId", "reason"],
     },
   },
 ];
