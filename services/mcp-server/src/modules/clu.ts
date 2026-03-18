@@ -7,22 +7,11 @@
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
 import type {
   Ingestion,
-  IngestionMetadata,
   Analysis,
   Report,
-  SourceType,
-  AnalysisType,
-  ReportType,
-  ReportFormat,
 } from "../types/clu.js";
-
-// Anthropic client (API key from env)
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
-});
 
 // Schemas
 const CluIngestSchema = z.object({
@@ -43,12 +32,35 @@ const CluAnalyzeSchema = z.object({
   analysis_type: z.enum(["patterns", "opportunities", "gaps", "synthesis", "full"]).default("full"),
   focus_domains: z.array(z.string()).optional(),
   confidence_threshold: z.number().min(0).max(1).default(0.5),
+  results: z.object({
+    patterns: z.array(z.object({
+      pattern: z.string(),
+      confidence: z.number().min(0).max(1),
+      evidence: z.array(z.string()),
+    })).optional().default([]),
+    opportunities: z.array(z.object({
+      opportunity: z.string(),
+      whyThisCouldFail: z.string(),
+      confidence: z.number().min(0).max(1),
+    })).optional().default([]),
+    gaps: z.array(z.object({
+      gap: z.string(),
+      severity: z.enum(["low", "medium", "high", "critical"]),
+      impact: z.string(),
+    })).optional().default([]),
+    blindSpots: z.array(z.object({
+      blindSpot: z.string(),
+      reasoning: z.string(),
+    })).optional().default([]),
+    summary: z.string().optional().default(""),
+  }),
 });
 
 const CluReportSchema = z.object({
   analysis_id: z.string().max(100),
   report_type: z.enum(["opportunity_brief", "synthesis", "prd", "executive_summary"]).default("synthesis"),
   format: z.enum(["markdown", "json"]).default("markdown"),
+  content: z.string().min(1).max(500000),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -118,116 +130,6 @@ export async function cluAnalyzeHandler(
   const db = getFirestore();
   const now = new Date().toISOString();
 
-  // Load all ingestions for this session
-  const ingestionsSnapshot = await db
-    .collection("tenants")
-    .doc(auth.userId)
-    .collection("clu_sessions")
-    .doc(parsed.session_id)
-    .collection("ingestions")
-    .get();
-
-  if (ingestionsSnapshot.empty) {
-    return jsonResult({ error: "No ingestions found for this session" });
-  }
-
-  // Concatenate all content
-  const allContent = ingestionsSnapshot.docs
-    .map(doc => doc.data().content)
-    .join("\n\n---\n\n");
-
-  const totalTokens = estimateTokenCount(allContent);
-
-  // Build analysis prompt based on analysis_type
-  let systemPrompt = "You are CLU, an intelligence service that extracts insights from content.";
-  let userPrompt = "";
-
-  const focusSection = parsed.focus_domains && parsed.focus_domains.length > 0
-    ? `Focus domains: ${parsed.focus_domains.join(", ")}\n\n`
-    : "";
-
-  if (parsed.analysis_type === "patterns" || parsed.analysis_type === "full") {
-    userPrompt += `${focusSection}Extract recurring patterns from the following content. For each pattern, provide:
-- pattern (string): The pattern itself
-- confidence (0-1): How confident you are this is a real pattern
-- evidence (array of strings): Specific quotes or examples
-
-Respond in JSON format: { "patterns": [...] }
-
-Content:
-${allContent}
-`;
-  }
-
-  if (parsed.analysis_type === "opportunities" || parsed.analysis_type === "full") {
-    userPrompt += `\n\n${focusSection}Identify opportunities from the following content. For each opportunity, provide:
-- opportunity (string): Description of the opportunity
-- whyThisCouldFail (string): Critical failure modes
-- confidence (0-1): Confidence this is a real opportunity
-
-Respond in JSON format: { "opportunities": [...] }
-
-Content:
-${allContent}
-`;
-  }
-
-  if (parsed.analysis_type === "gaps" || parsed.analysis_type === "full") {
-    userPrompt += `\n\n${focusSection}Identify gaps and missing elements from the following content. For each gap, provide:
-- gap (string): What is missing
-- severity (low|medium|high|critical): How important this gap is
-- impact (string): What impact this gap has
-
-Respond in JSON format: { "gaps": [...] }
-
-Content:
-${allContent}
-`;
-  }
-
-  if (parsed.analysis_type === "synthesis" || parsed.analysis_type === "full") {
-    userPrompt += `\n\n${focusSection}Identify blind spots — things not mentioned but critically important. For each blind spot, provide:
-- blindSpot (string): What is being overlooked
-- reasoning (string): Why this matters
-
-Also provide a summary (string) synthesizing the key insights.
-
-Respond in JSON format: { "blindSpots": [...], "summary": "..." }
-
-Content:
-${allContent}
-`;
-  }
-
-  // Call Anthropic API
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20250929",
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-  });
-
-  // Parse response
-  const responseText = response.content[0].type === "text" ? response.content[0].text : "";
-  let parsedResponse: any = {};
-
-  try {
-    parsedResponse = JSON.parse(responseText);
-  } catch (err) {
-    // If JSON parsing fails, try to extract JSON from markdown code blocks
-    const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonMatch) {
-      parsedResponse = JSON.parse(jsonMatch[1]);
-    } else {
-      return jsonResult({ error: "Failed to parse LLM response as JSON", raw: responseText });
-    }
-  }
-
   const analysisId = generateId();
 
   const analysis: Analysis = {
@@ -236,13 +138,13 @@ ${allContent}
     analysisType: parsed.analysis_type,
     focusDomains: parsed.focus_domains,
     confidenceThreshold: parsed.confidence_threshold,
-    patterns: parsedResponse.patterns || [],
-    opportunities: parsedResponse.opportunities || [],
-    gaps: parsedResponse.gaps || [],
-    blindSpots: parsedResponse.blindSpots || [],
-    summary: parsedResponse.summary || "",
+    patterns: parsed.results.patterns,
+    opportunities: parsed.results.opportunities,
+    gaps: parsed.results.gaps,
+    blindSpots: parsed.results.blindSpots,
+    summary: parsed.results.summary,
     createdAt: now,
-    tokenCount: totalTokens,
+    tokenCount: 0,
   };
 
   // Filter by confidence threshold
@@ -286,7 +188,6 @@ export async function cluReportHandler(
     .collection("clu_sessions")
     .get();
 
-  let analysis: Analysis | null = null;
   let sessionId: string | null = null;
 
   for (const sessionDoc of sessionsSnapshot.docs) {
@@ -300,92 +201,16 @@ export async function cluReportHandler(
       .get();
 
     if (analysisDoc.exists) {
-      analysis = analysisDoc.data() as Analysis;
       sessionId = sessionDoc.id;
       break;
     }
   }
 
-  if (!analysis || !sessionId) {
+  if (!sessionId) {
     return jsonResult({ error: "Analysis not found" });
   }
 
-  // Build report prompt based on report_type
-  let systemPrompt = "You are CLU, an intelligence service that generates structured reports.";
-  let userPrompt = "";
-
-  const analysisData = JSON.stringify(
-    {
-      patterns: analysis.patterns,
-      opportunities: analysis.opportunities,
-      gaps: analysis.gaps,
-      blindSpots: analysis.blindSpots,
-      summary: analysis.summary,
-    },
-    null,
-    2
-  );
-
-  switch (parsed.report_type) {
-    case "opportunity_brief":
-      userPrompt = `Generate a concise opportunity brief based on this analysis. Focus on actionable opportunities with clear next steps.
-
-Format: ${parsed.format === "markdown" ? "Markdown" : "JSON"}
-
-Analysis:
-${analysisData}
-`;
-      break;
-
-    case "synthesis":
-      userPrompt = `Generate a synthesis report that combines patterns, opportunities, and gaps into a coherent narrative.
-
-Format: ${parsed.format === "markdown" ? "Markdown" : "JSON"}
-
-Analysis:
-${analysisData}
-`;
-      break;
-
-    case "prd":
-      userPrompt = `Generate a Product Requirements Document (PRD) structure based on this analysis. Include:
-- Problem statement (from gaps/blind spots)
-- Opportunities (from opportunities)
-- Requirements (inferred from patterns)
-- Success metrics
-
-Format: ${parsed.format === "markdown" ? "Markdown" : "JSON"}
-
-Analysis:
-${analysisData}
-`;
-      break;
-
-    case "executive_summary":
-      userPrompt = `Generate an executive summary (1-2 paragraphs) highlighting the most critical insights.
-
-Format: ${parsed.format === "markdown" ? "Markdown" : "JSON"}
-
-Analysis:
-${analysisData}
-`;
-      break;
-  }
-
-  // Call Anthropic API
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5-20250929",
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-  });
-
-  const reportContent = response.content[0].type === "text" ? response.content[0].text : "";
+  const reportContent = parsed.content;
   const reportId = generateId();
   const reportTokenCount = estimateTokenCount(reportContent);
 
