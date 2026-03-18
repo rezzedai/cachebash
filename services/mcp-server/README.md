@@ -1,6 +1,6 @@
 # CacheBash MCP Server
 
-Model Context Protocol server for multi-agent coordination. Provides 18 tools across 6 modules with full MCP-REST parity.
+Model Context Protocol server for multi-agent coordination. Provides 90+ tools across 20 modules with full MCP-REST parity.
 
 ## Architecture
 
@@ -23,24 +23,42 @@ Model Context Protocol server for multi-agent coordination. Provides 18 tools ac
    | Middleware |   | Transport |   |    Modules   |
    +-----+-----+   +-----------+   +------+-------+
          |          gate.ts              |
-   apiKeyValidator  correlationId   dispatch (tasks)
+   apiKeyValidator  correlationId   dispatch (tasks + interventions)
    rateLimiter      SessionManager  relay (messages)
-   dns-rebinding    MessageParser   pulse (sessions)
+   dns-rebinding    MessageParser   pulse (sessions + fleet)
                     rest.ts         signal (questions)
                                     dream
                                     sprint
+                                    gsp (state protocol)
+                                    policy (governance engine)
+                                    state (program memory)
+                                    metrics (telemetry)
+                                    keys (API key mgmt)
+                                    programs (registry)
+                                    audit (compliance)
+                                    schedule (cron jobs)
+                                    trace (debugging)
+                                    pattern (knowledge)
+                                    clu (analysis)
+                                    feedback
+                                    admin
                                     ledger
 ```
 
 ## Firestore Collections
 
-4 collections per user (`users/{uid}/...`):
+Collections per tenant (`tenants/{userId}/...`):
 
 | Collection | Purpose | Key Fields |
 |------------|---------|------------|
 | `tasks` | Unified work units | `type`, `status`, `priority`, `action` |
 | `relay` | Ephemeral program messages | `source`, `target`, `message_type`, `expiresAt` |
 | `sessions` | Live session tracking | `state`, `status`, `progress`, `lastHeartbeat` |
+| `programs` | Program registry | `role`, `groups`, `tags`, `paused`, `quarantined` |
+| `gsp/{namespace}/entries` | Grid State Protocol | `tier`, `value`, `version` |
+| `telemetry_events` | Intervention + system events | `eventType`, `programId`, `taskId` |
+| `audit` | Policy decisions + governance log | `event`, `program`, `policy`, `decision` |
+| `rate_limit_events` | API throttle tracking (7-day TTL) | `modelTier`, `endpoint`, `backoffMs` |
 | `ledger` | Cost/usage tracking | `tool`, `transport`, `durationMs`, `success` |
 
 ### Task Schema (`tasks`)
@@ -82,28 +100,67 @@ Bearer token authentication via `Authorization: Bearer <api-key>`.
 
 API keys are stored in `users/{uid}/apiKeys/{keyHash}` with SHA-256 hashing. No query parameter auth (security requirement).
 
-## MCP Tools (18)
+## MCP Tools (90+)
 
-### Dispatch (4 tools)
+### Dispatch — Task Lifecycle (10 tools)
 | Tool | Description |
 |------|-------------|
 | `get_tasks` | Get tasks filtered by status, type, target |
+| `get_task_by_id` | Get a single task with full details |
 | `create_task` | Create a new task with envelope fields |
 | `claim_task` | Atomically claim a pending task (transaction) |
-| `complete_task` | Mark a task as done |
+| `unclaim_task` | Return a claimed task to created status |
+| `complete_task` | Mark a task as done/failed/skipped/cancelled |
+| `batch_claim_tasks` | Claim multiple tasks in one call |
+| `batch_complete_tasks` | Complete multiple tasks in one call |
+| `get_contention_metrics` | Task claim contention stats |
+| `dispatch` | Atomic dispatch with pre-flight, auto-wake, uptake verification |
 
-### Relay (2 tools)
+### Dispatch — Interventions (10 tools)
+| Tool | Description |
+|------|-------------|
+| `retry_task` | Reset a failed/done task for re-execution |
+| `abort_task` | Cancel an active task |
+| `reassign_task` | Move a task to a different target program |
+| `escalate_task` | Escalate a task to a higher-tier program |
+| `pause_program` | Pause a program (blocks new dispatches) |
+| `resume_program` | Resume a paused program |
+| `quarantine_program` | Isolate a program (auto-triggers at 3+ failures/hr) |
+| `unquarantine_program` | Release a quarantined program |
+| `replay_task` | Clone a task with modified instructions/target |
+| `approve_task` | Approve a supervised-mode task completion |
+
+### Policy — Governance Engine (6 tools)
+| Tool | Description |
+|------|-------------|
+| `policy_create` | Create a governance policy (pattern/threshold/allowlist/denylist) |
+| `policy_update` | Update policy rules, scope, or enforcement |
+| `policy_delete` | Delete a policy |
+| `policy_get` | Get a single policy by ID |
+| `policy_list` | List policies with tier/enforcement/enabled filters |
+| `policy_check` | Dry-run policy evaluation against a dispatch context |
+
+### Relay (7 tools)
 | Tool | Description |
 |------|-------------|
 | `send_message` | Send a message between programs (Relay v0.2) |
 | `get_messages` | Get pending messages for a session/target |
+| `send_directive` | Convenience wrapper for orchestrator→worker commands |
+| `get_sent_messages` | Query a program's outbox |
+| `get_dead_letters` | View failed delivery messages |
+| `list_groups` | List multicast groups and members |
+| `query_message_history` | Full message history with bodies |
 
-### Pulse (3 tools)
+### Pulse — Sessions & Fleet (7 tools)
 | Tool | Description |
 |------|-------------|
 | `create_session` | Create/upsert a session |
 | `update_session` | Update session status, state, progress, heartbeat |
 | `list_sessions` | List sessions with state/program filters |
+| `get_fleet_health` | Health status of all programs (heartbeat, pending work) |
+| `get_fleet_timeline` | Historical fleet snapshots with configurable resolution |
+| `write_fleet_snapshot` | Write a fleet health snapshot for time-series |
+| `get_context_utilization` | Context window utilization time-series |
 
 ### Signal (3 tools)
 | Tool | Description |
@@ -118,13 +175,106 @@ API keys are stored in `users/{uid}/apiKeys/{keyHash}` with SHA-256 hashing. No 
 | `dream_peek` | Check for pending dream sessions |
 | `dream_activate` | Atomically activate a dream session |
 
-### Sprint (4 tools)
+### Sprint (5 tools)
 | Tool | Description |
 |------|-------------|
 | `create_sprint` | Create a sprint with stories and waves |
 | `update_sprint_story` | Update story progress within a sprint |
 | `add_story_to_sprint` | Dynamically add a story to a running sprint |
 | `complete_sprint` | Mark a sprint as complete with summary |
+| `get_sprint` | Get sprint state with stories and stats |
+
+### GSP — Grid State Protocol (9 tools)
+| Tool | Description |
+|------|-------------|
+| `gsp_read` | Read state entries by namespace/key/tier |
+| `gsp_write` | Write operational state entries (atomic transactions) |
+| `gsp_diff` | Diff state entries since a version or timestamp |
+| `gsp_bootstrap` | Full agent boot context in one call |
+| `gsp_seed` | Seed constitutional/architectural state (admin) |
+| `gsp_propose` | Propose changes to constitutional/architectural state |
+| `gsp_resolve` | Approve/reject governance proposals |
+| `gsp_subscribe` | Subscribe to state change notifications |
+| `gsp_search` | Search state entries by text query |
+
+### State — Program Memory (8 tools)
+| Tool | Description |
+|------|-------------|
+| `get_program_state` | Read a program's persistent operational state |
+| `update_program_state` | Write program state (context summary, config, baselines) |
+| `get_context_history` | Query timestamped context snapshots (shadow journal) |
+| `store_memory` | Store a learned pattern into agent memory |
+| `recall_memory` | Recall learned patterns with domain/text filters |
+| `memory_health` | Memory health summary (pattern counts, domains, decay) |
+| `delete_memory` | Hard-delete a learned pattern |
+| `reinforce_memory` | Bump a pattern's confidence and timestamp |
+
+### Metrics — Telemetry & Cost (5 tools)
+| Tool | Description |
+|------|-------------|
+| `get_comms_metrics` | Relay message metrics by period |
+| `get_cost_summary` | Cost/token spend aggregated by program or type |
+| `get_operational_metrics` | Task success rates, latency, safety gate stats |
+| `log_rate_limit_event` | Record a rate limit/throttle event |
+| `get_rate_limit_events` | Query rate limit events with period/session filters |
+
+### Keys (4 tools)
+| Tool | Description |
+|------|-------------|
+| `create_key` | Create a per-program API key |
+| `revoke_key` | Revoke an API key (soft revoke for audit) |
+| `rotate_key` | Atomically rotate with 30s grace window |
+| `list_keys` | List all API keys (metadata only, never raw keys) |
+
+### Programs (2 tools)
+| Tool | Description |
+|------|-------------|
+| `list_programs` | List registered programs (filter by role, group, active) |
+| `update_program` | Update program metadata (display name, role, groups, tags) |
+
+### Audit (2 tools)
+| Tool | Description |
+|------|-------------|
+| `get_audit` | Query the Gate audit log |
+| `get_ack_compliance` | ACK compliance report for directives |
+
+### Schedule (5 tools)
+| Tool | Description |
+|------|-------------|
+| `schedule_create` | Create a recurring cron schedule |
+| `schedule_list` | List schedules (filter by target, enabled) |
+| `schedule_get` | Get schedule with next/last run times |
+| `schedule_update` | Update cron, budget cap, enable/disable |
+| `schedule_delete` | Remove a schedule |
+
+### Trace (2 tools)
+| Tool | Description |
+|------|-------------|
+| `query_traces` | Query execution traces (filter by sprint, task, program) |
+| `query_trace` | Reconstruct a complete agent trace by traceId |
+
+### Pattern Consolidation (2 tools)
+| Tool | Description |
+|------|-------------|
+| `pattern_consolidate` | Auto-promote patterns when N+ agents converge |
+| `pattern_get_consolidated` | Retrieve promoted patterns from knowledge store |
+
+### CLU — Analysis (3 tools)
+| Tool | Description |
+|------|-------------|
+| `clu_ingest` | Ingest content (transcripts, URLs, text) for analysis |
+| `clu_analyze` | Extract patterns, opportunities, gaps, blind spots |
+| `clu_report` | Generate formatted reports from analysis results |
+
+### Feedback (1 tool)
+| Tool | Description |
+|------|-------------|
+| `submit_feedback` | Submit bug report/feature request (creates GitHub Issue) |
+
+### Admin (1 tool)
+| Tool | Description |
+|------|-------------|
+| `merge_accounts` | Merge alternate Firebase UID into canonical account |
 
 ## REST API
 
@@ -132,51 +282,97 @@ Every MCP tool has a corresponding REST endpoint. Bearer auth required on all.
 
 ### Dispatch
 ```
-GET    /v1/tasks                    → get_tasks
-POST   /v1/tasks                    → create_task
-POST   /v1/tasks/:id/claim          → claim_task
-POST   /v1/tasks/:id/complete       → complete_task
+GET    /v1/tasks                         → get_tasks
+GET    /v1/tasks/:id                     → get_task_by_id
+POST   /v1/tasks                         → create_task
+POST   /v1/tasks/:id/claim               → claim_task
+POST   /v1/tasks/:id/unclaim             → unclaim_task
+POST   /v1/tasks/:id/complete            → complete_task
+POST   /v1/tasks/batch/claim             → batch_claim_tasks
+POST   /v1/tasks/batch/complete          → batch_complete_tasks
+GET    /v1/tasks/contention              → get_contention_metrics
+POST   /v1/dispatch                      → dispatch
+```
+
+### Interventions
+```
+POST   /v1/tasks/:id/retry               → retry_task
+POST   /v1/tasks/:id/abort               → abort_task
+POST   /v1/tasks/:id/reassign            → reassign_task
+POST   /v1/tasks/:id/escalate            → escalate_task
+POST   /v1/tasks/:id/approve             → approve_task
+POST   /v1/tasks/:id/replay              → replay_task
+POST   /v1/programs/:id/pause            → pause_program
+POST   /v1/programs/:id/resume           → resume_program
+POST   /v1/programs/:id/quarantine       → quarantine_program
+POST   /v1/programs/:id/unquarantine     → unquarantine_program
+```
+
+### Policy
+```
+POST   /v1/policies                      → policy_create
+GET    /v1/policies                      → policy_list
+GET    /v1/policies/:id                  → policy_get
+PATCH  /v1/policies/:id                  → policy_update
+DELETE /v1/policies/:id                  → policy_delete
+POST   /v1/policies/check               → policy_check
 ```
 
 ### Relay
 ```
-GET    /v1/messages                  → get_messages
-POST   /v1/messages                  → send_message
+GET    /v1/messages                      → get_messages
+POST   /v1/messages                      → send_message
+POST   /v1/messages/directive            → send_directive
+GET    /v1/messages/sent                 → get_sent_messages
+GET    /v1/messages/dead-letters         → get_dead_letters
+GET    /v1/messages/groups               → list_groups
+GET    /v1/messages/history              → query_message_history
 ```
 
 ### Pulse
 ```
-GET    /v1/sessions                  → list_sessions
-POST   /v1/sessions                  → create_session
-PATCH  /v1/sessions/:id              → update_session
+GET    /v1/sessions                      → list_sessions
+POST   /v1/sessions                      → create_session
+PATCH  /v1/sessions/:id                  → update_session
+GET    /v1/fleet/health                  → get_fleet_health
+GET    /v1/fleet/timeline                → get_fleet_timeline
+POST   /v1/fleet/snapshot                → write_fleet_snapshot
+GET    /v1/fleet/context                 → get_context_utilization
 ```
 
 ### Signal
 ```
-POST   /v1/questions                 → ask_question
-GET    /v1/questions/:id/response    → get_response
-POST   /v1/alerts                    → send_alert
+POST   /v1/questions                     → ask_question
+GET    /v1/questions/:id/response        → get_response
+POST   /v1/alerts                        → send_alert
 ```
 
 ### Sprint
 ```
-POST   /v1/sprints                   → create_sprint
-PATCH  /v1/sprints/:id/stories/:sid  → update_sprint_story
-POST   /v1/sprints/:id/stories       → add_story_to_sprint
-POST   /v1/sprints/:id/complete      → complete_sprint
+POST   /v1/sprints                       → create_sprint
+GET    /v1/sprints/:id                   → get_sprint
+PATCH  /v1/sprints/:id/stories/:sid      → update_sprint_story
+POST   /v1/sprints/:id/stories           → add_story_to_sprint
+POST   /v1/sprints/:id/complete          → complete_sprint
+```
+
+### GSP
+```
+GET    /v1/gsp/:namespace                → gsp_read
+POST   /v1/gsp/:namespace/:key           → gsp_write
+GET    /v1/gsp/:namespace/diff           → gsp_diff
+GET    /v1/gsp/bootstrap/:agentId        → gsp_bootstrap
+POST   /v1/gsp/seed                      → gsp_seed
+POST   /v1/gsp/propose                   → gsp_propose
+POST   /v1/gsp/resolve                   → gsp_resolve
+POST   /v1/gsp/subscribe                 → gsp_subscribe
+GET    /v1/gsp/search                    → gsp_search
 ```
 
 ### Dream
 ```
-GET    /v1/dreams                    → dream_peek
-POST   /v1/dreams/:id/activate      → dream_activate
-```
-
-### Legacy Compat
-```
-GET    /v1/interrupts/peek           → get_messages (markAsRead: false)
-GET    /v1/dreams/peek               → dream_peek
-POST   /v1/dreams/activate           → dream_activate
+GET    /v1/dreams                        → dream_peek
+POST   /v1/dreams/:id/activate           → dream_activate
 ```
 
 ### Response Format
@@ -184,10 +380,9 @@ POST   /v1/dreams/activate           → dream_activate
 {
   "success": true,
   "data": { ... },
-  "meta": { "timestamp": "2026-02-14T..." }
+  "meta": { "timestamp": "2026-03-18T..." }
 }
 ```
-
 
 ## REST Fallback (BUG-004)
 
@@ -214,31 +409,10 @@ Session death indicators:
 For transient errors (503, timeout):
 ```
 Attempt 1: Wait 1s, retry
-Attempt 2: Wait 2s, retry  
+Attempt 2: Wait 2s, retry
 Attempt 3: Wait 4s, retry
 After 3 failures: Switch to REST fallback permanently for this session
 ```
-
-### REST Endpoint Mapping
-
-Every MCP tool has a REST equivalent:
-
-| MCP Tool | REST Endpoint | Method |
-|----------|--------------|--------|
-| `get_tasks` | `/v1/tasks` | GET |
-| `create_task` | `/v1/tasks` | POST |
-| `claim_task` | `/v1/tasks/:id/claim` | POST |
-| `complete_task` | `/v1/tasks/:id/complete` | POST |
-| `send_message` | `/v1/messages` | POST |
-| `get_messages` | `/v1/messages` | GET |
-| `create_session` | `/v1/sessions` | POST |
-| `update_session` | `/v1/sessions/:id` | PATCH |
-| `list_sessions` | `/v1/sessions` | GET |
-| `ask_question` | `/v1/questions` | POST |
-| `get_response` | `/v1/questions/:id/response` | GET |
-| `send_alert` | `/v1/alerts` | POST |
-| `dream_peek` | `/v1/dreams` | GET |
-| `dream_activate` | `/v1/dreams/:id/activate` | POST |
 
 ### REST Request Format
 
