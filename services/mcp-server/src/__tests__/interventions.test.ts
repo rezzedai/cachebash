@@ -1,7 +1,16 @@
 /**
  * Intervention Actions Test Suite
  * Tests for retry, abort, reassign, escalate, pause/resume program
+ *
+ * Integration test — requires Firestore emulator.
+ * Skipped when FIRESTORE_EMULATOR_HOST is not set.
  */
+
+// Mock github-sync to avoid @octokit/rest ESM import issues in Jest
+jest.mock("../modules/github-sync.js", () => ({
+  syncTaskToGitHub: jest.fn(),
+  reconcileGitHubIssues: jest.fn(),
+}));
 
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./integration/setup.js";
 import { retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler } from "../modules/dispatch/interventions.js";
@@ -12,6 +21,9 @@ import { completeTaskHandler } from "../modules/dispatch/completion.js";
 import { registerProgram } from "../modules/programRegistry.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { dispatchHandler } from "../modules/dispatch/dispatchHandler.js";
+
+const EMULATOR_AVAILABLE = !!process.env.FIRESTORE_EMULATOR_HOST;
+const maybeDescribe = EMULATOR_AVAILABLE ? describe : describe.skip;
 
 const TEST_USER_ID = "test-interventions-user";
 
@@ -25,6 +37,7 @@ const mockAuth: AuthContext = {
 };
 
 beforeEach(async () => {
+  if (!EMULATOR_AVAILABLE) return;
   await clearFirestoreData();
   await seedTestUser(TEST_USER_ID);
 
@@ -61,12 +74,13 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  if (!EMULATOR_AVAILABLE) return;
   await clearFirestoreData();
 });
 
 // ─── RETRY TASK ───────────────────────────────────────────────────────────────
 
-describe("Retry Task", () => {
+maybeDescribe("Retry Task", () => {
   it("should retry a failed task and reset to created status", async () => {
     const db = getTestFirestore();
 
@@ -209,7 +223,7 @@ describe("Retry Task", () => {
 
 // ─── ABORT TASK ───────────────────────────────────────────────────────────────
 
-describe("Abort Task", () => {
+maybeDescribe("Abort Task", () => {
   it("should abort an active task and mark as CANCELLED", async () => {
     const db = getTestFirestore();
 
@@ -298,7 +312,7 @@ describe("Abort Task", () => {
 
 // ─── REASSIGN TASK ────────────────────────────────────────────────────────────
 
-describe("Reassign Task", () => {
+maybeDescribe("Reassign Task", () => {
   it("should reassign a created task to a new target", async () => {
     const db = getTestFirestore();
 
@@ -404,7 +418,7 @@ describe("Reassign Task", () => {
 
 // ─── ESCALATE TASK ────────────────────────────────────────────────────────────
 
-describe("Escalate Task", () => {
+maybeDescribe("Escalate Task", () => {
   it("should escalate builder task to iso with default chain", async () => {
     const db = getTestFirestore();
 
@@ -524,7 +538,7 @@ describe("Escalate Task", () => {
 
 // ─── PAUSE/RESUME PROGRAM ─────────────────────────────────────────────────────
 
-describe("Pause/Resume Program", () => {
+maybeDescribe("Pause/Resume Program", () => {
   it("should pause a program", async () => {
     const db = getTestFirestore();
 
