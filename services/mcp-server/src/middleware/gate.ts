@@ -133,6 +133,14 @@ export function isAdmin(auth: AuthContext): boolean {
 }
 
 /**
+ * Check if AuthContext has a specific capability.
+ * Returns true if the key has the exact capability or wildcard "*".
+ */
+export function hasCapability(auth: AuthContext, capability: string): boolean {
+  return auth.capabilities.includes(capability) || auth.capabilities.includes("*");
+}
+
+/**
  * Verify source claim against key identity.
  * Phase 2: ENFORCED. Key's programId must match claimed source.
  */
