@@ -32,6 +32,7 @@ import { CONSTANTS } from "../../config/constants.js";
 import { type ToolResult, jsonResult } from "./shared.js";
 import type { TargetState, WakeResult, SpawnSpec, DispatchResponse } from "../../types/dispatch.js";
 import { checkGovernanceRules } from "./governance.js";
+import { isProgramPaused } from "../pulse.js";
 
 /** Default uptake polling interval */
 const UPTAKE_POLL_INTERVAL_MS = 5_000;
@@ -288,6 +289,14 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     title: args.title,
   });
 
+  // Check if target program is paused
+  const targetPaused = await isProgramPaused(auth.userId, args.target);
+  if (targetPaused) {
+    governance.warnings.push(
+      `[target_paused] Target program "${args.target}" is paused. Task will be created but target won't receive it until resumed. Consider using pulse_resume_program first.`
+    );
+  }
+
   // ── 1. PRE-FLIGHT ──
   const flight = await queryTargetState(auth.userId, args.target);
 
@@ -370,18 +379,23 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   const spawnConfig = SPAWNABLE_PROGRAMS.get(args.target);
   const needsSpawn = !uptakeConfirmed && currentTargetState !== "alive";
 
+  // Override success if target is paused
+  const successResult = targetPaused
+    ? false
+    : uptakeConfirmed || (currentTargetState === "alive" && !args.waitForUptake);
+
   const response: DispatchResponse = {
-    success: uptakeConfirmed || (currentTargetState === "alive" && !args.waitForUptake),
+    success: successResult,
     taskId,
     directiveId,
     targetState: currentTargetState,
-    uptakeConfirmed,
+    uptakeConfirmed: targetPaused ? false : uptakeConfirmed,
     claimedBy,
     claimedAt,
     heartbeatAge: flight.heartbeatAge,
     wakeAttempted: wakeAttempted || undefined,
     wakeResult: wakeAttempted ? wakeResultStr : undefined,
-    action_required: needsSpawn ? "spawn_target" : uptakeConfirmed ? "none" : "retry",
+    action_required: needsSpawn ? "spawn_target" : uptakeConfirmed && !targetPaused ? "none" : "retry",
     spawnSpec: needsSpawn && spawnConfig
       ? {
           programId: args.target,
@@ -390,11 +404,13 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
           description: spawnConfig.description,
         }
       : undefined,
-    message: uptakeConfirmed
-      ? `Dispatched to ${args.target} — task claimed${claimedBy ? ` by ${claimedBy}` : ""}.`
-      : currentTargetState === "alive" && !args.waitForUptake
-        ? `Dispatched to ${args.target} (alive, uptake check skipped).`
-        : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
+    message: targetPaused
+      ? `Task created but target "${args.target}" is PAUSED. Task will remain queued until target is resumed.`
+      : uptakeConfirmed
+        ? `Dispatched to ${args.target} — task claimed${claimedBy ? ` by ${claimedBy}` : ""}.`
+        : currentTargetState === "alive" && !args.waitForUptake
+          ? `Dispatched to ${args.target} (alive, uptake check skipped).`
+          : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
     governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
   };
 

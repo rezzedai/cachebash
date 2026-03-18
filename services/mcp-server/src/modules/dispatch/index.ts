@@ -9,3 +9,4 @@ export { completeTaskHandler, batchCompleteTasksHandler } from "./completion.js"
 export { getContentionMetricsHandler } from "./contention.js";
 export { dispatchHandler } from "./dispatchHandler.js";
 export { checkGovernanceRules, CONSTITUTIONAL_RULES, getConstitutionalSeedEntries } from "./governance.js";
+export { retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler } from "./interventions.js";

@@ -13,6 +13,8 @@
 export type AnalyticsEventType =
   | "tool_call"
   | "task_lifecycle"
+  | "task_intervention"
+  | "program_control"
   | "message_lifecycle"
   | "session_lifecycle"
   | "sprint_lifecycle"
