@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -25,6 +25,8 @@ export const handlers: Record<string, Handler> = {
   dispatch_unquarantine_program: unquarantineProgramHandler,
   dispatch_replay_task: replayTaskHandler,
   dispatch_approve_task: approveTaskHandler,
+  dispatch_get_task_lineage: getTaskLineageHandler,
+  dispatch_export_tasks: exportTasksHandler,
 };
 
 export const definitions = [
@@ -293,6 +295,30 @@ export const definitions = [
         taskId: { type: "string", description: "Task ID to approve" },
       },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "dispatch_get_task_lineage",
+    description: "Query the lineage chain of a task. Returns ancestors (tasks this was replayed/retried/reassigned/escalated from) and descendants (tasks derived from this one). Also returns the state transition log.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string", description: "Task ID to query lineage for" },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "dispatch_export_tasks",
+    description: "Export tasks with full details including lineage fields and state transitions. Supports filtering by status and date range.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        format: { type: "string", enum: ["json"], default: "json", description: "Export format (currently json only)" },
+        status: { type: "string", description: "Optional status filter (created, active, done, failed, etc.)" },
+        since: { type: "string", description: "Optional ISO 8601 date. Only return tasks created on or after this date." },
+        limit: { type: "number", minimum: 1, maximum: 500, default: 100, description: "Max tasks to return (default 100, max 500)" },
+      },
     },
   },
 ];

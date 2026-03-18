@@ -12,7 +12,7 @@ import { syncTaskCompleted } from "../github-sync.js";
 import { emitEvent, computeHash } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
-import { type ToolResult, jsonResult } from "./shared.js";
+import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 
 const CompleteTaskSchema = z.object({
@@ -459,11 +459,16 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       transition("task", current, lifecycleTarget);
 
+      // Build state transition
+      const transitionEntry = buildTransition(current, lifecycleTarget, auth.programId, "complete");
+      const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
       const updateFields: Record<string, unknown> = {
         status: lifecycleTarget,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastHeartbeat: null,
         completed_status: args.completed_status,
+        stateTransitions: updatedTransitions,
       };
 
       // Set awaitingApproval flag for supervised mode
@@ -703,11 +708,16 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
         transition("task", current, lifecycleTarget as LifecycleStatus);
 
+        // Build state transition
+        const transitionEntry = buildTransition(current, lifecycleTarget, auth.programId, "complete");
+        const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
+
         const updateFields: Record<string, unknown> = {
           status: args.completed_status === "FAILED" ? "failed" : "done",
           completedAt: admin.firestore.FieldValue.serverTimestamp(),
           lastHeartbeat: null,
           completed_status: args.completed_status,
+          stateTransitions: updatedTransitions,
         };
         if (args.result) updateFields.result = args.result;
         if (args.model) updateFields.model = args.model;
