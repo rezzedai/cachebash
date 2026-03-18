@@ -3,16 +3,16 @@
  * Tests target suggestion logic with mocked program stats.
  */
 
-import { suggestTargetHandler } from "../modules/dispatch/suggestion.js";
+import { suggestTargetHandler } from "../modules/dispatch/suggestion";
 import type { AuthContext } from "../auth/authValidator.js";
 
 // Mock dependencies
-jest.mock("../firebase/client.js", () => ({
+jest.mock("../firebase/client", () => ({
   getFirestore: jest.fn(() => mockDb),
   serverTimestamp: jest.fn(() => ({ _methodName: "serverTimestamp" })),
 }));
 
-jest.mock("../pulse.js", () => ({
+jest.mock("../pulse", () => ({
   isProgramPaused: jest.fn((userId: string, programId: string) => {
     return programId === "paused-program";
   }),
