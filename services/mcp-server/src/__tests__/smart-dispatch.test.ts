@@ -34,7 +34,7 @@ describe("Wave 16: Smart Dispatch", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
 
   // Helper to parse ToolResult
