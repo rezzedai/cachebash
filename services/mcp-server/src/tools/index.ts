@@ -1,6 +1,6 @@
 /**
  * Tool Registry — Merges all domain registries into unified TOOL_HANDLERS and TOOL_DEFINITIONS.
- * 69 handlers across 18 domain registries.
+ * 73 handlers across 21 domain registries.
  */
 import { AuthContext } from "../auth/authValidator.js";
 
@@ -24,6 +24,7 @@ import * as gsp from "./gsp.js";
 import * as patternConsolidation from "./patternConsolidation.js";
 import * as schedule from "./schedule.js";
 import * as policy from "./policy.js";
+import * as webhook from "./webhook.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -48,6 +49,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...patternConsolidation.handlers,
   ...schedule.handlers,
   ...policy.handlers,
+  ...webhook.handlers,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -71,4 +73,5 @@ export const TOOL_DEFINITIONS = [
   ...patternConsolidation.definitions,
   ...schedule.definitions,
   ...policy.definitions,
+  ...webhook.definitions,
 ];
