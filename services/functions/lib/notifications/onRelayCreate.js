@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onRelayCreate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -69,7 +69,7 @@ const ALWAYS_NOTIFY_TYPES = ["DIRECTIVE", "QUERY"];
  * were silently written to Firestore with no push delivery.
  */
 exports.onRelayCreate = functions.firestore
-    .document("users/{userId}/relay/{relayId}")
+    .document("tenants/{userId}/relay/{relayId}")
     .onCreate(async (snapshot, context) => {
     const { userId, relayId } = context.params;
     const relay = snapshot.data();
@@ -97,7 +97,7 @@ exports.onRelayCreate = functions.firestore
         return;
     }
     try {
-        const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+        const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
         if (devicesSnapshot.empty) {
             functions.logger.warn(`No devices registered for user ${userId}`);
             return;

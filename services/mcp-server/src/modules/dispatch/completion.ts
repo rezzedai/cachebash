@@ -143,6 +143,87 @@ async function validateTelemetryCompliance(
   return null;
 }
 
+// Auto-Quarantine: Track failure count and quarantine on threshold
+const QUARANTINE_FAILURE_THRESHOLD = 3;
+const QUARANTINE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+async function handleAutoQuarantine(
+  db: admin.firestore.Firestore,
+  userId: string,
+  programId: string
+): Promise<void> {
+  const programRef = db.doc(`tenants/${userId}/programs/${programId}`);
+  const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - QUARANTINE_WINDOW_MS);
+
+  try {
+    const shouldQuarantine = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(programRef);
+      const data = doc.exists ? doc.data()! : {};
+
+      // Skip if already quarantined
+      if (data.quarantined === true) {
+        return false;
+      }
+
+      // Increment failure count
+      const lastFailureAt = data.lastFailureAt as admin.firestore.Timestamp | undefined;
+      const currentCount = (data.failureCount as number) || 0;
+
+      // Reset count if last failure was more than 1 hour ago
+      const newCount = lastFailureAt && lastFailureAt.toMillis() < oneHourAgo.toMillis()
+        ? 1
+        : currentCount + 1;
+
+      tx.set(
+        programRef,
+        {
+          failureCount: newCount,
+          lastFailureAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Check if threshold exceeded
+      return newCount >= QUARANTINE_FAILURE_THRESHOLD;
+    });
+
+    // If threshold exceeded, quarantine the program
+    if (shouldQuarantine) {
+      await db.runTransaction(async (tx) => {
+        const doc = await tx.get(programRef);
+        // Double-check not already quarantined (race condition guard)
+        if (doc.exists && doc.data()?.quarantined === true) {
+          return;
+        }
+
+        tx.set(
+          programRef,
+          {
+            quarantined: true,
+            quarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+            quarantineReason: `Automatic: ${QUARANTINE_FAILURE_THRESHOLD}+ failures in rolling window`,
+            quarantinedBy: "system",
+          },
+          { merge: true }
+        );
+      });
+
+      // Emit telemetry event
+      emitEvent(userId, {
+        event_type: "PROGRAM_QUARANTINED",
+        program_id: programId,
+        quarantined_by: "system",
+        reason: `Automatic: ${QUARANTINE_FAILURE_THRESHOLD}+ failures in rolling window`,
+        auto_quarantine: true,
+      });
+
+      console.log(`[AutoQuarantine] Program "${programId}" auto-quarantined after ${QUARANTINE_FAILURE_THRESHOLD} failures`);
+    }
+  } catch (err) {
+    console.error("[AutoQuarantine] Failed to process:", err);
+  }
+}
+
 // ISO Self-Recycling: Handle program self-recycle request
 const SPAWN_COOLDOWN_MS = CONSTANTS.cooldowns.spawnCooldownMs;
 
@@ -343,6 +424,8 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
     sprintParentId?: string;
   } = {};
 
+  let supervisedModeActive = false;
+
   try {
     await db.runTransaction(async (tx) => {
       const doc = await tx.get(taskRef);
@@ -360,16 +443,33 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
         sprintParentId: data.sprint?.parentId as string | undefined,
       };
 
-      // Determine lifecycle target based on completed_status
-      const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
-      transition("task", current, lifecycleTarget as LifecycleStatus);
+      const policyMode = data.policy_mode as string | undefined;
+      const supervisedMode = policyMode === "supervised" && args.completed_status !== "FAILED";
+      supervisedModeActive = supervisedMode;
+
+      // Determine lifecycle target based on completed_status and policy mode
+      let lifecycleTarget: LifecycleStatus;
+      if (args.completed_status === "FAILED") {
+        lifecycleTarget = "failed";
+      } else if (supervisedMode) {
+        lifecycleTarget = "completing";
+      } else {
+        lifecycleTarget = "done";
+      }
+
+      transition("task", current, lifecycleTarget);
 
       const updateFields: Record<string, unknown> = {
-        status: args.completed_status === "FAILED" ? "failed" : "done",
+        status: lifecycleTarget,
         completedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastHeartbeat: null,
         completed_status: args.completed_status,
       };
+
+      // Set awaitingApproval flag for supervised mode
+      if (supervisedMode) {
+        updateFields.awaitingApproval = true;
+      }
       if (args.tokens_in !== undefined) updateFields.tokens_in = args.tokens_in;
       if (args.tokens_out !== undefined) updateFields.tokens_out = args.tokens_out;
       if (args.cost_usd !== undefined) updateFields.cost_usd = args.cost_usd;
@@ -481,6 +581,15 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       config_hash: taskData.source ? computeHash(`${taskData.source}:${taskData.target}:${args.model || "unknown"}`) : undefined,
     });
 
+    // Supervised mode: emit awaiting approval event
+    if (supervisedModeActive) {
+      emitEvent(auth.userId, {
+        event_type: "TASK_AWAITING_APPROVAL",
+        program_id: auth.programId,
+        task_id: args.taskId,
+      });
+    }
+
     // Analytics: task_lifecycle complete
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_lifecycle",
@@ -532,6 +641,15 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
         } catch (err) {
           console.error("[SelfRecycle] Failed:", err);
         }
+      }
+    }
+
+    // Auto-Quarantine: Track failures and auto-quarantine on threshold
+    if (args.completed_status === "FAILED" && taskData.target) {
+      try {
+        await handleAutoQuarantine(db, auth.userId, taskData.target as string);
+      } catch (err) {
+        console.error("[AutoQuarantine] Failed:", err);
       }
     }
 

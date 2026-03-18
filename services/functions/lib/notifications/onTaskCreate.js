@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onTaskCreate = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -64,7 +64,7 @@ function truncate(str, maxLength) {
  * Replaces v1 onMessageCreate + onQuestionCreate.
  */
 exports.onTaskCreate = functions.firestore
-    .document("users/{userId}/tasks/{taskId}")
+    .document("tenants/{userId}/tasks/{taskId}")
     .onCreate(async (snapshot, context) => {
     const { userId, taskId } = context.params;
     const task = snapshot.data();
@@ -85,7 +85,7 @@ exports.onTaskCreate = functions.firestore
         return;
     }
     try {
-        const devicesSnapshot = await db.collection(`users/${userId}/devices`).get();
+        const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
         if (devicesSnapshot.empty) {
             functions.logger.warn(`No devices registered for user ${userId}`);
             return;
@@ -129,7 +129,7 @@ exports.onTaskCreate = functions.firestore
         };
         // Badge count: pending questions
         const pendingCount = await db
-            .collection(`users/${userId}/tasks`)
+            .collection(`tenants/${userId}/tasks`)
             .where("type", "==", "question")
             .where("status", "==", "created")
             .count()
