@@ -55,8 +55,20 @@ export class CustomHTTPTransport implements Transport {
           return await this.handlePost(parsed, authContext);
         case "DELETE":
           return await this.handleDelete(parsed, authContext);
+        case "GET":
+          // MCP Streamable HTTP spec: clients send GET with Accept: text/event-stream
+          // to open an SSE stream. We don't support SSE — return 405 so the client
+          // skips SSE gracefully. Returning 200 with JSON here causes the client to
+          // hang trying to parse JSON as an SSE event stream.
+          return new Response(null, {
+            status: 405,
+            headers: { Allow: "POST, DELETE" },
+          });
         default:
-          return this.toResponse(jsonRpcError(-32601, `Method not allowed: ${parsed.method}`, null));
+          return new Response(null, {
+            status: 405,
+            headers: { Allow: "POST, DELETE" },
+          });
       }
     } catch (error) {
       return this.toResponse(internalErrorResponse(error instanceof Error ? error.message : String(error)));
