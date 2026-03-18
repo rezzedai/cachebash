@@ -1,6 +1,6 @@
 # CacheBash MCP Server
 
-Model Context Protocol server for multi-agent coordination. Provides 90+ tools across 20 modules with full MCP-REST parity.
+Model Context Protocol server for multi-agent coordination. Provides 100+ tools across 23 modules with full MCP-REST parity. Auto-generated OpenAPI 3.0 spec at `/v1/openapi.json`.
 
 ## Architecture
 
@@ -23,7 +23,7 @@ Model Context Protocol server for multi-agent coordination. Provides 90+ tools a
    | Middleware |   | Transport |   |    Modules   |
    +-----+-----+   +-----------+   +------+-------+
          |          gate.ts              |
-   apiKeyValidator  correlationId   dispatch (tasks + interventions)
+   apiKeyValidator  correlationId   dispatch (tasks + interventions + lineage)
    rateLimiter      SessionManager  relay (messages)
    dns-rebinding    MessageParser   pulse (sessions + fleet)
                     rest.ts         signal (questions)
@@ -31,6 +31,8 @@ Model Context Protocol server for multi-agent coordination. Provides 90+ tools a
                                     sprint
                                     gsp (state protocol)
                                     policy (governance engine)
+                                    webhook (lifecycle subscriptions)
+                                    openapi (spec generation)
                                     state (program memory)
                                     metrics (telemetry)
                                     keys (API key mgmt)
@@ -60,6 +62,9 @@ Collections per tenant (`tenants/{userId}/...`):
 | `audit` | Policy decisions + governance log | `event`, `program`, `policy`, `decision` |
 | `rate_limit_events` | API throttle tracking (7-day TTL) | `modelTier`, `endpoint`, `backoffMs` |
 | `ledger` | Cost/usage tracking | `tool`, `transport`, `durationMs`, `success` |
+| `webhooks` | Webhook subscriptions | `callbackUrl`, `events`, `secret`, `enabled` |
+| `webhook_deliveries` | Webhook delivery log | `webhookId`, `event`, `status`, `responseCode` |
+| `program_stats` | Per-program success metrics | `taskTypeSuccessRates`, `avgDuration` |
 
 ### Task Schema (`tasks`)
 
@@ -93,6 +98,9 @@ All tasks include:
 - `replyTo`, `threadId` — conversation threading
 - `provenance` — `{ model, cost_tokens, confidence }`
 - `fallback` — alternative target routing
+- `stateTransitions` — array of `{ from, to, timestamp, actor, trigger }` lifecycle records
+- `replayOf`, `retriedFrom`, `reassignedFrom`, `escalatedFrom` — lineage pointers
+- `lineageRoot` — root task ID for lineage chains
 
 ## Auth
 
@@ -100,7 +108,7 @@ Bearer token authentication via `Authorization: Bearer <api-key>`.
 
 API keys are stored in `users/{uid}/apiKeys/{keyHash}` with SHA-256 hashing. No query parameter auth (security requirement).
 
-## MCP Tools (90+)
+## MCP Tools (100+)
 
 ### Dispatch — Task Lifecycle (10 tools)
 | Tool | Description |
@@ -129,6 +137,25 @@ API keys are stored in `users/{uid}/apiKeys/{keyHash}` with SHA-256 hashing. No 
 | `unquarantine_program` | Release a quarantined program |
 | `replay_task` | Clone a task with modified instructions/target |
 | `approve_task` | Approve a supervised-mode task completion |
+
+### Dispatch — Lineage & Export (2 tools)
+| Tool | Description |
+|------|-------------|
+| `get_task_lineage` | Query lineage chain — ancestors, descendants, and state transition log |
+| `export_tasks` | Bulk export tasks with lineage fields, status/date filtering |
+
+### Dispatch — Smart Dispatch (1 tool)
+| Tool | Description |
+|------|-------------|
+| `suggest_target` | Rank programs by historical success rate for a given task type |
+
+### Webhook — Lifecycle Subscriptions (4 tools)
+| Tool | Description |
+|------|-------------|
+| `webhook_register` | Register a webhook for task lifecycle events (HMAC-SHA256 signed) |
+| `webhook_list` | List webhook subscriptions (filterable by enabled status) |
+| `webhook_delete` | Remove a webhook registration |
+| `webhook_get_deliveries` | Get webhook delivery logs (filterable by status) |
 
 ### Policy — Governance Engine (6 tools)
 | Tool | Description |
@@ -292,6 +319,26 @@ POST   /v1/tasks/batch/claim             → batch_claim_tasks
 POST   /v1/tasks/batch/complete          → batch_complete_tasks
 GET    /v1/tasks/contention              → get_contention_metrics
 POST   /v1/dispatch                      → dispatch
+```
+
+### Lineage & Smart Dispatch
+```
+GET    /v1/tasks/:id/lineage             → get_task_lineage
+GET    /v1/tasks/export                  → export_tasks
+GET    /v1/dispatch/suggest-target       → suggest_target
+```
+
+### Webhooks
+```
+POST   /v1/webhooks                      → webhook_register
+GET    /v1/webhooks                      → webhook_list
+DELETE /v1/webhooks/:id                  → webhook_delete
+GET    /v1/webhook-deliveries            → webhook_get_deliveries
+```
+
+### OpenAPI
+```
+GET    /v1/openapi.json                  → Auto-generated OpenAPI 3.0 spec (public, cached 1hr)
 ```
 
 ### Interventions
