@@ -13,7 +13,7 @@ Model Context Protocol server for multi-agent coordination. Provides 90+ tools a
                     Streamable HTTP (Bearer auth)
                              |
               +--------------+--------------+
-              |      index.ts (188 lines)   |
+              |      index.ts (842 lines)   |
               |  MCP Server + REST Router   |
               +------+------+------+-------+
                      |      |      |
