@@ -129,12 +129,18 @@ export const TOOL_ALIASES: Record<string, string> = {
   get_operational_metrics: "metrics_get_operational_metrics",
   log_rate_limit_event: "metrics_log_rate_limit_event",
   get_rate_limit_events: "metrics_get_rate_limit_events",
+  get_cost_forecast: "metrics_get_cost_forecast",
+  get_sla_compliance: "metrics_get_sla_compliance",
+  get_program_health: "metrics_get_program_health",
   // Old aliases
   metrics_cost: "metrics_get_cost_summary",
   metrics_comms: "metrics_get_comms_metrics",
   metrics_ops: "metrics_get_operational_metrics",
   metrics_log_rate_limit: "metrics_log_rate_limit_event",
   metrics_get_rate_limits: "metrics_get_rate_limit_events",
+  metrics_forecast: "metrics_get_cost_forecast",
+  metrics_sla: "metrics_get_sla_compliance",
+  metrics_health: "metrics_get_program_health",
 
   // Usage domain
   get_usage: "usage_get_usage",
