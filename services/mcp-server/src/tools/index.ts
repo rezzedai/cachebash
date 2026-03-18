@@ -23,6 +23,7 @@ import * as admin from "./admin.js";
 import * as gsp from "./gsp.js";
 import * as patternConsolidation from "./patternConsolidation.js";
 import * as schedule from "./schedule.js";
+import * as policy from "./policy.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -46,6 +47,7 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...gsp.handlers,
   ...patternConsolidation.handlers,
   ...schedule.handlers,
+  ...policy.handlers,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -68,4 +70,5 @@ export const TOOL_DEFINITIONS = [
   ...gsp.definitions,
   ...patternConsolidation.definitions,
   ...schedule.definitions,
+  ...policy.definitions,
 ];

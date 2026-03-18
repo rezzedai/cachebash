@@ -33,6 +33,7 @@ import { type ToolResult, jsonResult } from "./shared.js";
 import type { TargetState, WakeResult, SpawnSpec, DispatchResponse } from "../../types/dispatch.js";
 import { checkGovernanceRules } from "./governance.js";
 import { isProgramPaused, isProgramQuarantined } from "../pulse.js";
+import { evaluatePolicies } from "../policy.js";
 
 /** Default uptake polling interval */
 const UPTAKE_POLL_INTERVAL_MS = 5_000;
@@ -291,6 +292,48 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     title: args.title,
   });
 
+  // ── 0.5. POLICY ENGINE EVALUATION ──
+  const policyEvaluations = await evaluatePolicies(auth, {
+    instructions: args.instructions,
+    title: args.title,
+    target: args.target,
+    source: verifiedSource,
+    action: args.action,
+    priority: args.priority,
+    projectId: args.projectId,
+  });
+
+  const matchedPolicies = policyEvaluations.filter((e) => e.matched);
+  const warnings = matchedPolicies.filter((e) => e.enforcement === "warn");
+  const blockers = matchedPolicies.filter((e) => e.enforcement === "block");
+  const approvals = matchedPolicies.filter((e) => e.enforcement === "require_approval");
+
+  // Add policy warnings to governance warnings
+  for (const warning of warnings) {
+    governance.warnings.push(`[${warning.policyId}] ${warning.message}`);
+  }
+
+  // Block if any blocking policies matched
+  if (blockers.length > 0) {
+    return jsonResult({
+      success: false,
+      error: "Dispatch blocked by policy violation",
+      policy_violations: blockers.map((b) => ({
+        policyId: b.policyId,
+        policyName: b.policyName,
+        enforcement: b.enforcement,
+        severity: b.severity,
+        message: b.message,
+      })),
+      message: `Dispatch blocked by ${blockers.length} policy violation(s): ${blockers.map((b) => b.policyName).join(", ")}`,
+    });
+  }
+
+  // Add approval-required warnings
+  for (const approval of approvals) {
+    governance.warnings.push(`[approval_required:${approval.policyId}] ${approval.message}`);
+  }
+
   // Check if target program is paused
   const targetPaused = await isProgramPaused(auth.userId, args.target);
   if (targetPaused) {
@@ -313,6 +356,15 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       success: false,
       error: "Strict policy violation: governance warnings present",
       governance_warnings: governance.warnings,
+      policy_violations: matchedPolicies.length > 0
+        ? matchedPolicies.map((p) => ({
+            policyId: p.policyId,
+            policyName: p.policyName,
+            enforcement: p.enforcement,
+            severity: p.severity,
+            message: p.message,
+          }))
+        : undefined,
       message: `Dispatch blocked by strict policy mode. Violations: ${governance.warnings.join("; ")}`,
     });
   }
@@ -440,6 +492,16 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
             ? `Dispatched to ${args.target} (alive, uptake check skipped).`
             : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
     governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
+    policy_violations:
+      matchedPolicies.length > 0
+        ? matchedPolicies.map((p) => ({
+            policyId: p.policyId,
+            policyName: p.policyName,
+            enforcement: p.enforcement,
+            severity: p.severity,
+            message: p.message,
+          }))
+        : undefined,
   };
 
   // Emit dispatch completion telemetry

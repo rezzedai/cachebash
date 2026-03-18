@@ -80,4 +80,12 @@ export interface DispatchResponse {
   message: string;
   /** Governance pre-flight warnings (soft checks, non-blocking) */
   governance_warnings?: string[];
+  /** Policy violations detected during dispatch */
+  policy_violations?: Array<{
+    policyId: string;
+    policyName: string;
+    enforcement: string;
+    severity: string;
+    message: string;
+  }>;
 }
