@@ -17,14 +17,15 @@ const MAX_RETRIES = 3;
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface WebhookEvent {
-  event: "state_change";
-  namespace: string;
-  key: string;
-  value: unknown;
-  previousValue?: unknown;
-  version: number;
-  updatedAt: string;
-  updatedBy: string;
+  event: string; // Generic event type (e.g., "state_change", "task.created")
+  namespace?: string; // GSP-specific
+  key?: string; // GSP-specific
+  value?: unknown; // GSP-specific
+  previousValue?: unknown; // GSP-specific
+  version?: number; // GSP-specific
+  updatedAt?: string;
+  updatedBy?: string;
+  [key: string]: unknown; // Allow additional fields for other event types
 }
 
 export interface WebhookSubscription {
@@ -68,16 +69,24 @@ export async function dispatchWebhook(
   const payload = JSON.stringify(event);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "User-Agent": "GSP-Webhook/1.0",
-    "X-GSP-Event": event.event,
-    "X-GSP-Namespace": event.namespace,
-    "X-GSP-Key": event.key,
-    "X-GSP-Version": String(event.version),
+    "User-Agent": "CacheBash-Webhook/1.0",
+    "X-Webhook-Event": event.event,
   };
+
+  // Add GSP-specific headers if present (backward compatibility)
+  if (event.namespace) {
+    headers["X-GSP-Namespace"] = event.namespace;
+  }
+  if (event.key) {
+    headers["X-GSP-Key"] = event.key;
+  }
+  if (event.version !== undefined) {
+    headers["X-GSP-Version"] = String(event.version);
+  }
 
   // Add HMAC signature if secret is configured
   if (subscription.secret) {
-    headers["X-GSP-Signature"] = generateSignature(payload, subscription.secret);
+    headers["X-Webhook-Signature"] = generateSignature(payload, subscription.secret);
   }
 
   let lastError: Error | null = null;
