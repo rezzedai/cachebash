@@ -14,6 +14,7 @@ import { emitAnalyticsEvent } from "../analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
 import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
+import { dispatchTaskWebhooks } from "../webhook.js";
 
 const CompleteTaskSchema = z.object({
   taskId: z.string(),
@@ -604,6 +605,16 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       errorCode: args.error_code,
       errorClass: args.error_class,
     });
+
+    // Fire-and-forget: dispatch task webhooks
+    const webhookEvent = args.completed_status === "FAILED" ? "task.failed" : "task.completed";
+    dispatchTaskWebhooks(auth.userId, {
+      event: webhookEvent,
+      taskId: args.taskId,
+      task: { id: args.taskId, ...taskData, completed_status: args.completed_status, result: args.result },
+      timestamp: new Date().toISOString(),
+      tenantId: auth.userId,
+    }).catch((err) => console.error("[TaskWebhook] Failed:", err));
 
     // W1.1.4: Write immutable ledger entry (synchronous — billing audit trail)
     if (args.model || args.tokens_in || args.tokens_out || args.cost_usd) {
