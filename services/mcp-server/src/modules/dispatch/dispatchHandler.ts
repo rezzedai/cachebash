@@ -31,6 +31,7 @@ import { logDirective } from "../ack-compliance.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { type ToolResult, jsonResult } from "./shared.js";
 import type { TargetState, WakeResult, SpawnSpec, DispatchResponse } from "../../types/dispatch.js";
+import { checkGovernanceRules } from "./governance.js";
 
 /** Default uptake polling interval */
 const UPTAKE_POLL_INTERVAL_MS = 5_000;
@@ -280,6 +281,13 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     }
   }
 
+  // ── 0. GOVERNANCE PRE-FLIGHT (soft checks) ──
+  const governance = checkGovernanceRules({
+    instructions: args.instructions,
+    action: args.action,
+    title: args.title,
+  });
+
   // ── 1. PRE-FLIGHT ──
   const flight = await queryTargetState(auth.userId, args.target);
 
@@ -387,6 +395,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       : currentTargetState === "alive" && !args.waitForUptake
         ? `Dispatched to ${args.target} (alive, uptake check skipped).`
         : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
+    governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
   };
 
   // Emit dispatch completion telemetry
@@ -401,6 +410,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     wake_attempted: wakeAttempted,
     wake_result: wakeResultStr,
     success: response.success,
+    governance_warnings_count: governance.warnings.length,
   });
 
   return jsonResult(response);
