@@ -15,7 +15,6 @@
     "test:integration": "jest --config jest.integration.config.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@octokit/rest": "^22.0.1",
     "cron-parser": "^5.5.0",
