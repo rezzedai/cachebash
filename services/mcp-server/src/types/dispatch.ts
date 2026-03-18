@@ -78,4 +78,6 @@ export interface DispatchResponse {
   spawnSpec?: SpawnSpec;
   /** Human-readable message */
   message: string;
+  /** Governance pre-flight warnings (soft checks, non-blocking) */
+  governance_warnings?: string[];
 }
