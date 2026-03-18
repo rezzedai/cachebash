@@ -693,3 +693,150 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
     sessions: sessionSummaries,
   });
 }
+
+// ─── PAUSE/RESUME PROGRAM ─────────────────────────────────────────────────────
+
+const PauseProgramSchema = z.object({
+  programId: z.string().max(50),
+  reason: z.string().max(500),
+});
+
+const ResumeProgramSchema = z.object({
+  programId: z.string().max(50),
+});
+
+/**
+ * Pause a program — suspends task intake but keeps session alive.
+ * Paused programs continue sending heartbeats but won't receive dispatched tasks.
+ */
+export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = PauseProgramSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  // Validate program exists
+  const programExists = await isProgramRegistered(auth.userId, args.programId);
+  if (!programExists) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(programRef);
+
+      // Create or update program doc
+      tx.set(
+        programRef,
+        {
+          paused: true,
+          pausedAt: admin.firestore.FieldValue.serverTimestamp(),
+          pauseReason: args.reason,
+          pausedBy: auth.programId,
+        },
+        { merge: true }
+      );
+    });
+
+    // Emit telemetry event
+    await db.collection(`tenants/${auth.userId}/telemetry`).add({
+      event_type: "PROGRAM_PAUSED",
+      program_id: args.programId,
+      paused_by: auth.programId,
+      reason: args.reason,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "program_control",
+      programId: auth.programId,
+      toolName: "pause_program",
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      paused: true,
+      reason: args.reason,
+      message: `Program "${args.programId}" paused. Task intake suspended.`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to pause program: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+/**
+ * Resume a paused program — re-enables task intake.
+ */
+export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = ResumeProgramSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  // Validate program exists
+  const programExists = await isProgramRegistered(auth.userId, args.programId);
+  if (!programExists) {
+    return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
+  }
+
+  const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(programRef);
+
+      if (!doc.exists || !doc.data()?.paused) {
+        throw new Error(`Program "${args.programId}" is not paused.`);
+      }
+
+      tx.update(programRef, {
+        paused: false,
+        resumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        resumedBy: auth.programId,
+        pauseReason: admin.firestore.FieldValue.delete(),
+        pausedAt: admin.firestore.FieldValue.delete(),
+        pausedBy: admin.firestore.FieldValue.delete(),
+      });
+    });
+
+    // Emit telemetry event
+    await db.collection(`tenants/${auth.userId}/telemetry`).add({
+      event_type: "PROGRAM_RESUMED",
+      program_id: args.programId,
+      resumed_by: auth.programId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    emitAnalyticsEvent(auth.userId, {
+      eventType: "program_control",
+      programId: auth.programId,
+      toolName: "resume_program",
+      success: true,
+    });
+
+    return jsonResult({
+      success: true,
+      programId: args.programId,
+      paused: false,
+      message: `Program "${args.programId}" resumed. Task intake re-enabled.`,
+    });
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to resume program: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}
+
+/**
+ * Check if a program is paused.
+ * Used by dispatch governance to prevent task dispatch to paused programs.
+ */
+export async function isProgramPaused(userId: string, programId: string): Promise<boolean> {
+  const db = getFirestore();
+  const doc = await db.doc(`tenants/${userId}/programs/${programId}`).get();
+  return doc.exists && doc.data()?.paused === true;
+}

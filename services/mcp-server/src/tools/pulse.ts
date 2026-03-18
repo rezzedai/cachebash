@@ -2,7 +2,7 @@
  * Pulse Domain Registry — Session tracking, fleet health, and context utilization tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler, getContextUtilizationHandler } from "../modules/pulse.js";
+import { createSessionHandler, updateSessionHandler, listSessionsHandler, getFleetHealthHandler, getContextUtilizationHandler, pauseProgramHandler, resumeProgramHandler } from "../modules/pulse.js";
 import { getFleetTimelineHandler, writeFleetSnapshotHandler } from "../modules/fleet-timeline.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
@@ -15,6 +15,8 @@ export const handlers: Record<string, Handler> = {
   pulse_get_fleet_timeline: getFleetTimelineHandler,
   pulse_write_fleet_snapshot: writeFleetSnapshotHandler,
   pulse_get_context_utilization: getContextUtilizationHandler,
+  pulse_pause_program: pauseProgramHandler,
+  pulse_resume_program: resumeProgramHandler,
 };
 
 export const definitions = [
@@ -118,6 +120,29 @@ export const definitions = [
         sessionId: { type: "string", maxLength: 100, description: "Specific session to query" },
         period: { type: "string", enum: ["today", "this_week", "this_month"], default: "today", description: "Time period to filter context history" },
       },
+    },
+  },
+  {
+    name: "pulse_pause_program",
+    description: "Pause a program's task intake. Paused programs still send heartbeats but won't receive new dispatched tasks until resumed.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", maxLength: 50, description: "Program ID to pause" },
+        reason: { type: "string", maxLength: 500, description: "Reason for pausing the program" },
+      },
+      required: ["programId", "reason"],
+    },
+  },
+  {
+    name: "pulse_resume_program",
+    description: "Resume a paused program's task intake. Re-enables dispatch of tasks to the program.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        programId: { type: "string", maxLength: 50, description: "Program ID to resume" },
+      },
+      required: ["programId"],
     },
   },
 ];
