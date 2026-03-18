@@ -104,7 +104,18 @@ const mockFirestore = {
       return Promise.resolve({ id, path: fullPath, _path: fullPath });
     }),
     where: jest.fn(() => ({
+      where: jest.fn(() => ({
+        where: jest.fn(() => ({
+          get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
+        })),
+        get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
+      })),
       get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
+    })),
+    orderBy: jest.fn(() => ({
+      limit: jest.fn(() => ({
+        get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
+      })),
     })),
   })),
   doc: jest.fn((path: string) => ({
