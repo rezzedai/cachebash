@@ -16,6 +16,7 @@ export class CustomHTTPTransport implements Transport {
   private config: TransportConfig;
   private sessionManager: SessionManager;
   private pendingResponses: Map<string, JSONRPCMessage[]> = new Map();
+  private pendingResolvers: Map<string, () => void> = new Map();
   public sessionId?: string;
 
   /** Auth context for the current request — set per-request, read by tool handlers */
@@ -39,6 +40,12 @@ export class CustomHTTPTransport implements Transport {
       this.pendingResponses.set(this.sessionId, []);
     }
     this.pendingResponses.get(this.sessionId)!.push(message);
+    // Signal the waiting request immediately — no polling delay
+    const resolver = this.pendingResolvers.get(this.sessionId);
+    if (resolver) {
+      this.pendingResolvers.delete(this.sessionId);
+      resolver();
+    }
   }
 
   async handleRequest(
@@ -162,26 +169,36 @@ export class CustomHTTPTransport implements Transport {
     // Set current auth for tool handler to read (stateless — derived from Bearer token this request)
     this.currentAuth = authContext;
 
-    this.pendingResponses.delete(this.sessionId);
+    const sid = this.sessionId;
+    this.pendingResponses.delete(sid);
     for (const msg of messages) {
       this.onmessage?.(msg);
     }
 
+    // Wait for response via Promise — resolves immediately when send() fires,
+    // falls back to timeout for fire-and-forget notifications
     const maxWait = this.config.responseQueueTimeout || 2000;
-    const start = Date.now();
-    let responses: JSONRPCMessage[] = [];
-    while (Date.now() - start < maxWait) {
-      responses = this.pendingResponses.get(this.sessionId) || [];
-      if (responses.length > 0) break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    this.pendingResponses.delete(this.sessionId);
+    await new Promise<void>((resolve) => {
+      // Check if response already arrived (sync handler path)
+      const existing = this.pendingResponses.get(sid);
+      if (existing && existing.length > 0) { resolve(); return; }
+      // Register resolver for send() to trigger
+      this.pendingResolvers.set(sid, resolve);
+      // Timeout fallback — return 204 for notifications that don't produce responses
+      setTimeout(() => {
+        this.pendingResolvers.delete(sid);
+        resolve();
+      }, maxWait);
+    });
+
+    const responses = this.pendingResponses.get(sid) || [];
+    this.pendingResponses.delete(sid);
 
     if (responses.length === 0) {
-      return new Response(null, { status: 204, headers: { "Mcp-Session-Id": this.sessionId } });
+      return new Response(null, { status: 204, headers: { "Mcp-Session-Id": sid } });
     }
     const payload = responses.length === 1 ? responses[0] : responses;
-    return this.toResponse(jsonResponse(payload, 200, this.sessionId));
+    return this.toResponse(jsonResponse(payload, 200, sid));
   }
 
   private async handleDelete(
