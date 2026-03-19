@@ -163,12 +163,12 @@ gcloud run deploy cachebash-mcp \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
-  --min-instances 0 \
+  --min-instances 1 \
   --max-instances 10 \
   --concurrency 80 \
   --cpu 1 \
   --memory 512Mi \
-  --timeout 60 \
+  --timeout 300 \
   --set-env-vars "GOOGLE_CLOUD_PROJECT=cachebash-app,FIREBASE_PROJECT_ID=cachebash-app"
 ```
 

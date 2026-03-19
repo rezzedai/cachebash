@@ -37,6 +37,14 @@ describe('Transport Configuration', () => {
       const RESPONSE_QUEUE_TIMEOUT_MS = 120_000;
       expect(RESPONSE_QUEUE_TIMEOUT_MS).toBeGreaterThan(WORST_CASE_QUERY_MS);
     });
+
+    it('Cloud Run timeout exceeds app-level responseQueueTimeout', () => {
+      // Cloud Run must not kill the connection before the app can return a response.
+      // App timeout: 120s (responseQueueTimeout). Cloud Run: 300s.
+      const CLOUD_RUN_TIMEOUT_MS = 300_000;
+      const RESPONSE_QUEUE_TIMEOUT_MS = 120_000;
+      expect(CLOUD_RUN_TIMEOUT_MS).toBeGreaterThan(RESPONSE_QUEUE_TIMEOUT_MS);
+    });
   });
 
   describe('MCP alias resolution', () => {
