@@ -336,38 +336,12 @@ async function main() {
       return handleGithubWebhook(req, res);
     }
 
-    // OAuth endpoints (public — no Bearer auth required)
-    // DISABLED: OAuth metadata discovery causes Claude Code to abandon static Bearer auth
-    // and attempt OAuth 2.1 flow, which fails. See: GitHub #7290, grid/assessments/*mcp-connectivity*
-    // Re-enable when CacheBash has real OAuth client support for external consumers.
-    // if (url === "/.well-known/oauth-authorization-server" && req.method === "GET") {
-    //   return handleOAuthMetadata(req, res);
-    // }
-    if (url === "/register" && req.method === "POST") {
-      // Pass optional Bearer auth for service account registration
-      const regToken = extractBearerToken(req.headers.authorization);
-      let regUserId: string | undefined;
-      if (regToken) {
-        const regProgramId = req.headers["x-program-id"] as string | undefined;
-        const regAuth = await validateAuth(regToken, regProgramId);
-        if (regAuth) regUserId = regAuth.userId;
-      }
-      return handleOAuthRegister(req, res, regUserId);
-    }
-    if (url === "/authorize" && req.method === "GET") {
-      return handleOAuthAuthorize(req, res);
-    }
-    if (url?.startsWith("/oauth/consent")) {
-      return handleOAuthConsent(req, res);
-    }
-    if (url === "/authorize/callback" && req.method === "GET") {
-      return handleOAuthCallback(req, res);
-    }
-    if (url === "/token" && req.method === "POST") {
-      return handleOAuthToken(req, res);
-    }
-    if (url === "/revoke" && req.method === "POST") {
-      return handleOAuthRevoke(req, res);
+    // OAuth endpoints — DISABLED. Claude Code's HTTP transport creates an OAuth auth provider
+    // for ALL HTTP MCP servers (#34008). These endpoints explicitly return 404 to prevent
+    // Claude Code from attempting an OAuth 2.1 flow. Use API key auth via Authorization header.
+    // See: GitHub #7290, grid/assessments/*mcp-connectivity*
+    if (url === "/authorize" || url === "/token" || url === "/register" || url === "/revoke" || url?.startsWith("/oauth/consent") || url === "/authorize/callback") {
+      return sendJson(res, 404, { error: "not_found", error_description: "OAuth not supported. Use API key auth via Authorization header." });
     }
 
     // Service account management (requires Bearer auth)
