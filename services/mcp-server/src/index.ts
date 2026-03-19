@@ -764,12 +764,14 @@ async function main() {
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
       const proto = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers.host || "localhost";
-      const wwwAuth = `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-authorization-server"`;
+      const oauthWwwAuth = `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-authorization-server"`;
+      const plainWwwAuth = `Bearer realm="cachebash"`;
 
       const token = extractBearerToken(req.headers.authorization);
       if (!token) {
         checkAuthRateLimit(clientIp);
-        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": wwwAuth });
+        // No token at all — advertise OAuth discovery for OAuth-capable clients
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": oauthWwwAuth });
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
@@ -779,6 +781,10 @@ async function main() {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
         }
+        // Static API key (cb_ prefix) failed — don't advertise OAuth discovery.
+        // Claude Code follows resource_metadata URLs, abandons the static token, and fails.
+        // Only advertise OAuth when an OAuth token (cbo_) was presented.
+        const wwwAuth = token.startsWith("cbo_") ? oauthWwwAuth : plainWwwAuth;
         res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": wwwAuth });
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Invalid or expired token" }));
         return;
