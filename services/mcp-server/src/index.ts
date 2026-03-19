@@ -337,9 +337,12 @@ async function main() {
     }
 
     // OAuth endpoints (public — no Bearer auth required)
-    if (url === "/.well-known/oauth-authorization-server" && req.method === "GET") {
-      return handleOAuthMetadata(req, res);
-    }
+    // DISABLED: OAuth metadata discovery causes Claude Code to abandon static Bearer auth
+    // and attempt OAuth 2.1 flow, which fails. See: GitHub #7290, grid/assessments/*mcp-connectivity*
+    // Re-enable when CacheBash has real OAuth client support for external consumers.
+    // if (url === "/.well-known/oauth-authorization-server" && req.method === "GET") {
+    //   return handleOAuthMetadata(req, res);
+    // }
     if (url === "/register" && req.method === "POST") {
       // Pass optional Bearer auth for service account registration
       const regToken = extractBearerToken(req.headers.authorization);
@@ -770,8 +773,10 @@ async function main() {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) {
         checkAuthRateLimit(clientIp);
-        // No token at all — advertise OAuth discovery for OAuth-capable clients
-        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": oauthWwwAuth });
+        // No token — use plain Bearer header. OAuth discovery (resource_metadata) causes
+        // Claude Code to abandon static Bearer auth and attempt OAuth 2.1 flow, which fails.
+        // See: grid/assessments/*mcp-connectivity*2026-03-18*, GitHub #7290
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": plainWwwAuth });
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
