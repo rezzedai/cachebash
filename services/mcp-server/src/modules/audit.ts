@@ -5,7 +5,7 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { isAdmin } from "../middleware/gate.js";
+import { isAdmin, hasCapability } from "../middleware/gate.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
@@ -22,11 +22,10 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only (legacy/mobile keys)
-  if (!isAdmin(auth)) {
+  if (!isAdmin(auth) && !hasCapability(auth, "audit.read")) {
     return jsonResult({
       success: false,
-      error: "Audit log is only accessible by admin.",
+      error: "get_audit requires audit.read capability.",
     });
   }
 

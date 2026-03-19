@@ -164,6 +164,17 @@ export class CustomHTTPTransport implements Transport {
       });
       return new Response(null, { status: 204, headers: { "Mcp-Session-Id": this.sessionId } });
     }
+
+    // Notification recognition: messages without an `id` field are fire-and-forget per JSON-RPC spec.
+    // Accept immediately with 202, dispatch async. No response expected by the client.
+    const allNotifications = messages.every((m: any) => !("id" in m));
+    if (allNotifications) {
+      this.currentAuth = authContext;
+      for (const msg of messages) {
+        this.onmessage?.(msg);
+      }
+      return new Response(null, { status: 202, headers: { "Mcp-Session-Id": this.sessionId } });
+    }
     }
 
     // Set current auth for tool handler to read (stateless — derived from Bearer token this request)
