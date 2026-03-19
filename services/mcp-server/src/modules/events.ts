@@ -97,8 +97,12 @@ export function computeHash(content: string): string {
 export function emitEvent(userId: string, data: EventData): void {
   try {
     const db = getFirestore();
+    // Strip undefined values — Firestore rejects them
+    const cleaned = Object.fromEntries(
+      Object.entries(data).filter(([, v]) => v !== undefined)
+    );
     db.collection(`tenants/${userId}/events`).add({
-      ...data,
+      ...cleaned,
       timestamp: serverTimestamp(),
     }).catch((err) => {
       console.error("[Events] Failed to write event:", err);
