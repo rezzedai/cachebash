@@ -58,10 +58,11 @@ service cloud.firestore {
       allow write: if false;
     }
     
-    // Sessions: read-only. Server manages via Admin SDK.
-    match /tenants/{userId}/sessions/{document=**} {
+    // Sessions: read for owner, scoped updates for portal actions (pin/complete/archive)
+    match /tenants/{userId}/sessions/{sessionId} {
       allow read: if isOwner(userId);
-      allow write: if false;
+      allow update: if isOwner(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'archived', 'lastUpdate']);
     }
     
     // MCP Sessions: read-only. Server-side session management.
@@ -95,6 +96,12 @@ service cloud.firestore {
       // onboarding: mobile client creates and updates progress
       allow create: if isOwner(userId) && configDoc == 'onboarding';
       allow update: if isOwner(userId) && configDoc == 'onboarding';
+    }
+
+    // Content Ideas: full CRUD for owner (Command Center)
+    match /tenants/{userId}/content_ideas/{ideaId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     // Projects: full CRUD for owner (Command Center)

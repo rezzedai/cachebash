@@ -109,6 +109,49 @@ Rule: Tier can be dynamically adjusted. Demote trivial Specialist tasks to Worke
 
 Full Constitution: CONSTITUTION.md`;
 
+// ── gsp_list_namespaces (REST-only, not an MCP tool) ────────────────────────
+
+export async function gspListNamespacesHandler(auth: AuthContext): Promise<{
+  success: boolean;
+  namespaces: Array<{ namespace: string; entryCount: number; lastUpdated: string | null; tier: string }>;
+  count: number;
+}> {
+  const db = getFirestore();
+  const userId = auth.userId;
+  const nsDocs = await db.collection(`tenants/${userId}/gsp`).listDocuments();
+
+  // Tier priority: constitutional > architectural > operational > runtime
+  const TIER_PRIORITY: Record<string, number> = { constitutional: 3, architectural: 2, operational: 1, runtime: 0 };
+
+  const namespaces: Array<{ namespace: string; entryCount: number; lastUpdated: string | null; tier: string }> = [];
+
+  for (const nsDoc of nsDocs) {
+    const entriesSnap = await db.collection(`${nsDoc.path}/entries`).get();
+    let lastUpdated: string | null = null;
+    let highestTier = "operational";
+
+    for (const entry of entriesSnap.docs) {
+      const data = entry.data();
+      if (data.tier && (TIER_PRIORITY[data.tier] ?? 0) > (TIER_PRIORITY[highestTier] ?? 0)) {
+        highestTier = data.tier;
+      }
+      const entryUpdated = data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt;
+      if (entryUpdated && (!lastUpdated || entryUpdated > lastUpdated)) {
+        lastUpdated = entryUpdated;
+      }
+    }
+
+    namespaces.push({
+      namespace: nsDoc.id,
+      entryCount: entriesSnap.size,
+      lastUpdated,
+      tier: highestTier,
+    });
+  }
+
+  return { success: true, namespaces, count: namespaces.length };
+}
+
 // ── gsp_read ────────────────────────────────────────────────────────────────
 
 export async function gspReadHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
