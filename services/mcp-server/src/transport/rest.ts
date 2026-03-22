@@ -13,6 +13,7 @@ import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
+import { gspListNamespacesHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
@@ -634,7 +635,7 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/gsp/namespaces", async (auth, req, res) => {
-    const data = await callTool(auth, req, "gsp_read", {});
+    const data = await gspListNamespacesHandler(auth);
     restResponse(res, true, data);
   }),
   route("GET", "/v1/gsp/namespaces/:namespace/entries", async (auth, req, res, p) => {
