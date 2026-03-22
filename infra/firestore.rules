@@ -134,6 +134,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // GSP entries: read-only for clients. Server writes via Admin SDK.
+    match /tenants/{userId}/gsp/{namespace}/entries/{entryId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // Programs: read-only for clients. Server writes via Admin SDK.
+    match /tenants/{userId}/programs/{programId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
     // User root document: read-only
     match /tenants/{userId} {
       allow read: if isOwner(userId);
