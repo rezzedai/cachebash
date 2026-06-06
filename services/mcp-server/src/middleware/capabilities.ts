@@ -176,6 +176,13 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
     "gsp.read", "gsp.write"],
+  // SCALAR — Flynn's web/mobile Grid identity (OAuth-bound, claude.ai connector).
+  // Explicit minted set: operational read+write, observability read-only.
+  // Deliberately NO keys.*, NO audit, NO programs.write, NO wildcard.
+  scalar: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+    "pulse.read", "pulse.write", "signal.read", "signal.write",
+    "gsp.read", "gsp.write", "state.read", "state.write",
+    "sprint.read", "metrics.read", "fleet.read", "programs.read"],
   // Grid programs — full operational access
   iso: ["*"],
   basher: ["*"],

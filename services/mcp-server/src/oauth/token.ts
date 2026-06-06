@@ -118,6 +118,9 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
     // Resolve granted scopes from the scope string
     const grantedScopes = result.scope ? result.scope.split(" ").filter(Boolean) : ["mcp:full"];
 
+    // Program identity carried from the consent screen via the code doc
+    const programId = result.programId || "oauth";
+
     // Store access token (1 hour TTL)
     const accessExpiresAt = new Date(now.getTime() + 3600 * 1000);
     await db.doc(`oauthTokens/${accessHash}`).set({
@@ -128,7 +131,7 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
       userId: result.userId,
       scope: result.scope,
       grantedScopes,
-      programId: "oauth",
+      programId,
       familyId,
       createdAt: Timestamp.fromDate(now),
       expiresAt: Timestamp.fromDate(accessExpiresAt),
@@ -147,7 +150,7 @@ async function handleAuthorizationCodeGrant(params: URLSearchParams, res: http.S
       userId: result.userId,
       scope: result.scope,
       grantedScopes,
-      programId: "oauth",
+      programId,
       familyId,
       createdAt: Timestamp.fromDate(now),
       expiresAt: Timestamp.fromDate(refreshExpiresAt),
@@ -218,8 +221,9 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
     const newAccessHash = hashToken(newAccessToken);
     const newRefreshHash = hashToken(newRefreshToken);
 
-    // Carry forward granted scopes
+    // Carry forward granted scopes and program identity
     const grantedScopes = tokenData.grantedScopes || (tokenData.scope ? tokenData.scope.split(" ").filter(Boolean) : ["mcp:full"]);
+    const programId = tokenData.programId || "oauth";
 
     // Store new access token
     const accessExpiresAt = new Date(now.getTime() + 3600 * 1000);
@@ -231,7 +235,7 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
       userId: tokenData.userId,
       scope: tokenData.scope,
       grantedScopes,
-      programId: "oauth",
+      programId,
       familyId: tokenData.familyId,
       createdAt: Timestamp.fromDate(now),
       expiresAt: Timestamp.fromDate(accessExpiresAt),
@@ -250,7 +254,7 @@ async function handleRefreshTokenGrant(params: URLSearchParams, res: http.Server
       userId: tokenData.userId,
       scope: tokenData.scope,
       grantedScopes,
-      programId: "oauth",
+      programId,
       familyId: tokenData.familyId,
       createdAt: Timestamp.fromDate(now),
       expiresAt: Timestamp.fromDate(refreshExpiresAt),
