@@ -348,6 +348,133 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(accessDoc.data()?.active).toBe(true);
     });
 
+    it("should bind token to SCALAR program when selected on consent", async () => {
+      // Authorization request
+      const authReq = createMockRequest(
+        "GET",
+        `/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}&code_challenge=${pkce.challenge}&code_challenge_method=S256&state=${state}&scope=mcp:full`
+      );
+      const authMock = createMockResponse();
+      await handleOAuthAuthorize(authReq, authMock.res);
+      const pendingAuthId = new URL(
+        authMock.getHeaders()["Location"] as string,
+        "http://localhost"
+      ).searchParams.get("pending")!;
+
+      // Consent GET renders the program identity selector
+      const consentGetReq = createMockRequest("GET", `/oauth/consent?pending=${pendingAuthId}`);
+      const consentGetMock = createMockResponse();
+      await handleOAuthConsent(consentGetReq, consentGetMock.res);
+      expect(consentGetMock.getBody()).toContain('name="program"');
+      expect(consentGetMock.getBody()).toContain('value="scalar"');
+
+      // Consent POST (allow) with program=scalar
+      const consentPostReq = createMockRequest(
+        "POST",
+        "/oauth/consent",
+        `pending=${pendingAuthId}&action=allow&program=scalar`,
+        { "content-type": "application/x-www-form-urlencoded" }
+      );
+      const consentPostMock = createMockResponse();
+      await handleOAuthConsent(consentPostReq, consentPostMock.res);
+      expect(consentPostMock.getStatus()).toBe(200);
+
+      // Consent persisted the program identity on the pending auth
+      const pendingDoc = await db.doc(`oauthPendingAuth/${pendingAuthId}`).get();
+      expect(pendingDoc.data()?.programId).toBe("scalar");
+
+      // Simulate the callback's code write (Firebase Auth bypassed — no Auth
+      // emulator in CI) including the programId the callback copies forward
+      const authCode = crypto.randomBytes(32).toString("hex");
+      const codeHash = crypto.createHash("sha256").update(authCode).digest("hex");
+      const now = new Date();
+      await db.doc(`oauthCodes/${codeHash}`).set({
+        codeHash,
+        clientId,
+        userId,
+        redirectUri,
+        codeChallenge: pkce.challenge,
+        codeChallengeMethod: "S256",
+        state,
+        scope: "mcp:full",
+        programId: pendingDoc.data()?.programId,
+        createdAt: admin.firestore.Timestamp.fromDate(now),
+        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        used: false,
+      });
+      await db.doc(`oauthPendingAuth/${pendingAuthId}`).delete();
+
+      // Token exchange
+      const tokenReq = createMockRequest(
+        "POST",
+        "/token",
+        `grant_type=authorization_code&code=${authCode}&redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}&client_id=${clientId}&code_verifier=${pkce.verifier}`,
+        { "content-type": "application/x-www-form-urlencoded" }
+      );
+      const tokenMock = createMockResponse();
+      await handleOAuthToken(tokenReq, tokenMock.res);
+      expect(tokenMock.getStatus()).toBe(200);
+      const tokenResponse = JSON.parse(tokenMock.getBody());
+
+      // Auth context resolves to SCALAR with its explicit capability set
+      const authContext = await validateAuth(tokenResponse.access_token);
+      expect(authContext).not.toBeNull();
+      expect(authContext!.programId).toBe("scalar");
+      expect(authContext!.capabilities).toContain("dispatch.write");
+      expect(authContext!.capabilities).toContain("gsp.write");
+      expect(authContext!.capabilities).not.toContain("*");
+      expect(authContext!.capabilities).not.toContain("keys.write");
+      expect(authContext!.capabilities).not.toContain("keys.read");
+      expect(authContext!.capabilities).not.toContain("programs.write");
+
+      // Refresh rotation carries the SCALAR binding forward
+      const refreshReq = createMockRequest(
+        "POST",
+        "/token",
+        `grant_type=refresh_token&refresh_token=${tokenResponse.refresh_token}&client_id=${clientId}`,
+        { "content-type": "application/x-www-form-urlencoded" }
+      );
+      const refreshMock = createMockResponse();
+      await handleOAuthToken(refreshReq, refreshMock.res);
+      expect(refreshMock.getStatus()).toBe(200);
+      const refreshed = JSON.parse(refreshMock.getBody());
+      const refreshedContext = await validateAuth(refreshed.access_token);
+      expect(refreshedContext!.programId).toBe("scalar");
+    });
+
+    it("should degrade unknown program selection to generic oauth identity", async () => {
+      const authReq = createMockRequest(
+        "GET",
+        `/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}&code_challenge=${pkce.challenge}&code_challenge_method=S256&state=${state}&scope=mcp:full`
+      );
+      const authMock = createMockResponse();
+      await handleOAuthAuthorize(authReq, authMock.res);
+      const pendingAuthId = new URL(
+        authMock.getHeaders()["Location"] as string,
+        "http://localhost"
+      ).searchParams.get("pending")!;
+
+      // Attempt to bind a privileged Grid identity — must degrade to "oauth"
+      const consentPostReq = createMockRequest(
+        "POST",
+        "/oauth/consent",
+        `pending=${pendingAuthId}&action=allow&program=basher`,
+        { "content-type": "application/x-www-form-urlencoded" }
+      );
+      const consentPostMock = createMockResponse();
+      await handleOAuthConsent(consentPostReq, consentPostMock.res);
+      expect(consentPostMock.getStatus()).toBe(200);
+
+      const pendingDoc = await db.doc(`oauthPendingAuth/${pendingAuthId}`).get();
+      expect(pendingDoc.data()?.programId).toBe("oauth");
+    });
+
     it("should reject authorization without state parameter (SARK F-1)", async () => {
       const authReq = createMockRequest(
         "GET",

@@ -47,9 +47,13 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Fire-and-forget: update lastUsedAt
     db.doc(`oauthTokens/${tokenHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
 
-    // Load capabilities — use token's programId (oauth or oauth-service)
+    // Resolve the program identity bound at consent time (e.g. "scalar").
+    // Token docs are server-written only, but enforce an allowlist anyway —
+    // anything unexpected degrades to the generic "oauth" identity.
+    // Capabilities come from DEFAULT_CAPABILITIES for that identity, never "*"-roles.
+    const OAUTH_BINDABLE_PROGRAMS = new Set(["scalar", "oauth", "oauth-service"]);
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
-    const programId = data.programId === "oauth-service" ? "oauth-service" : "oauth";
+    const programId = OAUTH_BINDABLE_PROGRAMS.has(data.programId) ? data.programId : "oauth";
 
     // Pass granted scopes through capabilities for scope enforcement
     const grantedScopes = data.grantedScopes || (data.scope ? data.scope.split(" ") : ["mcp:full"]);
