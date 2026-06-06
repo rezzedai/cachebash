@@ -269,7 +269,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       const consentPostReq = createMockRequest(
         "POST",
         "/oauth/consent",
-        `pending=${pendingAuthId}&action=allow`,
+        `pending=${pendingAuthId}&action=allow&program=scalar`,
         { "content-type": "application/x-www-form-urlencoded" }
       );
       const consentPostMock = createMockResponse();
@@ -446,33 +446,38 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(refreshedContext!.programId).toBe("scalar");
     });
 
-    it("should degrade unknown program selection to generic oauth identity", async () => {
-      const authReq = createMockRequest(
-        "GET",
-        `/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-          redirectUri
-        )}&code_challenge=${pkce.challenge}&code_challenge_method=S256&state=${state}&scope=mcp:full`
-      );
-      const authMock = createMockResponse();
-      await handleOAuthAuthorize(authReq, authMock.res);
-      const pendingAuthId = new URL(
-        authMock.getHeaders()["Location"] as string,
-        "http://localhost"
-      ).searchParams.get("pending")!;
+    it("should reject unknown, generic, or missing program selection (no fallback identity)", async () => {
+      // "basher" (privileged Grid identity), "oauth" (removed generic identity,
+      // grants programs.write), and a missing field must ALL be rejected — the
+      // authorization may never proceed under an unselected identity.
+      for (const programParam of ["&program=basher", "&program=oauth", ""]) {
+        const authReq = createMockRequest(
+          "GET",
+          `/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+            redirectUri
+          )}&code_challenge=${pkce.challenge}&code_challenge_method=S256&state=${state}&scope=mcp:full`
+        );
+        const authMock = createMockResponse();
+        await handleOAuthAuthorize(authReq, authMock.res);
+        const pendingAuthId = new URL(
+          authMock.getHeaders()["Location"] as string,
+          "http://localhost"
+        ).searchParams.get("pending")!;
 
-      // Attempt to bind a privileged Grid identity — must degrade to "oauth"
-      const consentPostReq = createMockRequest(
-        "POST",
-        "/oauth/consent",
-        `pending=${pendingAuthId}&action=allow&program=basher`,
-        { "content-type": "application/x-www-form-urlencoded" }
-      );
-      const consentPostMock = createMockResponse();
-      await handleOAuthConsent(consentPostReq, consentPostMock.res);
-      expect(consentPostMock.getStatus()).toBe(200);
+        const consentPostReq = createMockRequest(
+          "POST",
+          "/oauth/consent",
+          `pending=${pendingAuthId}&action=allow${programParam}`,
+          { "content-type": "application/x-www-form-urlencoded" }
+        );
+        const consentPostMock = createMockResponse();
+        await handleOAuthConsent(consentPostReq, consentPostMock.res);
+        expect(consentPostMock.getStatus()).toBe(400);
 
-      const pendingDoc = await db.doc(`oauthPendingAuth/${pendingAuthId}`).get();
-      expect(pendingDoc.data()?.programId).toBe("oauth");
+        // No program identity bound, flow not advanced to sign-in
+        const pendingDoc = await db.doc(`oauthPendingAuth/${pendingAuthId}`).get();
+        expect(pendingDoc.data()?.programId).toBeUndefined();
+      }
     });
 
     it("should reject authorization without state parameter (SARK F-1)", async () => {

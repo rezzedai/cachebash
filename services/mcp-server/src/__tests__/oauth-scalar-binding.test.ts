@@ -8,19 +8,20 @@
  */
 
 import { OAUTH_PROGRAM_OPTIONS, DEFAULT_OAUTH_PROGRAM, isAllowedOAuthProgram } from "../oauth/consent";
+import { isAllowedPrincipal, getAllowedEmails, getAllowedUids } from "../oauth/callback";
 import { checkToolScope } from "../oauth/scopes";
 import { DEFAULT_CAPABILITIES, getDefaultCapabilities } from "../middleware/capabilities";
 import { isRegisteredProgram, isValidProgram, PROGRAM_REGISTRY } from "../config/programs";
 
 describe("OAuth program binding allowlist", () => {
-  it("allows only scalar and oauth identities", () => {
-    expect(OAUTH_PROGRAM_OPTIONS.map((p) => p.id).sort()).toEqual(["oauth", "scalar"]);
+  it("allows only the scalar identity (generic oauth removed — SARK gate)", () => {
+    expect(OAUTH_PROGRAM_OPTIONS.map((p) => p.id)).toEqual(["scalar"]);
     expect(isAllowedOAuthProgram("scalar")).toBe(true);
-    expect(isAllowedOAuthProgram("oauth")).toBe(true);
+    expect(isAllowedOAuthProgram("oauth")).toBe(false);
   });
 
   it("rejects privileged Grid identities and unknowns", () => {
-    for (const id of ["basher", "iso", "vector", "sark", "admin", "legacy", "dispatcher", "", "oauth-service"]) {
+    for (const id of ["basher", "iso", "vector", "sark", "admin", "legacy", "dispatcher", "", "oauth", "oauth-service"]) {
       expect(isAllowedOAuthProgram(id)).toBe(false);
     }
   });
@@ -28,6 +29,68 @@ describe("OAuth program binding allowlist", () => {
   it("pre-selects SCALAR on the consent screen", () => {
     expect(DEFAULT_OAUTH_PROGRAM).toBe("scalar");
     expect(isAllowedOAuthProgram(DEFAULT_OAUTH_PROGRAM)).toBe(true);
+  });
+});
+
+describe("Flynn-only principal allowlist (callback)", () => {
+  const ENV_KEYS = ["OAUTH_ALLOWED_EMAILS", "OAUTH_ALLOWED_UIDS"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("defaults to Flynn's two emails and the rezzed.ai uid", () => {
+    expect(getAllowedEmails()).toEqual(["christianbourlier@gmail.com", "christian@rezzed.ai"]);
+    expect(getAllowedUids()).toEqual(["7viFKVtl5lgzguhFoZlnYYrqeDG2"]);
+  });
+
+  it("allows allowlisted principals with verified emails (case-insensitive)", () => {
+    expect(isAllowedPrincipal({ uid: "x", email: "christianbourlier@gmail.com", email_verified: true })).toBe(true);
+    expect(isAllowedPrincipal({ uid: "x", email: "christian@rezzed.ai", email_verified: true })).toBe(true);
+    expect(isAllowedPrincipal({ uid: "x", email: "ChristianBourlier@Gmail.com", email_verified: true })).toBe(true);
+  });
+
+  it("rejects unverified emails even when allowlisted (GitHub provider risk)", () => {
+    expect(isAllowedPrincipal({ uid: "x", email: "christianbourlier@gmail.com", email_verified: false })).toBe(false);
+    expect(isAllowedPrincipal({ uid: "x", email: "christianbourlier@gmail.com" })).toBe(false);
+  });
+
+  it("rejects non-allowlisted accounts", () => {
+    expect(isAllowedPrincipal({ uid: "attacker", email: "evil@example.com", email_verified: true })).toBe(false);
+    expect(isAllowedPrincipal({ uid: "attacker" })).toBe(false);
+    expect(isAllowedPrincipal({ uid: "attacker", email: "", email_verified: true })).toBe(false);
+  });
+
+  it("accepts the known uid regardless of email claims", () => {
+    expect(isAllowedPrincipal({ uid: "7viFKVtl5lgzguhFoZlnYYrqeDG2" })).toBe(true);
+    expect(isAllowedPrincipal({ uid: "7viFKVtl5lgzguhFoZlnYYrqeDG2", email: "anything@else.com", email_verified: false })).toBe(true);
+  });
+
+  it("honors env overrides without falling back to defaults", () => {
+    process.env.OAUTH_ALLOWED_EMAILS = " Alice@Example.com , bob@example.com ";
+    process.env.OAUTH_ALLOWED_UIDS = "uid-1, uid-2";
+    expect(getAllowedEmails()).toEqual(["alice@example.com", "bob@example.com"]);
+    expect(getAllowedUids()).toEqual(["uid-1", "uid-2"]);
+    // Defaults no longer apply when env is set
+    expect(isAllowedPrincipal({ uid: "x", email: "christianbourlier@gmail.com", email_verified: true })).toBe(false);
+    expect(isAllowedPrincipal({ uid: "7viFKVtl5lgzguhFoZlnYYrqeDG2" })).toBe(false);
+    expect(isAllowedPrincipal({ uid: "uid-1" })).toBe(true);
+    expect(isAllowedPrincipal({ uid: "x", email: "alice@example.com", email_verified: true })).toBe(true);
+  });
+
+  it("treats whitespace-only env as unset (defaults apply)", () => {
+    process.env.OAUTH_ALLOWED_EMAILS = "   ";
+    expect(getAllowedEmails()).toEqual(["christianbourlier@gmail.com", "christian@rezzed.ai"]);
   });
 });
 
