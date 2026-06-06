@@ -31,7 +31,7 @@ import { executeSchedulesForUser } from "./modules/schedule-executor.js";
 import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
 import { incrementUsage } from "./middleware/usage.js";
-import { handleOAuthMetadata } from "./oauth/metadata.js";
+import { handleOAuthMetadata, handleOAuthProtectedResource } from "./oauth/metadata.js";
 import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
 import { handleOAuthAuthorize, cleanupOAuthRateLimits } from "./oauth/authorize.js";
 import { handleOAuthConsent } from "./oauth/consent.js";
@@ -336,12 +336,46 @@ async function main() {
       return handleGithubWebhook(req, res);
     }
 
-    // OAuth endpoints — DISABLED. Claude Code's HTTP transport creates an OAuth auth provider
-    // for ALL HTTP MCP servers (#34008). These endpoints explicitly return 404 to prevent
-    // Claude Code from attempting an OAuth 2.1 flow. Use API key auth via Authorization header.
+    // OAuth 2.1 + PKCE + DCR — RE-ENABLED for claude.ai web/mobile connectors
+    // (SCALAR identity binding via the consent screen). Previously hard-404'd
+    // for Claude Code bug #34008. Safety holds because:
+    //   1. Bearer-key auth on /v1/mcp is unchanged — a valid cb_ key never
+    //      touches OAuth (all Grid CC clients use the stdio proxy with keys).
+    //   2. A 401 for an INVALID cb_ key still returns a plain WWW-Authenticate
+    //      (no resource_metadata), so a CC client with a bad key won't pivot
+    //      into a hanging OAuth flow. See /v1/mcp handler below.
     // See: GitHub #7290, grid/assessments/*mcp-connectivity*
-    if (url === "/authorize" || url === "/token" || url === "/register" || url === "/revoke" || url?.startsWith("/oauth/consent") || url === "/authorize/callback") {
-      return sendJson(res, 404, { error: "not_found", error_description: "OAuth not supported. Use API key auth via Authorization header." });
+
+    // Discovery metadata (RFC 8414 + RFC 9728). startsWith covers the
+    // path-suffixed variants (e.g. /.well-known/oauth-protected-resource/v1/mcp).
+    if (req.method === "GET" && url?.startsWith("/.well-known/oauth-authorization-server")) {
+      return handleOAuthMetadata(req, res);
+    }
+    if (req.method === "GET" && url?.startsWith("/.well-known/oauth-protected-resource")) {
+      return handleOAuthProtectedResource(req, res);
+    }
+
+    if (url === "/authorize" && req.method === "GET") {
+      return handleOAuthAuthorize(req, res);
+    }
+    if (url === "/token" && req.method === "POST") {
+      return handleOAuthToken(req, res);
+    }
+    if (url === "/register" && req.method === "POST") {
+      // Public DCR (RFC 7591). If a Bearer token is presented, resolve it so
+      // service-account registration stays tenant-scoped.
+      const dcrToken = extractBearerToken(req.headers.authorization);
+      const dcrAuth = dcrToken ? await validateAuth(dcrToken) : null;
+      return handleOAuthRegister(req, res, dcrAuth?.userId);
+    }
+    if (url === "/revoke" && req.method === "POST") {
+      return handleOAuthRevoke(req, res);
+    }
+    if (url?.startsWith("/oauth/consent")) {
+      return handleOAuthConsent(req, res);
+    }
+    if (url === "/authorize/callback" && req.method === "GET") {
+      return handleOAuthCallback(req, res);
     }
 
     // Service account management (requires Bearer auth)
@@ -741,16 +775,19 @@ async function main() {
       const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
       const proto = req.headers["x-forwarded-proto"] || "https";
       const host = req.headers.host || "localhost";
-      const oauthWwwAuth = `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-authorization-server"`;
+      const oauthWwwAuth = `Bearer resource_metadata="${proto}://${host}/.well-known/oauth-protected-resource"`;
       const plainWwwAuth = `Bearer realm="cachebash"`;
 
       const token = extractBearerToken(req.headers.authorization);
       if (!token) {
         checkAuthRateLimit(clientIp);
-        // No token — use plain Bearer header. OAuth discovery (resource_metadata) causes
-        // Claude Code to abandon static Bearer auth and attempt OAuth 2.1 flow, which fails.
-        // See: grid/assessments/*mcp-connectivity*2026-03-18*, GitHub #7290
-        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": plainWwwAuth });
+        // No token — advertise OAuth discovery (RFC 9728 resource_metadata) so
+        // claude.ai web/mobile connectors can run the OAuth 2.1 flow.
+        // #34008 note: all Grid Claude Code clients send a static cb_ key via
+        // the stdio proxy and never hit this branch. A client with a key but
+        // an INVALID one still gets the plain header below — it must not be
+        // lured into OAuth discovery.
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": oauthWwwAuth });
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }

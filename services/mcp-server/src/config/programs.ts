@@ -11,7 +11,7 @@ export const REGISTERED_PROGRAMS = [
   'sage', 'link', 'gateway', 'healthbot', 'bit', 'byte',
   'tester', 'admin-mirror', 'council', 'codex', 'strategist', 'vector',
   // Grid program identities (named programs)
-  'basher', 'alan', 'sark', 'quorra', 'casp', 'ram', 'radia', 'castor', 'able', 'beck',
+  'basher', 'alan', 'sark', 'quorra', 'casp', 'ram', 'radia', 'castor', 'able', 'beck', 'scalar',
   // CIS enrichment processors (ephemeral, dispatcher-spawned)
   'sonnet-enrichment', 'opus-enrichment',
 ] as const;
@@ -78,6 +78,7 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
   alan:         { displayName: "ALAN",          color: "#6FC3DF", role: "Historian & Analyst" },
   sark:         { displayName: "SARK",          color: "#C44040", role: "Security & Risk" },
   quorra:       { displayName: "QUORRA",        color: "#9B6FC0", role: "Orchestrator" },
+  scalar:       { displayName: "SCALAR",        color: "#5EEAD4", role: "Web/Mobile Interface" },
   "sonnet-enrichment": { displayName: "Sonnet Enrichment", color: "#40C4FF", role: "CIS Enrichment (Sonnet)" },
   "opus-enrichment":   { displayName: "Opus Enrichment",   color: "#FF6E40", role: "CIS Enrichment (Opus)" },
 };

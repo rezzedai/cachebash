@@ -85,6 +85,8 @@ export async function handleOAuthCallback(req: http.IncomingMessage, res: http.S
         codeChallengeMethod: pending.codeChallengeMethod,
         state: pending.state,
         scope: pending.scope,
+        // Program identity selected on the consent screen (allowlist-validated there)
+        programId: pending.programId || "oauth",
         createdAt: Timestamp.fromDate(now),
         expiresAt: Timestamp.fromDate(codeExpiresAt),
         used: false,

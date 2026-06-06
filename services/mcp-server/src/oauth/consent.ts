@@ -10,6 +10,24 @@ import type http from "http";
 import { getFirestore } from "../firebase/client.js";
 import { getScopeDisplayInfo, SCOPE_DEFINITIONS } from "./scopes.js";
 
+/**
+ * Program identities an OAuth grant may bind to. Selected on the consent
+ * screen, stored on the pending auth, carried through code → token docs.
+ * Capabilities for each are fixed server-side in DEFAULT_CAPABILITIES —
+ * selecting "scalar" grants LESS than generic "oauth" (no programs.write).
+ * Anything outside this list is rejected and falls back to "oauth".
+ */
+export const OAUTH_PROGRAM_OPTIONS: ReadonlyArray<{ id: string; label: string; description: string }> = [
+  { id: "scalar", label: "SCALAR", description: "Web & mobile interface identity" },
+  { id: "oauth", label: "Generic", description: "Standard OAuth client identity" },
+];
+
+export const DEFAULT_OAUTH_PROGRAM = "scalar";
+
+export function isAllowedOAuthProgram(id: string): boolean {
+  return OAUTH_PROGRAM_OPTIONS.some((p) => p.id === id);
+}
+
 function sendHtml(res: http.ServerResponse, status: number, html: string): void {
   res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
   res.end(html);
@@ -108,6 +126,12 @@ async function handleConsentPost(req: http.IncomingMessage, res: http.ServerResp
     return sendHtml(res, 400, errorPage("Authorization request has expired"));
   }
 
+  // Program identity binding: validate against the allowlist; a missing or
+  // unexpected value degrades to the generic "oauth" identity, never escalates.
+  // (DEFAULT_OAUTH_PROGRAM only pre-selects the dropdown — binding to SCALAR
+  // requires the form to submit it explicitly.)
+  const programId = form.program && isAllowedOAuthProgram(form.program) ? form.program : "oauth";
+
   if (action === "deny") {
     // Clean up pending auth
     await db.doc(`oauthPendingAuth/${pendingAuthId}`).delete();
@@ -121,7 +145,11 @@ async function handleConsentPost(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
-  // action === "allow" — redirect to Firebase Auth sign-in
+  // action === "allow" — persist the chosen program identity on the pending
+  // auth so callback → code → token carry it forward.
+  await db.doc(`oauthPendingAuth/${pendingAuthId}`).update({ programId });
+
+  // Redirect to Firebase Auth sign-in
   // After Firebase Auth, user is redirected to /authorize/callback
   const issuer = getIssuer(req);
   const callbackUrl = `${issuer}/authorize/callback?pending=${pendingAuthId}`;
@@ -220,6 +248,23 @@ const BRAND_CSS = `
     color: #71717A;
     margin-top: 2px;
   }
+  .program-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #A1A1AA;
+    margin-bottom: 6px;
+  }
+  .program-select {
+    width: 100%;
+    background: #1F1F23;
+    color: #E4E4E7;
+    border: 1px solid #27272A;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
   .actions {
     display: flex;
     gap: 12px;
@@ -290,6 +335,9 @@ const BRAND_CSS = `
 
 function consentPage(clientName: string, pendingAuthId: string, scopes: string[] = ["mcp:full"]): string {
   const escapedName = clientName.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const programOptionsHtml = OAUTH_PROGRAM_OPTIONS.map((p) =>
+    `<option value="${p.id}"${p.id === DEFAULT_OAUTH_PROGRAM ? " selected" : ""}>${p.label} — ${p.description}</option>`
+  ).join("\n        ");
   const scopeDisplay = getScopeDisplayInfo(scopes);
   const scopeHtml = scopeDisplay.map((s) =>
     `<li class="scope-item">
@@ -322,6 +370,10 @@ function consentPage(clientName: string, pendingAuthId: string, scopes: string[]
     </ul>
     <form method="POST" action="/oauth/consent">
       <input type="hidden" name="pending" value="${pendingAuthId}">
+      <label class="program-label" for="program">Connect as</label>
+      <select name="program" id="program" class="program-select">
+        ${programOptionsHtml}
+      </select>
       <div class="actions">
         <button type="submit" name="action" value="deny" class="deny">Deny</button>
         <button type="submit" name="action" value="allow" class="allow">Allow</button>

@@ -5,6 +5,9 @@
  *            mcp:admin = mcp:full + admin tools
  */
 
+import { resolveToolAlias } from "../tools/tool-aliases.js";
+import { TOOL_CAPABILITIES } from "../middleware/capabilities.js";
+
 export interface ScopeDefinition {
   scope: string;
   label: string;
@@ -141,12 +144,28 @@ export const TOOL_SCOPE_MAP: Record<string, string> = {
 };
 
 /**
+ * Derive the required scope for a tool from its capability requirement.
+ * keys.write → mcp:admin; *.write → mcp:write; *.read → mcp:read.
+ * Covers domain-prefixed canonical names that the explicit map predates.
+ */
+function scopeFromCapability(toolName: string): string | null {
+  const capability = TOOL_CAPABILITIES[toolName];
+  if (!capability) return null;
+  if (capability === "keys.write") return "mcp:admin";
+  if (capability.endsWith(".write")) return "mcp:write";
+  return "mcp:read";
+}
+
+/**
  * Check if OAuth scopes permit a tool invocation.
  * Returns null if allowed, or an error string if denied.
  * Non-OAuth auth (API keys) bypass this check entirely.
+ * Resolves aliases first: legacy flat names use the explicit map,
+ * canonical names fall back to capability-derived scopes.
  */
 export function checkToolScope(toolName: string, grantedScopes: string[]): string | null {
-  const required = TOOL_SCOPE_MAP[toolName];
+  const canonical = resolveToolAlias(toolName);
+  const required = TOOL_SCOPE_MAP[toolName] || TOOL_SCOPE_MAP[canonical] || scopeFromCapability(canonical);
   if (!required) return null; // Unknown tool or no scope requirement
   if (hasScope(grantedScopes, required)) return null;
   return `insufficient_scope: "${toolName}" requires "${required}"`;
