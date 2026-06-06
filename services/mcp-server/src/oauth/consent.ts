@@ -13,13 +13,15 @@ import { getScopeDisplayInfo, SCOPE_DEFINITIONS } from "./scopes.js";
 /**
  * Program identities an OAuth grant may bind to. Selected on the consent
  * screen, stored on the pending auth, carried through code → token docs.
- * Capabilities for each are fixed server-side in DEFAULT_CAPABILITIES —
- * selecting "scalar" grants LESS than generic "oauth" (no programs.write).
- * Anything outside this list is rejected and falls back to "oauth".
+ * Capabilities are fixed server-side in DEFAULT_CAPABILITIES.
+ *
+ * SCALAR only (SARK gate, task s0QMEUOc): the generic "oauth" identity was
+ * removed from the consent screen because it grants programs.write — more
+ * than SCALAR. A missing or unrecognized program REJECTS the authorization;
+ * there is no fallback identity.
  */
 export const OAUTH_PROGRAM_OPTIONS: ReadonlyArray<{ id: string; label: string; description: string }> = [
   { id: "scalar", label: "SCALAR", description: "Web & mobile interface identity" },
-  { id: "oauth", label: "Generic", description: "Standard OAuth client identity" },
 ];
 
 export const DEFAULT_OAUTH_PROGRAM = "scalar";
@@ -126,12 +128,6 @@ async function handleConsentPost(req: http.IncomingMessage, res: http.ServerResp
     return sendHtml(res, 400, errorPage("Authorization request has expired"));
   }
 
-  // Program identity binding: validate against the allowlist; a missing or
-  // unexpected value degrades to the generic "oauth" identity, never escalates.
-  // (DEFAULT_OAUTH_PROGRAM only pre-selects the dropdown — binding to SCALAR
-  // requires the form to submit it explicitly.)
-  const programId = form.program && isAllowedOAuthProgram(form.program) ? form.program : "oauth";
-
   if (action === "deny") {
     // Clean up pending auth
     await db.doc(`oauthPendingAuth/${pendingAuthId}`).delete();
@@ -145,8 +141,16 @@ async function handleConsentPost(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
-  // action === "allow" — persist the chosen program identity on the pending
-  // auth so callback → code → token carry it forward.
+  // action === "allow" — program identity binding. Validate against the
+  // allowlist; a missing or unrecognized program REJECTS the authorization
+  // outright (no fallback identity, no escalation path).
+  const programId = form.program;
+  if (!programId || !isAllowedOAuthProgram(programId)) {
+    return sendHtml(res, 400, errorPage("Invalid or missing program selection"));
+  }
+
+  // Persist the chosen program identity on the pending auth so
+  // callback → code → token carry it forward.
   await db.doc(`oauthPendingAuth/${pendingAuthId}`).update({ programId });
 
   // Redirect to Firebase Auth sign-in
