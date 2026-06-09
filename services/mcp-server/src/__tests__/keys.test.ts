@@ -29,6 +29,14 @@ jest.mock("../middleware/capabilities", () => ({
   getDefaultCapabilities: jest.fn(() => ["*"]),
 }));
 
+// Owner-authz gate: default-allow so the existing create tests exercise the
+// happy path. The gate's own logic is covered in auth/ownerAuthz.test.ts and
+// toggled per-test in the "createKeyHandler owner gate" block below.
+jest.mock("../auth/ownerAuthz", () => ({
+  isKeyProvisioner: jest.fn(() => true),
+  KEY_PROVISION_CAPABILITY: "keys.provision",
+}));
+
 // Mock Firestore
 const mockDb = {
   doc: jest.fn((path: string) => {
@@ -226,6 +234,51 @@ describe("Keys Module Unit Tests", () => {
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(false);
       expect(data.error).toContain("label is required");
+    });
+  });
+
+  describe("createKeyHandler owner gate (SARK fesTTlPTC)", () => {
+    const { isKeyProvisioner } = require("../auth/ownerAuthz");
+    const { registerProgram } = require("../modules/programRegistry");
+
+    it("rejects a caller that is not a key provisioner", async () => {
+      (isKeyProvisioner as jest.Mock).mockReturnValueOnce(false);
+
+      const result = await createKeyHandler(mockAuth, {
+        programId: "basher",
+        label: "Should Not Mint",
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Forbidden");
+      // No key written, no side effects (program registration) when denied.
+      expect(Object.keys(mockKeyDocs)).toHaveLength(0);
+      expect(registerProgram).not.toHaveBeenCalled();
+    });
+
+    it("denies BEFORE the missing-field checks (gate is first)", async () => {
+      (isKeyProvisioner as jest.Mock).mockReturnValueOnce(false);
+
+      // Missing programId AND label — gate must win, not the field validators.
+      const result = await createKeyHandler(mockAuth, {});
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Forbidden");
+    });
+
+    it("allows a permitted provisioner to mint", async () => {
+      (isKeyProvisioner as jest.Mock).mockReturnValueOnce(true);
+
+      const result = await createKeyHandler(mockAuth, {
+        programId: "basher",
+        label: "Permitted",
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(true);
+      expect(data.key).toMatch(/^cb_[0-9a-f]{64}$/);
     });
   });
 

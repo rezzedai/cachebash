@@ -42,6 +42,15 @@ beforeEach(async () => {
     capabilities: ["*"],
     rateLimitTier: "internal",
   };
+
+  // SARK keys.ts gate (fesTTlPTC): createKey is owner-gated. Treat this test's
+  // user as the platform owner so the lifecycle exercises the happy path; the
+  // gate's deny logic is unit-tested in ownerAuthz.test.ts.
+  process.env.OAUTH_ALLOWED_UIDS = testUser.userId;
+});
+
+afterAll(() => {
+  delete process.env.OAUTH_ALLOWED_UIDS;
 });
 
 describe("Keys Integration Tests", () => {
