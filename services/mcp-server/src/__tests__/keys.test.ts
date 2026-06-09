@@ -30,10 +30,12 @@ jest.mock("../middleware/capabilities", () => ({
 }));
 
 // Owner-authz gate: default-allow so the existing create tests exercise the
-// happy path. The gate's own logic is covered in auth/ownerAuthz.test.ts and
-// toggled per-test in the "createKeyHandler owner gate" block below.
+// happy path. The gate's own logic (and the #341 capability ceiling) is covered
+// in auth/ownerAuthz.test.ts; both are toggled per-test in the
+// "createKeyHandler owner gate" block below.
 jest.mock("../auth/ownerAuthz", () => ({
   isKeyProvisioner: jest.fn(() => true),
+  disallowedMintCapabilities: jest.fn(() => []),
   KEY_PROVISION_CAPABILITY: "keys.provision",
 }));
 
@@ -237,8 +239,8 @@ describe("Keys Module Unit Tests", () => {
     });
   });
 
-  describe("createKeyHandler owner gate (SARK fesTTlPTC)", () => {
-    const { isKeyProvisioner } = require("../auth/ownerAuthz");
+  describe("createKeyHandler owner gate (SARK fesTTlPTC + #341 ceiling)", () => {
+    const { isKeyProvisioner, disallowedMintCapabilities } = require("../auth/ownerAuthz");
     const { registerProgram } = require("../modules/programRegistry");
 
     it("rejects a caller that is not a key provisioner", async () => {
@@ -279,6 +281,26 @@ describe("Keys Module Unit Tests", () => {
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(true);
       expect(data.key).toMatch(/^cb_[0-9a-f]{64}$/);
+    });
+
+    it("rejects when requested caps exceed the caller's ceiling (#341 clamp), no side effects", async () => {
+      (isKeyProvisioner as jest.Mock).mockReturnValueOnce(true);
+      // Caller is a provisioner but does NOT hold relay.write.
+      (disallowedMintCapabilities as jest.Mock).mockReturnValueOnce(["relay.write"]);
+
+      const result = await createKeyHandler(mockAuth, {
+        programId: "basher",
+        label: "Over-broad",
+        capabilities: ["dispatch.read", "relay.write"],
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Forbidden");
+      expect(data.error).toContain("relay.write");
+      // Ceiling is enforced before any write / program registration.
+      expect(Object.keys(mockKeyDocs)).toHaveLength(0);
+      expect(registerProgram).not.toHaveBeenCalled();
     });
   });
 

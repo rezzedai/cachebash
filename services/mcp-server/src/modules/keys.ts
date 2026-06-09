@@ -9,7 +9,7 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
-import { isKeyProvisioner } from "../auth/ownerAuthz.js";
+import { isKeyProvisioner, disallowedMintCapabilities } from "../auth/ownerAuthz.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
@@ -26,15 +26,18 @@ function hashKey(key: string): string {
  * Returns the raw key — only time it's visible.
  */
 export async function createKeyHandler(auth: AuthContext, args: any) {
-  // SARK gate (task fesTTlPTC): provisioning keys is owner-only (or an explicit
-  // keys.provision grant), INDEPENDENT of the keys.write capability that every
-  // "*" wildcard key satisfies. Checked before any side effect (e.g. program
-  // auto-registration) so a non-provisioner cannot mutate state at all.
+  // SARK gate (task fesTTlPTC + #341 re-review): provisioning keys requires a
+  // LITERAL keys.provision grant, INDEPENDENT of the keys.write capability that
+  // every "*" wildcard key satisfies. (#341 NO-GO: the prior uid/owner branch
+  // was a prod no-op — auth.userId is the shared tenant uid, not the principal,
+  // so it passed the whole fleet. Dropped; the literal cap is now the sole gate.)
+  // Checked before any side effect (e.g. program auto-registration) so a
+  // non-provisioner cannot mutate state at all.
   if (!isKeyProvisioner(auth)) {
     return {
       content: [{ type: "text", text: JSON.stringify({
         success: false,
-        error: "Forbidden: creating API keys requires the platform owner or an explicit keys.provision grant",
+        error: "Forbidden: creating API keys requires an explicit keys.provision grant",
       }) }],
     };
   }
@@ -44,6 +47,35 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   if (!programId) {
     return {
       content: [{ type: "text", text: JSON.stringify({ success: false, error: "programId is required" }) }],
+    };
+  }
+
+  if (!label) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ success: false, error: "label is required" }) }],
+    };
+  }
+
+  // Phase 4: Accept scoped capabilities, default to program defaults.
+  const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+  const defaultCaps = getDefaultCapabilities(programId);
+  const requestedCapabilities: string[] = args.capabilities && Array.isArray(args.capabilities) && args.capabilities.length > 0
+    ? args.capabilities
+    : defaultCaps.length > 0 ? defaultCaps : ["*"];
+
+  // SARK #341 ceiling: a provisioner may only grant capabilities it itself
+  // holds — clamp minted caps ⊆ caller's. Enforced BEFORE any side effect
+  // (program auto-registration, key write) so a non-entitled request mutates
+  // nothing. An owner key holding "*" passes everything; a bounded
+  // keys.provision holder cannot mint "*" or caps beyond its own grant, so
+  // keys.provision can never launder a wildcard into a freshly minted key.
+  const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities);
+  if (disallowed.length > 0) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({
+        success: false,
+        error: `Forbidden: cannot grant capabilities you do not hold: ${disallowed.join(", ")}`,
+      }) }],
     };
   }
 
@@ -62,22 +94,9 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
     registered = true;
   }
 
-  if (!label) {
-    return {
-      content: [{ type: "text", text: JSON.stringify({ success: false, error: "label is required" }) }],
-    };
-  }
-
   const rawKey = generateApiKey();
   const keyHash = hashKey(rawKey);
   const db = getFirestore();
-
-  // Phase 4: Accept scoped capabilities, default to program defaults
-  const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
-  const defaultCaps = getDefaultCapabilities(programId);
-  const requestedCapabilities: string[] = args.capabilities && Array.isArray(args.capabilities) && args.capabilities.length > 0
-    ? args.capabilities
-    : defaultCaps.length > 0 ? defaultCaps : ["*"];
 
   const keyDoc: Omit<ApiKeyDoc, "createdAt" | "lastUsedAt"> & { createdAt: any } = {
     userId: auth.userId,
