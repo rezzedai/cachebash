@@ -9,6 +9,7 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
+import { isKeyProvisioner } from "../auth/ownerAuthz.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
@@ -25,6 +26,19 @@ function hashKey(key: string): string {
  * Returns the raw key — only time it's visible.
  */
 export async function createKeyHandler(auth: AuthContext, args: any) {
+  // SARK gate (task fesTTlPTC): provisioning keys is owner-only (or an explicit
+  // keys.provision grant), INDEPENDENT of the keys.write capability that every
+  // "*" wildcard key satisfies. Checked before any side effect (e.g. program
+  // auto-registration) so a non-provisioner cannot mutate state at all.
+  if (!isKeyProvisioner(auth)) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({
+        success: false,
+        error: "Forbidden: creating API keys requires the platform owner or an explicit keys.provision grant",
+      }) }],
+    };
+  }
+
   const { programId, label } = args;
 
   if (!programId) {

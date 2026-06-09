@@ -18,6 +18,10 @@ export type Capability =
   | "dream.read" | "dream.write"
   | "sprint.read" | "sprint.write"
   | "keys.read" | "keys.write"
+  // keys.provision: explicit, owner-equivalent grant to CREATE keys. Checked by
+  // literal membership in auth/ownerAuthz (never implied by "*"); not in any
+  // DEFAULT_CAPABILITIES role — must be granted by name.
+  | "keys.provision"
   | "audit.read"
   | "state.read" | "state.write"
   | "metrics.read"
