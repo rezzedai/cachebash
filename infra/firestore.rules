@@ -152,17 +152,26 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Authorized emails: readable by authenticated users (for auto-linking check)
+    // Authorized emails: a signed-in principal may read ONLY its own verified
+    // email doc (the auto-linking check needs no more). Previously any authed
+    // Google account could enumerate the entire allowlist. Rule get()/exists()
+    // calls bypass these read rules, so auto-linking is unaffected.
     match /authorizedEmails/{email} {
-      allow read: if isAuth();
+      allow read: if isAuth() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email == email;
       allow write: if false;
     }
 
     // User links: readable by the linked user, auto-created for authorized emails
     match /userLinks/{linkId} {
       allow read: if isAuth() && request.auth.uid == linkId;
-      // Allow auto-linking: user can create their own link if their email is in authorizedEmails
+      // Allow auto-linking: user can create their own link if their email is in
+      // authorizedEmails AND is verified. The email_verified gate blocks the
+      // PR #339-class vector: a non-Google provider letting an attacker register
+      // Flynn's email unverified, auto-link, and read the entire tenant.
       allow create: if isAuth() && request.auth.uid == linkId &&
+        request.auth.token.email_verified == true &&
         exists(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email)) &&
         request.resource.data.dataUid == get(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email)).data.dataUid &&
         request.resource.data.keys().hasOnly(['dataUid']);
