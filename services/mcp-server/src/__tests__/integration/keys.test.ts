@@ -34,12 +34,19 @@ beforeEach(async () => {
     createdBy: "system",
   });
 
+  // SARK keys.ts gate (#341): createKey requires a LITERAL keys.provision grant
+  // — NOT a uid allowlist. In prod auth.userId is the shared tenant uid, so a
+  // uid check is a no-op that passes the whole fleet (the #341 NO-GO). This auth
+  // models the real tenant-uid shape (userId = the tenant) and earns the gate via
+  // the capability: "*" + keys.provision. The literal cap passes the gate and the
+  // "*" clears the #341 capability ceiling, so the lifecycle exercises the happy
+  // path. The gate's deny logic is unit-tested in ownerAuthz.test.ts.
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
     programId: "orchestrator",
     encryptionKey: testUser.encryptionKey,
-    capabilities: ["*"],
+    capabilities: ["*", "keys.provision"],
     rateLimitTier: "internal",
   };
 });
