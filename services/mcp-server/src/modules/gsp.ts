@@ -576,7 +576,15 @@ interface BootstrapPayload {
   context: {
     pendingTasks: Array<{ id: string; title: string; priority: string; action: string }>;
     unreadMessages: Array<{ id: string; source: string; message_type: string; message: string }>;
+    /** Set when the tasks/messages load throws — distinguishes "empty" from "failed". */
+    loadError?: string;
   };
+}
+
+/** Priority rank for in-memory sorting (orderBy('priority') was alphabetical: high<low<normal). */
+const PRIORITY_RANK: Record<string, number> = { high: 0, normal: 1, low: 2 };
+function priorityRank(p: unknown): number {
+  return PRIORITY_RANK[typeof p === "string" ? p : "normal"] ?? 1;
 }
 
 function buildReportingChain(role: string | null): string[] {
@@ -948,52 +956,76 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       console.warn("[GSP Bootstrap] Failed to load memory state:", err);
     }
 
-    // 6. Context — Pending tasks and unread messages
+    // 6. Context — Pending tasks and unread messages.
+    //
+    // Query shapes are constrained to EXISTING composite indexes (the previous
+    // orderBy('priority') shapes required indexes that don't exist in prod, so
+    // every bootstrap threw FAILED_PRECONDITION and silently returned empty —
+    // and 'priority' ordering was alphabetical anyway). Priority is ranked in
+    // memory; failures surface as payload.context.loadError instead of being
+    // swallowed, so "no work" and "couldn't look" are distinguishable.
+    const contextLimit = depth === "essential" ? 10 : 20;
+
+    // Pending tasks — includes 'all' broadcasts to match get_tasks visibility.
+    // Index: tasks(target, status, createdAt DESC); `in` is equality-class.
     try {
-      // Determine limits based on depth
-      const contextLimit = depth === "essential" ? 10 : 20;
-      
-      // Pending tasks
       const tasksSnap = await db
         .collection(`tenants/${auth.userId}/tasks`)
-        .where("target", "==", args.agentId)
+        .where("target", "in", [args.agentId, "all"])
         .where("status", "==", "created")
-        .orderBy("priority")
         .orderBy("createdAt", "desc")
-        .limit(contextLimit)
+        .limit(contextLimit * 2)
         .get();
 
-      payload.context.pendingTasks = tasksSnap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title || "",
-          priority: data.priority || "normal",
-          action: data.action || "queue",
-        };
-      });
+      payload.context.pendingTasks = tasksSnap.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title || "",
+            priority: data.priority || "normal",
+            action: data.action || "queue",
+          };
+        })
+        .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
+        .slice(0, contextLimit);
+    } catch (err) {
+      console.warn("[GSP Bootstrap] Failed to load pending tasks:", err);
+      payload.context.loadError = `pendingTasks: ${err instanceof Error ? err.message : String(err)}`;
+    }
 
-      // Unread messages
+    // Unread messages — relay has NO (target, status, ...) composite index;
+    // query on the existing relay(target, createdAt DESC) index and filter
+    // status in memory (over-fetch to compensate).
+    try {
       const messagesSnap = await db
         .collection(`tenants/${auth.userId}/relay`)
         .where("target", "==", args.agentId)
-        .where("status", "==", "pending")
-        .orderBy("priority")
         .orderBy("createdAt", "desc")
-        .limit(contextLimit)
+        .limit(contextLimit * 3)
         .get();
 
-      payload.context.unreadMessages = messagesSnap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          source: data.source || "",
-          message_type: data.message_type || "",
-          message: data.message || "",
-        };
-      });
+      payload.context.unreadMessages = messagesSnap.docs
+        .filter((doc) => doc.data().status === "pending")
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            source: data.source || "",
+            message_type: data.message_type || "",
+            message: data.message || "",
+            priority: data.priority || "normal",
+          };
+        })
+        .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
+        .slice(0, contextLimit)
+        .map(({ id, source, message_type, message }) => ({ id, source, message_type, message }));
     } catch (err) {
-      console.warn("[GSP Bootstrap] Failed to load context:", err);
+      console.warn("[GSP Bootstrap] Failed to load unread messages:", err);
+      const msg = `unreadMessages: ${err instanceof Error ? err.message : String(err)}`;
+      payload.context.loadError = payload.context.loadError
+        ? `${payload.context.loadError}; ${msg}`
+        : msg;
     }
 
     // 7. Fleet Health — lightweight program heartbeat summary (standard + full only)
