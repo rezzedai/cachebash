@@ -39,6 +39,7 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   dispatch_claim_task: "dispatch.write",
   dispatch_unclaim_task: "dispatch.write",
   dispatch_complete_task: "dispatch.write",
+  dispatch_record_task_telemetry: "dispatch.write",
   dispatch_batch_claim_tasks: "dispatch.write",
   dispatch_batch_complete_tasks: "dispatch.write",
   dispatch_get_contention_metrics: "dispatch.read",

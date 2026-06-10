@@ -334,6 +334,11 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "complete_task", { taskId: p.id, ...body });
     restResponse(res, true, data);
   }),
+  route("POST", "/v1/tasks/:id/telemetry", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const data = await callTool(auth, req, "record_task_telemetry", { taskId: p.id, ...body });
+    restResponse(res, true, data);
+  }),
   route("POST", "/v1/tasks/:id/unclaim", async (auth, req, res, p) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "unclaim_task", { taskId: p.id, ...body });
