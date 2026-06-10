@@ -94,7 +94,7 @@ function parseQuery(url: string): Record<string, string> {
 
 /** Numeric and boolean fields that arrive as strings from query params */
 const NUMERIC_FIELDS = new Set(['limit', 'progress', 'ttl', 'budget_cap_usd', 'timeout_hours', 'wave', 'maxConcurrent', 'completed', 'failed', 'skipped', 'duration', 'cost_tokens', 'confidence']);
-const BOOLEAN_FIELDS = new Set(['markAsRead', 'includeArchived', 'includeRevoked', 'allowed', 'encrypt', 'lastHeartbeat']);
+const BOOLEAN_FIELDS = new Set(['markAsRead', 'includeDelivered', 'includeArchived', 'includeRevoked', 'allowed', 'encrypt', 'lastHeartbeat']);
 
 /** Coerce string query params to proper types before Zod validation */
 function coerceQueryParams(params: Record<string, string>): Record<string, unknown> {
@@ -410,7 +410,9 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/history", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // ADR-013: no requireAdmin pre-gate — participant scoping in
+    // queryMessageHistoryHandler is the single source of truth for both
+    // transports (SARK C2). Non-admin callers get their own messages only.
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "query_message_history", query);
     restResponse(res, true, data);

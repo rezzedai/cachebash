@@ -4,7 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import { verifySource, isAdmin } from "../middleware/gate.js";
+import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
@@ -46,6 +46,7 @@ const GetMessagesSchema = z.object({
   sessionId: z.string(),
   target: z.string().max(100).optional(),
   markAsRead: z.boolean().default(false),
+  includeDelivered: z.boolean().default(false),
   message_type: z.enum(["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"]).optional(),
   priority: z.enum(["low", "normal", "high"]).optional(),
 });
@@ -346,9 +347,13 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   const args = GetMessagesSchema.parse(rawArgs);
   const db = getFirestore();
 
-  let query: admin.firestore.Query = db
-    .collection(`tenants/${auth.userId}/relay`)
-    .where("status", "==", "pending");
+  // ADR-013: includeDelivered re-opens the body-read window after a claim.
+  // Target enforcement below scopes it; the claim transaction skips
+  // non-pending docs, so delivered re-reads can never re-claim.
+  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
+  query = args.includeDelivered
+    ? query.where("status", "in", ["pending", "delivered"])
+    : query.where("status", "==", "pending");
 
   if (args.message_type) {
     query = query.where("message_type", "==", args.message_type);
@@ -390,6 +395,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         message: data.payload,
         source: data.source,
         message_type: data.message_type,
+        status: data.status,
         action: data.action,
         priority: data.priority,
         context: data.context || null,
@@ -422,20 +428,27 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
       })));
 
       for (const { ref, id, fresh } of freshDocs) {
-        if (!fresh.exists || fresh.data()!.status !== "pending") continue;
+        if (!fresh.exists) continue;
         const data = fresh.data()!;
 
-        tx.update(ref, {
-          status: "delivered",
-          deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
-          deliveryAttempts: admin.firestore.FieldValue.increment(1),
-        });
+        if (data.status === "pending") {
+          tx.update(ref, {
+            status: "delivered",
+            deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
+            deliveryAttempts: admin.firestore.FieldValue.increment(1),
+          });
+        } else if (!(args.includeDelivered && data.status === "delivered")) {
+          // Only pending docs are claimable; delivered docs are returned
+          // read-only when includeDelivered is set, all others skipped.
+          continue;
+        }
 
         claimed.push({
           id,
           message: data.payload,
           source: data.source,
           message_type: data.message_type,
+          status: data.status === "pending" ? "delivered" : data.status,
           action: data.action,
           priority: data.priority,
           context: data.context || null,
@@ -508,6 +521,8 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
       id: doc.id,
       target: data.target,
       message_type: data.message_type,
+      // ADR-013: a sender re-reading their own body is zero new exposure
+      message: data.payload,
       status: data.status,
       deliveryAttempts: data.deliveryAttempts || 0,
       createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
@@ -596,50 +611,93 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
     });
   }
 
-  // Admin only gate
-  if (!isAdmin(auth)) {
-    return jsonResult({
-      success: false,
-      error: "query_message_history is only accessible by admin.",
-    });
+  // ADR-013: participant scoping for non-admins. The read path has no
+  // verifiedSource equivalent — this coercion IS the entire gate (SARK C1).
+  // Caller-supplied identity args naming another program are rejected,
+  // never passed through to the query.
+  const privileged = isAdmin(auth);
+  if (!privileged) {
+    const self = auth.programId;
+    if (args.source && args.source !== self) {
+      return jsonResult({
+        success: false,
+        error: `Participant scope: non-admin callers may only query source "${self}".`,
+      });
+    }
+    if (args.target && args.target !== self && args.target !== "all") {
+      return jsonResult({
+        success: false,
+        error: `Participant scope: non-admin callers may only query target "${self}" or "all".`,
+      });
+    }
   }
 
   const db = getFirestore();
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
-
-  if (args.threadId) {
-    query = query.where("threadId", "==", args.threadId);
-  }
-  if (args.source) {
-    query = query.where("source", "==", args.source);
-  }
-  if (args.target) {
-    query = query.where("target", "==", args.target);
-  }
-  if (args.message_type) {
-    query = query.where("message_type", "==", args.message_type);
-  }
-  if (args.status) {
-    query = query.where("status", "==", args.status);
-  }
+  const collection = db.collection(`tenants/${auth.userId}/relay`);
 
   // Sort: ASC when threadId filter set (conversation thread), DESC otherwise
-  const sortDirection = args.threadId ? "asc" : "desc";
-  query = query.orderBy("createdAt", sortDirection);
+  const sortDirection: "asc" | "desc" = args.threadId ? "asc" : "desc";
 
-  if (args.since) {
-    const sinceDate = new Date(args.since);
-    query = query.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(sinceDate));
+  const applyCommonFilters = (q: admin.firestore.Query): admin.firestore.Query => {
+    if (args.threadId) {
+      q = q.where("threadId", "==", args.threadId);
+    }
+    if (args.message_type) {
+      q = q.where("message_type", "==", args.message_type);
+    }
+    if (args.status) {
+      q = q.where("status", "==", args.status);
+    }
+    q = q.orderBy("createdAt", sortDirection);
+    if (args.since) {
+      q = q.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(new Date(args.since)));
+    }
+    if (args.until) {
+      q = q.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(new Date(args.until)));
+    }
+    return q.limit(args.limit);
+  };
+
+  let queries: admin.firestore.Query[];
+  if (privileged || args.source || args.target) {
+    // Admin: filters as given. Non-admin: source/target already coerced to
+    // self/"all" above, so a single filtered query is participant-scoped.
+    let q: admin.firestore.Query = collection;
+    if (args.source) {
+      q = q.where("source", "==", args.source);
+    }
+    if (args.target) {
+      q = q.where("target", "==", args.target);
+    }
+    queries = [applyCommonFilters(q)];
+  } else {
+    // Non-admin threadId-only query: the participant constraint is forcibly
+    // added (SARK C3 LOCK) — both directions plus broadcast, merged in-handler.
+    const self = auth.programId;
+    queries = [
+      applyCommonFilters(collection.where("source", "==", self)),
+      applyCommonFilters(collection.where("target", "==", self)),
+      applyCommonFilters(collection.where("target", "==", "all")),
+    ];
   }
-  if (args.until) {
-    const untilDate = new Date(args.until);
-    query = query.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(untilDate));
+
+  const snapshots = await Promise.all(queries.map((q) => q.get()));
+  const byId = new Map<string, admin.firestore.QueryDocumentSnapshot>();
+  for (const snapshot of snapshots) {
+    for (const doc of snapshot.docs) {
+      byId.set(doc.id, doc);
+    }
   }
 
-  query = query.limit(args.limit);
+  const docs = [...byId.values()]
+    .sort((a, b) => {
+      const ta = a.data().createdAt?.toMillis?.() ?? 0;
+      const tb = b.data().createdAt?.toMillis?.() ?? 0;
+      return sortDirection === "asc" ? ta - tb : tb - ta;
+    })
+    .slice(0, args.limit);
 
-  const snapshot = await query.get();
-  const messages = snapshot.docs.map((doc) => {
+  const messages = docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -658,6 +716,34 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
       deliveredAt: data.deliveredAt?.toDate?.()?.toISOString() || null,
       expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
     };
+  });
+
+  // ADR-013 read-audit (SARK C4, GO condition): ledger the effective filters,
+  // result count, and returned message IDs so "who read what" is answerable.
+  logAudit({
+    timestamp: new Date().toISOString(),
+    correlationId: generateCorrelationId(),
+    tool: "relay_query_message_history.read",
+    source: auth.programId,
+    programId: auth.programId,
+    userId: auth.userId,
+    endpoint: "handler",
+    allowed: true,
+    details: {
+      effectiveFilters: {
+        threadId: args.threadId ?? null,
+        source: args.source ?? null,
+        target: args.target ?? null,
+        message_type: args.message_type ?? null,
+        status: args.status ?? null,
+        since: args.since ?? null,
+        until: args.until ?? null,
+        limit: args.limit,
+        participantScope: privileged ? null : auth.programId,
+      },
+      resultCount: messages.length,
+      messageIds: messages.map((m) => m.id),
+    },
   });
 
   return jsonResult({
