@@ -189,7 +189,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       refs.push(ref.id);
     }
 
-    // Single task doc for mobile visibility (summary, not fan-out)
+    // Single task doc for mobile visibility (summary, not fan-out).
+    // Informational mirror only — the relay doc is the delivery mechanism.
+    // auto_archived + requires_action:false keep it out of task polls so
+    // dispatchers never claim phantom work; expiresAt mirrors the relay TTL.
     const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
     const taskRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
     batch.set(taskRef, {
@@ -200,9 +203,15 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       preview,
       source: verifiedSource,
       target: args.target,
+      message_type: args.message_type,
       priority: args.priority,
       action: args.action,
       status: "created",
+      requires_action: false,
+      auto_archived: true,
+      relay_mirror: true,
+      ttl,
+      expiresAt,
       createdAt: serverTimestamp(),
       encrypted: false,
       archived: false,
@@ -294,7 +303,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     is_multicast: false,
   });
 
-  // Also write to tasks collection for mobile app visibility
+  // Also write to tasks collection for mobile app visibility.
+  // Informational mirror only — the relay doc is the delivery mechanism.
+  // auto_archived + requires_action:false keep it out of task polls so
+  // dispatchers never claim phantom work; expiresAt mirrors the relay TTL.
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
   await db.collection(`tenants/${auth.userId}/tasks`).doc(relayRef.id).set({
     schemaVersion: '2.2' as const,
@@ -304,9 +316,15 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     preview,
     source: verifiedSource,
     target: args.target,
+    message_type: args.message_type,
     priority: args.priority,
     action: args.action,
     status: "created",
+    requires_action: false,
+    auto_archived: true,
+    relay_mirror: true,
+    ttl,
+    expiresAt,
     createdAt: serverTimestamp(),
     encrypted: false,
     archived: false,
