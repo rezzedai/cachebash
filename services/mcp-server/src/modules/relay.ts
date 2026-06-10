@@ -18,6 +18,13 @@ import { z } from "zod";
 import { logDirective, markDirectiveAcknowledged } from "./ack-compliance.js";
 import { getComplianceConfig } from "../config/compliance.js";
 
+// ADR-014: normalize relay body across split-brain write paths.
+// sendMessageHandler writes `payload`; sendTaskAndDirective (dispatchHandler) wrote `message`.
+// After dispatchHandler is aligned, this still handles legacy docs in Firestore.
+function relayBody(data: Record<string, unknown>): string {
+  return (data.payload ?? data.message ?? "") as string;
+}
+
 const SendMessageSchema = z.object({
   message: z.string().max(2000),
   source: z.string().max(100),
@@ -191,9 +198,9 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
 
     // Single task doc for mobile visibility (summary, not fan-out).
-    // Informational mirror only — the relay doc is the delivery mechanism.
-    // auto_archived + requires_action:false keep it out of task polls so
-    // dispatchers never claim phantom work; expiresAt mirrors the relay TTL.
+    // ADR-014: RESULT mirrors are claimable (requires_action:true); all other
+    // types are informational (auto_archived, invisible to default task polls).
+    const isResultMirror = args.message_type === "RESULT";
     const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
     const taskRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
     batch.set(taskRef, {
@@ -208,9 +215,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       priority: args.priority,
       action: args.action,
       status: "created",
-      requires_action: false,
-      auto_archived: true,
+      requires_action: isResultMirror,
+      ...(isResultMirror ? {} : { auto_archived: true }),
       relay_mirror: true,
+      created_via: { tool: "relay_mirror" },
       ttl,
       expiresAt,
       createdAt: serverTimestamp(),
@@ -305,9 +313,9 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   });
 
   // Also write to tasks collection for mobile app visibility.
-  // Informational mirror only — the relay doc is the delivery mechanism.
-  // auto_archived + requires_action:false keep it out of task polls so
-  // dispatchers never claim phantom work; expiresAt mirrors the relay TTL.
+  // ADR-014: RESULT mirrors are claimable (requires_action:true); all other
+  // types are informational (auto_archived, invisible to default task polls).
+  const isResultMirror = args.message_type === "RESULT";
   const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
   await db.collection(`tenants/${auth.userId}/tasks`).doc(relayRef.id).set({
     schemaVersion: '2.2' as const,
@@ -321,9 +329,10 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     priority: args.priority,
     action: args.action,
     status: "created",
-    requires_action: false,
-    auto_archived: true,
+    requires_action: isResultMirror,
+    ...(isResultMirror ? {} : { auto_archived: true }),
     relay_mirror: true,
+    created_via: { tool: "relay_mirror" },
     ttl,
     expiresAt,
     createdAt: serverTimestamp(),
@@ -410,7 +419,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
       const data = doc.data();
       return {
         id: doc.id,
-        message: data.payload,
+        message: relayBody(data),
         source: data.source,
         message_type: data.message_type,
         status: data.status,
@@ -463,7 +472,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
 
         claimed.push({
           id,
-          message: data.payload,
+          message: relayBody(data),
           source: data.source,
           message_type: data.message_type,
           status: data.status === "pending" ? "delivered" : data.status,
