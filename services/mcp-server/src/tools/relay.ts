@@ -42,13 +42,14 @@ export const definitions = [
   },
   {
     name: "relay_get_messages",
-    description: "Check for pending messages from programs. Replaces get_interrupts.",
+    description: "Check for pending messages from programs. Set includeDelivered to re-read already-claimed message bodies. Replaces get_interrupts.",
     inputSchema: {
       type: "object" as const,
       properties: {
         sessionId: { type: "string" },
         target: { type: "string", description: "Filter by target program ID" },
         markAsRead: { type: "boolean", default: false },
+        includeDelivered: { type: "boolean", default: false, description: "Also return already-delivered messages (bodies re-readable; never re-claims). Default false." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"], description: "Filter by message type" },
         priority: { type: "string", enum: ["low", "normal", "high"], description: "Filter by priority level" },
       },
@@ -75,7 +76,7 @@ export const definitions = [
   },
   {
     name: "relay_get_sent_messages",
-    description: "Query sent messages from a program's outbox. Programs see own sent only; admin can query any source.",
+    description: "Query sent messages from a program's outbox, including message bodies. Programs see own sent only; admin can query any source.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -89,7 +90,7 @@ export const definitions = [
   },
   {
     name: "relay_query_message_history",
-    description: "Query full message history with bodies. Admin only. Requires at least one of: threadId, source, target.",
+    description: "Query full message history with bodies. Non-admin callers are participant-scoped: results are limited to messages they sent, received, or broadcasts (target 'all'); source/target args naming another program are rejected. Admin callers are unrestricted. Requires at least one of: threadId, source, target.",
     inputSchema: {
       type: "object" as const,
       properties: {

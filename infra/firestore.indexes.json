@@ -514,6 +514,24 @@
       ]
     },
     {
+      "collectionGroup": "relay",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "threadId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "relay",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "target", "order": "ASCENDING" },
+        { "fieldPath": "threadId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ledger",
       "queryScope": "COLLECTION",
       "fields": [
