@@ -363,9 +363,13 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
     const data = doc.data();
     const heartbeatTime = data.lastHeartbeat?.toDate?.() ? data.lastHeartbeat.toDate().getTime() : 0;
     const heartbeatAgeMinutes = heartbeatTime ? Math.round((now - heartbeatTime) / 60000) : null;
-    const isStale = heartbeatAgeMinutes !== null && heartbeatAgeMinutes > 10;
+    // State is self-declared and sticky; only a fresh heartbeat earns it.
+    // No heartbeat at all is NOT alive — it's unknown, bucketed with stale
+    // (a program that never wrote lastHeartbeat must not read as "working").
+    const isStale = heartbeatAgeMinutes === null || heartbeatAgeMinutes > 10;
 
-    const state = isStale ? "stale" : (data.currentState || "idle");
+    const lastReportedState = data.currentState || "idle";
+    const state = isStale ? "stale" : lastReportedState;
     if (isStale) summary.stale++;
     else if (state === "working") summary.working++;
     else if (state === "blocked") summary.blocked++;
@@ -374,9 +378,13 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
     return {
       programId: doc.id,
       state,
+      // Preserved so "stale" stays diagnosable: stale (last self-reported:
+      // working, N min ago) — per the fleet-review recommendation.
+      lastReportedState,
       sessionId: data.currentSessionId || null,
       lastHeartbeat: data.lastHeartbeat?.toDate?.()?.toISOString() || null,
       heartbeatAgeMinutes,
+      heartbeatAgeSeconds: heartbeatTime ? Math.round((now - heartbeatTime) / 1000) : null,
       pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
       pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
       contextBytes: data.contextBytes || null,
@@ -566,14 +574,25 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
   query = query.orderBy("lastUpdate", "desc").limit(args.limit);
   const snapshot = await query.get();
 
+  // Session state is whatever the program last self-declared — sticky
+  // forever ("working" observed at 364414s stale). Derive an effective
+  // state from lastUpdate age at read time; raw state is preserved.
+  const STALE_AFTER_SECONDS = 30 * 60;
+  const nowMs = Date.now();
   const sessions = snapshot.docs.map((doc) => {
     const data = doc.data();
+    const lastUpdateMs = data.lastUpdate?.toDate?.()?.getTime() ?? null;
+    const lastUpdateAgeSeconds = lastUpdateMs !== null ? Math.round((nowMs - lastUpdateMs) / 1000) : null;
+    const isLive = data.status === "active" || data.status === "blocked";
+    const isStale = isLive && (lastUpdateAgeSeconds === null || lastUpdateAgeSeconds > STALE_AFTER_SECONDS);
     return {
       sessionId: doc.id,
       name: data.name,
       programId: data.programId,
       status: data.currentAction || data.name,
-      state: data.status, // lifecycle status
+      state: data.status, // lifecycle status, as last self-reported
+      effectiveState: isStale ? "stale" : data.status,
+      lastUpdateAgeSeconds,
       progress: data.progress,
       projectName: data.projectName,
       lastUpdate: data.lastUpdate?.toDate?.()?.toISOString() || null,
