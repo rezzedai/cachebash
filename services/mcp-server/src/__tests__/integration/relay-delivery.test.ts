@@ -346,3 +346,107 @@ describe("Relay Delivery Integration", () => {
     });
   });
 });
+
+/**
+ * Relay-mirror structural fix (Wave B tail): relay messages must not create
+ * claimable task records. The tasks-collection mirror is informational only —
+ * auto_archived + requires_action:false + TTL — so dispatchers never claim
+ * phantom work (replaces SARK's sweeper-skip regex stopgap).
+ */
+
+// dispatch/tasks pulls in github-sync -> ESM-only @octokit/rest; mock it out.
+jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
+
+import { initializeFirebase } from "../../firebase/client";
+import { sendMessageHandler } from "../../modules/relay";
+import { getTasksHandler } from "../../modules/dispatch/tasks";
+import type { AuthContext } from "../../auth/authValidator";
+
+function mirrorAuth(userId: string, programId: string): AuthContext {
+  return {
+    userId,
+    programId,
+    capabilities: ["relay.read", "relay.write", "dispatch.read", "dispatch.write"],
+    rateLimitTier: "free",
+    apiKeyHash: `test-hash-${programId}`,
+    encryptionKey: Buffer.alloc(32),
+  } as unknown as AuthContext;
+}
+
+function parseResult(result: { content: Array<{ text: string }> }) {
+  return JSON.parse(result.content[0].text);
+}
+
+describe("Relay-Mirror Structural Fix (informational mirrors)", () => {
+  let db: admin.firestore.Firestore;
+  let userId: string;
+
+  beforeAll(() => {
+    db = getTestFirestore();
+    initializeFirebase();
+  });
+
+  beforeEach(async () => {
+    await clearFirestoreData();
+    const testUser = await seedTestUser("test-user-mirror");
+    userId = testUser.userId;
+  });
+
+  it("unicast mirror is informational: auto_archived, requires_action false, TTL set", async () => {
+    const res = parseResult(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "structural fix proof",
+      source: "basher",
+      target: "iso",
+      message_type: "QUERY",
+      idempotency_key: "mirror-test-unicast-1",
+    }) as never);
+    expect(res.success).toBe(true);
+
+    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
+    expect(mirror.requires_action).toBe(false);
+    expect(mirror.auto_archived).toBe(true);
+    expect(mirror.relay_mirror).toBe(true);
+    expect(mirror.message_type).toBe("QUERY");
+    expect(mirror.expiresAt).toBeDefined();
+    expect(mirror.ttl).toBeGreaterThan(0);
+  });
+
+  it("mirror is invisible to default task polls but recoverable via include_archived", async () => {
+    const send = parseResult(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "phantom work check",
+      source: "basher",
+      target: "iso",
+      message_type: "DIRECTIVE",
+      idempotency_key: "mirror-test-poll-1",
+    }) as never);
+    expect(send.success).toBe(true);
+
+    // Default poll (what dispatcher task-poll sees): no mirror
+    const poll = parseResult(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created" }) as never);
+    expect(poll.tasks.map((t: any) => t.id)).not.toContain(send.messageId);
+
+    // Forensic/mobile read with include_archived: mirror visible
+    const archived = parseResult(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created", include_archived: true }) as never);
+    expect(archived.tasks.map((t: any) => t.id)).toContain(send.messageId);
+  });
+
+  it("multicast mirror is informational too", async () => {
+    const res = parseResult(await sendMessageHandler(mirrorAuth(userId, "iso"), {
+      message: "multicast mirror check",
+      source: "iso",
+      target: "council",
+      message_type: "STATUS",
+      idempotency_key: "mirror-test-multi-1",
+    }) as never);
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBeGreaterThan(1);
+
+    const snap = await db.collection(`tenants/${userId}/tasks`).where("target", "==", "council").get();
+    expect(snap.size).toBe(1);
+    const mirror = snap.docs[0].data();
+    expect(mirror.requires_action).toBe(false);
+    expect(mirror.auto_archived).toBe(true);
+    expect(mirror.relay_mirror).toBe(true);
+    expect(mirror.expiresAt).toBeDefined();
+  });
+});
