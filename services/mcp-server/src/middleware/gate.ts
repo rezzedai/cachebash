@@ -24,6 +24,8 @@ export interface AuditEntry {
   allowed: boolean;
   reason?: string;
   durationMs?: number;
+  /** Structured read-audit detail (e.g. ADR-013 history reads: effective filters, result count, message IDs) */
+  details?: Record<string, unknown>;
 }
 
 /**
