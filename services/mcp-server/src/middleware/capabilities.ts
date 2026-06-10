@@ -170,11 +170,10 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
     "gsp.read"],
-  // OAuth external clients — standard operational access, no admin
-  oauth: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
-    "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
-    "gsp.read", "gsp.write"],
+  // OAuth external clients — read-only fallback (C-1); fallback sites in callback.ts/token.ts still mint tokens, but these caps are powerless to mutate
+  oauth: ["dispatch.read", "relay.read", "pulse.read", "signal.read",
+    "sprint.read", "metrics.read", "fleet.read", "programs.read",
+    "gsp.read", "state.read"],
   // OAuth service accounts (client_credentials) — same as oauth
   "oauth-service": ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
