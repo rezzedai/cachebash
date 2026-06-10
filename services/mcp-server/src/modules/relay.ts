@@ -8,8 +8,8 @@ import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middl
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
-import { isGroupTarget, PROGRAM_GROUPS } from "../config/programs.js";
-import { resolveTargetsAsync } from "./programRegistry.js";
+import { isGroupTarget } from "../config/programs.js";
+import { resolveTargetsAsync, listGroupsAsync } from "./programRegistry.js";
 import { validatePayload } from "../types/relay-schemas.js";
 import { emitEvent } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
@@ -846,11 +846,8 @@ export async function sendDirectiveHandler(auth: AuthContext, args: unknown): Pr
   }
 }
 
-export async function listGroupsHandler(_auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
-  const groups: Record<string, string[]> = {};
-  for (const [name, members] of Object.entries(PROGRAM_GROUPS)) {
-    groups[name] = [...members];
-  }
+export async function listGroupsHandler(auth: AuthContext, _rawArgs: unknown): Promise<ToolResult> {
+  const groups = await listGroupsAsync(auth.userId);
   return {
     content: [{ type: "text", text: JSON.stringify({
       success: true,
