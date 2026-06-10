@@ -237,6 +237,40 @@ describe("Keys Module Unit Tests", () => {
       expect(data.success).toBe(false);
       expect(data.error).toContain("label is required");
     });
+
+    it("C-2: default TTL sets expiresAt ~90 days from now", async () => {
+      const before = Date.now();
+      const result = await createKeyHandler(mockAuth, {
+        programId: "basher",
+        label: "Default TTL Key",
+      });
+      const after = Date.now();
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(true);
+
+      const storedDoc = mockKeyDocs[data.keyHash];
+      expect(storedDoc.expiresAt).toBeDefined();
+      const expiresMs = storedDoc.expiresAt.toMillis();
+      const expectedLow = before + 90 * 24 * 60 * 60 * 1000;
+      const expectedHigh = after + 90 * 24 * 60 * 60 * 1000;
+      expect(expiresMs).toBeGreaterThanOrEqual(expectedLow - 1000);
+      expect(expiresMs).toBeLessThanOrEqual(expectedHigh + 1000);
+    });
+
+    it("C-2: ttlDays:0 creates non-expiring key (no expiresAt)", async () => {
+      const result = await createKeyHandler(mockAuth, {
+        programId: "basher",
+        label: "Non-expiring Key",
+        ttlDays: 0,
+      });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(true);
+
+      const storedDoc = mockKeyDocs[data.keyHash];
+      expect(storedDoc.expiresAt).toBeUndefined();
+    });
   });
 
   describe("createKeyHandler owner gate (SARK fesTTlPTC + #341 ceiling)", () => {

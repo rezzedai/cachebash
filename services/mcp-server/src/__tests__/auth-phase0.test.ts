@@ -335,4 +335,63 @@ describe('Auth Phase 0: Dual-mode auth middleware', () => {
       expect(result?.programId).toBe('iso');
     });
   });
+
+  describe('C-2: key TTL expiry rejection', () => {
+    it('rejects a key whose expiresAt is in the past', async () => {
+      const pastTimestamp = new Date(Date.now() - 60_000); // 1 minute ago
+      const keyDocRef = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            userId: testUserId,
+            programId: 'basher',
+            active: true,
+            capabilities: ['dispatch.read'],
+            expiresAt: { toDate: () => pastTimestamp },
+            createdAt: { toDate: () => new Date(Date.now() - 86400_000) },
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
+
+      mockDb.doc.mockImplementation((path: string) => {
+        if (path === `keyIndex/${keyHash}`) return keyDocRef;
+        throw new Error(`Unexpected doc path: ${path}`);
+      });
+
+      const result = await validateApiKey(testApiKey);
+      expect(result).toBeNull();
+    });
+
+    it('accepts a key whose expiresAt is in the future', async () => {
+      const futureTimestamp = new Date(Date.now() + 86400_000); // 1 day ahead
+      const keyDocRef = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            userId: testUserId,
+            programId: 'basher',
+            active: true,
+            capabilities: ['dispatch.read'],
+            expiresAt: { toDate: () => futureTimestamp },
+            createdAt: { toDate: () => new Date(Date.now() - 3600_000) },
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const programDocRef = {
+        get: jest.fn().mockResolvedValue({ exists: false }),
+      };
+
+      mockDb.doc.mockImplementation((path: string) => {
+        if (path === `keyIndex/${keyHash}`) return keyDocRef;
+        return programDocRef;
+      });
+
+      mockGetDefaultCapabilities.mockReturnValue(['dispatch.read']);
+      const result = await validateApiKey(testApiKey);
+      expect(result).not.toBeNull();
+    });
+  });
 });
