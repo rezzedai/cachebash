@@ -58,6 +58,78 @@ function invalidateListCache(userId: string): void {
   listCache.delete(userId);
 }
 
+// Cache for group membership — 60s TTL (E-2: dynamic group resolution)
+// Key: `${userId}:${groupName}`
+const GROUP_CACHE_TTL_MS = 60 * 1000;
+const groupCache = new Map<string, { members: string[]; cachedAt: number }>();
+
+function invalidateGroupCache(userId: string, groupName?: string): void {
+  if (groupName) {
+    groupCache.delete(`${userId}:${groupName}`);
+  } else {
+    for (const key of groupCache.keys()) {
+      if (key.startsWith(`${userId}:`)) groupCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Resolve a named group to its member program IDs.
+ * Reads group membership from Firestore (programs where groups array-contains groupName),
+ * caches for 60s, falls back to hardcoded PROGRAM_GROUPS on Firestore error or empty result.
+ */
+export async function resolveGroupAsync(userId: string, groupName: string): Promise<string[]> {
+  const cacheKey = `${userId}:${groupName}`;
+  const entry = groupCache.get(cacheKey);
+  if (entry && Date.now() - entry.cachedAt < GROUP_CACHE_TTL_MS) {
+    return entry.members;
+  }
+
+  try {
+    const db = getFirestore();
+    let members: string[];
+
+    if (groupName === "all") {
+      const snapshot = await db
+        .collection(`tenants/${userId}/programs`)
+        .where("active", "==", true)
+        .get();
+      members = snapshot.docs.map((d) => d.id);
+    } else {
+      const snapshot = await db
+        .collection(`tenants/${userId}/programs`)
+        .where("groups", "array-contains", groupName)
+        .where("active", "==", true)
+        .get();
+      members = snapshot.docs.map((d) => d.id);
+    }
+
+    // Fallback to hardcoded list if Firestore returned nothing (unseeded tenant)
+    if (members.length === 0 && groupName in PROGRAM_GROUPS) {
+      members = [...PROGRAM_GROUPS[groupName]];
+    }
+
+    groupCache.set(cacheKey, { members, cachedAt: Date.now() });
+    return members;
+  } catch {
+    // Firestore unavailable — return hardcoded fallback
+    if (groupName in PROGRAM_GROUPS) return [...PROGRAM_GROUPS[groupName]];
+    return [];
+  }
+}
+
+/**
+ * Resolve all known groups for a tenant. Uses resolveGroupAsync (60s cache) per group.
+ * Returns a map of groupName → memberIds.
+ */
+export async function listGroupsAsync(userId: string): Promise<Record<string, string[]>> {
+  const groupNames = Object.keys(PROGRAM_GROUPS);
+  const entries = await Promise.all(
+    groupNames.map(async (name) => [name, await resolveGroupAsync(userId, name)] as const)
+  );
+  return Object.fromEntries(entries);
+}
+
 // === Core Functions ===
 
 /**
@@ -149,22 +221,20 @@ export async function getProgramsByRole(userId: string, role: string): Promise<s
  * Replaces the sync resolveTargets from programs.ts.
  */
 export async function resolveTargetsAsync(userId: string, target: string): Promise<string[]> {
-  // 1. Named group (backward compat from hardcoded PROGRAM_GROUPS)
+  // 1. Named group — Firestore-backed with 60s cache + static fallback (E-2)
   if (target in PROGRAM_GROUPS) {
-    return [...PROGRAM_GROUPS[target]];
+    return resolveGroupAsync(userId, target);
   }
 
-
-  // 3. Role-based: @builder, @orchestrator, etc.
+  // 2. Role-based: @builder, @orchestrator, etc.
   if (target.startsWith("@")) {
     const role = target.slice(1);
     const programs = await getProgramsByRole(userId, role);
     if (programs.length > 0) return programs;
-    // Fallback: treat as unknown target
     return [target];
   }
 
-  // 4. Exact program match or unknown — deliver anyway (it'll queue)
+  // 3. Exact program match or unknown — deliver anyway (it'll queue)
   return [target];
 }
 
@@ -346,6 +416,11 @@ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown):
   // Invalidate caches
   invalidateCache(auth.userId, args.programId);
   invalidateListCache(auth.userId);
+  // Group membership changed — flush all group entries for this tenant so
+  // resolveGroupAsync returns fresh results on next call.
+  if (args.groups !== undefined) {
+    invalidateGroupCache(auth.userId);
+  }
 
   return jsonResult({
     success: true,
