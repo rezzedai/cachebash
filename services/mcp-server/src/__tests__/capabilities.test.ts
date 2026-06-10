@@ -55,6 +55,12 @@ describe('Capability System', () => {
   });
 
   describe('TOOL_CAPABILITIES coverage', () => {
+    it('ADR-013: relay read tools stay mapped to relay.read (no new capability)', () => {
+      expect(TOOL_CAPABILITIES['relay_query_message_history']).toBe('relay.read');
+      expect(TOOL_CAPABILITIES['relay_get_messages']).toBe('relay.read');
+      expect(TOOL_CAPABILITIES['relay_get_sent_messages']).toBe('relay.read');
+    });
+
     it('every tool in the map has a valid capability', () => {
       const validPrefixes = [
         'dispatch', 'relay', 'pulse', 'signal', 'dream',
