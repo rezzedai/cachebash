@@ -85,7 +85,7 @@ async function getActiveUserIds(): Promise<string[]> {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const keysSnapshot = await db
-      .collection("apiKeys")
+      .collection("keyIndex")
       .where("lastUsedAt", ">=", sevenDaysAgo)
       .get();
 
