@@ -94,15 +94,22 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     query = query.where("type", "==", args.type);
   }
 
-  // Phase 2: Target enforcement — programs only see their own tasks
-  // Sprints are org-wide (target: null) — skip target filter for sprint types
-  if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "dispatcher"
-      && args.type !== "sprint" && args.type !== "sprint-story") {
-    // Program keys: only see tasks targeted at this program OR broadcast
+  // Target filtering — two modes:
+  // (a) Caller named a specific target: query exactly that target. Works for all key types.
+  //     This is the fleet supervision path (ISO querying beck's queue, etc.).
+  //     NEVER silently fall back to caller scope when a target is specified.
+  // (b) No target specified + program key: scope to own tasks + broadcast.
+  //     Legacy/mobile/dispatcher keys with no target: see everything.
+  // Sprints are org-wide — skip target filter for sprint types.
+  if (args.target && args.type !== "sprint" && args.type !== "sprint-story") {
+    // Explicit target: filter server-side, no caller-scope fallback
+    query = query.where("target", "==", args.target);
+  } else if (!args.target && auth.programId !== "legacy" && auth.programId !== "mobile"
+      && auth.programId !== "dispatcher" && args.type !== "sprint" && args.type !== "sprint-story") {
+    // No target: program keys default to own queue + broadcast
     query = query.where("target", "in", [auth.programId, "all"]);
   }
-  // Legacy/mobile keys: see everything (Flynn/mobile app)
-  // If caller also provided a target filter param, apply it client-side after
+  // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
   const snapshot = await query.orderBy("createdAt", "desc").limit(args.limit).get();
 
@@ -112,11 +119,6 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const tasks = snapshot.docs
     .filter((doc) => {
       const data = doc.data();
-      // Additional client-side filter if caller specified target param (for legacy keys)
-      if (args.target && auth.programId === "legacy") {
-        const target = data.target;
-        if (target && target !== args.target) return false;
-      }
       // Filter by requires_action if specified
       if (args.requires_action !== undefined) {
         const reqAction = data.requires_action ?? true; // default true for legacy tasks
