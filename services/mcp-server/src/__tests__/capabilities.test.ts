@@ -128,6 +128,18 @@ describe('Capability System', () => {
     it('auditor has audit.read (security role)', () => {
       expect(DEFAULT_CAPABILITIES['auditor']).toContain('audit.read');
     });
+
+    it('C-1: oauth fallback carries zero .write capabilities', () => {
+      const oauthCaps = DEFAULT_CAPABILITIES['oauth'];
+      expect(oauthCaps).toBeDefined();
+      const writeCaps = oauthCaps.filter(c => c.endsWith('.write') || c === '*');
+      expect(writeCaps).toHaveLength(0);
+      expect(oauthCaps).toContain('dispatch.read');
+      expect(oauthCaps).toContain('relay.read');
+      expect(oauthCaps).not.toContain('dispatch.write');
+      expect(oauthCaps).not.toContain('state.write');
+      expect(oauthCaps).not.toContain('gsp.write');
+    });
   });
 
   describe('getDefaultCapabilities', () => {
