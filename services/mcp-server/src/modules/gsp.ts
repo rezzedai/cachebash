@@ -1013,7 +1013,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
             id: doc.id,
             source: data.source || "",
             message_type: data.message_type || "",
-            message: data.message || "",
+            message: data.payload ?? data.message ?? "",
             priority: data.priority || "normal",
           };
         })

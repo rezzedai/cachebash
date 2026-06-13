@@ -354,6 +354,9 @@ describe("Relay Delivery Integration", () => {
  * C2 single enforcement point for MCP + REST, C3 threadId-only LOCK,
  * C4 read-audit ledger detail. Tests call the real handlers against the
  * Firestore emulator; the REST test runs the real router over HTTP.
+ *
+ * E-1/ADR-014 relay-mirror classification tests are in the second describe
+ * block below (folded from cachebash#346).
  */
 
 // github-sync (pulled in via transport/rest -> tools) imports ESM-only
@@ -364,10 +367,12 @@ import * as http from "http";
 import * as crypto from "crypto";
 import { initializeFirebase } from "../../firebase/client";
 import {
+  sendMessageHandler,
   getMessagesHandler,
   getSentMessagesHandler,
   queryMessageHistoryHandler,
 } from "../../modules/relay";
+import { getTasksHandler } from "../../modules/dispatch/tasks";
 import { createRestRouter } from "../../transport/rest";
 import type { AuthContext } from "../../auth/authValidator";
 
@@ -376,6 +381,17 @@ function makeAuth(userId: string, programId: string): AuthContext {
     userId,
     programId,
     capabilities: ["relay.read", "relay.write"],
+    rateLimitTier: "free",
+    apiKeyHash: `test-hash-${programId}`,
+    encryptionKey: Buffer.alloc(32),
+  } as unknown as AuthContext;
+}
+
+function mirrorAuth(userId: string, programId: string): AuthContext {
+  return {
+    userId,
+    programId,
+    capabilities: ["relay.read", "relay.write", "dispatch.read", "dispatch.write"],
     rateLimitTier: "free",
     apiKeyHash: `test-hash-${programId}`,
     encryptionKey: Buffer.alloc(32),
@@ -613,5 +629,124 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
       expect(data.success).toBe(false);
       expect(String(data.error)).toMatch(/participant scope/i);
     });
+  });
+});
+
+/**
+ * E-1/ADR-014: relay-mirror classification at creation (folded from cachebash#346).
+ *
+ * Relay messages must not create claimable task records by default.
+ * STATUS/ACK/PING/PONG mirrors → informational (auto_archived + requires_action:false + TTL).
+ * RESULT mirrors → claimable (requires_action:true, status:created).
+ * Replaces SARK's sweeper-skip regex stopgap for new writes; stopgap stays for legacy.
+ */
+describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
+  let db: admin.firestore.Firestore;
+  let userId: string;
+
+  beforeAll(() => {
+    db = getTestFirestore();
+    initializeFirebase();
+  });
+
+  beforeEach(async () => {
+    await clearFirestoreData();
+    const testUser = await seedTestUser("test-user-mirror");
+    userId = testUser.userId;
+  });
+
+  it("unicast STATUS mirror is informational: auto_archived, requires_action false, TTL set", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "structural fix proof",
+      source: "basher",
+      target: "iso",
+      message_type: "QUERY",
+      idempotency_key: "mirror-test-unicast-1",
+    }) as never);
+    expect(res.success).toBe(true);
+
+    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
+    expect(mirror.requires_action).toBe(false);
+    expect(mirror.auto_archived).toBe(true);
+    expect(mirror.relay_mirror).toBe(true);
+    expect(mirror.message_type).toBe("QUERY");
+    expect(mirror.expiresAt).toBeDefined();
+    expect(mirror.ttl).toBeGreaterThan(0);
+  });
+
+  it("mirror is invisible to default task polls but recoverable via include_archived", async () => {
+    const send = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "phantom work check",
+      source: "basher",
+      target: "iso",
+      message_type: "DIRECTIVE",
+      idempotency_key: "mirror-test-poll-1",
+    }) as never);
+    expect(send.success).toBe(true);
+
+    // Default poll (what dispatcher task-poll sees): no mirror
+    const poll = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created" }) as never);
+    expect(poll.tasks.map((t: any) => t.id)).not.toContain(send.messageId);
+
+    // Forensic/mobile read with include_archived: mirror visible
+    const archived = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created", include_archived: true }) as never);
+    expect(archived.tasks.map((t: any) => t.id)).toContain(send.messageId);
+  });
+
+  it("multicast mirror is informational too", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "iso"), {
+      message: "multicast mirror check",
+      source: "iso",
+      target: "council",
+      message_type: "STATUS",
+      idempotency_key: "mirror-test-multi-1",
+    }) as never);
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBeGreaterThan(1);
+
+    const snap = await db.collection(`tenants/${userId}/tasks`).where("target", "==", "council").get();
+    expect(snap.size).toBe(1);
+    const mirror = snap.docs[0].data();
+    expect(mirror.requires_action).toBe(false);
+    expect(mirror.auto_archived).toBe(true);
+    expect(mirror.relay_mirror).toBe(true);
+    expect(mirror.expiresAt).toBeDefined();
+  });
+
+  it("E-1: RESULT mirror is claimable (requires_action true, status created)", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "task result body",
+      source: "basher",
+      target: "iso",
+      message_type: "RESULT",
+      idempotency_key: "mirror-test-result-1",
+    }) as never);
+    expect(res.success).toBe(true);
+
+    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
+    expect(mirror.requires_action).toBe(true);
+    expect(mirror.auto_archived).toBeFalsy();
+    expect(mirror.status).toBe("created");
+    expect(mirror.relay_mirror).toBe(true);
+
+    // RESULT mirrors ARE visible to default get_tasks (claimable work)
+    const poll = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created" }) as never);
+    expect(poll.tasks.map((t: any) => t.id)).toContain(res.messageId);
+  });
+
+  it("E-1: created_via is a typed object on mirror docs", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "created_via check",
+      source: "basher",
+      target: "iso",
+      message_type: "STATUS",
+      idempotency_key: "mirror-test-created-via-1",
+    }) as never);
+    expect(res.success).toBe(true);
+
+    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
+    expect(mirror.created_via).toBeDefined();
+    expect(typeof mirror.created_via).toBe("object");
+    expect(mirror.created_via.tool).toBeDefined();
   });
 });
