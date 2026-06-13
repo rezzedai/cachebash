@@ -23,13 +23,19 @@ const GetTasksSchema = z.object({
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
   target: z.string().max(100).optional(),
   limit: z.number().min(1).max(50).default(10),
-  requires_action: z.boolean().optional(),
+  // Default true: boot queries scope to actionable tasks only. Pass false for informational tasks,
+  // null to bypass the filter entirely (audit/export use cases).
+  requires_action: z.boolean().nullable().default(true),
   include_archived: z.boolean().default(false),
+  // Default false: omit instruction bodies to keep boot payloads small. Fetch full body via get_task_by_id.
+  include_instructions: z.boolean().default(false),
 });
 
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
   instructions: z.string().max(32000).optional(),
+  // message_type drives requires_action classification and STATUS/RESULT drain semantics.
+  message_type: z.enum(["DIRECTIVE", "QUERY", "HANDSHAKE", "ACK", "STATUS", "PING", "PONG", "RESULT"]).optional(),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story"]).default("task"),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["interrupt", "sprint", "parallel", "queue", "backlog"]).default("queue"),
@@ -119,8 +125,8 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const tasks = snapshot.docs
     .filter((doc) => {
       const data = doc.data();
-      // Filter by requires_action if specified
-      if (args.requires_action !== undefined) {
+      // Filter by requires_action: null = no filter, true/false = exact match
+      if (args.requires_action !== null) {
         const reqAction = data.requires_action ?? true; // default true for legacy tasks
         if (reqAction !== args.requires_action) return false;
       }
@@ -137,7 +143,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
       const data = doc.data();
       const decrypted = decryptTaskFields(data, auth.encryptionKey);
 
-      // Auto-archive informational tasks on read
+      // Auto-archive informational tasks on read (fallback for tasks created pre-schema-fix)
       if (data.requires_action === false && !data.auto_archived) {
         autoArchiveRefs.push(doc.ref);
       }
@@ -146,7 +152,9 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         id: doc.id,
         type: data.type || "task",
         title: decrypted.title,
-        instructions: decrypted.instructions,
+        // Omit instruction body by default — callers fetch full body via get_task_by_id on demand.
+        // This keeps boot payloads small regardless of pile size.
+        instructions: args.include_instructions ? decrypted.instructions : undefined,
         action: data.action || "queue",
         priority: data.priority || "normal",
         status: data.status,
@@ -226,6 +234,8 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     createdAt: now,
     encrypted: false,
     archived: false,
+    // message_type drives classification and drain semantics (STATUS/RESULT).
+    message_type: args.message_type || null,
     // Envelope v2.1
     ttl: args.ttl || null,
     replyTo: args.replyTo || null,
@@ -238,13 +248,26 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     parentSpanId: args.parentSpanId || null,
   };
 
-    // Auto-classification: requires_action
-    taskData.requires_action = classifyRequiresAction(taskData);
-    taskData.auto_archived = false;
+  // Auto-classification: requires_action
+  taskData.requires_action = classifyRequiresAction(taskData);
+  taskData.auto_archived = false;
 
-    // Telemetry: classify task
-    taskData.task_class = classifyTask(args.type, args.action, args.title);
-    taskData.attempt_count = 0;
+  // Drain semantics for report-type tasks (council-ruled #847/#846):
+  // STATUS: informational, latest subsumes prior — never enter `created` pool.
+  if (args.message_type === "STATUS" && taskData.requires_action === false) {
+    taskData.auto_archived = true;
+  }
+  // RESULT (non-failed): auto-complete to `done` on create — preserves get_task_lineage/audit
+  // history while draining the boot query. Failed RESULTs remain actionable (requires_action:true).
+  if (args.message_type === "RESULT" && taskData.requires_action === false) {
+    taskData.status = "done";
+    taskData.completed_status = "SUCCESS";
+    taskData.completedAt = now;
+  }
+
+  // Telemetry: classify task
+  taskData.task_class = classifyTask(args.type, args.action, args.title);
+  taskData.attempt_count = 0;
 
   // Default 24h TTL for type=task; other types (dream, sprint, question) have no default TTL
   const effectiveTtl = args.ttl || (args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : null);
