@@ -879,3 +879,89 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
 
   return jsonResult({ success: true, results, completed, failed });
 }
+
+const RecordTaskTelemetrySchema = z.object({
+  taskId: z.string(),
+  tokens_in: z.number().nonnegative().optional(),
+  tokens_out: z.number().nonnegative().optional(),
+  cost_usd: z.number().nonnegative().optional(),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+  telemetry_source: z.string().max(100).default("host-hook"),
+});
+
+/**
+ * B4 (Wave B tail): post-completion telemetry stamp. Completers rarely pass
+ * tokens/cost to complete_task (87% of done tasks had null cost), so the
+ * host-side PostToolUse hook measures real token deltas from
+ * ~/.claude/stats-cache.json and records them here AFTER completion.
+ *
+ * Fill-if-null only: self-reported numbers from complete_task are never
+ * overwritten. Caller must be the completing program (claimedBy) or admin.
+ * Only telemetry fields are writable — this is not a task-update backdoor.
+ */
+export async function recordTaskTelemetryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = RecordTaskTelemetrySchema.parse(rawArgs);
+  const db = getFirestore();
+  const ref = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) {
+        return { success: false as const, error: "Task not found" };
+      }
+      const data = snap.data()!;
+
+      if (data.status !== "done" && data.status !== "failed") {
+        return { success: false as const, error: `Telemetry can only be recorded on completed tasks (status: ${data.status})` };
+      }
+
+      const { isAdmin } = await import("../../middleware/gate.js");
+      if (!isAdmin(auth) && data.claimedBy !== auth.programId) {
+        return { success: false as const, error: "Only the completing program or admin can record telemetry" };
+      }
+
+      const updates: Record<string, unknown> = {};
+      const skipped: string[] = [];
+      const fields: Array<["tokens_in" | "tokens_out" | "cost_usd" | "model" | "provider", unknown]> = [
+        ["tokens_in", args.tokens_in],
+        ["tokens_out", args.tokens_out],
+        ["cost_usd", args.cost_usd],
+        ["model", args.model],
+        ["provider", args.provider],
+      ];
+      for (const [field, value] of fields) {
+        if (value === undefined) continue;
+        const existing = data[field];
+        if (existing === null || existing === undefined) {
+          updates[field] = value;
+        } else {
+          skipped.push(field); // self-reported value wins — never overwrite
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return { success: true as const, taskId: args.taskId, updated: [], skipped, message: "Nothing to record (all fields already set or none provided)" };
+      }
+
+      updates.telemetry_source = args.telemetry_source;
+      updates.telemetryRecordedAt = admin.firestore.FieldValue.serverTimestamp();
+      tx.update(ref, updates);
+
+      return {
+        success: true as const,
+        taskId: args.taskId,
+        updated: Object.keys(updates).filter((k) => !k.startsWith("telemetry")),
+        skipped,
+        message: "Telemetry recorded",
+      };
+    });
+    return jsonResult(result);
+  } catch (error) {
+    return jsonResult({
+      success: false,
+      error: `Failed to record telemetry: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
+}

@@ -25,6 +25,7 @@ export const TOOL_ALIASES: Record<string, string> = {
   claim_task: "dispatch_claim_task",
   unclaim_task: "dispatch_unclaim_task",
   complete_task: "dispatch_complete_task",
+  record_task_telemetry: "dispatch_record_task_telemetry",
   batch_claim_tasks: "dispatch_batch_claim_tasks",
   batch_complete_tasks: "dispatch_batch_complete_tasks",
   get_contention_metrics: "dispatch_get_contention_metrics",

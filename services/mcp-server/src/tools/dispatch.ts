@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler, suggestTargetHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler, suggestTargetHandler, recordTaskTelemetryHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -13,6 +13,7 @@ export const handlers: Record<string, Handler> = {
   dispatch_claim_task: claimTaskHandler,
   dispatch_unclaim_task: unclaimTaskHandler,
   dispatch_complete_task: completeTaskHandler,
+  dispatch_record_task_telemetry: recordTaskTelemetryHandler,
   dispatch_batch_claim_tasks: batchClaimTasksHandler,
   dispatch_batch_complete_tasks: batchCompleteTasksHandler,
   dispatch_get_contention_metrics: getContentionMetricsHandler,
@@ -141,6 +142,23 @@ export const definitions = [
         parentSpanId: { type: "string", description: "Parent span ID" },
       },
       required: ["taskIds"],
+    },
+  },
+  {
+    name: "dispatch_record_task_telemetry",
+    description: "Record measured token/cost telemetry on a completed task (fill-if-null; never overwrites self-reported values). For host-side telemetry hooks. Completing program or admin only.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string" },
+        tokens_in: { type: "number", minimum: 0 },
+        tokens_out: { type: "number", minimum: 0 },
+        cost_usd: { type: "number", minimum: 0 },
+        model: { type: "string" },
+        provider: { type: "string" },
+        telemetry_source: { type: "string", maxLength: 100, default: "host-hook" },
+      },
+      required: ["taskId"],
     },
   },
   {
