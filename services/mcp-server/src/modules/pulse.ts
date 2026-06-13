@@ -188,6 +188,26 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
   }
 
+  // SARK C2 (#847): Bind update_session to the authenticating key's program.
+  // Reject cross-session writes to prevent a confused-deputy attack where any
+  // key with pulse.write could set handoffRequired on a sibling's session.
+  // Admin keys (legacy/mobile/dispatcher) retain full access for supervision.
+  const callerProgramId = auth.programId;
+  const isPrivileged = !callerProgramId || callerProgramId === "legacy"
+    || callerProgramId === "mobile" || callerProgramId === "dispatcher";
+  if (!isPrivileged) {
+    // Session ID prefix is the program name: "iso" in "iso.task123", "basher" in "basher-g2.task"
+    const sessionPrefix = sessionId.split(".")[0].split("-")[0];
+    if (sessionPrefix !== callerProgramId) {
+      console.warn(`[C2] Cross-session write rejected: caller="${callerProgramId}" session="${sessionId}"`);
+      return jsonResult({
+        success: false,
+        error: `Cannot update another program's session. Caller "${callerProgramId}" cannot write to session "${sessionId}".`,
+        sessionId,
+      });
+    }
+  }
+
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
@@ -597,6 +617,10 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
       projectName: data.projectName,
       lastUpdate: data.lastUpdate?.toDate?.()?.toISOString() || null,
       archived: data.archived || false,
+      // Expose handoffRequired so the dispatcher's getSessions() can trigger managed recycle.
+      handoffRequired: data.handoffRequired || false,
+      lastHeartbeat: data.lastHeartbeat?.toDate?.()?.toISOString() || null,
+      contextBytes: data.contextBytes ?? null,
     };
   });
 

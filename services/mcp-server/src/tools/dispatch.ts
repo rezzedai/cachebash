@@ -34,7 +34,7 @@ export const handlers: Record<string, Handler> = {
 export const definitions = [
   {
     name: "dispatch_get_tasks",
-    description: "Get tasks created for programs to work on.",
+    description: "Get tasks created for programs to work on. Boot default: requires_action=true (actionable only), titles+IDs only (fetch body via get_task_by_id).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -42,8 +42,9 @@ export const definitions = [
         type: { type: "string", enum: ["task", "question", "dream", "sprint", "sprint-story", "all"], default: "all" },
         target: { type: "string", description: "Filter by target program ID", maxLength: 100 },
         limit: { type: "number", minimum: 1, maximum: 50, default: 10 },
-        requires_action: { type: "boolean", description: "Filter by actionability (true = actionable, false = informational)" },
+        requires_action: { type: ["boolean", "null"], default: true, description: "true=actionable only (default), false=informational only, null=no filter" },
         include_archived: { type: "boolean", default: false, description: "Include auto-archived informational tasks" },
+        include_instructions: { type: "boolean", default: false, description: "Include full instruction bodies. Default false keeps boot payload small; fetch body on demand via get_task_by_id." },
       },
     },
   },
@@ -60,12 +61,13 @@ export const definitions = [
   },
   {
     name: "dispatch_create_task",
-    description: "Create a new task for a program to work on",
+    description: "Create a new task for a program to work on. STATUS tasks auto-archive on create. RESULT (non-failed) tasks auto-complete to done.",
     inputSchema: {
       type: "object" as const,
       properties: {
         title: { type: "string", maxLength: 200 },
         instructions: { type: "string", maxLength: 32000 },
+        message_type: { type: "string", enum: ["DIRECTIVE", "QUERY", "HANDSHAKE", "ACK", "STATUS", "PING", "PONG", "RESULT"], description: "Message type — drives requires_action classification and STATUS/RESULT drain semantics" },
         type: { type: "string", enum: ["task", "question", "dream", "sprint", "sprint-story"], default: "task" },
         priority: { type: "string", enum: ["low", "normal", "high"], default: "normal" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "queue" },
