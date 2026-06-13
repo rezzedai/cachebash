@@ -14,5 +14,6 @@ export interface ApiKeyDoc {
   createdAt: Timestamp;
   lastUsedAt?: Timestamp;
   revokedAt?: Timestamp;
+  expiresAt?: Timestamp;
   active: boolean;
 }
