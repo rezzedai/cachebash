@@ -265,7 +265,7 @@ async function sendTaskAndDirective(
       : `[dispatch:${taskRef.id}] ${args.title}`;
 
     const relayData: Record<string, unknown> = {
-      message: directiveMessage.substring(0, 2000),
+      payload: directiveMessage.substring(0, 2000),
       source: verifiedSource,
       target: args.target,
       message_type: "DIRECTIVE",
