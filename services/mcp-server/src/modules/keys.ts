@@ -98,6 +98,11 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   const keyHash = hashKey(rawKey);
   const db = getFirestore();
 
+  const ttlDays: number = typeof args.ttlDays === "number" ? args.ttlDays : 90;
+  const expiresAt: Timestamp | undefined = ttlDays > 0
+    ? Timestamp.fromMillis(Date.now() + ttlDays * 24 * 60 * 60 * 1000)
+    : undefined;
+
   const keyDoc: Omit<ApiKeyDoc, "createdAt" | "lastUsedAt"> & { createdAt: any } = {
     userId: auth.userId,
     programId,
@@ -105,6 +110,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
     capabilities: requestedCapabilities,
     createdAt: FieldValue.serverTimestamp(),
     active: true,
+    ...(expiresAt !== undefined && { expiresAt }),
   };
 
   await db.doc(`keyIndex/${keyHash}`).set(keyDoc);

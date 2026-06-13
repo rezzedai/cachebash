@@ -27,6 +27,10 @@ export const definitions = [
           items: { type: "string" },
           description: 'Optional capability scopes. Defaults to program defaults or ["*"] if unknown.',
         },
+        ttlDays: {
+          type: "number",
+          description: "Days until key expires. Default 90. Pass 0 for non-expiring.",
+        },
       },
       required: ["programId", "label"],
     },
