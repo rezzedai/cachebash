@@ -37,7 +37,7 @@ export async function validateFirebaseToken(
     const email = decoded.email?.toLowerCase();
     const principal = email ? PORTAL_PRINCIPALS[email] : undefined;
 
-    if (principal) {
+    if (principal && decoded.email_verified === true && decoded.uid === principal.userId) {
       return {
         userId: principal.userId,
         apiKeyHash: `firebase:${decoded.uid}`,
