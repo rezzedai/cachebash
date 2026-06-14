@@ -302,9 +302,40 @@ async function main() {
   // Create REST router
   const restRouter = createRestRouter();
 
+  const ALLOWED_ORIGINS = [
+    "https://grid-portal.web.app",
+    "https://grid-portal.firebaseapp.com",
+    "http://localhost:5173",
+    "http://localhost:5174",
+  ];
+
+  function setCorsHeaders(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "https://grid-portal.web.app");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Mcp-Session-Id, X-Program-Id");
+    res.setHeader("Access-Control-Max-Age", "86400");
+    res.setHeader("Vary", "Origin");
+  }
+
   // HTTP server
   const httpServer = http.createServer(async (req, res) => {
     const url = req.url?.split("?")[0];
+
+    // CORS preflight — must be before all auth/routing
+    if (req.method === "OPTIONS") {
+      setCorsHeaders(req, res);
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // Attach CORS headers to all responses
+    setCorsHeaders(req, res);
 
     // Health check
     if (url === "/v1/health" && req.method === "GET") {

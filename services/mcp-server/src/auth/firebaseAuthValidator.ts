@@ -2,9 +2,21 @@ import admin from "firebase-admin";
 import * as crypto from "crypto";
 import type { AuthContext } from "./authValidator.js";
 
+// Grid Portal principal map: Firebase email → { programId, userId, rateLimitTier }
+// These principals have named identities in the Grid and need elevated capabilities
+// (gsp.read + gsp.write) so they can ratify constitutional proposals.
+const PORTAL_PRINCIPALS: Record<string, { programId: string; userId: string; rateLimitTier: string }> = {
+  "christian@rezzed.ai": {
+    programId: "flynn",
+    userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
+    rateLimitTier: "paid",
+  },
+};
+
 /**
  * Validate a Firebase ID token and return an AuthContext.
- * Used for mobile app authentication (OAuth 2.0 + PKCE flow).
+ * Known portal principals (e.g. christian@rezzed.ai) are mapped to their
+ * Grid programId so gsp_resolve reviewer checks pass correctly.
  */
 export async function validateFirebaseToken(
   idToken: string
@@ -12,8 +24,6 @@ export async function validateFirebaseToken(
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
 
-    // Create a deterministic encryption key from the Firebase UID
-    // (needed for AuthContext compatibility)
     const encryptionKey = crypto.pbkdf2Sync(
       decoded.uid,
       "cachebash_firebase_v1",
@@ -22,8 +32,21 @@ export async function validateFirebaseToken(
       "sha256"
     );
 
-    // Phase 4: Mobile gets scoped capabilities via defaults
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+
+    const email = decoded.email?.toLowerCase();
+    const principal = email ? PORTAL_PRINCIPALS[email] : undefined;
+
+    if (principal && decoded.email_verified === true && decoded.uid === principal.userId) {
+      return {
+        userId: principal.userId,
+        apiKeyHash: `firebase:${decoded.uid}`,
+        encryptionKey,
+        programId: principal.programId as any,
+        capabilities: getDefaultCapabilities("reviewer"),
+        rateLimitTier: principal.rateLimitTier,
+      };
+    }
 
     return {
       userId: decoded.uid,
@@ -34,7 +57,6 @@ export async function validateFirebaseToken(
       rateLimitTier: "free",
     };
   } catch (error) {
-    // Token expired, invalid, or revoked
     console.error("[Auth] Firebase token validation failed:", error instanceof Error ? error.message : String(error));
     return null;
   }
