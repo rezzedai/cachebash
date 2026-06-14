@@ -13,7 +13,7 @@ import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
-import { gspListNamespacesHandler } from "../modules/gsp.js";
+import { gspListNamespacesHandler, gspResolveHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
@@ -658,6 +658,45 @@ const routes: Route[] = [
     const body = await readBody(req);
     const data = await callTool(auth, req, "gsp_search", body);
     restResponse(res, true, data);
+  }),
+  // GSP Proposals — list pending proposals for the authenticated tenant
+  route("GET", "/v1/gsp/proposals", async (auth, req, res) => {
+    const query = coerceQueryParams(parseQuery(req.url || ""));
+    const db = getFirestore();
+    const colRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
+    const status = query.status as string | undefined;
+    let q: admin.firestore.Query = colRef;
+    if (status) {
+      q = q.where("status", "==", status);
+    }
+    q = q.orderBy("createdAt", "desc").limit(50);
+    const snap = await q.get();
+    const proposals = snap.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        namespace: d.namespace,
+        key: d.key,
+        proposedValue: d.proposedValue,
+        proposedBy: d.proposedBy,
+        status: d.status,
+        rationale: d.rationale,
+        reviewers: d.reviewers,
+        approvalChain: d.approvalChain,
+        createdAt: d.createdAt?.toDate?.()?.toISOString() || d.createdAt,
+        resolvedAt: d.resolvedAt?.toDate?.()?.toISOString() || d.resolvedAt || null,
+        expiresAt: d.expiresAt,
+      };
+    });
+    restResponse(res, true, { proposals, count: proposals.length });
+  }),
+  // GSP Resolve — approve, reject, or withdraw a proposal
+  route("POST", "/v1/gsp/proposals/:id/resolve", async (auth, req, res, p) => {
+    const body = await readBody(req);
+    const result = await gspResolveHandler(auth, { proposalId: p.id, ...body });
+    const text = result?.content?.[0]?.text;
+    const parsed = text ? JSON.parse(text) : result;
+    restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 200 : 400);
   }),
 
   // Program State

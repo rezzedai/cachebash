@@ -133,6 +133,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "signal.read", "signal.write",
     "fleet.read", "metrics.read", "sprint.read",
     "programs.read",
+    "gsp.read",
   ],
   // Builder programs — standard operational set
   builder: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
