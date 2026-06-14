@@ -491,6 +491,16 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const data = doc.data()!;
       const current = data.status as LifecycleStatus;
 
+      // Authorization: only the claiming owner, the claiming session, ISO/orchestrator, or admin.
+      const isClaimingOwner = data.claimedBy != null && data.claimedBy === auth.programId;
+      const isClaimingSession = (data.sessionId as string | undefined) != null && data.sessionId === auth.programId;
+      const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
+      const isAdminProgram = auth.programId === "legacy" || auth.programId === "dispatcher";
+      if (!isClaimingOwner && !isClaimingSession && !isIso && !isAdminProgram) {
+        console.warn(`[complete_task] AUTHZ_DENY programId=${auth.programId} taskId=${args.taskId} claimedBy=${data.claimedBy}`);
+        throw new Error("Unauthorized: only the claiming owner, ISO, or admin can complete this task.");
+      }
+
       // Capture task data for provenance hashing and budget tracking (before transaction completes)
       taskData = {
         instructions: data.instructions as string | undefined,
