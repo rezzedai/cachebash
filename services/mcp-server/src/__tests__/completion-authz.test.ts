@@ -34,7 +34,7 @@ jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
 jest.mock("../modules/github-sync.js", () => ({ syncTaskCompleted: jest.fn() }));
 
-import { completeTaskHandler } from "../modules/dispatch/completion.js";
+import { completeTaskHandler, batchCompleteTasksHandler } from "../modules/dispatch/completion.js";
 import type { AuthContext } from "../auth/authValidator.js";
 
 const ENC = Buffer.from("test-encryption-key-32-bytes-long!!!");
@@ -104,5 +104,31 @@ describe("complete_task authorization gate (SARK C3)", () => {
     const res = parse(await completeTaskHandler(auth("basher"), ARGS) as never);
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/Unauthorized/);
+  });
+});
+
+describe("batch_complete_tasks authorization gate (SARK C3 bypass fix)", () => {
+  const BATCH_ARGS = { taskIds: ["t1"], completed_status: "SUCCESS" as const, result: "done", model: "sonnet", provider: "anthropic" };
+
+  it("REJECTS a non-owner completing another program's task via batch", async () => {
+    taskDoc("quorra");
+    const res = parse(await batchCompleteTasksHandler(auth("basher"), BATCH_ARGS) as never);
+    // batch handler returns per-task results array; the quorra-owned task should fail
+    expect(res.success).toBe(true); // outer success (batch processed)
+    expect(res.results[0].success).toBe(false);
+    expect(res.results[0].error).toMatch(/Unauthorized/);
+    expect(mockTx.update).not.toHaveBeenCalled();
+  });
+
+  it("ALLOWS the claiming owner to complete via batch", async () => {
+    taskDoc("basher");
+    const res = parse(await batchCompleteTasksHandler(auth("basher"), BATCH_ARGS) as never);
+    expect(res.results[0].success).toBe(true);
+  });
+
+  it("ALLOWS iso to complete any task via batch", async () => {
+    taskDoc("basher");
+    const res = parse(await batchCompleteTasksHandler(auth("iso"), BATCH_ARGS) as never);
+    expect(res.results[0].success).toBe(true);
   });
 });

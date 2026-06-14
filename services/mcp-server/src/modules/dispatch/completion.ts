@@ -798,6 +798,16 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         const current = data.status as LifecycleStatus;
         taskData = { instructions: data.instructions, source: data.source, target: data.target, dreamId: data.dreamId };
 
+        // Authorization: mirrors completeTaskHandler gate.
+        const isClaimingOwner = data.claimedBy != null && data.claimedBy === auth.programId;
+        const isClaimingSession = (data.sessionId as string | undefined) != null && data.sessionId === auth.programId;
+        const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
+        const isAdminProgram = auth.programId === "legacy" || auth.programId === "dispatcher";
+        if (!isClaimingOwner && !isClaimingSession && !isIso && !isAdminProgram) {
+          console.warn(`[batch_complete_tasks] AUTHZ_DENY programId=${auth.programId} taskId=${taskId} claimedBy=${data.claimedBy}`);
+          throw new Error("Unauthorized: only the claiming owner, ISO, or admin can complete this task.");
+        }
+
         const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
         transition("task", current, lifecycleTarget as LifecycleStatus);
 
