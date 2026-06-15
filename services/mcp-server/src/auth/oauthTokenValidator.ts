@@ -58,11 +58,13 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Pass granted scopes through capabilities for scope enforcement
     const grantedScopes = data.grantedScopes || (data.scope ? data.scope.split(" ") : ["mcp:full"]);
 
+    const resolvedProgramId = programId as import("../config/programs.js").ValidProgramId;
     return {
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
-      programId: programId as import("../config/programs.js").ValidProgramId,
+      programId: resolvedProgramId,
+      keyProgramId: resolvedProgramId,
       capabilities: getDefaultCapabilities(programId),
       oauthScopes: grantedScopes,
       rateLimitTier: "free",

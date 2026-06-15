@@ -35,6 +35,7 @@ describe("Telemetry Suite", () => {
   const adminAuth: AuthContext = {
     userId: "test-user",
     programId: "orchestrator",
+    keyProgramId: "orchestrator",
     apiKeyHash: "test-hash",
     encryptionKey: mockEncryptionKey,
     capabilities: ["*"],

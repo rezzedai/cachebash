@@ -9,6 +9,11 @@ export interface AuthContext {
   apiKeyHash: string;
   encryptionKey: Buffer;
   programId: ValidProgramId;
+  /** The programId bound to the AUTHENTICATING credential (cb_ key, Firebase token, OAuth token).
+   * Never overridable by X-Program-Id. Used by verifySource to enforce Identity Sovereignty inv.6:
+   * claimed source must match the credential's own identity.
+   * Always set by production auth validators. Optional only for test backward compat. */
+  keyProgramId?: ValidProgramId;
   capabilities: string[];
   /** OAuth granted scopes — only present for OAuth tokens */
   oauthScopes?: string[];
@@ -47,6 +52,9 @@ export async function validateApiKey(
     }
 
     const userId = data.userId;
+
+    // The key's canonical identity — never overridable. Used for source enforcement (BUG-005).
+    const keyProgramId: ValidProgramId = (data.programId || "legacy") as ValidProgramId;
 
     // Phase 0: Auth Mode logic
     const AUTH_MODE = process.env.AUTH_MODE || 'hybrid';
@@ -108,6 +116,7 @@ export async function validateApiKey(
       apiKeyHash: keyHash,
       encryptionKey: deriveEncryptionKey(apiKey),
       programId,
+      keyProgramId,
       capabilities,
       rateLimitTier: data.rateLimitTier || "free",
     };

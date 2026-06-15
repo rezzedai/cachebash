@@ -38,11 +38,13 @@ export async function validateFirebaseToken(
     const principal = email ? PORTAL_PRINCIPALS[email] : undefined;
 
     if (principal && decoded.email_verified === true && decoded.uid === principal.userId) {
+      const pid = principal.programId as any;
       return {
         userId: principal.userId,
         apiKeyHash: `firebase:${decoded.uid}`,
         encryptionKey,
-        programId: principal.programId as any,
+        programId: pid,
+        keyProgramId: pid,
         capabilities: getDefaultCapabilities("reviewer"),
         rateLimitTier: principal.rateLimitTier,
       };
@@ -53,6 +55,7 @@ export async function validateFirebaseToken(
       apiKeyHash: `firebase:${decoded.uid}`,
       encryptionKey,
       programId: "mobile",
+      keyProgramId: "mobile",
       capabilities: getDefaultCapabilities("mobile"),
       rateLimitTier: "free",
     };
