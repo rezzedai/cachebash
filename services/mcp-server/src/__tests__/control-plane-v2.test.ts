@@ -158,6 +158,7 @@ beforeEach(() => {
 const mockAuth: AuthContext = {
   userId: "test-user",
   programId: "iso",
+  keyProgramId: "iso",
   apiKeyHash: "test-hash",
   capabilities: ["dispatch.write"],
   encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),

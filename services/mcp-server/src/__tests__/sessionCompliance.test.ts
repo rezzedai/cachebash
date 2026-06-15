@@ -40,6 +40,7 @@ function auth(programId: string): AuthContext {
     apiKeyHash: "k1",
     encryptionKey: Buffer.from("abc"),
     programId: programId as any,
+    keyProgramId: programId as any,
     capabilities: ["*"],
     rateLimitTier: "internal",
   };
