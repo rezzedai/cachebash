@@ -18,11 +18,15 @@ service cloud.firestore {
 
     // === Per-subcollection rules under /tenants/{userId}/ ===
     
-    // Tasks: read all, write restricted to mobile task creation and question answering
+    // Tasks: read all, write restricted to owner-surface task creation (mobile +
+    // desktop portal) and question answering. Both surfaces are the authenticated
+    // owner writing into their OWN tenant with an accurate `source` tag — this is
+    // not principal impersonation (Identity Sovereignty inv.6 concerns
+    // principal-bearing writes claiming another identity, e.g. relay below).
     match /tenants/{userId}/tasks/{taskId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && 
-        request.resource.data.source == "mobile";
+      allow create: if isOwner(userId) &&
+        request.resource.data.source in ["mobile", "portal"];
       allow update: if isOwner(userId) && 
         resource.data.type == "question" &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'answeredAt']);
