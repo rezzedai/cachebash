@@ -144,24 +144,41 @@ export function hasCapability(auth: AuthContext, capability: string): boolean {
 
 /**
  * Verify source claim against key identity.
- * Phase 2: ENFORCED. Key's programId must match claimed source.
+ * BUG-005 / Identity Sovereignty inv.6: enforces against keyProgramId — the identity
+ * bound to the AUTHENTICATING credential — not the X-Program-Id override (programId).
+ * This closes the impersonation path on all surfaces (HTTP, Desktop, mobile, OAuth).
+ *
+ * legacy/mobile are admin-tier actors exempted from source pinning.
  */
 export function verifySource(
   claimedSource: string | undefined,
   auth: AuthContext,
   endpoint: "mcp" | "admin" | "rest"
 ): string {
-  if (auth.programId === "legacy" || auth.programId === "mobile") {
-    return claimedSource || auth.programId;
+  // BUG-005: use the AUTHENTICATING credential's identity (keyProgramId), falling back
+  // to programId only when keyProgramId is absent (test mocks / legacy callers).
+  const credentialIdentity = auth.keyProgramId ?? auth.programId;
+
+  // Admin-tier actors (legacy/mobile keys) may send on behalf of any source.
+  if (credentialIdentity === "legacy" || credentialIdentity === "mobile") {
+    return claimedSource || credentialIdentity;
   }
 
   if (!claimedSource) {
-    return auth.programId;
+    // No source claimed — attribute to the key's own identity.
+    return credentialIdentity;
   }
 
-  if (claimedSource !== auth.programId) {
+  // Enforce: claimed source must match the AUTHENTICATING credential's identity.
+  // auth.programId may differ (X-Program-Id override for capability routing) — that
+  // does NOT expand the source identity. A basher key cannot claim source "iso".
+  if (claimedSource !== credentialIdentity) {
+    console.error(
+      `[SECURITY] BUG-005 identity mismatch: credential="${credentialIdentity}" ` +
+      `claimed_source="${claimedSource}" endpoint="${endpoint}". Rejecting.`
+    );
     throw new Error(
-      `Source mismatch: key belongs to "${auth.programId}", claimed "${claimedSource}". ` +
+      `Source mismatch: key belongs to "${credentialIdentity}", claimed "${claimedSource}". ` +
       `Each program must use its own API key.`
     );
   }

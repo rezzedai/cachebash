@@ -115,6 +115,7 @@ const mockAuth: AuthContext = {
   apiKeyHash: "test-hash-123",
   encryptionKey: Buffer.from("test-key"),
   programId: "iso" as any,
+  keyProgramId: "iso" as any,
   capabilities: ["policy.read", "policy.write"],
   rateLimitTier: "standard",
 };
