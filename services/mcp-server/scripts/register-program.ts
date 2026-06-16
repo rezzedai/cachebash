@@ -65,6 +65,11 @@ function parseInput(): ProgramEntry[] {
       console.error("ERROR: every entry must have a string programId");
       process.exit(1);
     }
+    // F1: guard against path-injection via '/' — Firestore doc path would redirect to unintended nested path
+    if (!/^[a-z0-9_-]{1,64}$/.test((p as ProgramEntry).programId)) {
+      console.error(`ERROR: programId "${(p as ProgramEntry).programId}" must match ^[a-z0-9_-]{1,64}$`);
+      process.exit(1);
+    }
   }
   return list as ProgramEntry[];
 }
