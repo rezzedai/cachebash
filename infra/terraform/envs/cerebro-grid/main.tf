@@ -144,11 +144,11 @@ resource "google_compute_security_policy" "cerebro_armor" {
     priority    = 3000
     action      = "deny(403)"
     preview     = true
-    description = "SARK G-3: OWASP CRS WAF (preview — tune before enforcing to avoid JSON-RPC false positives)"
+    description = "SARK G-3: OWASP SQLi WAF (preview — sensitivity=1, tune before enforcing)"
 
     match {
       expr {
-        expression = "evaluatePreconfiguredWaf('crs-v33-stable', {'sensitivity': 1})"
+        expression = "evaluatePreconfiguredWaf('sqli-v33-stable', {'sensitivity': 1})"
       }
     }
   }
@@ -198,7 +198,6 @@ resource "google_compute_backend_service" "lite_backend" {
   name                  = "cachebash-lite-backend"
   project               = var.project_id
   protocol              = "HTTPS"
-  timeout_sec           = 3600
   security_policy       = google_compute_security_policy.cerebro_armor.id
   load_balancing_scheme = "EXTERNAL_MANAGED"
 
