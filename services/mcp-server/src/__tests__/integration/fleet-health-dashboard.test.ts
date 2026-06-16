@@ -161,9 +161,9 @@ describe("Fleet Health Dashboard Integration", () => {
       expect(byModelTier.sonnet).toBe(2);
 
       // Verify utilization calc
-      const maxSessions = 8;
+      const maxSessions = 16;
       const utilizationPercent = Math.round((3 / maxSessions) * 10000) / 100;
-      expect(utilizationPercent).toBe(37.5);
+      expect(utilizationPercent).toBe(18.75);
     });
 
     it("should handle empty fleet gracefully", async () => {
@@ -345,8 +345,8 @@ describe("Fleet Health Dashboard Integration", () => {
       expect(byModelTier.sonnet).toBe(2); // sonnet + haiku → both non-opus
       expect(snap.size).toBe(4);
 
-      const utilizationPercent = Math.round((4 / 8) * 10000) / 100;
-      expect(utilizationPercent).toBe(50);
+      const utilizationPercent = Math.round((4 / 16) * 10000) / 100;
+      expect(utilizationPercent).toBe(25);
     });
   });
 });
