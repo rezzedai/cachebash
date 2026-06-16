@@ -51,10 +51,12 @@ module "cachebash_lite" {
   # ⛔ HARD GATE G-1: restrict direct *.run.app URL — only LB traffic admitted.
   ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
-  # ⛔ HARD GATE G-1: allUsers invoker NOT set until SARK live-verifies G-1.
-  # See iam.tf — the google_cloud_run_v2_service_iam_member.public_invoker
-  # resource is defined there with a comment marking the SARK gate.
-  allow_unauthenticated = false
+  # ✅ G-1 GATE CLEARED (SARK GO 2026-06-16, task NngsKQar1UJDxX8uDLRG): bare *.run.app
+  # proven unreachable (GFE 404 on valid POST /mcp = INTERNAL_LB ingress enforced at GFE,
+  # independent of IAM), LB live, Cloud Armor attached + rate rules enforcing. IAM allUsers
+  # invoker now authorized — the module creates google_cloud_run_v2_service_iam_member.public_invoker
+  # via this flag (iam.tf's standalone block stays commented to avoid a duplicate binding).
+  allow_unauthenticated = true
 
   env_vars = {
     CACHEBASH_PROFILE  = "lite"
