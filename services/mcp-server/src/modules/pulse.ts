@@ -14,8 +14,6 @@ import { isProgramRegistered } from "./programRegistry.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 
-/** Approximate context window size in bytes (200KB) */
-const CONTEXT_WINDOW_BYTES = 200_000;
 /** Maximum context history entries per session (rolling window) */
 const MAX_CONTEXT_HISTORY = 1000;
 
@@ -37,7 +35,8 @@ const UpdateSessionSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
   lastHeartbeat: z.boolean().optional(), // When true, also update heartbeat timestamp
-  contextBytes: z.number().min(0).optional(),
+  contextBytes: z.number().min(0).max(100).optional(), // % remaining (legacy field name)
+  contextUsedPct: z.number().min(0).max(100).optional(), // % used (canonical); alias for 100 - contextBytes
   handoffRequired: z.boolean().optional(),
 });
 
@@ -271,16 +270,21 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
 
   if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
   if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;
+  // Derive contextUsedPct: caller may supply it directly, or we compute from legacy contextBytes (% remaining).
+  const contextUsedPct = args.contextUsedPct !== undefined
+    ? args.contextUsedPct
+    : (args.contextBytes !== undefined ? Math.round((100 - args.contextBytes) * 100) / 100 : undefined);
+  if (contextUsedPct !== undefined) updateData.contextUsedPct = contextUsedPct;
 
   await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
 
   // Story 2E: Append context utilization to contextHistory when contextBytes provided
   if (args.contextBytes !== undefined) {
-    const contextPercent = Math.round((args.contextBytes / CONTEXT_WINDOW_BYTES) * 10000) / 100;
+    // contextBytes carries % remaining (0-100) — store verbatim, no byte-scaling.
     const contextEntry = {
       timestamp: new Date().toISOString(),
       contextBytes: args.contextBytes,
-      contextPercent,
+      contextUsedPct: contextUsedPct ?? Math.round((100 - args.contextBytes) * 100) / 100,
     };
 
     const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
@@ -319,6 +323,10 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
+    // Mirror context fields so fleet_health can read contextUsedPct without querying sessions.
+    if (args.contextBytes !== undefined) programData.contextBytes = args.contextBytes;
+    if (contextUsedPct !== undefined) programData.contextUsedPct = contextUsedPct;
+    if (args.handoffRequired !== undefined) programData.handoffRequired = args.handoffRequired;
     await db.doc(`tenants/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
 
@@ -407,7 +415,12 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
       heartbeatAgeSeconds: heartbeatTime ? Math.round((now - heartbeatTime) / 1000) : null,
       pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
       pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
-      contextBytes: data.contextBytes || null,
+      contextBytes: data.contextBytes ?? null,
+      // contextUsedPct: canonical field (% used, higher = fuller). Falls back to
+      // deriving from legacy contextBytes (% remaining) for records written before this deploy.
+      contextUsedPct: data.contextUsedPct !== undefined
+        ? data.contextUsedPct
+        : (data.contextBytes !== undefined ? Math.round((100 - Number(data.contextBytes)) * 100) / 100 : null),
       handoffRequired: data.handoffRequired || false,
     };
   });
@@ -456,27 +469,31 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
   const contextSessions: Array<{
     sessionId: string;
     programId: string | null;
-    contextPercent: number;
-    contextBytes: number;
+    contextBytes: number;       // % remaining (legacy field name)
+    contextUsedPct: number;     // % used (canonical; higher = fuller)
   }> = [];
 
   for (const doc of activeSessionsSnap.docs) {
     const data = doc.data();
-    if (data.contextBytes) {
-      const contextPercent = Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100;
+    if (data.contextBytes !== undefined && data.contextBytes !== null) {
+      // contextBytes stores % remaining (0-100). contextUsedPct = 100 - contextBytes.
+      const contextRemainingPct = Number(data.contextBytes);
+      const contextUsedPctVal = data.contextUsedPct !== undefined
+        ? Number(data.contextUsedPct)
+        : Math.round((100 - contextRemainingPct) * 100) / 100;
       contextSessions.push({
         sessionId: doc.id,
         programId: data.programId || null,
-        contextPercent,
-        contextBytes: Number(data.contextBytes),
+        contextBytes: contextRemainingPct,
+        contextUsedPct: contextUsedPctVal,
       });
     }
   }
 
   const avgContextPercent = contextSessions.length > 0
-    ? Math.round(contextSessions.reduce((sum, s) => sum + s.contextPercent, 0) / contextSessions.length * 100) / 100
+    ? Math.round(contextSessions.reduce((sum, s) => sum + s.contextUsedPct, 0) / contextSessions.length * 100) / 100
     : 0;
-  const sessionsAboveThreshold = contextSessions.filter((s) => s.contextPercent > CONTEXT_THRESHOLD_PERCENT).length;
+  const sessionsAboveThreshold = contextSessions.filter((s) => s.contextUsedPct > CONTEXT_THRESHOLD_PERCENT).length;
 
   const contextHealth = {
     sessions: contextSessions,
@@ -683,16 +700,15 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
       return new Date(ts).getTime() >= start.getTime();
     });
 
+    const curRemaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
     return jsonResult({
       success: true,
       sessionId: args.sessionId,
       period: args.period,
       count: filtered.length,
       contextHistory: filtered,
-      currentContextBytes: data.contextBytes || null,
-      currentContextPercent: data.contextBytes
-        ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
-        : null,
+      currentContextBytes: curRemaining,
+      currentContextUsedPct: curRemaining !== null ? Math.round((100 - curRemaining) * 100) / 100 : null,
     });
   }
 
@@ -715,14 +731,13 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
       return new Date(ts).getTime() >= start.getTime();
     });
 
-    if (filtered.length > 0 || data.contextBytes) {
+    if (filtered.length > 0 || data.contextBytes !== undefined) {
+      const remaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
       sessionSummaries.push({
         sessionId: doc.id,
         programId: data.programId || null,
-        currentContextBytes: data.contextBytes || null,
-        currentContextPercent: data.contextBytes
-          ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
-          : null,
+        currentContextBytes: remaining,
+        currentContextUsedPct: remaining !== null ? Math.round((100 - remaining) * 100) / 100 : null,
         historyCount: filtered.length,
         latestEntry: filtered.length > 0 ? filtered[filtered.length - 1] : null,
       });
