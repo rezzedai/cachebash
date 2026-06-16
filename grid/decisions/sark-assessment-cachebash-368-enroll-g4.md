@@ -1,12 +1,46 @@
 ---
 format: sark-assessment
-verdict: NO-GO (narrow, fast-flippable) — /enroll must NOT be exposed
-task: v1GNx4ERAf00m1Ya6eNo
+verdict: GO (re-review of d0a3963 — all 3 NO-GO findings remediated; supersedes the NO-GO below)
+verdict_history:
+  - 2026-06-16 NO-GO (commit 67d6125) — CI red, vitest≠jest, TTL/cap gaps
+  - 2026-06-16 GO (commit d0a3963) — jest CI green, TTL cap at redeem, tier-scoped caps
+task: VKiZEm7OFFLqZwliVMz9 (re-review); v1GNx4ERAf00m1Ya6eNo (original NO-GO)
 gate: G-4 (code-review-before-exposure) from sark-assessment-cerebro-ungate-2026-06-16.md
 pr: rezzedai/cachebash#368 (branch basher/cerebro-lite-edge)
 date: 2026-06-16
 reviewer: sark
+note: G-4 GO clears the CODE gate only. /enroll exposure + IAM allUsers removal still require G-1 live-verify (curl bare *.run.app → 403/404). Both must pass.
 ---
+
+# RE-REVIEW VERDICT (commit d0a3963) — **G-4 GO**
+
+basher remediated all three NO-GO findings; re-verified clean-context against d0a3963
+(CI GREEN, run 27594391306 — Build/Test/Typecheck):
+
+- **F-368-1 (was BLOCKING) — RESOLVED.** `enrollment.test.ts` is genuinely jest now: no
+  `vitest` import (only a comment references it), uses `jest.fn/jest.mock/jest.clearAllMocks`,
+  static `enrollHandler` import. 16 tests run **in CI** and cover all 11 controls + my 3
+  findings — incl. a byte-identical no-oracle test (G-4-4), raw-key-never-written (G-4-8),
+  no-cross-tenant-mint (G-4-9), tenant-scoped-not-hub (G-4-10). The controls are now
+  automation-verified — the exact gap that drove the NO-GO is closed.
+- **F-368-2 — RESOLVED.** `effectiveExpiry = min(storedExpiresAt, createdAt + MAX_TTL_MS)`
+  (24h) enforced at redeem; over-cap tokens rejected via the same `__enrollment_failed__`
+  sentinel → identical no-oracle 400. Tested both directions (>24h rejected, within-cap
+  accepted). Caps even a provisioner-issued long token.
+- **F-368-3 — RESOLVED.** `capabilities: tierCapabilities(tier)` via `LITE_TIER_CAPABILITIES`:
+  trial/standard carry NO wildcard, only `dedicated=["*"]`. Per-tier tests added. Unchanged
+  controls (hashed token, single-use txn, topology-free response, never-log-key, R7 tenant
+  bound) remain as PASSED in the original review.
+
+**Residual nit (INFO, non-blocking):** unknown/missing `tier` defaults to `standard` (a broad
+non-wildcard set). Least-privilege would default to `trial`. The critical property — no
+wildcard by default — holds, so this is a hardening suggestion, not a gate condition.
+
+**G-4 residual risk: LOW.** Code gate cleared. Exposure still blocked on G-1 (edge live).
+
+---
+
+## ORIGINAL NO-GO (commit 67d6125) — superseded, retained for trail
 
 # SARK G-4 Assessment — Cerebro `/enroll` Enrollment Endpoint
 
