@@ -335,7 +335,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
 }
 
 /** Max concurrent sessions (hardcoded MVP — will move to config) */
-const MAX_SESSIONS = 8;
+const MAX_SESSIONS = 16;
 /** Context threshold for "above threshold" classification */
 const CONTEXT_THRESHOLD_PERCENT = 60;
 
