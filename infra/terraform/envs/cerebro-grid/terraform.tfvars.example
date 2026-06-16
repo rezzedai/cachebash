@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and fill in values before applying.
+
+project_id = "cerebro-grid"
+region     = "us-central1"
+lite_domain = "lite.cerebro.cachebash.dev"  # DNS A record → lb_ip_address output
+
+# Rate limits (SARK G-3 — load-bearing, not advisory)
+mcp_rate_limit_per_min    = 120
+mcp_ban_duration_sec      = 600
+enroll_rate_limit_per_min = 10
+enroll_ban_duration_sec   = 900
