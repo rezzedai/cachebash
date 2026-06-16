@@ -139,14 +139,14 @@ resource "google_compute_security_policy" "cerebro_armor" {
     }
   }
 
-  # Rule 3000: OWASP CRS WAF — preview mode to avoid JSON-RPC false positives.
-  # SARK G-3: "preview-tuned to avoid false positives on JSON-RPC/MCP".
-  # Switch preview = false once tuning is validated against real MCP traffic.
+  # Rule 3000: OWASP CRS WAF — ENFORCING at sensitivity=1 (flipped from preview).
+  # SARK FU-2: enforce only after preview-mode logs show no /mcp JSON-RPC false positives.
+  # ⚠️ DO NOT APPLY until that log review passes against real MCP traffic (PR held as draft).
   rule {
     priority    = 3000
     action      = "deny(403)"
-    preview     = true
-    description = "SARK G-3: OWASP SQLi WAF (preview — sensitivity=1, tune before enforcing)"
+    preview     = false
+    description = "SARK G-3/FU-2: OWASP SQLi WAF (enforcing, sensitivity=1)"
 
     match {
       expr {
