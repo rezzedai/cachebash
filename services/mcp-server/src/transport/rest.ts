@@ -421,11 +421,19 @@ const routes: Route[] = [
       return;
     }
     const body = await readBody(req);
-    const source = auth.programId;
-    const result = await sendMessageHandler(auth, { ...body, source });
-    const text = result?.content?.[0]?.text;
-    const parsed = text ? JSON.parse(text) : result;
-    restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
+    const source = auth.keyProgramId ?? auth.programId;
+    try {
+      const result = await sendMessageHandler(auth, { ...body, source });
+      const text = result?.content?.[0]?.text;
+      const parsed = text ? JSON.parse(text) : result;
+      restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Source mismatch")) {
+        sendJson(res, 403, { success: false, error: "SOURCE_MISMATCH", message: err.message });
+      } else {
+        sendJson(res, 500, { success: false, error: "INTERNAL", message: "Internal server error" });
+      }
+    }
   }),
   route("GET", "/v1/messages/sent", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
