@@ -15,7 +15,42 @@ import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const GENERIC_ERROR = { error: "invalid_or_expired_enrollment" } as const;
-const MAX_TTL_HOURS = 24;
+
+// F-368-2: hard cap enforced at REDEEM — even if the provisioner stored a longer expiresAt.
+const MAX_TTL_MS = 24 * 60 * 60 * 1000;
+
+// F-368-3: tier-scoped capabilities for lite profile keys (Trial/Standard/Dedicated).
+// "dedicated" is the only tier that grants wildcard access.
+const LITE_TIER_CAPABILITIES: Record<string, string[]> = {
+  trial: [
+    "dispatch.read", "dispatch.write",
+    "relay.read", "relay.write",
+    "pulse.read", "pulse.write",
+    "gsp.read",
+    "state.read", "state.write",
+    "audit.read",
+  ],
+  standard: [
+    "dispatch.read", "dispatch.write",
+    "relay.read", "relay.write",
+    "pulse.read", "pulse.write",
+    "signal.read", "signal.write",
+    "sprint.read", "sprint.write",
+    "keys.read",
+    "programs.read",
+    "gsp.read", "gsp.write",
+    "state.read", "state.write",
+    "audit.read",
+    "metrics.read",
+    "fleet.read",
+    "trace.read",
+  ],
+  dedicated: ["*"],
+};
+
+function tierCapabilities(tier: string): string[] {
+  return LITE_TIER_CAPABILITIES[tier.toLowerCase()] ?? LITE_TIER_CAPABILITIES["standard"];
+}
 
 function sha256hex(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
@@ -56,7 +91,6 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
   try {
     const body = await readBody(req);
     if (typeof body.token !== "string" || body.token.length === 0) {
-      // Treat missing/invalid token field as generic enrollment failure (no oracle)
       sendJson(res, 400, GENERIC_ERROR);
       return;
     }
@@ -90,8 +124,7 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
 
       const now = new Date();
 
-      // G-4 control 4/6: no oracle — all failure paths return the same response
-      // We do the minimum work needed (always hash; avoid timing tells via constant-ish path)
+      // G-4 control 4/6: no oracle — all failure paths throw the same sentinel
       if (!doc.exists) {
         throw new Error("__enrollment_failed__");
       }
@@ -102,44 +135,54 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
         throw new Error("__enrollment_failed__");
       }
 
-      const expiresAt: Date = data.expiresAt?.toDate
+      const storedExpiresAt: Date = data.expiresAt?.toDate
         ? data.expiresAt.toDate()
         : new Date(data.expiresAt);
 
-      if (now > expiresAt) {
+      // F-368-2: enforce MAX_TTL_MS hard cap at redeem.
+      // Compute effective expiry as min(storedExpiresAt, createdAt + 24h).
+      // This caps even provisioner-issued tokens that exceed the 24h limit.
+      const createdAt: Date = data.createdAt?.toDate
+        ? data.createdAt.toDate()
+        : data.createdAt instanceof Date
+          ? data.createdAt
+          : new Date(data.createdAt ?? now);
+      const maxAllowedExpiry = new Date(createdAt.getTime() + MAX_TTL_MS);
+      const effectiveExpiry = storedExpiresAt < maxAllowedExpiry ? storedExpiresAt : maxAllowedExpiry;
+
+      if (now > effectiveExpiry) {
         throw new Error("__enrollment_failed__");
       }
 
       // All checks passed — mint the key
       tenantId = data.tenantId as string;
-      const tier = (data.tier as string) || "free";
+      const tier = (data.tier as string) || "standard";
 
       // G-4 control 1/10: generate tenant-scoped lite key (never hub-scoped)
       cbKey = generateApiKey();
       const keyHash = sha256hex(cbKey);
 
-      const keyTtlMs = 90 * 24 * 60 * 60 * 1000; // 90 days default
+      const keyTtlMs = 90 * 24 * 60 * 60 * 1000;
       const keyExpiresAt = Timestamp.fromMillis(Date.now() + keyTtlMs);
 
-      // G-4 control 9/10: store key hash only; tenant-scoped; no hub caps
+      // F-368-3: tier-scoped capabilities; G-4 control 9/10: tenant-scoped, no hub caps
       tx.set(db.doc(`keyIndex/${keyHash}`), {
         userId: tenantId,
         programId: "cerebro",
         label: "enrollment-key",
-        capabilities: ["*"],
+        capabilities: tierCapabilities(tier),
         rateLimitTier: tier,
         active: true,
         createdAt: FieldValue.serverTimestamp(),
         expiresAt: keyExpiresAt,
-        enrollmentTokenHash: tokenHash.slice(0, 8) + "…", // audit: first-8 only (bridge pattern)
+        enrollmentTokenHash: tokenHash.slice(0, 8) + "…", // audit: first-8 only
       });
 
-      // G-4 control 3: mark consumed atomically — second redeem fails status check
-      // G-4 control 8: log sha256(key) only, never raw cb_key
+      // G-4 control 3: atomic consume; G-4 control 8: sha256(key) for audit, never raw
       tx.update(enrollRef, {
         status: "consumed",
         consumedAt: FieldValue.serverTimestamp(),
-        keyHash: keyHash, // sha256(cb_key) for audit — never the raw key
+        keyHash: keyHash,
       });
     });
   } catch (err: unknown) {
@@ -147,15 +190,15 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
     if (msg !== "__enrollment_failed__") {
       console.error("[enroll] transaction error (tenantId redacted):", msg);
     }
-    // G-4 control 4: identical 400 for all failure cases — no used/invalid oracle
+    // G-4 control 4: identical 400 for all failure cases — no oracle
     sendJson(res, 400, GENERIC_ERROR);
     return;
   }
 
-  // G-4 control 8/7: return topology-free response; NEVER log cb_key
-  console.log(`[enroll] key issued for tenant ${tenantId!} (keyHash logged separately via Firestore)`);
+  // G-4 control 8/7: NEVER log raw key; response is topology-free
+  console.log(`[enroll] key issued for tenant ${tenantId!} (keyHash in Firestore)`);
 
-  // G-4 control 7: response is EXACTLY { lite_url, cb_key } — no topology leakage
+  // G-4 control 7: response EXACTLY { lite_url, cb_key }
   sendJson(res, 200, {
     lite_url: liteUrl,
     cb_key: cbKey!,
