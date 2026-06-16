@@ -2,6 +2,7 @@ resource "google_cloud_run_v2_service" "service" {
   name     = var.name
   location = var.region
   project  = var.project_id
+  ingress  = var.ingress
 
   template {
     service_account = var.service_account_email
@@ -48,10 +49,13 @@ resource "google_cloud_run_v2_service" "service" {
   }
 
   lifecycle {
-    # Image is deployed via gcloud/CI, not Terraform.
-    # Terraform manages the envelope (scaling, IAM, env vars).
+    # Image, secret env vars, probe config, and resource flags are managed by gcloud/CI.
+    # Terraform manages ingress, scaling bounds, non-secret env vars, and IAM.
     ignore_changes = [
       template[0].containers[0].image,
+      template[0].containers[0].env,
+      template[0].containers[0].startup_probe,
+      template[0].containers[0].resources,
       client,
       client_version,
     ]
