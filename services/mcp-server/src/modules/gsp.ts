@@ -15,6 +15,7 @@
 
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
+import { verifySource } from "../middleware/gate.js";
 import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
 
@@ -425,6 +426,9 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
     });
   }
 
+  // F-360-2: enforce inv.6 on GSP attribution — a basher key cannot write as "iso".
+  const verifiedSource = verifySource(args.source, auth, "mcp");
+
   const db = getFirestore();
   const colPath = gspCollectionPath(auth.userId, args.namespace);
   const docRef = db.doc(`${colPath}/${args.key}`);
@@ -456,7 +460,7 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
       version: newVersion,
       description: args.description || null,
       updatedAt: now,
-      updatedBy: args.source || auth.programId,
+      updatedBy: verifiedSource,
       ...(existing.exists ? {} : { createdAt: now }),
     };
 
@@ -470,7 +474,7 @@ export async function gspWriteHandler(auth: AuthContext, rawArgs: unknown): Prom
 
 
   // Notify subscribers of state change
-  await notifySubscribers(auth, args.namespace, args.key, result.version, args.source || auth.programId);
+  await notifySubscribers(auth, args.namespace, args.key, result.version, verifiedSource);
 
   return jsonResult({
     success: true,

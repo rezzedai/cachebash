@@ -238,6 +238,10 @@ jest.mock("../middleware/capabilities", () => ({
   getDefaultCapabilities: jest.fn(() => ["*"]),
 }));
 
+jest.mock("../modules/events", () => ({
+  emitEvent: jest.fn(),
+}));
+
 // ── Shared auth context ─────────────────────────────────────────────────────
 
 const mockAuth: AuthContext = {
@@ -423,20 +427,31 @@ describe("gspWriteHandler", () => {
     ).rejects.toThrow("GOVERNANCE_VIOLATION");
   });
 
-  // #10
-  it("uses custom source when provided", async () => {
+  // #10 — source must match credential identity (inv.6, F-360-2)
+  it("uses own-identity source for updatedBy when source matches auth", async () => {
     const result = await gspWriteHandler(mockAuth, {
       namespace: "runtime",
       key: "src-test",
       value: "val",
-      source: "custom-agent",
+      source: "vector",  // matches mockAuth.programId — valid
     });
     const data = parse(result);
     expect(data.success).toBe(true);
 
-    // Verify the stored entry has updatedBy = custom-agent
     const stored = mockDocs["tenants/test-user-123/gsp/runtime/entries/src-test"];
-    expect(stored.updatedBy).toBe("custom-agent");
+    expect(stored.updatedBy).toBe("vector");
+  });
+
+  it("rejects cross-identity source attribution (F-360-2 / inv.6)", async () => {
+    // A "vector" key cannot claim source "iso" — verifySource must throw.
+    await expect(
+      gspWriteHandler(mockAuth, {
+        namespace: "runtime",
+        key: "spoofed",
+        value: "val",
+        source: "iso",
+      })
+    ).rejects.toThrow(/Source mismatch/);
   });
 });
 
