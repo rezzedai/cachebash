@@ -14,6 +14,7 @@ import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
 import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
 import { gspListNamespacesHandler, gspResolveHandler } from "../modules/gsp.js";
+import { sendMessageHandler } from "../modules/relay.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
@@ -408,6 +409,23 @@ const routes: Route[] = [
   route("GET", "/v1/relay/groups", async (auth, req, res) => {
     const data = await callTool(auth, req, "list_groups", {});
     restResponse(res, true, data);
+  }),
+  // Portal owner send-message — Identity Sovereignty inv.6: source is server-derived, never client-supplied.
+  route("POST", "/v1/relay/messages", async (auth, req, res) => {
+    if (!auth.apiKeyHash.startsWith("firebase:")) {
+      sendJson(res, 403, { success: false, error: "PORTAL_OWNER_ONLY", message: "This endpoint requires a Firebase owner ID token." });
+      return;
+    }
+    if (auth.programId === "mobile") {
+      sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: "This endpoint is restricted to Grid Portal owners." });
+      return;
+    }
+    const body = await readBody(req);
+    const source = auth.programId;
+    const result = await sendMessageHandler(auth, { ...body, source });
+    const text = result?.content?.[0]?.text;
+    const parsed = text ? JSON.parse(text) : result;
+    restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
   }),
   route("GET", "/v1/messages/sent", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
