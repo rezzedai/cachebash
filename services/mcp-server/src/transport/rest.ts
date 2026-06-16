@@ -401,6 +401,17 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "send_message", body);
     restResponse(res, true, data, 201);
   }),
+  // Identity Sovereignty inv.6: owner portal send-message. Source is ALWAYS derived
+  // server-side from the authenticated Firebase token — never trusted from the client body.
+  route("POST", "/v1/relay/messages", async (auth, req, res) => {
+    const body = await readBody(req);
+    // Strip any client-supplied source — impersonation prevention.
+    const { source: _discarded, ...rest } = body as Record<string, unknown>;
+    const data = await callTool(auth, req, "relay_send_message", { ...rest, source: auth.programId });
+    const text = (data as any)?.content?.[0]?.text;
+    const parsed = text ? JSON.parse(text) : data;
+    restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
+  }),
   route("GET", "/v1/dead-letters", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "get_dead_letters", query);
