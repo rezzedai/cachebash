@@ -23,6 +23,7 @@ import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
+import { enrollHandler } from "../modules/enrollment.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -913,6 +914,12 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
   return async (req, res) => {
     const url = (req.url || "").split("?")[0];
     const method = req.method || "GET";
+
+    // Public endpoint: enrollment token exchange — no cb_ key yet (that's what it returns).
+    // ⛔ SARK G-4: code reviewed before exposure. ⛔ G-1: LB+Armor must be live first.
+    if (url === "/enroll") {
+      return await enrollHandler(req, res);
+    }
 
     // Public endpoint: OpenAPI spec (no auth required)
     if (method === "GET" && url === "/v1/openapi.json") {

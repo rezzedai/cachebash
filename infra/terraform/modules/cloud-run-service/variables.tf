@@ -77,3 +77,18 @@ variable "allow_unauthenticated" {
   type        = bool
   default     = false
 }
+
+variable "ingress" {
+  description = "Ingress traffic setting for Cloud Run service. Use INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER to restrict to LB-only traffic."
+  type        = string
+  default     = "INGRESS_TRAFFIC_ALL"
+
+  validation {
+    condition = contains([
+      "INGRESS_TRAFFIC_ALL",
+      "INGRESS_TRAFFIC_INTERNAL_ONLY",
+      "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER",
+    ], var.ingress)
+    error_message = "ingress must be one of: INGRESS_TRAFFIC_ALL, INGRESS_TRAFFIC_INTERNAL_ONLY, INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  }
+}

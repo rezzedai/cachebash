@@ -863,6 +863,19 @@ async function main() {
       return res.end(body);
     }
 
+    // Public: enrollment token exchange (no cb_ key yet — that's what it returns).
+    // restRouter (createRestRouter) handles /enroll at its top; the handler enforces
+    // POST + all 11 SARK G-4 controls. ⛔ G-4: reviewed before exposure. ⛔ G-1: LB+Armor live.
+    if (url === "/enroll") {
+      return restRouter(req, res);
+    }
+
+    // Liveness probe — Cloud Run startup probe + LB health check. Public, no auth,
+    // no sensitive data (topology-free). Must return 2xx before the auth gate.
+    if (url === "/health") {
+      return sendJson(res, 200, { status: "ok" });
+    }
+
     sendJson(res, 404, { error: "Not found" });
   });
 
