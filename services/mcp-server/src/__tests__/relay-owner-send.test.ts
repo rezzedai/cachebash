@@ -57,9 +57,11 @@ jest.mock("../config/compliance.js", () => ({
 jest.mock("../config/programs.js", () => ({
   isGroupTarget: jest.fn(() => false),
   PROGRAM_GROUPS: {},
+  isProgramRegistered: jest.fn(async () => true),
 }));
 jest.mock("../../src/modules/programRegistry.js", () => ({
   resolveTargetsAsync: jest.fn(async (_uid: string, target: string) => [target]),
+  resolveGroupAsync: jest.fn(async () => []),
 }));
 jest.mock("../types/relay-schemas.js", () => ({
   validatePayload: jest.fn(() => ({ valid: true })),

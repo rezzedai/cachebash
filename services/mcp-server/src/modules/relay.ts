@@ -8,8 +8,8 @@ import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middl
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
-import { isGroupTarget } from "../config/programs.js";
-import { resolveTargetsAsync, listGroupsAsync } from "./programRegistry.js";
+import { isGroupTarget, isProgramRegistered, PROGRAM_GROUPS } from "../config/programs.js";
+import { resolveTargetsAsync, resolveGroupAsync, listGroupsAsync } from "./programRegistry.js";
 import { validatePayload } from "../types/relay-schemas.js";
 import { emitEvent } from "./events.js";
 import { emitAnalyticsEvent } from "./analytics.js";
@@ -149,7 +149,33 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
 
   // Resolve target — may be a group (fan-out) or single program
-  const targets = await resolveTargetsAsync(auth.userId, args.target);
+  let targets = await resolveTargetsAsync(auth.userId, args.target);
+
+  // Validate target reachability — reject unknown/non-local targets (false-success guard).
+  // If the target wasn't resolved by the hardcoded group list or @role prefix, it came
+  // back as-is. Check Firestore-only groups first (e.g. grid-help), then program registry.
+  // Note: use rawTarget string to avoid isGroupTarget's type guard narrowing to never.
+  const rawTarget: string = args.target;
+  if (!(rawTarget in PROGRAM_GROUPS) && !rawTarget.startsWith("@") && targets.length === 1 && targets[0] === rawTarget) {
+    const dynamicGroupMembers = await resolveGroupAsync(auth.userId, rawTarget);
+    if (dynamicGroupMembers.length > 0) {
+      // Dynamic group (Firestore-only, e.g. "grid-help") — fan out to members
+      targets = dynamicGroupMembers;
+    } else {
+      // Not a group — must be a registered program or a known special relay target
+      const RELAY_SPECIAL_TARGETS = new Set(["user", "admin"]);
+      if (!RELAY_SPECIAL_TARGETS.has(rawTarget)) {
+        const registered = await isProgramRegistered(auth.userId, rawTarget);
+        if (!registered) {
+          return jsonResult({
+            success: false,
+            error: `Unknown relay target "${rawTarget}". Target must be a registered program, group, or role. Message not sent.`,
+          });
+        }
+      }
+    }
+  }
+
   const isMulticast = targets.length > 1;
   const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
 

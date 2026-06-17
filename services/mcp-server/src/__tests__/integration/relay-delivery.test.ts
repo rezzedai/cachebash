@@ -750,3 +750,134 @@ describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
     expect(mirror.created_via.tool).toBeDefined();
   });
 });
+
+/**
+ * Relay false-success guard (PR: basher/relay-false-success).
+ *
+ * relay_send_message must NOT silently accept unknown/non-local targets.
+ * Acceptance:
+ *   - Unknown target → explicit failure, no message ID minted.
+ *   - Valid program → still works.
+ *   - Valid hardcoded group → still works (multicast).
+ *   - Dynamic Firestore-only group → resolved to members (multicast).
+ */
+describe("Relay false-success guard", () => {
+  let db: admin.firestore.Firestore;
+  let userId: string;
+
+  beforeAll(() => {
+    db = getTestFirestore();
+    initializeFirebase();
+  });
+
+  beforeEach(async () => {
+    await clearFirestoreData();
+    const testUser = await seedTestUser("test-user-false-success");
+    userId = testUser.userId;
+  });
+
+  it("rejects unknown target with clear error — no message ID minted", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "hello",
+      source: "basher",
+      target: "nonexistent_xyz_program",
+      message_type: "STATUS",
+      idempotency_key: "false-success-unknown-1",
+    }) as never);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/unknown relay target/i);
+    expect(res.messageId).toBeUndefined();
+    expect(res.multicastId).toBeUndefined();
+
+    // No relay doc written
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    expect(relay.empty).toBe(true);
+  });
+
+  it("allows send to a registered program (SPECIAL_PROGRAMS: iso)", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "hello iso",
+      source: "basher",
+      target: "iso",
+      message_type: "STATUS",
+      idempotency_key: "false-success-iso-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.messageId).toBeDefined();
+  });
+
+  it("allows send to a registered program (REGISTERED_PROGRAMS: sark)", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "hello sark",
+      source: "basher",
+      target: "sark",
+      message_type: "STATUS",
+      idempotency_key: "false-success-sark-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.messageId).toBeDefined();
+  });
+
+  it("allows multicast to a hardcoded group (council)", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "iso"), {
+      message: "hello council",
+      source: "iso",
+      target: "council",
+      message_type: "STATUS",
+      idempotency_key: "false-success-council-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBeGreaterThan(1);
+    expect(res.multicastId).toBeDefined();
+  });
+
+  it("resolves and delivers to a Firestore-only dynamic group (grid-help)", async () => {
+    // Seed grid-help group membership in programs collection
+    await db.doc(`tenants/${userId}/programs/vector`).set({ programId: "vector", groups: ["grid-help"], active: true });
+    await db.doc(`tenants/${userId}/programs/tensor`).set({ programId: "tensor", groups: ["grid-help"], active: true });
+    await db.doc(`tenants/${userId}/programs/scalar`).set({ programId: "scalar", groups: ["grid-help"], active: true });
+
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "help request",
+      source: "basher",
+      target: "grid-help",
+      message_type: "STATUS",
+      idempotency_key: "false-success-gridhelp-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBe(3);
+    expect(res.targets).toEqual(expect.arrayContaining(["vector", "tensor", "scalar"]));
+
+    // Relay docs exist for each member
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    const relayTargets = relay.docs.map((d) => d.data().target);
+    expect(relayTargets).toContain("vector");
+    expect(relayTargets).toContain("tensor");
+    expect(relayTargets).toContain("scalar");
+  });
+
+  it("allows special relay targets: user, admin", async () => {
+    const resUser = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "hello user",
+      source: "basher",
+      target: "user",
+      message_type: "STATUS",
+      idempotency_key: "false-success-user-1",
+    }) as never);
+    expect(resUser.success).toBe(true);
+
+    const resAdmin = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "hello admin",
+      source: "basher",
+      target: "admin",
+      message_type: "STATUS",
+      idempotency_key: "false-success-admin-1",
+    }) as never);
+    expect(resAdmin.success).toBe(true);
+  });
+});
