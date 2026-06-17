@@ -881,3 +881,112 @@ describe("Relay false-success guard", () => {
     expect(resAdmin.success).toBe(true);
   });
 });
+
+/**
+ * Grid-help tenant-route + wake-on-arrival (PR: basher/grid-help-tenant-route).
+ *
+ * When a message targets "grid-help" and payload.tenant is set:
+ *   - Group members receive the message (existing group fanout).
+ *   - vector_<tenant> ALSO receives a relay doc (tenant-specific delivery).
+ *   - Tenant isolation: other vector_* programs do NOT see the message.
+ *   - message_type is irrelevant — group target is the discriminator.
+ *
+ * Wake-on-arrival is fire-and-forget; tested indirectly (no assertion on spawn).
+ */
+describe("Grid-help tenant-route", () => {
+  let db: admin.firestore.Firestore;
+  let userId: string;
+
+  beforeAll(() => {
+    db = getTestFirestore();
+    initializeFirebase();
+  });
+
+  beforeEach(async () => {
+    await clearFirestoreData();
+    const testUser = await seedTestUser("test-user-grid-help");
+    userId = testUser.userId;
+
+    // Seed grid-help group members and tenant owner
+    await db.doc(`tenants/${userId}/programs/vector`).set({ programId: "vector", groups: ["grid-help"], active: true });
+    await db.doc(`tenants/${userId}/programs/tensor`).set({ programId: "tensor", groups: ["grid-help"], active: true });
+    await db.doc(`tenants/${userId}/programs/scalar`).set({ programId: "scalar", groups: ["grid-help"], active: true });
+    await db.doc(`tenants/${userId}/programs/vector_cerebro`).set({ programId: "vector_cerebro", groups: [], active: true });
+  });
+
+  it("delivers to group members AND vector_<tenant> when payload.tenant is set", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "cerebro needs help",
+      source: "rezzed.agent",
+      target: "grid-help",
+      message_type: "STATUS",
+      payload: { tenant: "cerebro", taskId: "t-abc" },
+      idempotency_key: "grid-help-tenant-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBe(4); // vector, tensor, scalar + vector_cerebro
+
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    const relayTargets = relay.docs.map((d) => d.data().target);
+    expect(relayTargets).toContain("vector");
+    expect(relayTargets).toContain("tensor");
+    expect(relayTargets).toContain("scalar");
+    expect(relayTargets).toContain("vector_cerebro");
+  });
+
+  it("tenant isolation: other vector_* programs do not receive the message", async () => {
+    // Seed a different tenant owner that should NOT receive this message
+    await db.doc(`tenants/${userId}/programs/vector_other`).set({ programId: "vector_other", groups: [], active: true });
+
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "cerebro help request",
+      source: "rezzed.agent",
+      target: "grid-help",
+      message_type: "STATUS",
+      payload: { tenant: "cerebro", taskId: "t-def" },
+      idempotency_key: "grid-help-isolation-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    const relayTargets = relay.docs.map((d) => d.data().target);
+    expect(relayTargets).toContain("vector_cerebro");
+    expect(relayTargets).not.toContain("vector_other"); // tenant isolation
+  });
+
+  it("grid-help without payload.tenant fans out to group only", async () => {
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
+      message: "group-only message",
+      source: "basher",
+      target: "grid-help",
+      message_type: "STATUS",
+      idempotency_key: "grid-help-no-tenant-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    expect(res.recipients).toBe(3); // vector, tensor, scalar only
+
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    const relayTargets = relay.docs.map((d) => d.data().target);
+    expect(relayTargets).not.toContain("vector_cerebro");
+  });
+
+  it("message_type is irrelevant — tenant route triggers on group target only", async () => {
+    // DIRECTIVE type should also get tenant routing
+    const res = parse(await sendMessageHandler(mirrorAuth(userId, "iso"), {
+      message: "help directive",
+      source: "iso",
+      target: "grid-help",
+      message_type: "DIRECTIVE",
+      payload: { tenant: "cerebro" },
+      idempotency_key: "grid-help-msgtype-1",
+    }) as never);
+
+    expect(res.success).toBe(true);
+    const relay = await db.collection(`tenants/${userId}/relay`).get();
+    const relayTargets = relay.docs.map((d) => d.data().target);
+    expect(relayTargets).toContain("vector_cerebro");
+  });
+});
