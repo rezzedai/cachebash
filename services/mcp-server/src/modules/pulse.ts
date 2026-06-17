@@ -212,6 +212,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
   // W1.2.2: Derez gate — check pattern extraction before completion
+  let patternExtractionMissing = false;
   if (args.state === "complete" && complianceConfig.derezGate.requirePatternExtraction) {
     const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
     const sessionDoc = await sessionRef.get();
@@ -241,13 +242,9 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
           const message = `[W1.2.2] Session "${sessionId}" completing without pattern extraction. Program "${programId}" has not updated learnedPatterns since session start.`;
 
           if (complianceConfig.derezGate.mode === "strict") {
-            console.error(message);
-            return jsonResult({
-              success: false,
-              error: "Session cannot complete without pattern extraction. Update program_state.learnedPatterns first.",
-              sessionId,
-              programId,
-            });
+            // Still archive to free the budget slot; surface miss as warning flag
+            console.warn(message);
+            patternExtractionMissing = true;
           } else {
             // Lenient mode: log warning
             console.warn(message);
@@ -331,7 +328,12 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     success: true,
   });
 
-  return jsonResult({ success: true, sessionId, message: `Status updated: "${args.status}"` });
+  return jsonResult({
+    success: true,
+    sessionId,
+    message: `Status updated: "${args.status}"`,
+    ...(patternExtractionMissing && { patternExtractionMissing: true }),
+  });
 }
 
 /** Max concurrent sessions (hardcoded MVP — will move to config) */
