@@ -176,6 +176,27 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
   }
 
+  // Grid-help tenant routing: when a message targets the grid-help group and the
+  // sender supplies payload.tenant, also deliver to vector_<tenant> — the orchestrator
+  // that owns that tenant and acts on the help request. The group members (vector,
+  // tensor, scalar) always receive it too; the extra delivery is tenant-specific.
+  //
+  // Tenant isolation: only vector_<tenant> is added — other vector_* programs never
+  // see requests for a different tenant.
+  //
+  // message_type decision (item 3): routing is triggered by rawTarget === "grid-help",
+  // NOT by message_type. The bridge may use STATUS, ALERT, DIRECTIVE — all are treated
+  // equally. No dedicated help message_type is needed; the group target is the discriminator.
+  let tenantOwnerToWake: string | null = null;
+  if (rawTarget === "grid-help" && args.payload?.tenant) {
+    const tenantOwner = `vector_${String(args.payload.tenant)}`;
+    const isTenantOwnerRegistered = await isProgramRegistered(auth.userId, tenantOwner);
+    if (isTenantOwnerRegistered && !targets.includes(tenantOwner)) {
+      targets = [...targets, tenantOwner];
+      tenantOwnerToWake = tenantOwner;
+    }
+  }
+
   const isMulticast = targets.length > 1;
   const multicastId = isMulticast ? db.collection("_").doc().id : undefined;
 
@@ -253,6 +274,14 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     });
 
     await batch.commit();
+
+    // Wake tenant owner after delivery (fire-and-forget — don't block the send response)
+    if (tenantOwnerToWake) {
+      const tenantOwnerCapture = tenantOwnerToWake;
+      import("./wake/onDemandWake.js").then(({ wakeTarget }) =>
+        wakeTarget({ userId: auth.userId, target: tenantOwnerCapture, waitForAlive: false, callerSource: args.source })
+      ).catch((err) => console.warn(`[grid-help] wake ${tenantOwnerCapture}:`, err));
+    }
 
     // Record idempotency key for multicast
     if (args.idempotency_key) {
