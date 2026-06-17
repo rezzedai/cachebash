@@ -379,6 +379,12 @@ async function main() {
 
     // Discovery metadata (RFC 8414 + RFC 9728). startsWith covers the
     // path-suffixed variants (e.g. /.well-known/oauth-protected-resource/v1/mcp).
+    // Lite tenants SUPPRESS the entire OAuth/Route-A surface (PRD #897: Route A OAuth
+    // DEFERRED, Route B cb_ bearer COMMITTED). Without this guard, lite advertises an
+    // OAuth AS and Claude Desktop pivots to a broken/unintended OAuth flow. Bearer +
+    // /enroll are unaffected. Per SARK assessment (task k6zV3jstFLkr26gCD81j).
+    const IS_LITE = (process.env.CACHEBASH_PROFILE ?? "full") === "lite";
+    if (!IS_LITE) {
     if (req.method === "GET" && url?.startsWith("/.well-known/oauth-authorization-server")) {
       return handleOAuthMetadata(req, res);
     }
@@ -408,6 +414,7 @@ async function main() {
     if (url === "/authorize/callback" && req.method === "GET") {
       return handleOAuthCallback(req, res);
     }
+    } // end if (!IS_LITE): OAuth/Route-A surface is suppressed on lite tenants
 
     // Service account management (requires Bearer auth)
     if (url?.startsWith("/oauth/service-accounts")) {
@@ -818,7 +825,9 @@ async function main() {
         // the stdio proxy and never hit this branch. A client with a key but
         // an INVALID one still gets the plain header below — it must not be
         // lured into OAuth discovery.
-        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": oauthWwwAuth });
+        // LITE: OAuth is suppressed (Route A deferred), so never advertise discovery —
+        // otherwise Claude Desktop pivots to the suppressed OAuth flow instead of bearer.
+        res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": IS_LITE ? plainWwwAuth : oauthWwwAuth });
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
