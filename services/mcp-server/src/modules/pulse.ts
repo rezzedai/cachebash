@@ -336,6 +336,14 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
 
 /** Max concurrent sessions (hardcoded MVP — will move to config) */
 const MAX_SESSIONS = 16;
+/**
+ * A session silent longer than this is presumed dead/wedged and stops holding a
+ * budget slot (it is still archived:false and still surfaced as stale — it is
+ * reaped separately by the dispatcher). Decouples the budget from the reaper so
+ * dead sessions don't lock out new spawns. See grid decision
+ * vector-fleet-session-pruning. Generous so a long single op still counts.
+ */
+const BUDGET_STALE_MINUTES = 30;
 /** Context threshold for "above threshold" classification */
 const CONTEXT_THRESHOLD_PERCENT = 60;
 
@@ -413,18 +421,34 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
   });
 
   // === subscriptionBudget (both modes) ===
+  // Count only LIVE sessions against the budget: archived==false alone is
+  // liveness-blind, so dead/wedged sessions that never self-completed used to
+  // hold slots forever (observed 14/16 with working:0). A session whose
+  // heartbeat is stale beyond BUDGET_STALE_MINUTES no longer counts; it stays
+  // archived:false and reap-eligible. See grid decision vector-fleet-session-pruning.
   const byModelTier: Record<string, number> = {};
+  let activeSessionCount = 0;
   for (const doc of activeSessionsSnap.docs) {
-    const model = doc.data().model as string | undefined;
+    const sdata = doc.data();
+    const hbTime = sdata.lastHeartbeat?.toDate?.()?.getTime()
+      ?? sdata.lastUpdate?.toDate?.()?.getTime()
+      ?? 0;
+    const ageMinutes = hbTime ? (now - hbTime) / 60000 : Infinity;
+    if (ageMinutes > BUDGET_STALE_MINUTES) continue; // dead/wedged — excluded from budget, still reaped separately
+    activeSessionCount++;
+    const model = sdata.model as string | undefined;
     const tier = model?.includes("opus") ? "opus" : "sonnet";
     byModelTier[tier] = (byModelTier[tier] || 0) + 1;
   }
-  const activeSessionCount = activeSessionsSnap.size;
+  const staleSessionsExcluded = activeSessionsSnap.size - activeSessionCount;
   const subscriptionBudget = {
     activeSessionCount,
     byModelTier,
     maxSessions: MAX_SESSIONS,
     utilizationPercent: Math.round((activeSessionCount / MAX_SESSIONS) * 10000) / 100,
+    // archived==false but heartbeat-stale beyond BUDGET_STALE_MINUTES — not
+    // counted against the cap; pending reap. Surfaced for diagnosability.
+    staleSessionsExcluded,
   };
 
   // Summary mode: return early
