@@ -9,7 +9,8 @@ import type { AuthContext } from "../auth/authValidator.js";
 // Mock Firestore with chainable query methods
 const mockQuery = {
   where: jest.fn().mockReturnThis(),
-  get: jest.fn(() => Promise.resolve({ docs: [], size: 0 })),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get: jest.fn((): Promise<{ docs: any[]; size: number }> => Promise.resolve({ docs: [], size: 0 })),
 };
 
 jest.mock("../firebase/client.js", () => ({
@@ -73,6 +74,108 @@ describe("Metrics Endpoints - Capability Gates", () => {
       const data = JSON.parse(text);
       expect(data.success).toBe(false);
       expect(data.error).toContain("fleet.read");
+    });
+  });
+
+  describe("get_fleet_health — subscriptionBudget stale-session exclusion", () => {
+    beforeEach(() => {
+      mockQuery.get.mockReset();
+      mockQuery.get.mockResolvedValue({ docs: [], size: 0 });
+    });
+
+    it("excludes stale sessions from activeSessionCount and reports staleSessionsExcluded", async () => {
+      const now = Date.now();
+      // Fresh session: heartbeat 1 minute ago
+      const freshTs = { toDate: () => new Date(now - 1 * 60 * 1000) };
+      // Stale session: heartbeat 45 minutes ago (beyond 30min threshold)
+      const staleTs = { toDate: () => new Date(now - 45 * 60 * 1000) };
+
+      const freshDoc = {
+        id: "fresh-session",
+        data: () => ({
+          model: "claude-sonnet-4-6",
+          lastHeartbeat: freshTs,
+          lastUpdate: freshTs,
+        }),
+      };
+      const staleDoc = {
+        id: "stale-session",
+        data: () => ({
+          model: "claude-opus-4-6",
+          lastHeartbeat: staleTs,
+          lastUpdate: staleTs,
+        }),
+      };
+
+      // getFleetHealthHandler runs Promise.all([programs, pendingRelay, pendingTasks, sessions])
+      // mockQuery.get is called in that order — 4th call returns our session docs
+      mockQuery.get
+        .mockResolvedValueOnce({ docs: [], size: 0 })   // programs
+        .mockResolvedValueOnce({ docs: [], size: 0 })   // pending relay
+        .mockResolvedValueOnce({ docs: [], size: 0 })   // pending tasks
+        .mockResolvedValueOnce({ docs: [freshDoc, staleDoc], size: 2 }); // sessions
+
+      const result = await getFleetHealthHandler(adminAuth, { detail: "summary" });
+      const data = JSON.parse(result.content[0].text);
+
+      expect(data.success).toBe(true);
+      // Only the fresh session counts against the budget
+      expect(data.subscriptionBudget.activeSessionCount).toBe(1);
+      // Stale session is surfaced for diagnosability
+      expect(data.subscriptionBudget.staleSessionsExcluded).toBe(1);
+      // Model tier counts only fresh sessions
+      expect(data.subscriptionBudget.byModelTier.sonnet).toBe(1);
+      expect(data.subscriptionBudget.byModelTier.opus).toBeUndefined();
+      expect(data.subscriptionBudget.utilizationPercent).toBe(6.25); // 1/16
+    });
+
+    it("counts all sessions when all heartbeats are fresh", async () => {
+      const now = Date.now();
+      const freshTs = { toDate: () => new Date(now - 2 * 60 * 1000) }; // 2 min ago
+
+      const docs = [
+        { id: "s1", data: () => ({ model: "claude-opus-4-6", lastHeartbeat: freshTs, lastUpdate: freshTs }) },
+        { id: "s2", data: () => ({ model: "claude-sonnet-4-6", lastHeartbeat: freshTs, lastUpdate: freshTs }) },
+      ];
+
+      mockQuery.get
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: docs, size: 2 });
+
+      const result = await getFleetHealthHandler(adminAuth, { detail: "summary" });
+      const data = JSON.parse(result.content[0].text);
+
+      expect(data.subscriptionBudget.activeSessionCount).toBe(2);
+      expect(data.subscriptionBudget.staleSessionsExcluded).toBe(0);
+    });
+
+    it("falls back to lastUpdate when lastHeartbeat is absent", async () => {
+      const now = Date.now();
+      const recentUpdate = { toDate: () => new Date(now - 5 * 60 * 1000) }; // 5 min ago
+
+      const doc = {
+        id: "no-hb",
+        data: () => ({
+          model: "claude-sonnet-4-6",
+          lastHeartbeat: null,          // no heartbeat field
+          lastUpdate: recentUpdate,     // but lastUpdate is fresh
+        }),
+      };
+
+      mockQuery.get
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: [], size: 0 })
+        .mockResolvedValueOnce({ docs: [doc], size: 1 });
+
+      const result = await getFleetHealthHandler(adminAuth, { detail: "summary" });
+      const data = JSON.parse(result.content[0].text);
+
+      // Fresh lastUpdate should count even without lastHeartbeat
+      expect(data.subscriptionBudget.activeSessionCount).toBe(1);
+      expect(data.subscriptionBudget.staleSessionsExcluded).toBe(0);
     });
   });
 
