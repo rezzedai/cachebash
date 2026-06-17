@@ -1,5 +1,6 @@
 # Ignore everything except the MCP server
 app/
+apps/
 /firebase/
 .git/
 node_modules/
