@@ -31,6 +31,7 @@ import * as patternConsolidation from "./patternConsolidation.js";
 import * as schedule from "./schedule.js";
 import * as policy from "./policy.js";
 import * as webhook from "./webhook.js";
+import * as requestHelp from "./requestHelp.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -59,6 +60,8 @@ export const TOOL_HANDLERS: Record<string, Handler> = {
   ...(!IS_LITE ? clu.handlers : {}),
   ...(!IS_LITE ? patternConsolidation.handlers : {}),
   ...(!IS_LITE ? schedule.handlers : {}),
+  // cross-grid egress — lite profile only (tenant→home-grid help-drop)
+  ...(IS_LITE ? requestHelp.handlers : {}),
 };
 
 export const TOOL_DEFINITIONS = [
@@ -84,4 +87,6 @@ export const TOOL_DEFINITIONS = [
   ...(!IS_LITE ? clu.definitions : []),
   ...(!IS_LITE ? patternConsolidation.definitions : []),
   ...(!IS_LITE ? schedule.definitions : []),
+  // cross-grid egress — lite profile only (tenant→home-grid help-drop)
+  ...(IS_LITE ? requestHelp.definitions : []),
 ];
