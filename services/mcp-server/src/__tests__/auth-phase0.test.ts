@@ -297,6 +297,71 @@ describe('Auth Phase 0: Dual-mode auth middleware', () => {
     });
   });
 
+  describe('default mode (no AUTH_MODE env set) — BUG-006 regression guard', () => {
+    beforeEach(() => {
+      delete process.env.AUTH_MODE;
+    });
+
+    it('key A + X-Program-Id: B does NOT gain B capabilities (fail-secure default is key_identity)', async () => {
+      const keyDocRef = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            userId: testUserId,
+            programId: 'basher',
+            capabilities: ['dispatch.read', 'relay.write'],
+            active: true,
+            rateLimitTier: 'free',
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
+
+      mockDb.doc.mockImplementation((path: string) => {
+        if (path === `keyIndex/${keyHash}`) return keyDocRef;
+        // Program lookup must NOT be called in key_identity mode
+        throw new Error(`Unexpected Firestore lookup: ${path}`);
+      });
+
+      // basher key + X-Program-Id: iso — must NOT resolve to iso's capabilities
+      const result = await validateApiKey(testApiKey, 'iso');
+
+      expect(result).not.toBeNull();
+      expect(result?.programId).toBe('basher');
+      expect(result?.capabilities).not.toContain('*');
+      expect(result?.capabilities).toContain('dispatch.read');
+    });
+
+    it('X-Program-Id header is ignored for programId resolution', async () => {
+      const keyDocRef = {
+        get: jest.fn().mockResolvedValue({
+          exists: true,
+          data: () => ({
+            userId: testUserId,
+            programId: 'basher',
+            active: true,
+            rateLimitTier: 'free',
+          }),
+        }),
+        update: jest.fn().mockResolvedValue(undefined),
+      };
+
+      mockDb.doc.mockImplementation((path: string) => {
+        if (path === `keyIndex/${keyHash}`) return keyDocRef;
+        throw new Error(`Unexpected Firestore lookup: ${path}`);
+      });
+
+      mockGetDefaultCapabilities.mockReturnValue(['dispatch.read']);
+
+      const result = await validateApiKey(testApiKey, 'vector');
+
+      expect(result).not.toBeNull();
+      expect(result?.programId).toBe('basher');
+      expect(mockGetDefaultCapabilities).toHaveBeenCalledWith('basher');
+      expect(mockGetDefaultCapabilities).not.toHaveBeenCalledWith('vector');
+    });
+  });
+
   describe('validateAuth wrapper', () => {
     it('passes programIdOverride to validateApiKey for cb_ keys', async () => {
       const keyDocRef = {

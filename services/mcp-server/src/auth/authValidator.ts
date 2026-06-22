@@ -56,8 +56,8 @@ export async function validateApiKey(
     // The key's canonical identity — never overridable. Used for source enforcement (BUG-005).
     const keyProgramId: ValidProgramId = (data.programId || "legacy") as ValidProgramId;
 
-    // Phase 0: Auth Mode logic
-    const AUTH_MODE = process.env.AUTH_MODE || 'hybrid';
+    // Phase 0: Auth Mode logic — fail-secure default: key_identity ignores X-Program-Id for authz
+    const AUTH_MODE = process.env.AUTH_MODE || 'key_identity';
 
     // gsp_identity mode: reject cb_ keys without X-Program-Id header
     if (AUTH_MODE === 'gsp_identity' && apiKey.startsWith('cb_') && !programIdOverride) {
