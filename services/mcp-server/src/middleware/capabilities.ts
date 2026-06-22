@@ -101,8 +101,8 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   // Programs
   programs_list_programs: "programs.read",
   programs_update_program: "programs.write",
-  // Feedback
-  feedback_submit_feedback: "dispatch.write",
+  // Feedback — SARK ruling 2026-06-17: relay.write (tenant-isolated write, no dispatch side effects)
+  feedback_submit_feedback: "relay.write",
   // Admin
   admin_merge_accounts: "dispatch.write",
   // Usage (internal/hidden)

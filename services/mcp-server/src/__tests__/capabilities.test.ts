@@ -54,6 +54,30 @@ describe('Capability System', () => {
     });
   });
 
+  describe('SARK-ruling: feedback_submit_feedback capability gating', () => {
+    it('relay.write (without dispatch.write) permits feedback submission', () => {
+      const result = checkToolCapability('feedback_submit_feedback', ['relay.write']);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('dispatch.write alone no longer permits feedback submission', () => {
+      const result = checkToolCapability('feedback_submit_feedback', ['dispatch.write']);
+      expect(result.allowed).toBe(false);
+    });
+
+    it('key with neither relay.write nor dispatch.write is denied', () => {
+      const result = checkToolCapability('feedback_submit_feedback', ['dispatch.read', 'relay.read']);
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.required).toBe('relay.write');
+      }
+    });
+
+    it('feedback_submit_feedback maps to relay.write in TOOL_CAPABILITIES', () => {
+      expect(TOOL_CAPABILITIES['feedback_submit_feedback']).toBe('relay.write');
+    });
+  });
+
   describe('TOOL_CAPABILITIES coverage', () => {
     it('ADR-013: relay read tools stay mapped to relay.read (no new capability)', () => {
       expect(TOOL_CAPABILITIES['relay_query_message_history']).toBe('relay.read');
