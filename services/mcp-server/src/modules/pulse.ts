@@ -35,7 +35,10 @@ const UpdateSessionSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
   lastHeartbeat: z.boolean().optional(), // When true, also update heartbeat timestamp
-  contextBytes: z.number().min(0).max(100).optional(), // % remaining (legacy field name)
+  // contextBytes: % remaining (0–100). Legacy callers may send raw byte counts (>100) —
+  // those are accepted and silently discarded for contextUsedPct derivation so the heartbeat
+  // is never dropped over a range violation. New callers should use contextUsedPct directly.
+  contextBytes: z.number().min(0).optional(),
   contextUsedPct: z.number().min(0).max(100).optional(), // % used (canonical); alias for 100 - contextBytes
   handoffRequired: z.boolean().optional(),
 });
@@ -268,19 +271,26 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (args.projectName) updateData.projectName = args.projectName;
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
 
+  // contextBytes: store verbatim for legacy readers. Values >100 are raw byte counts (old contract) —
+  // accepted to keep the heartbeat alive, but not used for contextUsedPct derivation.
+  const contextBytesIsLegacyBytes = args.contextBytes !== undefined && args.contextBytes > 100;
   if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
   if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;
-  // Derive contextUsedPct: caller may supply it directly, or we compute from legacy contextBytes (% remaining).
+  // Derive contextUsedPct: caller may supply it directly, or we compute from contextBytes (% remaining).
+  // Skip derivation when contextBytes looks like a raw byte count (>100) to avoid negative/bogus pcts.
   const contextUsedPct = args.contextUsedPct !== undefined
     ? args.contextUsedPct
-    : (args.contextBytes !== undefined ? Math.round((100 - args.contextBytes) * 100) / 100 : undefined);
+    : (!contextBytesIsLegacyBytes && args.contextBytes !== undefined
+        ? Math.round((100 - args.contextBytes) * 100) / 100
+        : undefined);
   if (contextUsedPct !== undefined) updateData.contextUsedPct = contextUsedPct;
 
   await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
 
   // Story 2E: Append context utilization to contextHistory when contextBytes provided
-  if (args.contextBytes !== undefined) {
-    // contextBytes carries % remaining (0-100) — store verbatim, no byte-scaling.
+  if (args.contextBytes !== undefined && !contextBytesIsLegacyBytes) {
+    // Only append history when contextBytes is a valid % remaining (0-100).
+    // Legacy raw-byte callers are skipped — their value can't be meaningfully stored as pct.
     const contextEntry = {
       timestamp: new Date().toISOString(),
       contextBytes: args.contextBytes,
@@ -416,11 +426,14 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
       pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
       pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
       contextBytes: data.contextBytes ?? null,
-      // contextUsedPct: canonical field (% used, higher = fuller). Falls back to
-      // deriving from legacy contextBytes (% remaining) for records written before this deploy.
+      // contextUsedPct: canonical field (% used, higher = fuller). Falls back to deriving from
+      // legacy contextBytes (% remaining) only when contextBytes <= 100 — raw byte counts (>100)
+      // would produce negative/bogus pcts and poison avgContextPercent.
       contextUsedPct: data.contextUsedPct !== undefined
         ? data.contextUsedPct
-        : (data.contextBytes !== undefined ? Math.round((100 - Number(data.contextBytes)) * 100) / 100 : null),
+        : (data.contextBytes !== undefined && Number(data.contextBytes) <= 100
+            ? Math.round((100 - Number(data.contextBytes)) * 100) / 100
+            : null),
       handoffRequired: data.handoffRequired || false,
     };
   });
@@ -476,11 +489,14 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
   for (const doc of activeSessionsSnap.docs) {
     const data = doc.data();
     if (data.contextBytes !== undefined && data.contextBytes !== null) {
-      // contextBytes stores % remaining (0-100). contextUsedPct = 100 - contextBytes.
       const contextRemainingPct = Number(data.contextBytes);
+      // contextBytes stores % remaining (0-100). Only derive contextUsedPct via 100-contextBytes
+      // when the value is in-range; raw byte counts (>100) from legacy records must not produce
+      // negative or out-of-range pcts that poison avgContextPercent.
       const contextUsedPctVal = data.contextUsedPct !== undefined
         ? Number(data.contextUsedPct)
-        : Math.round((100 - contextRemainingPct) * 100) / 100;
+        : (contextRemainingPct <= 100 ? Math.round((100 - contextRemainingPct) * 100) / 100 : null);
+      if (contextUsedPctVal === null) continue; // skip legacy raw-byte records with no canonical pct
       contextSessions.push({
         sessionId: doc.id,
         programId: data.programId || null,
