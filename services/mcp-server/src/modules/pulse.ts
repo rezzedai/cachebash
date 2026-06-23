@@ -717,6 +717,12 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
     });
 
     const curRemaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
+    // currentContextUsedPct: prefer the stored canonical field; otherwise derive from contextBytes
+    // (% remaining) only when in-range (<=100). Legacy raw-byte records (>100) yield null, never a
+    // negative pct — same guard as the fleet_health derivation sites (F-2).
+    const curUsedPct = data.contextUsedPct !== undefined
+      ? Number(data.contextUsedPct)
+      : (curRemaining !== null && curRemaining <= 100 ? Math.round((100 - curRemaining) * 100) / 100 : null);
     return jsonResult({
       success: true,
       sessionId: args.sessionId,
@@ -724,7 +730,7 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
       count: filtered.length,
       contextHistory: filtered,
       currentContextBytes: curRemaining,
-      currentContextUsedPct: curRemaining !== null ? Math.round((100 - curRemaining) * 100) / 100 : null,
+      currentContextUsedPct: curUsedPct,
     });
   }
 
@@ -749,11 +755,15 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
 
     if (filtered.length > 0 || data.contextBytes !== undefined) {
       const remaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
+      // Same F-2 guard: prefer canonical contextUsedPct; derive from contextBytes only when in-range.
+      const usedPct = data.contextUsedPct !== undefined
+        ? Number(data.contextUsedPct)
+        : (remaining !== null && remaining <= 100 ? Math.round((100 - remaining) * 100) / 100 : null);
       sessionSummaries.push({
         sessionId: doc.id,
         programId: data.programId || null,
         currentContextBytes: remaining,
-        currentContextUsedPct: remaining !== null ? Math.round((100 - remaining) * 100) / 100 : null,
+        currentContextUsedPct: usedPct,
         historyCount: filtered.length,
         latestEntry: filtered.length > 0 ? filtered[filtered.length - 1] : null,
       });
