@@ -14,8 +14,6 @@ import { isProgramRegistered } from "./programRegistry.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 
-/** Approximate context window size in bytes (200KB) */
-const CONTEXT_WINDOW_BYTES = 200_000;
 /** Maximum context history entries per session (rolling window) */
 const MAX_CONTEXT_HISTORY = 1000;
 
@@ -37,7 +35,11 @@ const UpdateSessionSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   projectName: z.string().max(100).optional(),
   lastHeartbeat: z.boolean().optional(), // When true, also update heartbeat timestamp
+  // contextBytes: % remaining (0–100). Legacy callers may send raw byte counts (>100) —
+  // those are accepted and silently discarded for contextUsedPct derivation so the heartbeat
+  // is never dropped over a range violation. New callers should use contextUsedPct directly.
   contextBytes: z.number().min(0).optional(),
+  contextUsedPct: z.number().min(0).max(100).optional(), // % used (canonical); alias for 100 - contextBytes
   handoffRequired: z.boolean().optional(),
 });
 
@@ -266,18 +268,30 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (args.projectName) updateData.projectName = args.projectName;
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
 
+  // contextBytes: store verbatim for legacy readers. Values >100 are raw byte counts (old contract) —
+  // accepted to keep the heartbeat alive, but not used for contextUsedPct derivation.
+  const contextBytesIsLegacyBytes = args.contextBytes !== undefined && args.contextBytes > 100;
   if (args.contextBytes !== undefined) updateData.contextBytes = args.contextBytes;
   if (args.handoffRequired !== undefined) updateData.handoffRequired = args.handoffRequired;
+  // Derive contextUsedPct: caller may supply it directly, or we compute from contextBytes (% remaining).
+  // Skip derivation when contextBytes looks like a raw byte count (>100) to avoid negative/bogus pcts.
+  const contextUsedPct = args.contextUsedPct !== undefined
+    ? args.contextUsedPct
+    : (!contextBytesIsLegacyBytes && args.contextBytes !== undefined
+        ? Math.round((100 - args.contextBytes) * 100) / 100
+        : undefined);
+  if (contextUsedPct !== undefined) updateData.contextUsedPct = contextUsedPct;
 
   await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).set(updateData, { merge: true });
 
   // Story 2E: Append context utilization to contextHistory when contextBytes provided
-  if (args.contextBytes !== undefined) {
-    const contextPercent = Math.round((args.contextBytes / CONTEXT_WINDOW_BYTES) * 10000) / 100;
+  if (args.contextBytes !== undefined && !contextBytesIsLegacyBytes) {
+    // Only append history when contextBytes is a valid % remaining (0-100).
+    // Legacy raw-byte callers are skipped — their value can't be meaningfully stored as pct.
     const contextEntry = {
       timestamp: new Date().toISOString(),
       contextBytes: args.contextBytes,
-      contextPercent,
+      contextUsedPct: contextUsedPct ?? Math.round((100 - args.contextBytes) * 100) / 100,
     };
 
     const sessionRef = db.doc(`tenants/${auth.userId}/sessions/${sessionId}`);
@@ -316,6 +330,10 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
       programData.color = meta.color;
       programData.role = meta.role;
     }
+    // Mirror context fields so fleet_health can read contextUsedPct without querying sessions.
+    if (args.contextBytes !== undefined) programData.contextBytes = args.contextBytes;
+    if (contextUsedPct !== undefined) programData.contextUsedPct = contextUsedPct;
+    if (args.handoffRequired !== undefined) programData.handoffRequired = args.handoffRequired;
     await db.doc(`tenants/${auth.userId}/sessions/_meta/programs/${programId}`).set(programData, { merge: true });
   }
 
@@ -417,7 +435,15 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
       heartbeatAgeSeconds: heartbeatTime ? Math.round((now - heartbeatTime) / 1000) : null,
       pendingMessages: pendingMsgsByTarget.get(doc.id) || 0,
       pendingTasks: pendingTasksByTarget.get(doc.id) || 0,
-      contextBytes: data.contextBytes || null,
+      contextBytes: data.contextBytes ?? null,
+      // contextUsedPct: canonical field (% used, higher = fuller). Falls back to deriving from
+      // legacy contextBytes (% remaining) only when contextBytes <= 100 — raw byte counts (>100)
+      // would produce negative/bogus pcts and poison avgContextPercent.
+      contextUsedPct: data.contextUsedPct !== undefined
+        ? data.contextUsedPct
+        : (data.contextBytes !== undefined && Number(data.contextBytes) <= 100
+            ? Math.round((100 - Number(data.contextBytes)) * 100) / 100
+            : null),
       handoffRequired: data.handoffRequired || false,
     };
   });
@@ -482,27 +508,34 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
   const contextSessions: Array<{
     sessionId: string;
     programId: string | null;
-    contextPercent: number;
-    contextBytes: number;
+    contextBytes: number;       // % remaining (legacy field name)
+    contextUsedPct: number;     // % used (canonical; higher = fuller)
   }> = [];
 
   for (const doc of activeSessionsSnap.docs) {
     const data = doc.data();
-    if (data.contextBytes) {
-      const contextPercent = Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100;
+    if (data.contextBytes !== undefined && data.contextBytes !== null) {
+      const contextRemainingPct = Number(data.contextBytes);
+      // contextBytes stores % remaining (0-100). Only derive contextUsedPct via 100-contextBytes
+      // when the value is in-range; raw byte counts (>100) from legacy records must not produce
+      // negative or out-of-range pcts that poison avgContextPercent.
+      const contextUsedPctVal = data.contextUsedPct !== undefined
+        ? Number(data.contextUsedPct)
+        : (contextRemainingPct <= 100 ? Math.round((100 - contextRemainingPct) * 100) / 100 : null);
+      if (contextUsedPctVal === null) continue; // skip legacy raw-byte records with no canonical pct
       contextSessions.push({
         sessionId: doc.id,
         programId: data.programId || null,
-        contextPercent,
-        contextBytes: Number(data.contextBytes),
+        contextBytes: contextRemainingPct,
+        contextUsedPct: contextUsedPctVal,
       });
     }
   }
 
   const avgContextPercent = contextSessions.length > 0
-    ? Math.round(contextSessions.reduce((sum, s) => sum + s.contextPercent, 0) / contextSessions.length * 100) / 100
+    ? Math.round(contextSessions.reduce((sum, s) => sum + s.contextUsedPct, 0) / contextSessions.length * 100) / 100
     : 0;
-  const sessionsAboveThreshold = contextSessions.filter((s) => s.contextPercent > CONTEXT_THRESHOLD_PERCENT).length;
+  const sessionsAboveThreshold = contextSessions.filter((s) => s.contextUsedPct > CONTEXT_THRESHOLD_PERCENT).length;
 
   const contextHealth = {
     sessions: contextSessions,
@@ -709,16 +742,21 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
       return new Date(ts).getTime() >= start.getTime();
     });
 
+    const curRemaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
+    // currentContextUsedPct: prefer the stored canonical field; otherwise derive from contextBytes
+    // (% remaining) only when in-range (<=100). Legacy raw-byte records (>100) yield null, never a
+    // negative pct — same guard as the fleet_health derivation sites (F-2).
+    const curUsedPct = data.contextUsedPct !== undefined
+      ? Number(data.contextUsedPct)
+      : (curRemaining !== null && curRemaining <= 100 ? Math.round((100 - curRemaining) * 100) / 100 : null);
     return jsonResult({
       success: true,
       sessionId: args.sessionId,
       period: args.period,
       count: filtered.length,
       contextHistory: filtered,
-      currentContextBytes: data.contextBytes || null,
-      currentContextPercent: data.contextBytes
-        ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
-        : null,
+      currentContextBytes: curRemaining,
+      currentContextUsedPct: curUsedPct,
     });
   }
 
@@ -741,14 +779,17 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
       return new Date(ts).getTime() >= start.getTime();
     });
 
-    if (filtered.length > 0 || data.contextBytes) {
+    if (filtered.length > 0 || data.contextBytes !== undefined) {
+      const remaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
+      // Same F-2 guard: prefer canonical contextUsedPct; derive from contextBytes only when in-range.
+      const usedPct = data.contextUsedPct !== undefined
+        ? Number(data.contextUsedPct)
+        : (remaining !== null && remaining <= 100 ? Math.round((100 - remaining) * 100) / 100 : null);
       sessionSummaries.push({
         sessionId: doc.id,
         programId: data.programId || null,
-        currentContextBytes: data.contextBytes || null,
-        currentContextPercent: data.contextBytes
-          ? Math.round((Number(data.contextBytes) / CONTEXT_WINDOW_BYTES) * 10000) / 100
-          : null,
+        currentContextBytes: remaining,
+        currentContextUsedPct: usedPct,
         historyCount: filtered.length,
         latestEntry: filtered.length > 0 ? filtered[filtered.length - 1] : null,
       });

@@ -288,7 +288,8 @@ PATCH /v1/sessions/:id
 | `progress` | number (0–100) | No | — | Progress percentage |
 | `projectName` | string (max 100) | No | — | Project name |
 | `lastHeartbeat` | boolean | No | — | Also update heartbeat timestamp |
-| `contextBytes` | number | No | — | Context window usage in bytes |
+| `contextBytes` | number (0–100) | No | — | Context window **remaining** as a percentage (0–100). Legacy field — prefer `contextUsedPct` for new callers. |
+| `contextUsedPct` | number (0–100) | No | — | Context window **used** as a percentage (0–100, higher = fuller). Canonical field. |
 | `handoffRequired` | boolean | No | — | True when context exceeds rotation threshold |
 
 ### List Sessions

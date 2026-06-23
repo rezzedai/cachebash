@@ -295,5 +295,64 @@ describe("Context Utilization Recording Integration", () => {
       expect(filtered).toHaveLength(1);
       expect(filtered[0].contextBytes).toBe(90000);
     });
+
+    it("F-2 regression: currentContextUsedPct is null (never negative) for legacy raw-byte sessions", async () => {
+      // Mirrors the getContextUtilizationHandler derivation: prefer canonical contextUsedPct,
+      // else derive from contextBytes (% remaining) only when in-range (<=100). A legacy record
+      // storing a raw byte count (e.g. 85000) must yield null — NOT 100 - 85000 = -84900.
+      const deriveUsedPct = (data: { contextBytes?: number; contextUsedPct?: number }) => {
+        const remaining = data.contextBytes !== undefined ? Number(data.contextBytes) : null;
+        return data.contextUsedPct !== undefined
+          ? Number(data.contextUsedPct)
+          : (remaining !== null && remaining <= 100 ? Math.round((100 - remaining) * 100) / 100 : null);
+      };
+
+      // Single-session path: legacy raw-byte record
+      await db.doc(`tenants/${userId}/sessions/legacy-bytes-single`).set({
+        programId: "basher",
+        status: "active",
+        archived: false,
+        contextBytes: 85000, // legacy raw bytes, no contextUsedPct
+        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Valid pct record
+      await db.doc(`tenants/${userId}/sessions/pct-valid`).set({
+        programId: "alan",
+        status: "active",
+        archived: false,
+        contextBytes: 30, // 30% remaining -> 70% used
+        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Canonical contextUsedPct present, contextBytes also raw-byte (canonical wins)
+      await db.doc(`tenants/${userId}/sessions/canonical-wins`).set({
+        programId: "sark",
+        status: "active",
+        archived: false,
+        contextBytes: 90000,
+        contextUsedPct: 80,
+        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const legacy = (await db.doc(`tenants/${userId}/sessions/legacy-bytes-single`).get()).data()!;
+      const valid = (await db.doc(`tenants/${userId}/sessions/pct-valid`).get()).data()!;
+      const canonical = (await db.doc(`tenants/${userId}/sessions/canonical-wins`).get()).data()!;
+
+      expect(deriveUsedPct(legacy)).toBeNull();      // never -84900
+      expect(deriveUsedPct(valid)).toBe(70);
+      expect(deriveUsedPct(canonical)).toBe(80);     // canonical field wins over raw contextBytes
+
+      // Aggregate path: no derived pct may be negative
+      const snapshot = await db
+        .collection(`tenants/${userId}/sessions`)
+        .where("archived", "==", false)
+        .get();
+      for (const doc of snapshot.docs) {
+        const pct = deriveUsedPct(doc.data() as { contextBytes?: number; contextUsedPct?: number });
+        if (pct !== null) {
+          expect(pct).toBeGreaterThanOrEqual(0);
+          expect(pct).toBeLessThanOrEqual(100);
+        }
+      }
+    });
   });
 });

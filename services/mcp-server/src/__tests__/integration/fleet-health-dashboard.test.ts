@@ -183,9 +183,10 @@ describe("Fleet Health Dashboard Integration", () => {
 
   describe("Full Mode — contextHealth", () => {
     it("should aggregate context utilization across active sessions", async () => {
-      await seedSession("s1", { contextBytes: 100000 }); // 50%
-      await seedSession("s2", { contextBytes: 150000 }); // 75%
-      await seedSession("s3", { contextBytes: 50000 });  // 25%
+      // contextBytes = % remaining (0-100). contextUsedPct = 100 - contextBytes.
+      await seedSession("s1", { contextBytes: 50 }); // 50% remaining → 50% used
+      await seedSession("s2", { contextBytes: 25 }); // 25% remaining → 75% used
+      await seedSession("s3", { contextBytes: 75 }); // 75% remaining → 25% used
 
       const snap = await db
         .collection(`tenants/${userId}/sessions`)
@@ -194,30 +195,111 @@ describe("Fleet Health Dashboard Integration", () => {
 
       expect(snap.size).toBe(3);
 
-      // Compute context health
-      const contextSessions: Array<{ contextPercent: number }> = [];
+      // Compute context health using the new 0-100 pct contract (no byte-scaling).
+      const contextSessions: Array<{ contextUsedPct: number }> = [];
       for (const doc of snap.docs) {
         const data = doc.data();
-        if (data.contextBytes) {
-          const contextPercent = Math.round((Number(data.contextBytes) / 200000) * 10000) / 100;
-          contextSessions.push({ contextPercent });
+        if (data.contextBytes !== undefined && data.contextBytes !== null) {
+          const remaining = Number(data.contextBytes);
+          // Guard: only derive when value is a valid pct (<=100); raw byte counts must be skipped.
+          if (remaining <= 100) {
+            const contextUsedPct = data.contextUsedPct !== undefined
+              ? Number(data.contextUsedPct)
+              : Math.round((100 - remaining) * 100) / 100;
+            contextSessions.push({ contextUsedPct });
+          }
         }
       }
 
       expect(contextSessions.length).toBe(3);
 
       const avgContextPercent = Math.round(
-        contextSessions.reduce((sum, s) => sum + s.contextPercent, 0) / contextSessions.length * 100
+        contextSessions.reduce((sum, s) => sum + s.contextUsedPct, 0) / contextSessions.length * 100
       ) / 100;
-      expect(avgContextPercent).toBe(50);
+      expect(avgContextPercent).toBe(50); // (50+75+25)/3 = 50
 
-      const sessionsAboveThreshold = contextSessions.filter((s) => s.contextPercent > 60).length;
-      expect(sessionsAboveThreshold).toBe(1); // Only s2 (75%) is above 60%
+      const sessionsAboveThreshold = contextSessions.filter((s) => s.contextUsedPct > 60).length;
+      expect(sessionsAboveThreshold).toBe(1); // Only s2 (75% used) is above 60%
+    });
+
+    it("F-1 regression: out-of-range contextBytes (legacy raw bytes) must not poison fleet health", async () => {
+      // A legacy record with a raw byte count (e.g. 85000) stored in contextBytes.
+      // Without the guard, 100 - 85000 = -84900 → poisons avgContextPercent.
+      await seedSession("legacy-bytes", { contextBytes: 85000 }); // no contextUsedPct
+      await seedSession("normal", { contextBytes: 60 });           // 60% remaining → 40% used
+
+      const snap = await db
+        .collection(`tenants/${userId}/sessions`)
+        .where("archived", "==", false)
+        .get();
+
+      expect(snap.size).toBe(2);
+
+      const contextSessions: Array<{ contextUsedPct: number }> = [];
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (data.contextBytes !== undefined && data.contextBytes !== null) {
+          const remaining = Number(data.contextBytes);
+          if (remaining <= 100) {
+            const contextUsedPct = data.contextUsedPct !== undefined
+              ? Number(data.contextUsedPct)
+              : Math.round((100 - remaining) * 100) / 100;
+            contextSessions.push({ contextUsedPct });
+          }
+          // raw-byte records (>100) are silently skipped — no push
+        }
+      }
+
+      // Only the normal session contributes; legacy raw-byte session is excluded
+      expect(contextSessions.length).toBe(1);
+      expect(contextSessions[0].contextUsedPct).toBe(40);
+
+      // avgContextPercent must NOT be negative
+      const avg = contextSessions.reduce((sum, s) => sum + s.contextUsedPct, 0) / contextSessions.length;
+      expect(avg).toBeGreaterThanOrEqual(0);
+      expect(avg).toBeLessThanOrEqual(100);
+    });
+
+    it("F-2 regression: contextUsedPct derivation is never negative for any stored contextBytes", async () => {
+      // Seed a mix of valid pct and legacy byte records.
+      await seedSession("pct-valid", { contextBytes: 30 });    // 30% remaining → 70% used
+      await seedSession("bytes-legacy", { contextBytes: 150000 }); // legacy bytes → must be skipped
+      await seedSession("canonical", { contextBytes: 20 });    // 20% remaining → 80% used
+
+      const snap = await db
+        .collection(`tenants/${userId}/sessions`)
+        .where("archived", "==", false)
+        .get();
+
+      const contextSessions: Array<{ contextUsedPct: number }> = [];
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (data.contextBytes !== undefined && data.contextBytes !== null) {
+          const remaining = Number(data.contextBytes);
+          if (remaining <= 100) {
+            const pct = data.contextUsedPct !== undefined
+              ? Number(data.contextUsedPct)
+              : Math.round((100 - remaining) * 100) / 100;
+            contextSessions.push({ contextUsedPct: pct });
+          }
+        }
+      }
+
+      // Only pct-valid and canonical contribute; bytes-legacy is excluded
+      expect(contextSessions.length).toBe(2);
+      for (const s of contextSessions) {
+        expect(s.contextUsedPct).toBeGreaterThanOrEqual(0);
+        expect(s.contextUsedPct).toBeLessThanOrEqual(100);
+      }
+      const avg = Math.round(
+        contextSessions.reduce((sum, s) => sum + s.contextUsedPct, 0) / contextSessions.length * 100
+      ) / 100;
+      expect(avg).toBe(75); // (70 + 80) / 2 = 75
     });
 
     it("should exclude archived sessions from context health", async () => {
-      await seedSession("active", { contextBytes: 100000 });
-      await seedSession("archived", { contextBytes: 180000, archived: true });
+      await seedSession("active", { contextBytes: 50 });
+      await seedSession("archived", { contextBytes: 20, archived: true });
 
       const snap = await db
         .collection(`tenants/${userId}/sessions`)
