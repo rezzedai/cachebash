@@ -79,7 +79,19 @@ const ALL_TOOLS: ToolDef[] = [
   makeTool('pulse_pause_program'),
   makeTool('pulse_resume_program'),
   makeTool('pulse_write_fleet_snapshot'),
+  // webhooks (HARD-DENY — exfiltration risk; distinct from relay.*)
+  makeTool('webhook_register'),
+  makeTool('webhook_list'),
+  makeTool('webhook_delete'),
+  makeTool('webhook_get_deliveries'),
+  // metrics extended (HARD-DENY — wingman has no metrics.read)
+  makeTool('metrics_get_cost_forecast'),
+  makeTool('metrics_get_sla_compliance'),
+  makeTool('metrics_get_program_health'),
 ];
+
+// Module-level wingman view (used by multiple describe blocks below)
+const wingmanView = filterToolsByCapabilities(ALL_TOOLS, WINGMAN_CAPS);
 
 const HARD_DENY_TOOLS = [
   'keys_create_key', 'keys_revoke_key', 'keys_rotate_key', 'keys_list_keys',
@@ -90,6 +102,10 @@ const HARD_DENY_TOOLS = [
   'audit_get_audit', 'audit_get_ack_compliance',
   'state_update_program_state', 'state_store_memory',
   'pulse_pause_program', 'pulse_resume_program', 'pulse_write_fleet_snapshot',
+  // webhooks — exfiltration vector; must be absent even though wingman has relay.*
+  'webhook_register', 'webhook_list', 'webhook_delete', 'webhook_get_deliveries',
+  // metrics extended — wingman lacks metrics.read
+  'metrics_get_cost_forecast', 'metrics_get_sla_compliance', 'metrics_get_program_health',
 ];
 
 describe('Wingman tier — capability profile', () => {
@@ -221,13 +237,7 @@ describe('Wingman tier — execution gate (b)', () => {
 });
 
 describe('G-2 — tools/list topology hiding (a)', () => {
-  let wingmanView: ToolDef[];
-  let wingmanNames: Set<string>;
-
-  beforeAll(() => {
-    wingmanView = filterToolsByCapabilities(ALL_TOOLS, WINGMAN_CAPS);
-    wingmanNames = new Set(wingmanView.map(t => t.name));
-  });
+  const wingmanNames = new Set(wingmanView.map(t => t.name));
 
   it('adversarial diff: zero keys_* names in wingman tools/list', () => {
     const leaks = wingmanView.filter(t => t.name.startsWith('keys_'));
@@ -311,5 +321,115 @@ describe('G-2 — full/lite tiers unaffected (c)', () => {
   it('filterToolsByCapabilities with wildcard is identity', () => {
     const result = filterToolsByCapabilities(ALL_TOOLS, ['*']);
     expect(result).toBe(ALL_TOOLS); // same reference, no copy
+  });
+});
+
+describe('Coverage — all panel-flagged unmapped tools now have TOOL_CAPABILITIES entries', () => {
+  // These are the tools the 3-voter security panel confirmed were missing from TOOL_CAPABILITIES.
+  // Presence here proves the coverage gap is closed. The fail-closed change ensures any
+  // future unmapped tool is denied automatically, making this list self-protecting.
+  const PREVIOUSLY_UNMAPPED = [
+    // CRITICAL — exfiltration surface (webhook callbackUrl)
+    'webhook_register', 'webhook_list', 'webhook_delete', 'webhook_get_deliveries',
+    // SECONDARY — metrics data wingman should not read
+    'metrics_get_cost_forecast', 'metrics_get_sla_compliance', 'metrics_get_program_health',
+    // ADDITIONAL — enrichment/analytics tier
+    'clu_ingest', 'clu_analyze', 'clu_report',
+    'schedule_create', 'schedule_list', 'schedule_get', 'schedule_update', 'schedule_delete',
+    'pattern_consolidate', 'pattern_get_consolidated',
+    // Lite-profile egress
+    'request_help',
+  ];
+
+  it('every previously-unmapped tool now has a TOOL_CAPABILITIES entry', () => {
+    const stillMissing = PREVIOUSLY_UNMAPPED.filter(name => !(name in TOOL_CAPABILITIES));
+    expect(stillMissing).toHaveLength(0);
+  });
+});
+
+describe('Fail-closed — unmapped tools are denied for restricted callers', () => {
+  it('an unmapped tool is denied for a non-wildcard caller', () => {
+    const r = checkToolCapability('__hypothetical_future_tool__', WINGMAN_CAPS);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.required).toBe('unmapped');
+  });
+
+  it('an unmapped tool is allowed for a wildcard caller', () => {
+    const r = checkToolCapability('__hypothetical_future_tool__', ['*']);
+    expect(r.allowed).toBe(true);
+  });
+
+  it('filterToolsByCapabilities hides unmapped tools from restricted callers', () => {
+    const tools = [makeTool('__hypothetical_future_tool__')];
+    expect(filterToolsByCapabilities(tools, WINGMAN_CAPS)).toHaveLength(0);
+    expect(filterToolsByCapabilities(tools, ['*'])).toHaveLength(1);
+  });
+});
+
+describe('Webhook security — wingman cannot register exfiltration endpoints', () => {
+  it('HARD-DENY: webhook_register is denied at execution gate (requires webhooks.write)', () => {
+    const r = checkToolCapability('webhook_register', WINGMAN_CAPS);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.required).toBe('webhooks.write');
+  });
+
+  it('HARD-DENY: webhook_delete is denied at execution gate', () => {
+    const r = checkToolCapability('webhook_delete', WINGMAN_CAPS);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.required).toBe('webhooks.write');
+  });
+
+  it('HARD-DENY: webhook_list is denied at execution gate', () => {
+    const r = checkToolCapability('webhook_list', WINGMAN_CAPS);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.required).toBe('webhooks.read');
+  });
+
+  it('HARD-DENY: webhook_get_deliveries is denied at execution gate', () => {
+    const r = checkToolCapability('webhook_get_deliveries', WINGMAN_CAPS);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) expect(r.required).toBe('webhooks.read');
+  });
+
+  it('G-2: zero webhook_* names appear in wingman tools/list', () => {
+    const leaks = wingmanView.filter((t: ToolDef) => t.name.startsWith('webhook_'));
+    expect(leaks).toHaveLength(0);
+  });
+
+  it('webhook_register uses webhooks.write (NOT relay.write — segregated from relay.*)', () => {
+    expect(TOOL_CAPABILITIES['webhook_register']).toBe('webhooks.write');
+    expect(TOOL_CAPABILITIES['webhook_register']).not.toBe('relay.write');
+  });
+
+  it('builder tier CAN access webhooks (not denied by fail-closed change)', () => {
+    const builderCaps = DEFAULT_CAPABILITIES['builder'];
+    expect(checkToolCapability('webhook_register', builderCaps).allowed).toBe(true);
+    expect(checkToolCapability('webhook_list', builderCaps).allowed).toBe(true);
+  });
+
+  it('wingman has no webhooks.* capabilities', () => {
+    expect(WINGMAN_CAPS).not.toContain('webhooks.read');
+    expect(WINGMAN_CAPS).not.toContain('webhooks.write');
+  });
+});
+
+describe('Metrics security — wingman cannot read cost/SLA/health data', () => {
+  it('HARD-DENY: metrics_get_cost_forecast denied for wingman', () => {
+    expect(checkToolCapability('metrics_get_cost_forecast', WINGMAN_CAPS).allowed).toBe(false);
+  });
+
+  it('HARD-DENY: metrics_get_sla_compliance denied for wingman', () => {
+    expect(checkToolCapability('metrics_get_sla_compliance', WINGMAN_CAPS).allowed).toBe(false);
+  });
+
+  it('HARD-DENY: metrics_get_program_health denied for wingman', () => {
+    expect(checkToolCapability('metrics_get_program_health', WINGMAN_CAPS).allowed).toBe(false);
+  });
+
+  it('G-2: zero metrics_get_cost_forecast/sla/health appear in wingman tools/list', () => {
+    const leaks = wingmanView.filter((t: ToolDef) =>
+      ['metrics_get_cost_forecast', 'metrics_get_sla_compliance', 'metrics_get_program_health'].includes(t.name)
+    );
+    expect(leaks).toHaveLength(0);
   });
 });

@@ -42,8 +42,14 @@ describe('Capability System', () => {
       }
     });
 
-    it('allows unknown tools (fail-open)', () => {
+    it('denies unknown tools for restricted callers (fail-closed)', () => {
       const result = checkToolCapability('nonexistent_tool', ['dispatch.read']);
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) expect(result.required).toBe('unmapped');
+    });
+
+    it('allows unknown tools for wildcard callers (fail-closed exception)', () => {
+      const result = checkToolCapability('nonexistent_tool', ['*']);
       expect(result.allowed).toBe(true);
     });
 
@@ -89,7 +95,7 @@ describe('Capability System', () => {
       const validPrefixes = [
         'dispatch', 'relay', 'pulse', 'signal', 'dream',
         'sprint', 'keys', 'audit', 'state', 'metrics', 'fleet', 'trace', 'programs', 'gsp',
-        'admin', 'policy',
+        'admin', 'policy', 'webhooks',
       ];
       for (const [tool, cap] of Object.entries(TOOL_CAPABILITIES)) {
         if (cap === '*') continue;
