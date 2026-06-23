@@ -137,7 +137,17 @@ async function main() {
     { capabilities: { tools: {} } }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_DEFINITIONS }));
+  // G-2: Per-tier tools/list topology hiding.
+  // Wildcard holders (full Grid programs) see all tools.
+  // Restricted tiers (wingman, oauth, etc.) see only their entitled tools.
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const auth = transport.currentAuth as AuthContext | null;
+    if (!auth || auth.capabilities.includes("*")) {
+      return { tools: TOOL_DEFINITIONS };
+    }
+    const { filterToolsByCapabilities } = await import("./middleware/capabilities.js");
+    return { tools: filterToolsByCapabilities(TOOL_DEFINITIONS, auth.capabilities) };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;

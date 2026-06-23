@@ -12,6 +12,8 @@ export const REGISTERED_PROGRAMS = [
   'tester', 'admin-mirror', 'council', 'codex', 'strategist', 'vector',
   // Grid program identities (named programs)
   'basher', 'alan', 'sark', 'quorra', 'casp', 'ram', 'radia', 'castor', 'able', 'beck', 'scalar',
+  // Wingman tier — least-privilege identity for Operator's restricted agents (AGENT-A/AGENT-B/AGENT-C/AGENT-D)
+  'wingman',
   // CIS enrichment processors (ephemeral, dispatcher-spawned)
   'sonnet-enrichment', 'opus-enrichment',
 ] as const;
