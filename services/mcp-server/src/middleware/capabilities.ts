@@ -26,9 +26,15 @@ export type Capability =
   | "state.read" | "state.write"
   | "metrics.read"
   | "fleet.read"
+  // fleet.control: quarantine/unquarantine programs — hard-denied for wingman tier
+  | "fleet.control"
   | "trace.read"
   | "programs.read" | "programs.write"
-  | "gsp.read" | "gsp.write";
+  | "gsp.read" | "gsp.write"
+  // admin.write: account admin operations — hard-denied for wingman tier
+  | "admin.write"
+  // policy.read/write: Gate policy management — hard-denied for wingman tier
+  | "policy.read" | "policy.write";
 
 /** Map every tool name to its required capability */
 export const TOOL_CAPABILITIES: Record<string, Capability> = {
@@ -43,6 +49,19 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   dispatch_batch_claim_tasks: "dispatch.write",
   dispatch_batch_complete_tasks: "dispatch.write",
   dispatch_get_contention_metrics: "dispatch.read",
+  dispatch_dispatch: "dispatch.write",
+  dispatch_retry_task: "dispatch.write",
+  dispatch_abort_task: "dispatch.write",
+  dispatch_reassign_task: "dispatch.write",
+  dispatch_escalate_task: "dispatch.write",
+  dispatch_replay_task: "dispatch.write",
+  dispatch_approve_task: "dispatch.write",
+  dispatch_export_tasks: "dispatch.read",
+  dispatch_suggest_target: "dispatch.read",
+  dispatch_get_task_lineage: "dispatch.read",
+  // Fleet control — hard-deny for wingman tier
+  dispatch_quarantine_program: "fleet.control",
+  dispatch_unquarantine_program: "fleet.control",
   // Relay
   relay_send_message: "relay.write",
   relay_get_messages: "relay.read",
@@ -57,6 +76,8 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   pulse_list_sessions: "pulse.read",
   pulse_get_fleet_health: "fleet.read",
   pulse_get_fleet_timeline: "fleet.read",
+  pulse_pause_program: "pulse.write",
+  pulse_resume_program: "pulse.write",
   pulse_write_fleet_snapshot: "pulse.write",
   pulse_get_context_utilization: "pulse.read",
   // Signal
@@ -103,12 +124,19 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   programs_update_program: "programs.write",
   // Feedback — SARK ruling 2026-06-17: relay.write (tenant-isolated write, no dispatch side effects)
   feedback_submit_feedback: "relay.write",
-  // Admin
-  admin_merge_accounts: "dispatch.write",
+  // Admin — hard-deny for wingman tier
+  admin_merge_accounts: "admin.write",
   // Usage (internal/hidden)
   usage_get_usage: "metrics.read",
   usage_get_invoice: "metrics.read",
   usage_set_budget: "dispatch.write",
+  // Policy — hard-deny for wingman tier
+  policy_create: "policy.write",
+  policy_update: "policy.write",
+  policy_delete: "policy.write",
+  policy_get: "policy.read",
+  policy_list: "policy.read",
+  policy_check: "policy.read",
   // GSP (Grid State Protocol)
   gsp_read: "gsp.read",
   gsp_write: "gsp.write",
@@ -201,6 +229,20 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   vector: ["*"],
   bit: ["*"],
   dispatcher: ["*"],
+  // Wingman tier — least-privilege identity spine for Flynn's day-job agents.
+  // ALLOWED: dispatch + relay + signal (orchestrate + coordinate) + result reads.
+  // HARD-DENY (absent, not just execution-denied): keys.*, admin.write, fleet.control,
+  // policy.*, gsp.write (governance resolution), fleet.read (fleet control reads),
+  // audit.*, state.write, programs.write. A wingman key can dispatch work,
+  // coordinate, and read results — nothing that touches keys, admin, fleet, or policy.
+  wingman: [
+    "dispatch.read", "dispatch.write",
+    "relay.read", "relay.write",
+    "signal.read", "signal.write",
+    "state.read",
+    "pulse.read",
+    "programs.read",
+  ],
   // External users — restricted, no admin/audit/keys/state-write
   default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "signal.read", "signal.write",
@@ -235,6 +277,24 @@ export function checkToolCapability(
     return { allowed: true };
   }
   return { allowed: false, required, held: capabilities };
+}
+
+/**
+ * G-2: Filter tool definitions to only those the caller's capabilities entitle them to see.
+ * Tools in TOOL_CAPABILITIES are filtered by their required capability.
+ * Tools not mapped in TOOL_CAPABILITIES are included (fail-open, consistent with execution).
+ * Wildcard ["*"] holders see all tools unfiltered.
+ */
+export function filterToolsByCapabilities<T extends { name: string }>(
+  toolDefs: T[],
+  capabilities: string[]
+): T[] {
+  if (capabilities.includes("*")) return toolDefs;
+  return toolDefs.filter(tool => {
+    const required = TOOL_CAPABILITIES[tool.name];
+    if (!required) return true; // unknown tool — fail-open (matches execution behaviour)
+    return capabilities.includes(required);
+  });
 }
 
 /**
