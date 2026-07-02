@@ -24,6 +24,8 @@ import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall, queryTracesHandler } from "../modules/trace.js";
 import { getSprintHandler } from "../modules/sprint.js";
 import { ISO_TOOL_DEFINITIONS } from "./toolDefinitions.js";
+import { resolveToolAlias } from "../tools/tool-aliases.js";
+import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
 
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
   dispatch_get_tasks: getTasksHandler,
@@ -135,6 +137,20 @@ export async function createIsoServer(): Promise<{
     try {
       const result = await handler(authContext, args);
       const durationMs = Date.now() - startTime;
+
+      // Usage counters (fire-and-forget) — mirrors index.ts's main /v1/mcp handler.
+      // canonicalName because the ISO registry already keys tools by canonical
+      // name (e.g. "dispatch_create_task"), unlike the flat aliases index.ts checks.
+      const canonicalName = resolveToolAlias(name);
+      const bumpUsage = (field: Parameters<typeof incrementUsage>[1]) => {
+        incrementUsage(authContext.userId, field);
+        if (authContext.seatId) incrementSeatUsage(authContext.userId, authContext.seatId, field);
+      };
+      bumpUsage("total_tool_calls");
+      if (canonicalName === "dispatch_create_task") bumpUsage("tasks_created");
+      if (canonicalName === "relay_send_message") bumpUsage("messages_sent");
+      if (canonicalName === "pulse_create_session") bumpUsage("sessions_started");
+
       logToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, durationMs, true);
       traceToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, args,
         JSON.stringify(result).substring(0, 500), durationMs, true);
