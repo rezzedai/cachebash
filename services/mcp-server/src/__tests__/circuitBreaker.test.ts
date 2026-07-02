@@ -103,6 +103,13 @@ describe("isMutatingTool", () => {
     expect(isMutatingTool("state_get_program_state")).toBe(false);
   });
 
+  it("classifies fleet.control tools (quarantine/unquarantine) as mutating", () => {
+    // fleet.control is a non-.write capability but writes program state, so the
+    // breaker (kill switch + fail-closed) must cover it. SARK WS-3 final panel.
+    expect(isMutatingTool("dispatch_quarantine_program")).toBe(true);
+    expect(isMutatingTool("dispatch_unquarantine_program")).toBe(true);
+  });
+
   it("resolves legacy flat aliases before classifying", () => {
     expect(isMutatingTool("create_task")).toBe(true); // alias for dispatch_create_task
     expect(isMutatingTool("get_tasks")).toBe(false); // alias for dispatch_get_tasks

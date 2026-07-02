@@ -57,11 +57,24 @@ export type BreakerDecision =
   | { allowed: true }
   | { allowed: false; code: BreakerCode; message: string; retryAfterMs: number };
 
-/** A tool is "mutating" when its required capability is a `*.write` grant. */
+/**
+ * Capabilities that grant a mutating operation but are NOT suffixed `.write`.
+ * These must still be breaker-gated so the kill switch and fail-closed
+ * invariants cover EVERY mutation. `fleet.control` gates
+ * dispatch_quarantine_program / dispatch_unquarantine_program, both of which
+ * write program state in a Firestore transaction. (SARK WS-3 final panel.)
+ */
+const NON_WRITE_MUTATING_CAPABILITIES = new Set(["fleet.control"]);
+
+/**
+ * A tool is "mutating" when its required capability writes state — normally a
+ * `*.write` grant, plus the explicit non-`.write` mutating capabilities above.
+ */
 export function isMutatingTool(toolName: string): boolean {
   const canonical = resolveToolAlias(toolName);
   const required = TOOL_CAPABILITIES[canonical];
-  return !!required && required.endsWith(".write");
+  if (!required) return false;
+  return required.endsWith(".write") || NON_WRITE_MUTATING_CAPABILITIES.has(required);
 }
 
 // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---
