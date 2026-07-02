@@ -110,6 +110,12 @@ describe("isMutatingTool", () => {
     expect(isMutatingTool("dispatch_unquarantine_program")).toBe(true);
   });
 
+  it("classifies metrics_log_rate_limit_event as mutating (writes despite metrics.read cap)", () => {
+    // Gated at metrics.read for read-tier access but appends a Firestore
+    // rate_limit_events doc — must be breaker-covered. SARK WS-3 final panel.
+    expect(isMutatingTool("metrics_log_rate_limit_event")).toBe(true);
+  });
+
   it("resolves legacy flat aliases before classifying", () => {
     expect(isMutatingTool("create_task")).toBe(true); // alias for dispatch_create_task
     expect(isMutatingTool("get_tasks")).toBe(false); // alias for dispatch_get_tasks

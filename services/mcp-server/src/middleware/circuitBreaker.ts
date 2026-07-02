@@ -67,11 +67,22 @@ export type BreakerDecision =
 const NON_WRITE_MUTATING_CAPABILITIES = new Set(["fleet.control"]);
 
 /**
- * A tool is "mutating" when its required capability writes state — normally a
- * `*.write` grant, plus the explicit non-`.write` mutating capabilities above.
+ * Tools that write state but whose required capability does not reflect it, so
+ * capability-based classification alone would miss them. `metrics_log_rate_limit_event`
+ * is gated at `metrics.read` (read-tier access) yet appends a Firestore
+ * `rate_limit_events` doc — breaker-gate it by name so the ceiling + kill switch
+ * cover the write WITHOUT changing the capability required to call it.
+ * (SARK WS-3 final panel.)
+ */
+const EXPLICITLY_MUTATING_TOOLS = new Set(["metrics_log_rate_limit_event"]);
+
+/**
+ * A tool is "mutating" when it writes state — normally a `*.write` grant, plus
+ * the explicit non-`.write` mutating capabilities and the by-name write tools above.
  */
 export function isMutatingTool(toolName: string): boolean {
   const canonical = resolveToolAlias(toolName);
+  if (EXPLICITLY_MUTATING_TOOLS.has(canonical)) return true;
   const required = TOOL_CAPABILITIES[canonical];
   if (!required) return false;
   return required.endsWith(".write") || NON_WRITE_MUTATING_CAPABILITIES.has(required);
