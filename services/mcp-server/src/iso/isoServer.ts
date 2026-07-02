@@ -19,6 +19,7 @@ import { getAuditHandler } from "../modules/audit.js";
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "../modules/metrics.js";
 import { checkRateLimit, getRateLimitResetIn } from "../middleware/rateLimiter.js";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
+import { checkCircuitBreaker } from "../middleware/circuitBreaker.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall, queryTracesHandler } from "../modules/trace.js";
 import { getSprintHandler } from "../modules/sprint.js";
@@ -85,6 +86,40 @@ export async function createIsoServer(): Promise<{
       const resetIn = Math.ceil(getRateLimitResetIn(authContext.userId, name) / 1000);
       return {
         content: [{ type: "text", text: `Rate limit exceeded for ${name}. Try again in ${resetIn} seconds.` }],
+        isError: true,
+      };
+    }
+
+    // Capability gate — SARK re-panel: this endpoint dispatched straight to
+    // ISO_TOOL_HANDLERS with no capability check, so any valid Bearer key
+    // reached mutating tools (relay_send_message, dispatch_create_task, etc.)
+    // regardless of what the key was scoped to. Mirrors the gate in index.ts's
+    // main /v1/mcp CallToolRequestSchema handler. Always uses authContext.capabilities
+    // from the validated key — never anything derived from X-Program-Id.
+    const { checkToolCapability } = await import("../middleware/capabilities.js");
+    const capCheck = checkToolCapability(name, authContext.capabilities);
+    if (!capCheck.allowed) {
+      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      return {
+        content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${authContext.capabilities.join(", ")}]` }],
+        isError: true,
+      };
+    }
+
+    // WS-3: Boundary circuit breaker — server-measured mutation ceilings, fail-closed.
+    // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
+    const breakerResult = await checkCircuitBreaker(authContext, name);
+    if (!breakerResult.allowed) {
+      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            error: breakerResult.code,
+            message: breakerResult.message,
+            retryAfterMs: breakerResult.retryAfterMs,
+          }),
+        }],
         isError: true,
       };
     }

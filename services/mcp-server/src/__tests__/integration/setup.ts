@@ -88,6 +88,18 @@ export async function seedTestUser(userId: string): Promise<{
     revoked: false,
   });
 
+  // WS-3: the boundary circuit breaker (middleware/circuitBreaker.ts) fails
+  // closed on mutations for any tenant without a ceilings doc. Seed a
+  // generous (non-restrictive) one here so existing suites that exercise
+  // real mutating tool calls aren't rate-limited by test infra — this is
+  // NOT a recommended production value, see DEFAULT_CEILINGS for that.
+  await db.doc(`tenants/${userId}/_meta/ceilings`).set({
+    perKeyLimit: 10_000,
+    orgLimit: 50_000,
+    windowMs: 60_000,
+    paused: false,
+  });
+
   return {
     userId,
     apiKeyHash,

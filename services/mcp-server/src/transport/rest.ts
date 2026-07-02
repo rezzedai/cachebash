@@ -12,12 +12,12 @@ import { traceToolCall } from "../modules/trace.js";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
-import { dreamPeekHandler, dreamActivateHandler } from "../modules/dream.js";
-import { gspListNamespacesHandler, gspResolveHandler } from "../modules/gsp.js";
-import { sendMessageHandler } from "../modules/relay.js";
+import { dreamPeekHandler } from "../modules/dream.js";
+import { gspListNamespacesHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
+import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
 import { incrementUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
@@ -47,6 +47,17 @@ class PricingError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PricingError";
+  }
+}
+
+class BreakerError extends Error {
+  code: BreakerCode;
+  retryAfterMs: number;
+  constructor(message: string, code: BreakerCode, retryAfterMs: number) {
+    super(message);
+    this.name = "BreakerError";
+    this.code = code;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -189,6 +200,17 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
     );
   }
 
+  // WS-3: Boundary circuit breaker — server-measured mutation ceilings, fail-closed.
+  // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
+  const breakerResult = await checkCircuitBreaker(auth, toolName);
+  if (!breakerResult.allowed) {
+    createAuditLogger(generateCorrelationId(), auth.userId).error(
+      toolName, `${breakerResult.code}: ${breakerResult.message}`,
+      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+    );
+    throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
+  }
+
   let complianceWarning: string | undefined;
   const mcpSessionId = req.headers["mcp-session-id"] as string | undefined;
   const complianceResult = await checkSessionCompliance(auth, toolName, (args || {}) as Record<string, unknown>, {
@@ -259,6 +281,35 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
       "", Date.now() - start, false, err instanceof Error ? err.message : String(err));
     audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
     throw err;
+  }
+}
+
+/**
+ * Capability + circuit-breaker gate for REST routes whose write logic runs
+ * outside callTool() — either because there's no corresponding MCP tool
+ * handler (mark_read) or because the route needs custom pre/post handling
+ * around the handler call. Throws the same typed errors callTool() throws
+ * (a plain capability Error, or BreakerError) so the top-level dispatcher's
+ * existing instanceof handling produces the same 403/429/503 responses.
+ * Does NOT rate-limit or run compliance/pricing — callers that need those
+ * should route through callTool() instead (the preferred path).
+ */
+async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void> {
+  const { checkToolCapability } = await import("../middleware/capabilities.js");
+  const capCheck = checkToolCapability(toolName, auth.capabilities);
+  if (!capCheck.allowed) {
+    throw new Error(
+      `Insufficient capability: ${toolName} requires "${capCheck.required}" but key has [${capCheck.held.join(", ")}]`
+    );
+  }
+
+  const breakerResult = await checkCircuitBreaker(auth, toolName);
+  if (!breakerResult.allowed) {
+    createAuditLogger(generateCorrelationId(), auth.userId).error(
+      toolName, `${breakerResult.code}: ${breakerResult.message}`,
+      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+    );
+    throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }
 }
 
@@ -376,6 +427,7 @@ const routes: Route[] = [
     restResponse(res, true, { messages, count: messages.length });
   }),
   route("POST", "/v1/messages/mark_read", async (auth, req, res) => {
+    await enforceBreaker(auth, "relay_mark_read");
     const body = await readBody(req);
     const messageIds = body.messageIds as string[];
     if (!Array.isArray(messageIds) || messageIds.length === 0) {
@@ -424,11 +476,15 @@ const routes: Route[] = [
     const body = await readBody(req);
     const source = auth.keyProgramId ?? auth.programId;
     try {
-      const result = await sendMessageHandler(auth, { ...body, source });
-      const text = result?.content?.[0]?.text;
-      const parsed = text ? JSON.parse(text) : result;
+      const parsed = await callTool(auth, req, "relay_send_message", { ...body, source }) as { success?: boolean };
       restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
     } catch (err) {
+      // Rate limit / compliance / pricing / breaker denials carry their own typed
+      // status+headers handling in the top-level route dispatcher — let those bubble.
+      if (err instanceof ComplianceError || err instanceof PricingError || err instanceof BreakerError ||
+          (err instanceof Error && (err as any).rateLimitResult)) {
+        throw err;
+      }
       if (err instanceof Error && err.message.includes("Source mismatch")) {
         sendJson(res, 403, { success: false, error: "SOURCE_MISMATCH", message: err.message });
       } else {
@@ -651,9 +707,8 @@ const routes: Route[] = [
     restResponse(res, true, text ? JSON.parse(text) : result);
   }),
   route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
-    const result = await dreamActivateHandler(auth, { dreamId: p.id });
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    const result = await callTool(auth, req, "dream_activate", { dreamId: p.id });
+    restResponse(res, true, result);
   }),
 
 
@@ -720,9 +775,7 @@ const routes: Route[] = [
   // GSP Resolve — approve, reject, or withdraw a proposal
   route("POST", "/v1/gsp/proposals/:id/resolve", async (auth, req, res, p) => {
     const body = await readBody(req);
-    const result = await gspResolveHandler(auth, { proposalId: p.id, ...body });
-    const text = result?.content?.[0]?.text;
-    const parsed = text ? JSON.parse(text) : result;
+    const parsed = await callTool(auth, req, "gsp_resolve", { proposalId: p.id, ...body }) as { success?: boolean };
     restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 200 : 400);
   }),
 
@@ -807,9 +860,8 @@ const routes: Route[] = [
   }),
   route("POST", "/v1/dreams/activate", async (auth, req, res) => {
     const body = await readBody(req);
-    const result = await dreamActivateHandler(auth, body);
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    const result = await callTool(auth, req, "dream_activate", body);
+    restResponse(res, true, result);
   }),
 
   // Traces
@@ -998,6 +1050,14 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             code: "PRICING_LIMIT_REACHED",
             message: err.message,
           }, 402);
+        }
+        if (err instanceof BreakerError) {
+          res.setHeader("Retry-After", String(Math.ceil(err.retryAfterMs / 1000)));
+          const status = err.code === "CEILING_ORG_PAUSED" || err.code === "CEILING_CONFIG_UNAVAILABLE" ? 503 : 429;
+          return restResponse(res, false, {
+            code: err.code,
+            message: err.message,
+          }, status);
         }
         return restResponse(res, false, {
           code: "INTERNAL_ERROR",
