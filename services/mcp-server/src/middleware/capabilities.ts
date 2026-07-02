@@ -72,6 +72,10 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   relay_get_sent_messages: "relay.read",
   relay_query_message_history: "relay.read",
   relay_send_directive: "relay.write",
+  // REST-only: POST /v1/messages/mark_read mutates relay message read-state
+  // directly (no MCP tool handler) — mapped here purely for capability +
+  // circuit-breaker gating via enforceBreaker() in rest.ts.
+  relay_mark_read: "relay.write",
   // Pulse
   pulse_create_session: "pulse.write",
   pulse_update_session: "pulse.write",

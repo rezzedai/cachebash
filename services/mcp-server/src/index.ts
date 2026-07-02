@@ -30,6 +30,7 @@ import { detectStaleSessions } from "./modules/stale-session-detector.js";
 import { executeSchedulesForUser } from "./modules/schedule-executor.js";
 import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
+import { checkCircuitBreaker } from "./middleware/circuitBreaker.js";
 import { incrementUsage } from "./middleware/usage.js";
 import { handleOAuthMetadata, handleOAuthProtectedResource } from "./oauth/metadata.js";
 import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
@@ -190,6 +191,24 @@ async function main() {
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
+    }
+
+    // WS-3: Boundary circuit breaker — server-measured mutation ceilings, fail-closed.
+    // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
+    const breakerResult = await checkCircuitBreaker(auth, name);
+    if (!breakerResult.allowed) {
+      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            error: breakerResult.code,
+            message: breakerResult.message,
+            retryAfterMs: breakerResult.retryAfterMs,
+          }),
+        }],
+        isError: true,
+      };
     }
 
     // OAuth scope enforcement — only applies to OAuth tokens

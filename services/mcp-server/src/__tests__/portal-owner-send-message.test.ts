@@ -96,7 +96,10 @@ jest.mock("../auth/authValidator.js", () => ({
   validateAuth: jest.fn(),
 }));
 jest.mock("../tools.js", () => ({
-  TOOL_HANDLERS: {},
+  // WS-3: the route now calls callTool(auth, req, "relay_send_message", ...)
+  // instead of invoking sendMessageHandler directly, so TOOL_HANDLERS must
+  // resolve it to the same (real, unmocked) handler used elsewhere in this file.
+  TOOL_HANDLERS: { relay_send_message: require("../modules/relay").sendMessageHandler },
   TOOL_DEFINITIONS: [],
 }));
 jest.mock("../modules/ledger.js", () => ({
@@ -139,6 +142,12 @@ jest.mock("../modules/dream.js", () => ({
 jest.mock("../modules/gsp.js", () => ({
   gspListNamespacesHandler: jest.fn(),
   gspResolveHandler: jest.fn(),
+}));
+// WS-3: /v1/relay/messages now routes through callTool(), which calls the
+// breaker. Default to allowed so tests unrelated to WS-3 are unaffected;
+// the breaker-enforcement tests below override this per-call.
+jest.mock("../middleware/circuitBreaker.js", () => ({
+  checkCircuitBreaker: jest.fn(async () => ({ allowed: true })),
 }));
 
 // --- Auth fixtures ---
@@ -259,6 +268,7 @@ describe("POST /v1/relay/messages — route-level guards (HTTP)", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    capturedRelayDoc = {};
     // Restore default verifySource mock
     const { verifySource } = require("../middleware/gate.js");
     verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.programId);
@@ -321,5 +331,39 @@ describe("POST /v1/relay/messages — route-level guards (HTTP)", () => {
     const result = await makeRequest(ownerAuth());
     expect(result.status).toBe(201);
     expect(capturedRelayDoc.source).toBe("flynn");
+  });
+
+  // WS-3 SARK 2-KILL fix: this route used to call sendMessageHandler directly,
+  // bypassing callTool() and therefore the boundary circuit breaker entirely.
+  // It now goes through callTool(auth, req, "relay_send_message", ...), so a
+  // breaker denial must surface as the same typed 429/503 the other routes get.
+  it("(e) breaker denial (ceiling exceeded) maps to 429 with the typed code, not 500", async () => {
+    const { checkCircuitBreaker } = require("../middleware/circuitBreaker.js");
+    checkCircuitBreaker.mockResolvedValueOnce({
+      allowed: false,
+      code: "CEILING_KEY_EXCEEDED",
+      message: "Per-key mutation ceiling (30 per 60000ms) exceeded.",
+      retryAfterMs: 60_000,
+    });
+
+    const result = await makeRequest(ownerAuth());
+    expect(result.status).toBe(429);
+    expect((result.data as any).error.code).toBe("CEILING_KEY_EXCEEDED");
+    expect(capturedRelayDoc).toEqual({}); // handler must never have run
+  });
+
+  it("(f) breaker fail-closed (no ceilings doc) maps to 503, not 500", async () => {
+    const { checkCircuitBreaker } = require("../middleware/circuitBreaker.js");
+    checkCircuitBreaker.mockResolvedValueOnce({
+      allowed: false,
+      code: "CEILING_CONFIG_UNAVAILABLE",
+      message: "Ceiling configuration missing or unreadable for tenant; mutations deny by default (fail-closed).",
+      retryAfterMs: 60_000,
+    });
+
+    const result = await makeRequest(ownerAuth());
+    expect(result.status).toBe(503);
+    expect((result.data as any).error.code).toBe("CEILING_CONFIG_UNAVAILABLE");
+    expect(capturedRelayDoc).toEqual({});
   });
 });
