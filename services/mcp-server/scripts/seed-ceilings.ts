@@ -17,12 +17,15 @@
  *   Firestore read-only in prod and will 403 on the write.)
  *
  * ── Run ────────────────────────────────────────────────────────────────
+ * `org` is the tenant's Firestore userId (the same mixed-case id
+ * auth.userId resolves to at runtime, e.g. a Firebase uid) — NOT always a
+ * lowercase slug.
  *   GOOGLE_CLOUD_PROJECT=cachebash-app npx tsx \
- *     services/mcp-server/scripts/seed-ceilings.ts lore
+ *     services/mcp-server/scripts/seed-ceilings.ts 7viFKVtl5lgzguhFoZlnYYrqeDG2
  *
  *   # override defaults:
  *   GOOGLE_CLOUD_PROJECT=cachebash-app npx tsx \
- *     services/mcp-server/scripts/seed-ceilings.ts lore \
+ *     services/mcp-server/scripts/seed-ceilings.ts 7viFKVtl5lgzguhFoZlnYYrqeDG2 \
  *     '{"perKeyLimit":50,"orgLimit":300,"windowMs":60000}'
  *
  * Idempotent: merges into the existing doc rather than clobbering it, so
@@ -36,8 +39,12 @@ import { DEFAULT_CEILINGS } from "../src/middleware/circuitBreaker.js";
 
 function parseArgs(): { org: string; overrides: Record<string, unknown> } {
   const org = process.argv[2];
-  if (!org || !/^[a-z0-9_-]{1,64}$/.test(org)) {
-    console.error('ERROR: pass a tenant/org id as argv[1], e.g. "lore". Must match ^[a-z0-9_-]{1,64}$');
+  // Real tenant ids are Firestore/Firebase userIds and are mixed-case
+  // (e.g. "7viFKVtl5lgzguhFoZlnYYrqeDG2") — the breaker keys ceilings by
+  // auth.userId verbatim (circuitBreaker.ts), so a lowercase-only pattern
+  // here would reject every real tenant and silently seed nothing.
+  if (!org || !/^[a-zA-Z0-9_-]{1,64}$/.test(org)) {
+    console.error('ERROR: pass a tenant/org id (the tenant\'s Firestore userId) as argv[1], e.g. "7viFKVtl5lgzguhFoZlnYYrqeDG2". Must match ^[a-zA-Z0-9_-]{1,64}$');
     process.exit(1);
   }
   const raw = process.argv[3];
