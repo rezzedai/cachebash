@@ -13,6 +13,7 @@ import * as crypto from "crypto";
 import http from "http";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { WINGMAN_TIER_CAPABILITIES } from "../middleware/capabilities.js";
 
 const GENERIC_ERROR = { error: "invalid_or_expired_enrollment" } as const;
 
@@ -49,6 +50,9 @@ const LITE_TIER_CAPABILITIES: Record<string, string[]> = {
 };
 
 function tierCapabilities(tier: string): string[] {
+  // WS-2: "wingman" resolves to the canonical wingman preset in capabilities.ts —
+  // SINGLE SOURCE OF TRUTH, never duplicated here (drift = security bug).
+  if (tier.toLowerCase() === "wingman") return WINGMAN_TIER_CAPABILITIES;
   return LITE_TIER_CAPABILITIES[tier.toLowerCase()] ?? LITE_TIER_CAPABILITIES["standard"];
 }
 
@@ -157,6 +161,9 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
       // All checks passed — mint the key
       tenantId = data.tenantId as string;
       const tier = (data.tier as string) || "standard";
+      // WS-2: wingman enrollment docs carry a seatId — stamped onto the minted
+      // key so per-seat metering (usage.ts) can attribute calls to the seat.
+      const seatId = typeof data.seatId === "string" ? data.seatId : undefined;
 
       // G-4 control 1/10: generate tenant-scoped lite key (never hub-scoped)
       cbKey = generateApiKey();
@@ -172,6 +179,8 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
         label: "enrollment-key",
         capabilities: tierCapabilities(tier),
         rateLimitTier: tier,
+        tier,
+        ...(seatId ? { seatId } : {}),
         active: true,
         createdAt: FieldValue.serverTimestamp(),
         expiresAt: keyExpiresAt,

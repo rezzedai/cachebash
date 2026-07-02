@@ -178,6 +178,21 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   gsp_search: "gsp.read",
 };
 
+/**
+ * Wingman tier — canonical capability preset. SINGLE SOURCE OF TRUTH for any
+ * wingman-scoped key mint (day-job agents, WS-2 seat enrollment, etc.) — never
+ * copy these strings elsewhere; import this constant instead. Drift here is a
+ * security bug (a copy could silently diverge from the enforced hard-denies).
+ */
+export const WINGMAN_TIER_CAPABILITIES: Capability[] = [
+  "dispatch.read", "dispatch.write",
+  "relay.read", "relay.write",
+  "signal.read", "signal.write",
+  "state.read",
+  "pulse.read",
+  "programs.read",
+];
+
 /** Default capabilities for each program role */
 export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   orchestrator: ["*"],
@@ -266,14 +281,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   // policy.*, gsp.write (governance resolution), fleet.read (fleet control reads),
   // audit.*, state.write, programs.write. A wingman key can dispatch work,
   // coordinate, and read results — nothing that touches keys, admin, fleet, or policy.
-  wingman: [
-    "dispatch.read", "dispatch.write",
-    "relay.read", "relay.write",
-    "signal.read", "signal.write",
-    "state.read",
-    "pulse.read",
-    "programs.read",
-  ],
+  wingman: WINGMAN_TIER_CAPABILITIES,
   // External users — restricted, no admin/audit/keys/state-write
   default: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "signal.read", "signal.write",

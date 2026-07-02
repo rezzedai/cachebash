@@ -19,6 +19,10 @@ export interface AuthContext {
   oauthScopes?: string[];
   /** Rate limit tier — resolved from API key doc, defaults to "free" */
   rateLimitTier: string;
+  /** WS-2: seat identifier for wingman-tier seat-enrolled keys. Populated ONLY from
+   * the validated key doc's own seatId field — never from a request header. Undefined
+   * for non-seat keys. */
+  seatId?: string;
 }
 
 function hashApiKey(apiKey: string): string {
@@ -111,6 +115,9 @@ export async function validateApiKey(
     // Update lastUsedAt (fire-and-forget — don't block auth)
     db.doc(`keyIndex/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
 
+    // WS-2: seatId comes ONLY from the validated key doc — never from a request header.
+    const seatId: string | undefined = typeof data.seatId === "string" ? data.seatId : undefined;
+
     return {
       userId,
       apiKeyHash: keyHash,
@@ -119,6 +126,7 @@ export async function validateApiKey(
       keyProgramId,
       capabilities,
       rateLimitTier: data.rateLimitTier || "free",
+      ...(seatId ? { seatId } : {}),
     };
   } catch (error) {
     console.error("API key validation error:", error);

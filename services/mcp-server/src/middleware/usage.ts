@@ -52,6 +52,29 @@ export function incrementUsage(userId: string, field: UsageField): void {
 }
 
 /**
+ * WS-2: fire-and-forget increment of a per-seat usage counter.
+ * Mirrors incrementUsage but writes to a `seats.{seatId}.{field}` map field on
+ * the SAME tenant usage doc — map form (not a subcollection) so a seat's usage
+ * reads in the same get() as the tenant total, at the cost of doc-size growth
+ * that's bounded by seat count per tenant (small — seats are provisioned, not
+ * user-generated at scale).
+ *
+ * MUST NOT be awaited in the hot path. Never throws into the caller.
+ */
+export function incrementSeatUsage(userId: string, seatId: string, field: UsageField): void {
+  const db = getFirestore();
+  const period = getCurrentPeriod();
+  const docRef = db.doc(`tenants/${userId}/usage/${period}`);
+
+  docRef.set(
+    { seats: { [seatId]: { [field]: FieldValue.increment(1) } } },
+    { merge: true }
+  ).catch((err) => {
+    console.error("[Usage] Seat increment failed:", { userId, seatId, field, period, error: err.message });
+  });
+}
+
+/**
  * Reads current month's usage counters for a user.
  * Returns zero counts if the document doesn't exist.
  *

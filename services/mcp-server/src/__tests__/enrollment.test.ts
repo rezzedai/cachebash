@@ -306,6 +306,57 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(body).toEqual({ error: "invalid_or_expired_enrollment" });
   });
 
+  it("WS-2: wingman tier — mints a key with EXACTLY the 9 canonical wingman caps + seatId + tier", async () => {
+    const token = crypto.randomBytes(32).toString("hex");
+    seedEnrollment(token, { tier: "wingman", seatId: "seat-maverick-01" });
+
+    const { status } = await callEnroll({ token });
+
+    expect(status).toBe(200);
+    const keyDoc = Object.values(mockTxSets)[0] as any;
+    const caps: string[] = keyDoc.capabilities;
+    expect(caps.sort()).toEqual([
+      "dispatch.read", "dispatch.write",
+      "pulse.read",
+      "programs.read",
+      "relay.read", "relay.write",
+      "signal.read", "signal.write",
+      "state.read",
+    ].sort());
+    expect(caps).not.toContain("*");
+    // G-4 control 9/10: no hub caps — keys/admin/policy/fleet.control absent
+    expect(caps).not.toContain("keys.read");
+    expect(caps).not.toContain("keys.write");
+    expect(caps).not.toContain("admin.write");
+    expect(caps).not.toContain("fleet.control");
+    expect(caps).not.toContain("policy.read");
+    expect(keyDoc.seatId).toBe("seat-maverick-01");
+    expect(keyDoc.tier).toBe("wingman");
+    // still tenant-scoped, never hub-scoped
+    expect(keyDoc.programId).toBe("cerebro");
+    expect(keyDoc.userId).toBe("tenant-sayf");
+  });
+
+  it("WS-2: wingman tier — response stays topology-free (no seatId/tier leak)", async () => {
+    const token = crypto.randomBytes(32).toString("hex");
+    seedEnrollment(token, { tier: "wingman", seatId: "seat-goose-02" });
+
+    const { status, body } = await callEnroll({ token });
+
+    expect(status).toBe(200);
+    expect(Object.keys(body).sort()).toEqual(["cb_key", "lite_url"]);
+  });
+
+  it("WS-2: non-seat enrollment (no seatId on doc) mints a key with no seatId field", async () => {
+    const token = crypto.randomBytes(32).toString("hex");
+    seedEnrollment(token, { tier: "standard" });
+
+    await callEnroll({ token });
+
+    const keyDoc = Object.values(mockTxSets)[0] as any;
+    expect(keyDoc.seatId).toBeUndefined();
+  });
+
   it("returns 405 for non-POST methods", async () => {
     const req = { method: "GET" } as http.IncomingMessage;
     let statusCode = 0;
