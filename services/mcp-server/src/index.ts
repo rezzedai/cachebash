@@ -31,7 +31,7 @@ import { executeSchedulesForUser } from "./modules/schedule-executor.js";
 import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
 import { checkCircuitBreaker } from "./middleware/circuitBreaker.js";
-import { incrementUsage } from "./middleware/usage.js";
+import { incrementUsage, incrementSeatUsage } from "./middleware/usage.js";
 import { handleOAuthMetadata, handleOAuthProtectedResource } from "./oauth/metadata.js";
 import { handleOAuthRegister, cleanupDcrRateLimits } from "./oauth/register.js";
 import { handleOAuthAuthorize, cleanupOAuthRateLimits } from "./oauth/authorize.js";
@@ -292,6 +292,7 @@ async function main() {
       }
       // Usage counters (fire-and-forget)
       incrementUsage(auth.userId, "total_tool_calls");
+      if (auth.seatId) incrementSeatUsage(auth.userId, auth.seatId, "total_tool_calls");
       if (name === "create_task") incrementUsage(auth.userId, "tasks_created");
       if (name === "send_message") incrementUsage(auth.userId, "messages_sent");
       if (name === "create_session") {
