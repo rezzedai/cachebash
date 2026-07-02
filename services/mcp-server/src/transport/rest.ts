@@ -18,7 +18,7 @@ import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
 import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
-import { incrementUsage } from "../middleware/usage.js";
+import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
@@ -258,6 +258,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
     }
     // Usage counters (fire-and-forget)
     incrementUsage(auth.userId, "total_tool_calls");
+    if (auth.seatId) incrementSeatUsage(auth.userId, auth.seatId, "total_tool_calls");
     if (toolName === "create_task") incrementUsage(auth.userId, "tasks_created");
     if (toolName === "send_message") incrementUsage(auth.userId, "messages_sent");
     if (toolName === "create_session") incrementUsage(auth.userId, "sessions_started");

@@ -129,6 +129,7 @@ jest.mock("../../modules/trace.js", () => ({
 import { resetCircuitBreakerState } from "../../middleware/circuitBreaker";
 import { createTaskHandler } from "../../modules/dispatch/index.js";
 import { sendMessageHandler } from "../../modules/relay.js";
+import { getCurrentPeriod } from "../../middleware/usage.js";
 
 describe("WS-3 ISO transport enforcement — POST /v1/iso/mcp CallToolRequestSchema", () => {
   let db: admin.firestore.Firestore;
@@ -256,5 +257,119 @@ describe("WS-3 ISO transport enforcement — POST /v1/iso/mcp CallToolRequestSch
 
     const read = await callTool({ params: { name: "dispatch_get_tasks", arguments: {} } });
     expect(read.isError).toBeFalsy();
+  });
+});
+
+describe("WS-2 gap closure: ISO transport (/v1/iso/mcp) usage metering", () => {
+  // The security panel that approved PR #385 (2-1) flagged that isoServer.ts's
+  // CallToolRequestSchema success path invoked tool handlers for seat-enrolled
+  // (wingman) keys but recorded no usage at all — neither the pre-existing
+  // tenant counter (incrementUsage) nor the WS-2 per-seat counter
+  // (incrementSeatUsage). A seat key could call tools via this transport and
+  // bypass per-seat ceilings entirely, since nothing ever landed in
+  // tenants/{userId}/usage/{period}.seats.{seatId}.
+  let db: admin.firestore.Firestore;
+  const userId = "test-org-usage-iso";
+
+  beforeAll(() => {
+    db = getTestFirestore();
+  });
+
+  beforeEach(async () => {
+    await clearFirestoreData();
+    resetCircuitBreakerState();
+    jest.clearAllMocks();
+    (createTaskHandler as jest.Mock).mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+    (sendMessageHandler as jest.Mock).mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+  });
+
+  function auth(overrides: Partial<AuthContext> = {}): AuthContext {
+    return {
+      userId,
+      apiKeyHash: "iso-test-key-hash-usage",
+      encryptionKey: Buffer.from("0123456789abcdef0123456789abcdef"),
+      programId: "wingman" as any,
+      capabilities: ["dispatch.read", "dispatch.write", "relay.read", "relay.write"],
+      rateLimitTier: "free",
+      ...overrides,
+    };
+  }
+
+  async function bootIsoCallToolHandler(): Promise<{
+    callTool: (request: { params: { name: string; arguments: unknown } }, extra?: unknown) => Promise<any>;
+    transport: { currentAuth: AuthContext | null };
+  }> {
+    const { Server } = await import("@modelcontextprotocol/sdk/server/index.js");
+    const { CallToolRequestSchema } = await import("@modelcontextprotocol/sdk/types.js");
+    const { createIsoServer } = await import("../../iso/isoServer.js");
+
+    const { transport } = await createIsoServer();
+
+    const serverMock = Server as unknown as jest.Mock;
+    const instance = serverMock.mock.results[serverMock.mock.results.length - 1].value;
+    const registration = instance.setRequestHandler.mock.calls.find(
+      (call: unknown[]) => call[0] === CallToolRequestSchema
+    );
+    if (!registration) throw new Error("isoServer.ts did not register a CallToolRequestSchema handler");
+
+    return { callTool: registration[1], transport: transport as any };
+  }
+
+  /** Usage counters are deliberately fire-and-forget — poll the emulator until the write lands. */
+  async function waitForUsageDoc(
+    predicate: (data: Record<string, any> | undefined) => boolean,
+    attempts = 50
+  ): Promise<Record<string, any> | undefined> {
+    const period = getCurrentPeriod();
+    const ref = db.doc(`tenants/${userId}/usage/${period}`);
+    for (let i = 0; i < attempts; i++) {
+      const snap = await ref.get();
+      const data = snap.data();
+      if (predicate(data)) return data;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return (await ref.get()).data();
+  }
+
+  it("a seat-enrolled key calling a tool via /v1/iso/mcp increments BOTH the tenant and seat counters", async () => {
+    const { callTool, transport } = await bootIsoCallToolHandler();
+    transport.currentAuth = auth({ seatId: "seat-iso-1" });
+
+    const result = await callTool({ params: { name: "dispatch_get_tasks", arguments: {} } });
+    expect(result.isError).toBeFalsy();
+
+    const data = await waitForUsageDoc((d) => d?.total_tool_calls >= 1 && d?.seats?.["seat-iso-1"]?.total_tool_calls >= 1);
+    expect(data?.total_tool_calls).toBe(1);
+    expect(data?.seats?.["seat-iso-1"]?.total_tool_calls).toBe(1);
+  });
+
+  it("a non-seat key calling a tool via /v1/iso/mcp increments the tenant counter but writes no seats entry", async () => {
+    const { callTool, transport } = await bootIsoCallToolHandler();
+    transport.currentAuth = auth(); // no seatId
+
+    const result = await callTool({ params: { name: "dispatch_get_tasks", arguments: {} } });
+    expect(result.isError).toBeFalsy();
+
+    const data = await waitForUsageDoc((d) => d?.total_tool_calls >= 1);
+    expect(data?.total_tool_calls).toBe(1);
+    expect(data?.seats).toBeUndefined();
+  });
+
+  it("dispatch_create_task via /v1/iso/mcp also bumps tasks_created for both tenant and seat", async () => {
+    await db.doc(`tenants/${userId}/_meta/ceilings`).set({
+      perKeyLimit: 100,
+      orgLimit: 100,
+      windowMs: 60_000,
+      paused: false,
+    });
+    const { callTool, transport } = await bootIsoCallToolHandler();
+    transport.currentAuth = auth({ seatId: "seat-iso-2" });
+
+    const result = await callTool({ params: { name: "dispatch_create_task", arguments: { title: "t1", target: "basher" } } });
+    expect(result.isError).toBeFalsy();
+
+    const data = await waitForUsageDoc((d) => d?.tasks_created >= 1 && d?.seats?.["seat-iso-2"]?.tasks_created >= 1);
+    expect(data?.tasks_created).toBe(1);
+    expect(data?.seats?.["seat-iso-2"]?.tasks_created).toBe(1);
   });
 });
