@@ -18,6 +18,7 @@ import { sendMessageHandler } from "../modules/relay.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
+import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
 import { incrementUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
@@ -47,6 +48,17 @@ class PricingError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PricingError";
+  }
+}
+
+class BreakerError extends Error {
+  code: BreakerCode;
+  retryAfterMs: number;
+  constructor(message: string, code: BreakerCode, retryAfterMs: number) {
+    super(message);
+    this.name = "BreakerError";
+    this.code = code;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -187,6 +199,17 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
     throw new Error(
       `Insufficient capability: ${toolName} requires "${capCheck.required}" but key has [${capCheck.held.join(", ")}]`
     );
+  }
+
+  // WS-3: Boundary circuit breaker — server-measured mutation ceilings, fail-closed.
+  // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
+  const breakerResult = await checkCircuitBreaker(auth, toolName);
+  if (!breakerResult.allowed) {
+    createAuditLogger(generateCorrelationId(), auth.userId).error(
+      toolName, `${breakerResult.code}: ${breakerResult.message}`,
+      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+    );
+    throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }
 
   let complianceWarning: string | undefined;
@@ -998,6 +1021,14 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             code: "PRICING_LIMIT_REACHED",
             message: err.message,
           }, 402);
+        }
+        if (err instanceof BreakerError) {
+          res.setHeader("Retry-After", String(Math.ceil(err.retryAfterMs / 1000)));
+          const status = err.code === "CEILING_ORG_PAUSED" || err.code === "CEILING_CONFIG_UNAVAILABLE" ? 503 : 429;
+          return restResponse(res, false, {
+            code: err.code,
+            message: err.message,
+          }, status);
         }
         return restResponse(res, false, {
           code: "INTERNAL_ERROR",
