@@ -415,6 +415,8 @@ async function waitForUptake(
   userId: string,
   taskId: string,
   directiveId: string | null,
+  expectedAckSource: string,
+  expectedAckTarget: string,
   timeoutSeconds: number,
 ): Promise<UptakeResult> {
   const db = getFirestore();
@@ -444,6 +446,8 @@ async function waitForUptake(
       const ack = await db.collection(`tenants/${userId}/relay`)
         .where("reply_to", "==", directiveId)
         .where("message_type", "==", "ACK")
+        .where("source", "==", expectedAckSource)
+        .where("target", "==", expectedAckTarget)
         .limit(1)
         .get();
       if (!ack.empty) {
@@ -655,8 +659,24 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     });
   }
 
-  // ── 1. PRE-FLIGHT ──
+  // ── 1. DURABLE OBLIGATION ──
+  // Persist the recoverable obligation before runtime assessment or wake.
+  // If preflight/wake fails, callers still get an idempotent handle to resume.
+  const { taskId, directiveId, obligationId, deduplicated, deliveryState: initialDeliveryState } = await sendTaskAndDirective(
+    auth,
+    args,
+    verifiedSource,
+    "absent",
+    false,
+    "skipped",
+  );
+
+  // ── 2. PRE-FLIGHT ──
   const flight = await queryTargetState(auth.userId, args.target);
+  await updateDispatchObligation(auth.userId, obligationId, {
+    targetState: flight.targetState,
+    preflightAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
   // Emit pre-flight telemetry
   emitEvent(auth.userId, {
@@ -667,7 +687,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     heartbeat_age_ms: flight.heartbeatAgeMs === Infinity ? -1 : flight.heartbeatAgeMs,
   });
 
-  // ── 2. AUTO-WAKE (if target is not alive and autoWake enabled) ──
+  // ── 3. AUTO-WAKE (if target is not alive and autoWake enabled) ──
   let wakeAttempted = false;
   let wakeResultStr: WakeResult = "skipped";
   let currentTargetState = flight.targetState;
@@ -716,9 +736,16 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       wake_outcome: wake.outcome,
       debounce_remaining: wake.debounceRemainingSeconds,
     });
+
+    await updateDispatchObligation(auth.userId, obligationId, {
+      targetState: currentTargetState,
+      wakeAttempted,
+      wakeResult: wakeResultStr,
+      wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
-  // ── 2.5. WAVE 16: TARGET SUGGESTION (advisory only, before send) ──
+  // ── 3.5. WAVE 16: TARGET SUGGESTION (advisory only) ──
   let suggestedTarget: string | undefined;
   let suggestionReason: string | undefined;
 
@@ -743,16 +770,6 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     // Non-blocking — continue with original target
   }
 
-  // ── 3. SEND (always — even if target is stale, task queues for later) ──
-  const { taskId, directiveId, obligationId, deduplicated, deliveryState: initialDeliveryState } = await sendTaskAndDirective(
-    auth,
-    args,
-    verifiedSource,
-    currentTargetState,
-    wakeAttempted,
-    wakeResultStr,
-  );
-
   // ── 4. UPTAKE WAIT ──
   let uptakeConfirmed = false;
   let uptakeVia: "claim" | "ack" | undefined;
@@ -763,7 +780,14 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   let deliveryState: DispatchDeliveryState = initialDeliveryState || (deduplicated ? "stored" : "notified");
 
   if (args.waitForUptake) {
-    const uptake = await waitForUptake(auth.userId, taskId, directiveId, args.uptakeTimeoutSeconds);
+    const uptake = await waitForUptake(
+      auth.userId,
+      taskId,
+      directiveId,
+      args.target,
+      verifiedSource,
+      args.uptakeTimeoutSeconds,
+    );
     uptakeConfirmed = uptake.confirmed;
     uptakeVia = uptake.via;
     claimedBy = uptake.claimedBy;
@@ -777,10 +801,8 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   } else {
     if (!deduplicated) {
       await updateDispatchObligation(auth.userId, obligationId, {
-        deliveryState: "stored",
         pendingReason: "uptake_wait_skipped",
       });
-      deliveryState = "stored";
     }
   }
 

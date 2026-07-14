@@ -23,6 +23,8 @@ import { isProgramQuarantined } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import * as admin from "firebase-admin";
 
+jest.setTimeout(20_000);
+
 // Mock program registry
 jest.mock("../modules/programRegistry.js", () => ({
   isProgramRegistered: jest.fn(() => Promise.resolve(true)),
@@ -95,6 +97,30 @@ const createMockTransaction = () => {
 };
 
 // Mock Firestore
+const createMockQuery = (path: string, filters: Array<[string, string, any]> = []) => {
+  const query: any = {
+    where: jest.fn((field: string, op: string, value: any) =>
+      createMockQuery(path, [...filters, [field, op, value]])
+    ),
+    limit: jest.fn(() => query),
+    orderBy: jest.fn(() => query),
+    get: jest.fn(() => {
+      const docs = Object.entries(mockData)
+        .filter(([key]) => key.startsWith(`${path}/`))
+        .filter(([, value]) =>
+          filters.every(([field, op, expected]) => op === "==" && value?.[field] === expected)
+        )
+        .map(([key, value]) => ({
+          id: key.split("/").pop(),
+          exists: true,
+          data: () => value,
+        }));
+      return Promise.resolve({ docs, size: docs.length, empty: docs.length === 0 });
+    }),
+  };
+  return query;
+};
+
 const mockFirestore = {
   collection: jest.fn((path: string) => ({
     add: jest.fn((data: any) => {
@@ -103,21 +129,10 @@ const mockFirestore = {
       mockData[fullPath] = data;
       return Promise.resolve({ id, path: fullPath, _path: fullPath });
     }),
-    get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
-    where: jest.fn(() => ({
-      where: jest.fn(() => ({
-        where: jest.fn(() => ({
-          get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
-        })),
-        get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
-      })),
-      get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
-    })),
-    orderBy: jest.fn(() => ({
-      limit: jest.fn(() => ({
-        get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
-      })),
-    })),
+    get: createMockQuery(path).get,
+    where: createMockQuery(path).where,
+    orderBy: createMockQuery(path).orderBy,
+    limit: createMockQuery(path).limit,
   })),
   doc: jest.fn((path: string) => ({
     get: jest.fn(() => Promise.resolve(createMockDoc(path))),
@@ -165,6 +180,17 @@ const mockAuth: AuthContext = {
   encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
   rateLimitTier: "internal",
 };
+
+async function waitForDirectiveEntry() {
+  for (let i = 0; i < 20; i++) {
+    const relayEntry = Object.entries(mockData).find(([key, value]) =>
+      key.startsWith("tenants/test-user/relay/") && value.message_type === "DIRECTIVE"
+    );
+    if (relayEntry) return relayEntry;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  return undefined;
+}
 
 // ─── AUTO-QUARANTINE TESTS ───────────────────────────────────────────────────
 
@@ -386,19 +412,80 @@ describe("Policy Modes", () => {
     expect(data.success).toBe(false);
     expect(data.uptakeConfirmed).toBe(false);
     expect(data.action_required).toBe("monitor_pending");
-    expect(data.deliveryState).toBe("stored");
+    expect(data.deliveryState).toBe("notified");
     expect(data.pendingHandle).toMatchObject({
       obligationId: "dispatch:pending-contract-1",
       taskId: data.taskId,
       directiveId: data.directiveId,
-      deliveryState: "stored",
+      deliveryState: "notified",
     });
 
     const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:pending-contract-1"];
     expect(obligation).toBeDefined();
     expect(obligation.taskId).toBe(data.taskId);
     expect(obligation.directiveId).toBe(data.directiveId);
-    expect(obligation.deliveryState).toBe("stored");
+    expect(obligation.deliveryState).toBe("notified");
+    expect(obligation.pendingReason).toBe("uptake_wait_skipped");
+  });
+
+  it("should confirm uptake from a valid target ACK only", async () => {
+    const pending = dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Valid ACK dispatch",
+      instructions: "ACK from target should satisfy uptake.",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+    });
+
+    const relayEntry = await waitForDirectiveEntry();
+    expect(relayEntry).toBeDefined();
+    const directiveId = relayEntry![0].split("/").pop()!;
+    mockData["tenants/test-user/relay/ack-valid"] = {
+      reply_to: directiveId,
+      message_type: "ACK",
+      source: "builder-test",
+      target: "iso",
+      createdAt: admin.firestore.Timestamp.now(),
+    };
+
+    const data = JSON.parse((await pending).content[0].text);
+
+    expect(data.success).toBe(true);
+    expect(data.uptakeConfirmed).toBe(true);
+    expect(data.uptakeVia).toBe("ack");
+    expect(data.ackId).toBe("ack-valid");
+  });
+
+  it("should reject spoofed ACKs from foreign programs", async () => {
+    const pending = dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Spoofed ACK dispatch",
+      instructions: "Foreign ACK must not satisfy uptake.",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+    });
+
+    const relayEntry = await waitForDirectiveEntry();
+    expect(relayEntry).toBeDefined();
+    const directiveId = relayEntry![0].split("/").pop()!;
+    mockData["tenants/test-user/relay/ack-spoof"] = {
+      reply_to: directiveId,
+      message_type: "ACK",
+      source: "foreign-program",
+      target: "iso",
+      createdAt: admin.firestore.Timestamp.now(),
+    };
+
+    const data = JSON.parse((await pending).content[0].text);
+
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.ackId).toBeUndefined();
+    expect(data.deliveryState).toBe("escalated");
   });
 
   it("should reuse an idempotent dispatch obligation without duplicate work", async () => {
@@ -428,6 +515,66 @@ describe("Policy Modes", () => {
     expect(taskDocs).toHaveLength(1);
     expect(directiveDocs).toHaveLength(1);
     expect(obligationDocs).toHaveLength(1);
+  });
+
+  it("should resume an idempotent dispatch after a late claim", async () => {
+    const args = {
+      source: "iso",
+      target: "builder-test",
+      title: "Late claim dispatch",
+      instructions: "Client timed out before target claimed.",
+      policy_mode: "normal",
+      waitForUptake: false,
+      idempotency_key: "late-claim-contract-1",
+      uptakeTimeoutSeconds: 5,
+    };
+
+    const first = JSON.parse((await dispatchHandler(mockAuth, args)).content[0].text);
+    mockData[`tenants/test-user/tasks/${first.taskId}`] = {
+      ...mockData[`tenants/test-user/tasks/${first.taskId}`],
+      status: "active",
+      claimedBy: "builder-test",
+      claimedAt: admin.firestore.Timestamp.now(),
+    };
+
+    const resumed = JSON.parse((await dispatchHandler(mockAuth, {
+      ...args,
+      waitForUptake: true,
+    })).content[0].text);
+
+    expect(resumed.idempotent).toBe(true);
+    expect(resumed.taskId).toBe(first.taskId);
+    expect(resumed.success).toBe(true);
+    expect(resumed.uptakeConfirmed).toBe(true);
+    expect(resumed.uptakeVia).toBe("claim");
+    expect(resumed.claimedBy).toBe("builder-test");
+    expect(mockData["tenants/test-user/dispatch_obligations/dispatch:late-claim-contract-1"].deliveryState).toBe("claimed");
+  });
+
+  it("should reject paused targets with a durable pending handle", async () => {
+    mockData["tenants/test-user/programs/builder-test"] = {
+      paused: true,
+    };
+
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Paused target dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      idempotency_key: "paused-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.deliveryState).toBe("rejected");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:paused-contract-1",
+      deliveryState: "rejected",
+    });
+    expect(mockData["tenants/test-user/dispatch_obligations/dispatch:paused-contract-1"].rejectionReason).toBe("target_paused");
   });
 
   it("should track absent non-spawnable target as pending spawn work, not success", async () => {
@@ -464,8 +611,51 @@ describe("Policy Modes", () => {
 
     const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:absent-contract-1"];
     expect(obligation).toBeDefined();
+    expect(obligation.targetState).toBe("absent");
     expect(obligation.wakeAttempted).toBe(true);
     expect(obligation.wakeResult).toBe("not_spawnable");
+  });
+
+  it("should escalate wedged wake timeouts with a durable proof path", async () => {
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockResolvedValueOnce({
+      targetState: "stale",
+      heartbeatAge: "30m",
+      heartbeatAgeMs: 30 * 60 * 1000,
+    });
+    wakeModule.wakeTarget.mockResolvedValueOnce({
+      outcome: "timeout",
+      targetState: "stale",
+      heartbeatAge: "30m",
+      heartbeatAgeMs: 30 * 60 * 1000,
+    });
+
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Wedged target dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      autoWake: true,
+      idempotency_key: "wedged-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.targetState).toBe("stale");
+    expect(data.wakeAttempted).toBe(true);
+    expect(data.wakeResult).toBe("timeout");
+    expect(data.deliveryState).toBe("escalated");
+    expect(data.action_required).toBe("spawn_target");
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:wedged-contract-1"];
+    expect(obligation.taskId).toBe(data.taskId);
+    expect(obligation.directiveId).toBe(data.directiveId);
+    expect(obligation.deliveryState).toBe("escalated");
+    expect(obligation.escalationReason).toBe("target_unavailable");
+    expect(obligation.wakeAttempted).toBe(true);
+    expect(obligation.wakeResult).toBe("timeout");
   });
 
   it("should approve a supervised task", async () => {

@@ -1,6 +1,6 @@
 # Dispatch Uptake Contract
 
-`dispatch_dispatch` is the canonical API for actionable work dispatch. It creates a durable dispatch obligation, task, and DIRECTIVE relay message together, then waits for target uptake when requested.
+`dispatch_dispatch` is the canonical API for actionable work dispatch. It creates or reuses a durable dispatch obligation, task, and DIRECTIVE relay message before runtime assessment or wake, then waits for target uptake when requested.
 
 `relay_send_message` remains asynchronous. A successful relay send only means the message was stored for delivery; it does not prove a target accepted work.
 
@@ -9,7 +9,7 @@
 Actionable dispatch must never report `success: true` until one of these is observed:
 
 - the task leaves `created` and is claimed by the target program
-- the target sends an `ACK` whose `reply_to` is the dispatch DIRECTIVE id
+- the intended target sends an `ACK` whose `reply_to` is the dispatch DIRECTIVE id and whose recipient is the dispatch source
 
 If uptake is not observed, the API returns `success: false` with `pendingHandle`. Supervisors should track `pendingHandle.obligationId` instead of redispatching blindly.
 
@@ -24,6 +24,8 @@ Each dispatch writes `tenants/{tenant}/dispatch_obligations/{obligationId}` with
 - telemetry such as `timeToClaimMs`, `timeToAckMs`, and `escalatedAt`
 
 The task also stores `dispatchObligationId` and `dispatchDeliveryState` for quick inspection.
+
+Runtime preflight and wake metadata are annotations on the existing obligation. A preflight or wake failure must not erase the persisted obligation/task/directive handle.
 
 ## Delivery States
 
@@ -46,3 +48,5 @@ For absent or stale targets, keep `autoWake: true`. The server may wake or launc
 For busy targets, work remains queued as a task. A timeout from `dispatch_dispatch` is not a lost dispatch; it is an escalated pending obligation.
 
 For `waitForUptake: false`, the response is intentionally not successful. It returns a tracked pending handle and `action_required: "monitor_pending"`.
+
+Skipping the uptake wait does not downgrade a `notified` obligation back to `stored`; delivery-state transitions are monotonic.
