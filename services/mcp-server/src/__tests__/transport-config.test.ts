@@ -1,9 +1,8 @@
 /**
  * Transport Configuration Tests
  *
- * Verifies that the Streamable HTTP transport is configured with adequate
- * timeouts for long-running tools (e.g., dispatch with 45s uptake wait,
- * large Firestore metrics queries).
+ * Verifies that timeout assumptions stay explicit for long-running tools
+ * and the observed MCP caller/proxy boundary.
  *
  * Also verifies that MCP handler lookup resolves tool aliases correctly.
  */
@@ -23,10 +22,16 @@ import { TOOL_HANDLERS } from '../tools/index';
 
 describe('Transport Configuration', () => {
   describe('responseQueueTimeout adequacy', () => {
-    it('dispatch uptake timeout (45s) fits within response queue timeout', () => {
-      // dispatch_dispatch waits up to 45s for uptake + 30s for wake = ~75s
-      // The transport responseQueueTimeout must exceed the maximum tool execution time
-      const DISPATCH_MAX_SECONDS = 45 + 30; // uptake + wake
+    it('dispatch caller boundary fits within observed MCP proxy timeout', () => {
+      // dispatch_dispatch must return confirmed uptake or a durable pending handle
+      // before the outer MCP proxy timeout observed in production.
+      const DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = 50_000;
+      const OBSERVED_MCP_PROXY_TIMEOUT_MS = 55_000;
+      expect(DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS).toBeLessThan(OBSERVED_MCP_PROXY_TIMEOUT_MS);
+    });
+
+    it('transport response queue exceeds dispatch caller boundary', () => {
+      const DISPATCH_MAX_SECONDS = 50;
       const RESPONSE_QUEUE_TIMEOUT_MS = 120_000;
       expect(RESPONSE_QUEUE_TIMEOUT_MS).toBeGreaterThan(DISPATCH_MAX_SECONDS * 1000);
     });

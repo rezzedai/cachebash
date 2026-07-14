@@ -171,6 +171,7 @@ jest.mock("../firebase/client.js", () => ({
 beforeEach(() => {
   Object.keys(mockData).forEach(key => delete mockData[key]);
   queryFilterChains.length = 0;
+  delete process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS;
   jest.clearAllMocks();
 });
 
@@ -667,6 +668,98 @@ describe("Policy Modes", () => {
     expect(obligation.escalationReason).toBe("target_unavailable");
     expect(obligation.wakeAttempted).toBe(true);
     expect(obligation.wakeResult).toBe("timeout");
+  });
+
+  it("should confirm a claim that occurs during wake without an extra poll interval", async () => {
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockResolvedValueOnce({
+      targetState: "stale",
+      heartbeatAge: "30m",
+      heartbeatAgeMs: 30 * 60 * 1000,
+    });
+    wakeModule.wakeTarget.mockImplementationOnce(async () => {
+      const taskPath = Object.keys(mockData).find((key) => key.startsWith("tenants/test-user/tasks/"))!;
+      mockData[taskPath] = {
+        ...mockData[taskPath],
+        status: "active",
+        claimedBy: "builder-test",
+        claimedAt: admin.firestore.Timestamp.now(),
+      };
+      return {
+        outcome: "success",
+        targetState: "alive",
+        heartbeatAge: "1s",
+        heartbeatAgeMs: 1000,
+      };
+    });
+
+    const startedAt = Date.now();
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Claim during wake dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      autoWake: true,
+      idempotency_key: "claim-during-wake-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(Date.now() - startedAt).toBeLessThan(1000);
+    expect(data.success).toBe(true);
+    expect(data.uptakeConfirmed).toBe(true);
+    expect(data.uptakeVia).toBe("claim");
+    expect(data.claimedBy).toBe("builder-test");
+    expect(wakeModule.wakeTarget).toHaveBeenCalledWith(expect.objectContaining({
+      waitForAlive: false,
+    }));
+  });
+
+  it("should return a pending handle before the caller boundary timeout", async () => {
+    process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = "50";
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockResolvedValueOnce({
+      targetState: "stale",
+      heartbeatAge: "30m",
+      heartbeatAgeMs: 30 * 60 * 1000,
+    });
+    wakeModule.wakeTarget.mockImplementationOnce(() =>
+      new Promise((resolve) => setTimeout(() => resolve({
+        outcome: "success",
+        targetState: "alive",
+        heartbeatAge: "1s",
+        heartbeatAgeMs: 1000,
+      }), 75))
+    );
+
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Caller boundary dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      autoWake: true,
+      idempotency_key: "caller-boundary-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.deliveryState).toBe("notified");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:caller-boundary-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "notified",
+    });
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:caller-boundary-contract-1"];
+    expect(obligation.deliveryState).toBe("notified");
+    expect(obligation.pendingReason).toBe("caller_boundary_deadline");
+    expect(obligation.escalationReason).toBeUndefined();
   });
 
   it("should return a pending handle when preflight throws after durable persistence", async () => {
