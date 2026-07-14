@@ -42,7 +42,7 @@ const UPTAKE_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_UPTAKE_TIMEOUT_SECONDS = 45;
 
 /** Keep dispatch responses inside the observed 55s MCP proxy boundary. */
-const DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS = 50_000;
+const DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS = 45_000;
 
 const DispatchSchema = z.object({
   source: z.string().max(100),
@@ -517,6 +517,16 @@ async function updateDispatchObligation(
   }, { merge: true });
 }
 
+function annotateDispatchObligation(
+  userId: string,
+  obligationId: string,
+  patch: Record<string, unknown>,
+): void {
+  updateDispatchObligation(userId, obligationId, patch).catch((error) => {
+    console.warn(`[Dispatch] Failed to annotate obligation ${obligationId}:`, error);
+  });
+}
+
 async function markUptakeClaimed(
   userId: string,
   taskId: string,
@@ -609,6 +619,64 @@ async function markRuntimeFailure(
       message: runtimeErrorMessage(error),
     },
   });
+}
+
+function callerBoundaryPendingResponse(params: {
+  auth: AuthContext;
+  args: z.infer<typeof DispatchSchema>;
+  taskId: string;
+  directiveId: string | null;
+  obligationId: string;
+  deliveryState: DispatchDeliveryState;
+  targetState: TargetState;
+  heartbeatAge: string;
+  deduplicated?: boolean;
+  wakeAttempted?: boolean;
+  wakeResult?: WakeResult;
+  governanceWarnings: string[];
+  matchedPolicies: Awaited<ReturnType<typeof evaluatePolicies>>;
+  message: string;
+}): ToolResult {
+  annotateDispatchObligation(params.auth.userId, params.obligationId, {
+    pendingReason: "caller_boundary_deadline",
+    callerBoundaryDeadlineAt: admin.firestore.FieldValue.serverTimestamp(),
+    wakeAttempted: params.wakeAttempted || undefined,
+    wakeResult: params.wakeResult || undefined,
+  });
+
+  return jsonResult({
+    success: false,
+    taskId: params.taskId,
+    directiveId: params.directiveId,
+    obligationId: params.obligationId,
+    pendingHandle: {
+      obligationId: params.obligationId,
+      taskId: params.taskId,
+      directiveId: params.directiveId,
+      deliveryState: params.deliveryState,
+      claimSlaSeconds: params.args.uptakeTimeoutSeconds,
+    },
+    deliveryState: params.deliveryState,
+    idempotent: params.deduplicated || undefined,
+    targetState: params.targetState,
+    uptakeConfirmed: false,
+    heartbeatAge: params.heartbeatAge,
+    wakeAttempted: params.wakeAttempted || undefined,
+    wakeResult: params.wakeResult,
+    action_required: "monitor_pending",
+    message: params.message,
+    governance_warnings: params.governanceWarnings.length > 0 ? params.governanceWarnings : undefined,
+    policy_violations:
+      params.matchedPolicies.length > 0
+        ? params.matchedPolicies.map((p) => ({
+            policyId: p.policyId,
+            policyName: p.policyName,
+            enforcement: p.enforcement,
+            severity: p.severity,
+            message: p.message,
+          }))
+        : undefined,
+  } satisfies DispatchResponse);
 }
 
 // ─── MAIN HANDLER ────────────────────────────────────────────────────────────
@@ -730,7 +798,28 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   // ── 2. PRE-FLIGHT ──
   let flight: Awaited<ReturnType<typeof queryTargetState>>;
   try {
-    flight = await queryTargetState(auth.userId, args.target);
+    const preflightBudgetMs = callerBoundaryDeadlineMs - Date.now();
+    const preflight = await withTimeout(
+      queryTargetState(auth.userId, args.target),
+      preflightBudgetMs,
+    );
+    if (!preflight) {
+      return callerBoundaryPendingResponse({
+        auth,
+        args,
+        taskId,
+        directiveId,
+        obligationId,
+        deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+        targetState: "absent",
+        heartbeatAge: "unknown",
+        deduplicated,
+        governanceWarnings: governance.warnings,
+        matchedPolicies,
+        message: `Dispatch obligation stored for ${args.target}, but runtime preflight exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+      });
+    }
+    flight = preflight;
   } catch (error) {
     await markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error);
     return jsonResult({
@@ -788,12 +877,35 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     wakeAttempted = true;
     let wake: Awaited<ReturnType<typeof wakeTarget>>;
     try {
-      wake = await wakeTarget({
-        userId: auth.userId,
-        target: args.target,
-        waitForAlive: false,
-        callerSource: verifiedSource,
-      });
+      const wakeBudgetMs = callerBoundaryDeadlineMs - Date.now();
+      const wakeResponse = await withTimeout(
+        wakeTarget({
+          userId: auth.userId,
+          target: args.target,
+          waitForAlive: false,
+          callerSource: verifiedSource,
+        }),
+        wakeBudgetMs,
+      );
+      if (!wakeResponse) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but wake exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
+      wake = wakeResponse;
     } catch (error) {
       await markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error);
       await updateDispatchObligation(auth.userId, obligationId, {
@@ -948,7 +1060,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   }
 
   if (!uptakeConfirmed && args.waitForUptake && uptakeTimedOutBy === "caller_boundary") {
-    await updateDispatchObligation(auth.userId, obligationId, {
+    annotateDispatchObligation(auth.userId, obligationId, {
       pendingReason: "caller_boundary_deadline",
       callerBoundaryDeadlineAt: admin.firestore.FieldValue.serverTimestamp(),
     });

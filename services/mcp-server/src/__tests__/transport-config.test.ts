@@ -25,13 +25,13 @@ describe('Transport Configuration', () => {
     it('dispatch caller boundary fits within observed MCP proxy timeout', () => {
       // dispatch_dispatch must return confirmed uptake or a durable pending handle
       // before the outer MCP proxy timeout observed in production.
-      const DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = 50_000;
+      const DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = 45_000;
       const OBSERVED_MCP_PROXY_TIMEOUT_MS = 55_000;
       expect(DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS).toBeLessThan(OBSERVED_MCP_PROXY_TIMEOUT_MS);
     });
 
     it('transport response queue exceeds dispatch caller boundary', () => {
-      const DISPATCH_MAX_SECONDS = 50;
+      const DISPATCH_MAX_SECONDS = 45;
       const RESPONSE_QUEUE_TIMEOUT_MS = 120_000;
       expect(RESPONSE_QUEUE_TIMEOUT_MS).toBeGreaterThan(DISPATCH_MAX_SECONDS * 1000);
     });

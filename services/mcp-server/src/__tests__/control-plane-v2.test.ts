@@ -733,6 +733,7 @@ describe("Policy Modes", () => {
       }), 75))
     );
 
+    const startedAt = Date.now();
     const result = await dispatchHandler(mockAuth, {
       source: "iso",
       target: "builder-test",
@@ -745,6 +746,7 @@ describe("Policy Modes", () => {
     });
 
     const data = JSON.parse(result.content[0].text);
+    expect(Date.now() - startedAt).toBeLessThan(125);
     expect(data.success).toBe(false);
     expect(data.uptakeConfirmed).toBe(false);
     expect(data.deliveryState).toBe("notified");
@@ -760,6 +762,49 @@ describe("Policy Modes", () => {
     expect(obligation.deliveryState).toBe("notified");
     expect(obligation.pendingReason).toBe("caller_boundary_deadline");
     expect(obligation.escalationReason).toBeUndefined();
+  });
+
+  it("should return a pending handle when preflight exhausts the caller boundary", async () => {
+    process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = "50";
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockImplementationOnce(() =>
+      new Promise((resolve) => setTimeout(() => resolve({
+        targetState: "alive",
+        heartbeatAge: "1s",
+        heartbeatAgeMs: 1000,
+      }), 75))
+    );
+
+    const startedAt = Date.now();
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Slow preflight dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      autoWake: true,
+      idempotency_key: "slow-preflight-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(Date.now() - startedAt).toBeLessThan(125);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.deliveryState).toBe("notified");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:slow-preflight-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "notified",
+    });
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:slow-preflight-contract-1"];
+    expect(obligation.deliveryState).toBe("notified");
+    expect(obligation.pendingReason).toBe("caller_boundary_deadline");
+    expect(obligation.escalationReason).toBeUndefined();
+    expect(wakeModule.wakeTarget).not.toHaveBeenCalled();
   });
 
   it("should return a pending handle when preflight throws after durable persistence", async () => {
