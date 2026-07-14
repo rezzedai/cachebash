@@ -888,6 +888,78 @@ describe("Policy Modes", () => {
     });
   });
 
+  it("should return a pending handle when preflight throws and failure annotation exhausts the caller boundary", async () => {
+    process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = "50";
+    process.env.DISPATCH_RESPONSE_RESERVE_MS = "0";
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockRejectedValueOnce(new Error("preflight backend unavailable"));
+    mockDocSetDelayMs = (path, data) =>
+      path.includes("/dispatch_obligations/") && data.runtimeFailure ? 75 : 0;
+
+    const startedAt = Date.now();
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Preflight throw slow annotation dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      idempotency_key: "preflight-throw-slow-annotation-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(Date.now() - startedAt).toBeLessThan(125);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.deliveryState).toBe("notified");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:preflight-throw-slow-annotation-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "notified",
+    });
+  });
+
+  it("should return a pending handle when wake throws and failure annotation exhausts the caller boundary", async () => {
+    process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS = "50";
+    process.env.DISPATCH_RESPONSE_RESERVE_MS = "0";
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockResolvedValueOnce({
+      targetState: "stale",
+      heartbeatAge: "30m",
+      heartbeatAgeMs: 30 * 60 * 1000,
+    });
+    wakeModule.wakeTarget.mockRejectedValueOnce(new Error("wake backend unavailable"));
+    mockDocSetDelayMs = (path, data) =>
+      path.includes("/dispatch_obligations/") && data.runtimeFailure ? 75 : 0;
+
+    const startedAt = Date.now();
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Wake throw slow annotation dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      autoWake: true,
+      idempotency_key: "wake-throw-slow-annotation-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(Date.now() - startedAt).toBeLessThan(125);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.deliveryState).toBe("notified");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:wake-throw-slow-annotation-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "notified",
+    });
+  });
+
   it("should return a pending handle when preflight throws after durable persistence", async () => {
     const wakeModule = require("../modules/wake/index.js");
     wakeModule.queryTargetState.mockRejectedValueOnce(new Error("preflight backend unavailable"));

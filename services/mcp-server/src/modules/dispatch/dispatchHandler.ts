@@ -894,7 +894,27 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     flight = preflight;
     logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "preflight_done", Date.now() - dispatchStartedAtMs, Date.now() - preflightStartedAtMs);
   } catch (error) {
-    await markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error);
+    const runtimeFailureAnnotation = await awaitWithinBudget(
+      markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error),
+      responseDeadlineMs - Date.now(),
+      () => console.warn(`[Dispatch] phase=preflight_failure_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+    );
+    if (!runtimeFailureAnnotation.completed) {
+      return callerBoundaryPendingResponse({
+        auth,
+        args,
+        taskId,
+        directiveId,
+        obligationId,
+        deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+        targetState: "absent",
+        heartbeatAge: "unknown",
+        deduplicated,
+        governanceWarnings: governance.warnings,
+        matchedPolicies,
+        message: `Dispatch obligation stored for ${args.target}, but runtime preflight failed and failure annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+      });
+    }
     return jsonResult({
       success: false,
       taskId,
@@ -1002,13 +1022,58 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       wake = wakeResponse;
       logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "wake_done", Date.now() - dispatchStartedAtMs, Date.now() - wakeStartedAtMs);
     } catch (error) {
-      await markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error);
-      await updateDispatchObligation(auth.userId, obligationId, {
-        targetState: currentTargetState,
-        wakeAttempted: true,
-        wakeResult: "timeout",
-        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const wakeFailedAt = admin.firestore.FieldValue.serverTimestamp();
+      const runtimeFailureAnnotation = await awaitWithinBudget(
+        markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=wake_failure_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!runtimeFailureAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but wake failed and failure annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
+      const wakeFailureAnnotation = await awaitWithinBudget(
+        updateDispatchObligation(auth.userId, obligationId, {
+          targetState: currentTargetState,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          wakeAttemptedAt: wakeFailedAt,
+        }),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=wake_failure_state_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!wakeFailureAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but wake failure state annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
       return jsonResult({
         success: false,
         taskId,
