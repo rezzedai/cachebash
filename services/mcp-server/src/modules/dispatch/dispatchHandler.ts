@@ -407,6 +407,10 @@ interface UptakeResult {
   ackAt?: string;
 }
 
+function runtimeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Poll task status until it transitions from 'created' to 'active' (claimed).
  * Returns confirmation of uptake or timeout.
@@ -445,13 +449,14 @@ async function waitForUptake(
     if (directiveId) {
       const ack = await db.collection(`tenants/${userId}/relay`)
         .where("reply_to", "==", directiveId)
-        .where("message_type", "==", "ACK")
-        .where("source", "==", expectedAckSource)
-        .where("target", "==", expectedAckTarget)
-        .limit(1)
         .get();
-      if (!ack.empty) {
-        const ackDoc = ack.docs[0];
+      const ackDoc = ack.docs.find((doc) => {
+        const ackData = doc.data();
+        return ackData.message_type === "ACK"
+          && ackData.source === expectedAckSource
+          && ackData.target === expectedAckTarget;
+      });
+      if (ackDoc) {
         const ackData = ackDoc.data();
         return {
           confirmed: true,
@@ -553,6 +558,22 @@ async function markUptakeEscalated(
         dispatchEscalationReason: reason,
       });
     }
+  });
+}
+
+async function markRuntimeFailure(
+  userId: string,
+  taskId: string,
+  obligationId: string,
+  reason: string,
+  error: unknown,
+): Promise<void> {
+  await markUptakeEscalated(userId, taskId, obligationId, reason);
+  await updateDispatchObligation(userId, obligationId, {
+    runtimeFailure: {
+      reason,
+      message: runtimeErrorMessage(error),
+    },
   });
 }
 
@@ -672,7 +693,43 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   );
 
   // ── 2. PRE-FLIGHT ──
-  const flight = await queryTargetState(auth.userId, args.target);
+  let flight: Awaited<ReturnType<typeof queryTargetState>>;
+  try {
+    flight = await queryTargetState(auth.userId, args.target);
+  } catch (error) {
+    await markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error);
+    return jsonResult({
+      success: false,
+      taskId,
+      directiveId,
+      obligationId,
+      pendingHandle: {
+        obligationId,
+        taskId,
+        directiveId,
+        deliveryState: "escalated",
+        claimSlaSeconds: args.uptakeTimeoutSeconds,
+      },
+      deliveryState: "escalated",
+      idempotent: deduplicated || undefined,
+      targetState: "absent",
+      uptakeConfirmed: false,
+      heartbeatAge: "unknown",
+      action_required: "monitor_pending",
+      message: `Dispatch obligation stored for ${args.target}, but runtime preflight failed after persistence: ${runtimeErrorMessage(error)}. Track pendingHandle.obligationId for recovery.`,
+      governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
+      policy_violations:
+        matchedPolicies.length > 0
+          ? matchedPolicies.map((p) => ({
+              policyId: p.policyId,
+              policyName: p.policyName,
+              enforcement: p.enforcement,
+              severity: p.severity,
+              message: p.message,
+            }))
+          : undefined,
+    } satisfies DispatchResponse);
+  }
   await updateDispatchObligation(auth.userId, obligationId, {
     targetState: flight.targetState,
     preflightAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -694,12 +751,56 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   if (flight.targetState !== "alive" && args.autoWake) {
     wakeAttempted = true;
-    const wake = await wakeTarget({
-      userId: auth.userId,
-      target: args.target,
-      waitForAlive: true,
-      callerSource: verifiedSource,
-    });
+    let wake: Awaited<ReturnType<typeof wakeTarget>>;
+    try {
+      wake = await wakeTarget({
+        userId: auth.userId,
+        target: args.target,
+        waitForAlive: true,
+        callerSource: verifiedSource,
+      });
+    } catch (error) {
+      await markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error);
+      await updateDispatchObligation(auth.userId, obligationId, {
+        targetState: currentTargetState,
+        wakeAttempted: true,
+        wakeResult: "timeout",
+        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return jsonResult({
+        success: false,
+        taskId,
+        directiveId,
+        obligationId,
+        pendingHandle: {
+          obligationId,
+          taskId,
+          directiveId,
+          deliveryState: "escalated",
+          claimSlaSeconds: args.uptakeTimeoutSeconds,
+        },
+        deliveryState: "escalated",
+        idempotent: deduplicated || undefined,
+        targetState: currentTargetState,
+        uptakeConfirmed: false,
+        heartbeatAge: flight.heartbeatAge,
+        wakeAttempted: true,
+        wakeResult: "timeout",
+        action_required: "monitor_pending",
+        message: `Dispatch obligation stored for ${args.target}, but wake failed after persistence: ${runtimeErrorMessage(error)}. Track pendingHandle.obligationId for recovery.`,
+        governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
+        policy_violations:
+          matchedPolicies.length > 0
+            ? matchedPolicies.map((p) => ({
+                policyId: p.policyId,
+                policyName: p.policyName,
+                enforcement: p.enforcement,
+                severity: p.severity,
+                message: p.message,
+              }))
+            : undefined,
+      } satisfies DispatchResponse);
+    }
 
     // Map wake module outcomes to dispatch WakeResult type
     switch (wake.outcome) {

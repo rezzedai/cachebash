@@ -57,6 +57,7 @@ jest.mock("../modules/dispatch/governance.js", () => ({
 
 // Track Firestore data in memory
 const mockData: Record<string, any> = {};
+const queryFilterChains: Array<Array<[string, string, any]>> = [];
 
 const createMockDoc = (path: string) => ({
   exists: !!mockData[path],
@@ -105,6 +106,7 @@ const createMockQuery = (path: string, filters: Array<[string, string, any]> = [
     limit: jest.fn(() => query),
     orderBy: jest.fn(() => query),
     get: jest.fn(() => {
+      queryFilterChains.push(filters);
       const docs = Object.entries(mockData)
         .filter(([key]) => key.startsWith(`${path}/`))
         .filter(([, value]) =>
@@ -168,6 +170,7 @@ jest.mock("../firebase/client.js", () => ({
 // Reset mock data before each test
 beforeEach(() => {
   Object.keys(mockData).forEach(key => delete mockData[key]);
+  queryFilterChains.length = 0;
   jest.clearAllMocks();
 });
 
@@ -442,6 +445,13 @@ describe("Policy Modes", () => {
     const relayEntry = await waitForDirectiveEntry();
     expect(relayEntry).toBeDefined();
     const directiveId = relayEntry![0].split("/").pop()!;
+    mockData["tenants/test-user/relay/ack-decoy"] = {
+      reply_to: directiveId,
+      message_type: "STATUS",
+      source: "builder-test",
+      target: "iso",
+      createdAt: admin.firestore.Timestamp.now(),
+    };
     mockData["tenants/test-user/relay/ack-valid"] = {
       reply_to: directiveId,
       message_type: "ACK",
@@ -456,6 +466,7 @@ describe("Policy Modes", () => {
     expect(data.uptakeConfirmed).toBe(true);
     expect(data.uptakeVia).toBe("ack");
     expect(data.ackId).toBe("ack-valid");
+    expect(queryFilterChains).toContainEqual([["reply_to", "==", directiveId]]);
   });
 
   it("should reject spoofed ACKs from foreign programs", async () => {
@@ -656,6 +667,46 @@ describe("Policy Modes", () => {
     expect(obligation.escalationReason).toBe("target_unavailable");
     expect(obligation.wakeAttempted).toBe(true);
     expect(obligation.wakeResult).toBe("timeout");
+  });
+
+  it("should return a pending handle when preflight throws after durable persistence", async () => {
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockRejectedValueOnce(new Error("preflight backend unavailable"));
+
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Preflight throw dispatch",
+      policy_mode: "normal",
+      waitForUptake: true,
+      uptakeTimeoutSeconds: 5,
+      idempotency_key: "preflight-throw-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.deliveryState).toBe("escalated");
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.taskId).toBeDefined();
+    expect(data.directiveId).toBeDefined();
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:preflight-throw-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "escalated",
+    });
+    expect(data.message).toContain("runtime preflight failed");
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:preflight-throw-contract-1"];
+    expect(obligation.taskId).toBe(data.taskId);
+    expect(obligation.directiveId).toBe(data.directiveId);
+    expect(obligation.deliveryState).toBe("escalated");
+    expect(obligation.escalationReason).toBe("preflight_failed");
+    expect(obligation.runtimeFailure).toMatchObject({
+      reason: "preflight_failed",
+      message: "preflight backend unavailable",
+    });
   });
 
   it("should approve a supervised task", async () => {
