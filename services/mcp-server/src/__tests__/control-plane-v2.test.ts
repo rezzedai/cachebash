@@ -103,6 +103,7 @@ const mockFirestore = {
       mockData[fullPath] = data;
       return Promise.resolve({ id, path: fullPath, _path: fullPath });
     }),
+    get: jest.fn(() => Promise.resolve({ docs: [], size: 0, empty: true })),
     where: jest.fn(() => ({
       where: jest.fn(() => ({
         where: jest.fn(() => ({
@@ -364,8 +365,107 @@ describe("Policy Modes", () => {
     });
 
     const data = JSON.parse(result.content[0].text);
-    // Should succeed (governance warnings are advisory in normal mode)
+    // Governance warnings remain advisory, but skipped uptake is a tracked pending obligation.
+    expect(data.success).toBe(false);
+    expect(data.action_required).toBe("monitor_pending");
     expect(data.taskId).toBeDefined();
+  });
+
+  it("should return pending handle instead of false success when uptake wait is skipped", async () => {
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Durable pending dispatch",
+      instructions: "Track this until claim or ACK.",
+      policy_mode: "normal",
+      waitForUptake: false,
+      idempotency_key: "pending-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.uptakeConfirmed).toBe(false);
+    expect(data.action_required).toBe("monitor_pending");
+    expect(data.deliveryState).toBe("stored");
+    expect(data.pendingHandle).toMatchObject({
+      obligationId: "dispatch:pending-contract-1",
+      taskId: data.taskId,
+      directiveId: data.directiveId,
+      deliveryState: "stored",
+    });
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:pending-contract-1"];
+    expect(obligation).toBeDefined();
+    expect(obligation.taskId).toBe(data.taskId);
+    expect(obligation.directiveId).toBe(data.directiveId);
+    expect(obligation.deliveryState).toBe("stored");
+  });
+
+  it("should reuse an idempotent dispatch obligation without duplicate work", async () => {
+    const args = {
+      source: "iso",
+      target: "builder-test",
+      title: "Idempotent dispatch",
+      instructions: "Retry-safe dispatch.",
+      policy_mode: "normal",
+      waitForUptake: false,
+      idempotency_key: "dedupe-contract-1",
+    };
+
+    const first = JSON.parse((await dispatchHandler(mockAuth, args)).content[0].text);
+    const second = JSON.parse((await dispatchHandler(mockAuth, args)).content[0].text);
+
+    expect(first.success).toBe(false);
+    expect(second.success).toBe(false);
+    expect(second.idempotent).toBe(true);
+    expect(second.taskId).toBe(first.taskId);
+    expect(second.directiveId).toBe(first.directiveId);
+    expect(second.obligationId).toBe("dispatch:dedupe-contract-1");
+
+    const taskDocs = Object.keys(mockData).filter((key) => key.startsWith("tenants/test-user/tasks/"));
+    const directiveDocs = Object.keys(mockData).filter((key) => key.startsWith("tenants/test-user/relay/"));
+    const obligationDocs = Object.keys(mockData).filter((key) => key.startsWith("tenants/test-user/dispatch_obligations/"));
+    expect(taskDocs).toHaveLength(1);
+    expect(directiveDocs).toHaveLength(1);
+    expect(obligationDocs).toHaveLength(1);
+  });
+
+  it("should track absent non-spawnable target as pending spawn work, not success", async () => {
+    const wakeModule = require("../modules/wake/index.js");
+    wakeModule.queryTargetState.mockResolvedValueOnce({
+      targetState: "absent",
+      heartbeatAge: "never",
+      heartbeatAgeMs: Infinity,
+    });
+    wakeModule.wakeTarget.mockResolvedValueOnce({
+      outcome: "not_spawnable",
+      targetState: "absent",
+      heartbeatAge: "never",
+      heartbeatAgeMs: Infinity,
+    });
+
+    const result = await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Absent target dispatch",
+      policy_mode: "normal",
+      waitForUptake: false,
+      autoWake: true,
+      idempotency_key: "absent-contract-1",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(false);
+    expect(data.targetState).toBe("absent");
+    expect(data.wakeAttempted).toBe(true);
+    expect(data.wakeResult).toBe("not_spawnable");
+    expect(data.action_required).toBe("spawn_target");
+    expect(data.pendingHandle).toBeDefined();
+
+    const obligation = mockData["tenants/test-user/dispatch_obligations/dispatch:absent-contract-1"];
+    expect(obligation).toBeDefined();
+    expect(obligation.wakeAttempted).toBe(true);
+    expect(obligation.wakeResult).toBe("not_spawnable");
   });
 
   it("should approve a supervised task", async () => {
