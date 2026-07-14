@@ -13,6 +13,16 @@ export type TargetState = "alive" | "stale" | "absent";
 /** Wake attempt outcome */
 export type WakeResult = "success" | "timeout" | "not_spawnable" | "host_unreachable" | "skipped";
 
+/** Durable dispatch obligation state */
+export type DispatchDeliveryState =
+  | "stored"
+  | "wake-attempted"
+  | "notified"
+  | "claimed"
+  | "rejected"
+  | "escalated"
+  | "expired";
+
 /** Dispatch request — everything needed to dispatch work to a program */
 export interface DispatchRequest {
   /** Sending program ID */
@@ -41,6 +51,8 @@ export interface DispatchRequest {
   traceId?: string;
   spanId?: string;
   parentSpanId?: string;
+  /** Optional idempotency key preventing duplicate dispatch obligations/work */
+  idempotency_key?: string;
 }
 
 /** Spawn specification returned on failure for client-side recovery */
@@ -58,14 +70,34 @@ export interface DispatchResponse {
   taskId: string;
   /** Sent directive message ID (null if directive send failed) */
   directiveId: string | null;
+  /** Durable obligation ID for uptake tracking */
+  obligationId: string;
+  /** Current durable delivery state */
+  deliveryState: DispatchDeliveryState;
+  /** True when this response reused an existing idempotent obligation */
+  idempotent?: boolean;
+  /** Handle returned whenever dispatch has not yet reached claim/ACK uptake */
+  pendingHandle?: {
+    obligationId: string;
+    taskId: string;
+    directiveId: string | null;
+    deliveryState: DispatchDeliveryState;
+    claimSlaSeconds: number;
+  };
   /** Target liveness at dispatch time */
   targetState: TargetState;
   /** Whether the target claimed the task within the timeout */
   uptakeConfirmed: boolean;
+  /** How uptake was confirmed */
+  uptakeVia?: "claim" | "ack";
   /** Who claimed the task (program ID) */
   claimedBy?: string;
   /** When the task was claimed */
   claimedAt?: string;
+  /** ACK relay ID when uptake was confirmed by DIRECTIVE ACK */
+  ackId?: string;
+  /** ACK timestamp when uptake was confirmed by DIRECTIVE ACK */
+  ackAt?: string;
   /** Target's heartbeat age as human-readable string */
   heartbeatAge: string;
   /** Whether auto-wake was attempted */
@@ -73,7 +105,7 @@ export interface DispatchResponse {
   /** Wake daemon result */
   wakeResult?: WakeResult;
   /** Action required by caller (present on failure) */
-  action_required?: "spawn_target" | "retry" | "none" | "unquarantine";
+  action_required?: "spawn_target" | "retry" | "monitor_pending" | "none" | "unquarantine";
   /** Spawn spec for client-side recovery (present when action_required = spawn_target) */
   spawnSpec?: SpawnSpec;
   /** Human-readable message */
