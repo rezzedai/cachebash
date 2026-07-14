@@ -41,6 +41,9 @@ const UPTAKE_POLL_INTERVAL_MS = 5_000;
 /** Default uptake timeout */
 const DEFAULT_UPTAKE_TIMEOUT_SECONDS = 45;
 
+/** Keep dispatch responses inside the observed 55s MCP proxy boundary. */
+const DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS = 50_000;
+
 const DispatchSchema = z.object({
   source: z.string().max(100),
   target: z.string().max(100),
@@ -400,6 +403,7 @@ async function sendTaskAndDirective(
 
 interface UptakeResult {
   confirmed: boolean;
+  timedOutBy?: "claim_sla" | "caller_boundary";
   via?: "claim" | "ack";
   claimedBy?: string;
   claimedAt?: string;
@@ -407,8 +411,31 @@ interface UptakeResult {
   ackAt?: string;
 }
 
+function getCallerBoundaryTimeoutMs(): number {
+  const configured = Number(process.env.DISPATCH_CALLER_BOUNDARY_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS;
+}
+
 function runtimeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
+  if (timeoutMs <= 0) return undefined;
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<undefined>((resolve) => {
+        timeout = setTimeout(() => resolve(undefined), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 /**
@@ -421,19 +448,18 @@ async function waitForUptake(
   directiveId: string | null,
   expectedAckSource: string,
   expectedAckTarget: string,
-  timeoutSeconds: number,
+  claimDeadlineMs: number,
+  callerBoundaryDeadlineMs: number,
 ): Promise<UptakeResult> {
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${userId}/tasks/${taskId}`);
-  const deadline = Date.now() + timeoutSeconds * 1000;
+  const waitDeadlineMs = Math.min(claimDeadlineMs, callerBoundaryDeadlineMs);
 
-  while (Date.now() < deadline) {
-    await sleep(UPTAKE_POLL_INTERVAL_MS);
-
+  while (true) {
     const doc = await taskRef.get();
     if (!doc.exists) {
       // Task was deleted — unusual, bail out
-      return { confirmed: false };
+      return { confirmed: false, timedOutBy: Date.now() >= callerBoundaryDeadlineMs ? "caller_boundary" : "claim_sla" };
     }
 
     const data = doc.data()!;
@@ -466,9 +492,17 @@ async function waitForUptake(
         };
       }
     }
-  }
 
-  return { confirmed: false };
+    const now = Date.now();
+    if (now >= waitDeadlineMs) {
+      return {
+        confirmed: false,
+        timedOutBy: now >= callerBoundaryDeadlineMs ? "caller_boundary" : "claim_sla",
+      };
+    }
+
+    await sleep(Math.min(UPTAKE_POLL_INTERVAL_MS, waitDeadlineMs - now));
+  }
 }
 
 async function updateDispatchObligation(
@@ -581,6 +615,7 @@ async function markRuntimeFailure(
 
 export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = DispatchSchema.parse(rawArgs);
+  const callerBoundaryDeadlineMs = Date.now() + getCallerBoundaryTimeoutMs();
 
   // Enforce source identity
   const verifiedSource = verifySource(args.source, auth, "mcp");
@@ -756,7 +791,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       wake = await wakeTarget({
         userId: auth.userId,
         target: args.target,
-        waitForAlive: true,
+        waitForAlive: false,
         callerSource: verifiedSource,
       });
     } catch (error) {
@@ -851,11 +886,12 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   let suggestionReason: string | undefined;
 
   try {
-    const suggestion = await suggestBetterTarget(auth.userId, {
+    const suggestionBudgetMs = Math.min(1_000, callerBoundaryDeadlineMs - Date.now());
+    const suggestion = await withTimeout(suggestBetterTarget(auth.userId, {
       currentTarget: args.target,
       taskType: "task", // Default type
       title: args.title,
-    });
+    }), suggestionBudgetMs);
 
     if (suggestion) {
       suggestedTarget = suggestion.programId;
@@ -879,17 +915,21 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   let ackId: string | undefined;
   let ackAt: string | undefined;
   let deliveryState: DispatchDeliveryState = initialDeliveryState || (deduplicated ? "stored" : "notified");
+  let uptakeTimedOutBy: "claim_sla" | "caller_boundary" | undefined;
 
   if (args.waitForUptake) {
+    const claimDeadlineMs = Date.now() + args.uptakeTimeoutSeconds * 1000;
     const uptake = await waitForUptake(
       auth.userId,
       taskId,
       directiveId,
       args.target,
       verifiedSource,
-      args.uptakeTimeoutSeconds,
+      claimDeadlineMs,
+      callerBoundaryDeadlineMs,
     );
     uptakeConfirmed = uptake.confirmed;
+    uptakeTimedOutBy = uptake.timedOutBy;
     uptakeVia = uptake.via;
     claimedBy = uptake.claimedBy;
     claimedAt = uptake.claimedAt;
@@ -907,7 +947,14 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     }
   }
 
-  if (!uptakeConfirmed && args.waitForUptake) {
+  if (!uptakeConfirmed && args.waitForUptake && uptakeTimedOutBy === "caller_boundary") {
+    await updateDispatchObligation(auth.userId, obligationId, {
+      pendingReason: "caller_boundary_deadline",
+      callerBoundaryDeadlineAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  if (!uptakeConfirmed && args.waitForUptake && uptakeTimedOutBy !== "caller_boundary") {
     const escalationReason = targetPaused
       ? "target_paused"
       : targetQuarantined

@@ -13,6 +13,8 @@ Actionable dispatch must never report `success: true` until one of these is obse
 
 If uptake is not observed, the API returns `success: false` with `pendingHandle`. Supervisors should track `pendingHandle.obligationId` instead of redispatching blindly.
 
+The server also maintains an internal caller-boundary deadline below the observed MCP proxy timeout. If wake/preflight work consumes that budget before claim SLA elapses, `dispatch_dispatch` returns `success: false` with the durable `pendingHandle` and `pendingReason: "caller_boundary_deadline"` rather than waiting for the outer transport to time out.
+
 ## Durable Records
 
 Each dispatch writes `tenants/{tenant}/dispatch_obligations/{obligationId}` with:
@@ -43,9 +45,9 @@ Callers may pass `idempotency_key`. Reusing the key returns the existing obligat
 
 ## Operating Guidance
 
-For absent or stale targets, keep `autoWake: true`. The server may wake or launch the target through the wake host, but senders must not inject into another program's attended terminal.
+For absent or stale targets, keep `autoWake: true`. The server may wake or launch the target through the wake host, but senders must not inject into another program's attended terminal. Dispatch wake triggers launch without waiting for heartbeat confirmation; uptake is proven by task claim or DIRECTIVE ACK.
 
-For busy targets, work remains queued as a task. A timeout from `dispatch_dispatch` is not a lost dispatch; it is an escalated pending obligation.
+For busy targets, work remains queued as a task. A claim-SLA timeout from `dispatch_dispatch` is not a lost dispatch; it is an escalated pending obligation. A caller-boundary timeout is not a claim-SLA miss and remains a monitored pending obligation.
 
 For `waitForUptake: false`, the response is intentionally not successful. It returns a tracked pending handle and `action_required: "monitor_pending"`.
 
