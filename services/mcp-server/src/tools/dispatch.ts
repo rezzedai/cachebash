@@ -193,7 +193,7 @@ export const definitions = [
   },
   {
     name: "dispatch_dispatch",
-    description: "Dispatch work to a target program with enforced pre-flight checks, auto-wake, and uptake verification. Replaces the manual multi-step dispatch flow (create_task + send_directive + verify uptake) with a single atomic operation. Returns success only when the target has actually claimed the task.",
+    description: "Dispatch work to a target program with enforced pre-flight checks, durable obligation persistence, auto-wake, and uptake verification. Canonical dispatch API: returns success only when the target claims the task or ACKs the directive; otherwise returns a tracked pending handle.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -204,9 +204,10 @@ export const definitions = [
         priority: { type: "string", enum: ["low", "normal", "high"], default: "high", description: "Task priority (default: high)" },
         action: { type: "string", enum: ["interrupt", "sprint", "parallel", "queue", "backlog"], default: "interrupt", description: "Task action classification (default: interrupt)" },
         policy_mode: { type: "string", enum: ["normal", "supervised", "strict"], default: "normal", description: "Execution policy mode. normal: standard execution; supervised: requires approval before done; strict: governance warnings block dispatch (default: normal)" },
-        waitForUptake: { type: "boolean", default: true, description: "Wait for target to claim the task before returning (default: true). Set false to fire-and-forget." },
+        waitForUptake: { type: "boolean", default: true, description: "Wait for target to claim or ACK before returning (default: true). Set false only to store a pending obligation handle; response success remains false until confirmed uptake." },
         uptakeTimeoutSeconds: { type: "number", minimum: 5, maximum: 120, default: 45, description: "Seconds to wait for uptake confirmation (default: 45)" },
         autoWake: { type: "boolean", default: true, description: "Trigger wake daemon if target is stale/absent (default: true)" },
+        idempotency_key: { type: "string", maxLength: 100, description: "Optional idempotency key. Reuse returns the existing dispatch obligation instead of creating duplicate task/directive work." },
         threadId: { type: "string", description: "Optional conversation thread grouping" },
         projectId: { type: "string", description: "Optional project ID" },
         traceId: { type: "string", description: "Trace correlation ID" },

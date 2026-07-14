@@ -54,10 +54,20 @@ const DispatchSchema = z.object({
   autoWake: z.boolean().default(true),
   threadId: z.string().optional(),
   projectId: z.string().optional(),
+  idempotency_key: z.string().max(100).optional(),
   traceId: z.string().optional(),
   spanId: z.string().optional(),
   parentSpanId: z.string().optional(),
 });
+
+type DispatchDeliveryState =
+  | "stored"
+  | "wake-attempted"
+  | "notified"
+  | "claimed"
+  | "rejected"
+  | "escalated"
+  | "expired";
 
 /** Sleep helper */
 function sleep(ms: number): Promise<void> {
@@ -155,6 +165,9 @@ async function suggestBetterTarget(
 interface SendResult {
   taskId: string;
   directiveId: string | null;
+  obligationId: string;
+  deduplicated?: boolean;
+  deliveryState?: DispatchDeliveryState;
 }
 
 /**
@@ -165,11 +178,23 @@ async function sendTaskAndDirective(
   auth: AuthContext,
   args: z.infer<typeof DispatchSchema>,
   verifiedSource: string,
+  initialTargetState: TargetState,
+  wakeAttempted: boolean,
+  wakeResult: WakeResult,
 ): Promise<SendResult> {
   const db = getFirestore();
   const now = serverTimestamp();
   const traceId = args.traceId || generateSpanId();
   const spanId = args.spanId || generateSpanId();
+  const idempotencyKey = args.idempotency_key ? `dispatch:${args.idempotency_key}` : null;
+  const generatedTaskId = `dispatch_${generateSpanId()}`;
+  const generatedDirectiveId = `directive_${generateSpanId()}`;
+  const generatedObligationId = idempotencyKey || `obligation_${generateSpanId()}`;
+  const obligationRef = idempotencyKey
+    ? db.doc(`tenants/${auth.userId}/dispatch_obligations/${idempotencyKey}`)
+    : db.doc(`tenants/${auth.userId}/dispatch_obligations/${generatedObligationId}`);
+  const taskRef = db.doc(`tenants/${auth.userId}/tasks/${generatedTaskId}`);
+  const relayRef = db.doc(`tenants/${auth.userId}/relay/${generatedDirectiveId}`);
 
   // ── Create task ──
   const preview = args.title.length > 50 ? args.title.substring(0, 47) + "..." : args.title;
@@ -204,6 +229,9 @@ async function sendTaskAndDirective(
     attempt_count: 0,
     // Dispatch metadata
     dispatched_via: "dispatch_tool",
+    dispatchObligationId: generatedObligationId,
+    dispatchDeliveryState: wakeAttempted ? "wake-attempted" : "stored",
+    claimSlaSeconds: args.uptakeTimeoutSeconds,
   };
 
   // Set TTL expiration
@@ -212,13 +240,99 @@ async function sendTaskAndDirective(
     taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
   }
 
-  const taskRef = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
+  const directiveMessage = args.instructions
+    ? `[dispatch:${generatedTaskId}] ${args.title}\n\n${args.instructions.substring(0, 1800)}`
+    : `[dispatch:${generatedTaskId}] ${args.title}`;
+
+  const relayData: Record<string, unknown> = {
+    payload: directiveMessage.substring(0, 2000),
+    source: verifiedSource,
+    target: args.target,
+    message_type: "DIRECTIVE",
+    action: "interrupt",
+    priority: args.priority || "high",
+    status: "pending",
+    ttl: 86400,
+    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    threadId: args.threadId || null,
+    traceId,
+    spanId: generateSpanId(),
+    parentSpanId: spanId,
+    taskId: generatedTaskId,
+    dispatchObligationId: generatedObligationId,
+  };
+
+  const obligationData: Record<string, unknown> = {
+    schemaVersion: "1.0",
+    source: verifiedSource,
+    target: args.target,
+    taskId: generatedTaskId,
+    directiveId: generatedDirectiveId,
+    title: args.title,
+    priority: args.priority,
+    action: args.action,
+    threadId: args.threadId || null,
+    projectId: args.projectId || null,
+    traceId,
+    spanId,
+    parentSpanId: args.parentSpanId || null,
+    idempotency_key: args.idempotency_key || null,
+    deliveryState: wakeAttempted ? "wake-attempted" : "stored",
+    targetState: initialTargetState,
+    wakeAttempted,
+    wakeResult: wakeAttempted ? wakeResult : null,
+    claimSlaSeconds: args.uptakeTimeoutSeconds,
+    claimDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + args.uptakeTimeoutSeconds * 1000),
+    waitForUptake: args.waitForUptake,
+    retryCount: 0,
+    maxRetries: 1,
+    escalationLevel: 0,
+    createdAt: now,
+    updatedAt: now,
+    telemetry: {
+      timeToClaimMs: null,
+      timeToAckMs: null,
+      escalatedAt: null,
+    },
+  };
+
+  const txResult = await db.runTransaction(async (tx) => {
+    if (idempotencyKey) {
+      const existing = await tx.get(obligationRef);
+      if (existing.exists) {
+        const data = existing.data()!;
+        return {
+          deduplicated: true,
+          taskId: data.taskId as string,
+          directiveId: (data.directiveId as string | null) || null,
+          obligationId: generatedObligationId,
+          deliveryState: data.deliveryState as DispatchDeliveryState,
+        };
+      }
+    }
+
+    tx.set(taskRef, taskData);
+    tx.set(relayRef, relayData);
+    tx.set(obligationRef, obligationData);
+    return {
+      deduplicated: false,
+      taskId: generatedTaskId,
+      directiveId: generatedDirectiveId,
+      obligationId: generatedObligationId,
+      deliveryState: obligationData.deliveryState as DispatchDeliveryState,
+    };
+  });
+
+  if (txResult.deduplicated) {
+    return txResult;
+  }
 
   // Fire-and-forget: telemetry, GitHub sync, dispatcher webhook
   emitEvent(auth.userId, {
     event_type: "TASK_CREATED",
     program_id: verifiedSource,
-    task_id: taskRef.id,
+    task_id: txResult.taskId,
     task_class: taskData.task_class as "WORK" | "CONTROL",
     target: args.target,
     type: "task",
@@ -238,7 +352,7 @@ async function sendTaskAndDirective(
   });
 
   notifyDispatcher({
-    taskId: taskRef.id,
+    taskId: txResult.taskId,
     target: args.target,
     priority: args.priority || "high",
     title: args.title,
@@ -247,7 +361,7 @@ async function sendTaskAndDirective(
 
   syncTaskCreated(
     auth.userId,
-    taskRef.id,
+    txResult.taskId,
     args.title,
     args.instructions || "",
     args.action || "interrupt",
@@ -257,60 +371,44 @@ async function sendTaskAndDirective(
     undefined,
   );
 
-  // ── Send directive ──
-  let directiveId: string | null = null;
-  try {
-    const directiveMessage = args.instructions
-      ? `[dispatch:${taskRef.id}] ${args.title}\n\n${args.instructions.substring(0, 1800)}`
-      : `[dispatch:${taskRef.id}] ${args.title}`;
+  // Log for ACK compliance
+  logDirective(auth.userId, txResult.directiveId!, verifiedSource, args.target, directiveMessage.substring(0, 2000), args.threadId).catch(() => {});
 
-    const relayData: Record<string, unknown> = {
-      payload: directiveMessage.substring(0, 2000),
-      source: verifiedSource,
-      target: args.target,
-      message_type: "DIRECTIVE",
-      action: "interrupt",
-      priority: args.priority || "high",
-      status: "pending",
-      ttl: 86400,
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      threadId: args.threadId || null,
-      traceId,
-      spanId: generateSpanId(),
-      parentSpanId: spanId,
-      // Link back to the task
-      taskId: taskRef.id,
-    };
+  await updateDispatchObligation(auth.userId, txResult.obligationId, {
+    deliveryState: "notified",
+    notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
-    const relayRef = await db.collection(`tenants/${auth.userId}/relay`).add(relayData);
-    directiveId = relayRef.id;
+  await db.doc(`tenants/${auth.userId}/tasks/${txResult.taskId}`).update({
+    dispatchDeliveryState: "notified",
+  });
 
-    // Log for ACK compliance
-    logDirective(auth.userId, relayRef.id, verifiedSource, args.target, directiveMessage.substring(0, 2000), args.threadId).catch(() => {});
+  emitEvent(auth.userId, {
+    event_type: "RELAY_SENT",
+    program_id: verifiedSource,
+    message_id: txResult.directiveId!,
+    message_type: "DIRECTIVE",
+    target: args.target,
+    dispatched_via: "dispatch_tool",
+  });
 
-    emitEvent(auth.userId, {
-      event_type: "RELAY_SENT",
-      program_id: verifiedSource,
-      message_id: relayRef.id,
-      message_type: "DIRECTIVE",
-      target: args.target,
-      dispatched_via: "dispatch_tool",
-    });
-  } catch (err) {
-    // Directive send failed — task still exists for target to discover
-    console.error(`[Dispatch] Directive send failed for task ${taskRef.id}:`, err);
-  }
-
-  return { taskId: taskRef.id, directiveId };
+  return { ...txResult, deliveryState: "notified" };
 }
 
 // ─── UPTAKE WAIT ─────────────────────────────────────────────────────────────
 
 interface UptakeResult {
   confirmed: boolean;
+  via?: "claim" | "ack";
   claimedBy?: string;
   claimedAt?: string;
+  ackId?: string;
+  ackAt?: string;
+}
+
+function runtimeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -320,6 +418,9 @@ interface UptakeResult {
 async function waitForUptake(
   userId: string,
   taskId: string,
+  directiveId: string | null,
+  expectedAckSource: string,
+  expectedAckTarget: string,
   timeoutSeconds: number,
 ): Promise<UptakeResult> {
   const db = getFirestore();
@@ -339,13 +440,141 @@ async function waitForUptake(
     if (data.status === "active" || data.status === "completing" || data.status === "done") {
       return {
         confirmed: true,
+        via: "claim",
         claimedBy: data.claimedBy || data.sessionId || undefined,
         claimedAt: data.startedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
       };
     }
+
+    if (directiveId) {
+      const ack = await db.collection(`tenants/${userId}/relay`)
+        .where("reply_to", "==", directiveId)
+        .get();
+      const ackDoc = ack.docs.find((doc) => {
+        const ackData = doc.data();
+        return ackData.message_type === "ACK"
+          && ackData.source === expectedAckSource
+          && ackData.target === expectedAckTarget;
+      });
+      if (ackDoc) {
+        const ackData = ackDoc.data();
+        return {
+          confirmed: true,
+          via: "ack",
+          ackId: ackDoc.id,
+          ackAt: ackData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        };
+      }
+    }
   }
 
   return { confirmed: false };
+}
+
+async function updateDispatchObligation(
+  userId: string,
+  obligationId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const db = getFirestore();
+  await db.doc(`tenants/${userId}/dispatch_obligations/${obligationId}`).set({
+    ...patch,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function markUptakeClaimed(
+  userId: string,
+  taskId: string,
+  obligationId: string,
+  uptake: UptakeResult,
+): Promise<void> {
+  const db = getFirestore();
+  const taskRef = db.doc(`tenants/${userId}/tasks/${taskId}`);
+  const obligationRef = db.doc(`tenants/${userId}/dispatch_obligations/${obligationId}`);
+  await db.runTransaction(async (tx) => {
+    const taskDoc = await tx.get(taskRef);
+    const obligationDoc = await tx.get(obligationRef);
+    const taskData = taskDoc.exists ? taskDoc.data()! : {};
+    const obligationData = obligationDoc.exists ? obligationDoc.data()! : {};
+    const createdAtMs = obligationData.createdAt?.toMillis?.() || taskData.createdAt?.toMillis?.() || Date.now();
+    const claimedAtMs = taskData.claimedAt?.toMillis?.() || taskData.startedAt?.toMillis?.() || Date.now();
+    const ackAtMs = uptake.ackAt ? new Date(uptake.ackAt).getTime() : Date.now();
+
+    tx.set(obligationRef, {
+      deliveryState: "claimed",
+      claimedBy: uptake.claimedBy || taskData.claimedBy || null,
+      claimedAt: taskData.claimedAt || taskData.startedAt || admin.firestore.FieldValue.serverTimestamp(),
+      ackId: uptake.ackId || null,
+      ackAt: uptake.ackId ? admin.firestore.FieldValue.serverTimestamp() : null,
+      uptakeVia: uptake.via || "claim",
+      telemetry: {
+        ...(obligationData.telemetry || {}),
+        timeToClaimMs: uptake.via === "claim" ? Math.max(0, claimedAtMs - createdAtMs) : null,
+        timeToAckMs: uptake.via === "ack" ? Math.max(0, ackAtMs - createdAtMs) : null,
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    if (taskDoc.exists) {
+      tx.update(taskRef, {
+        dispatchDeliveryState: "claimed",
+        dispatchUptakeVia: uptake.via || "claim",
+      });
+    }
+  });
+}
+
+async function markUptakeEscalated(
+  userId: string,
+  taskId: string,
+  obligationId: string,
+  reason: string,
+): Promise<void> {
+  const db = getFirestore();
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.runTransaction(async (tx) => {
+    const taskRef = db.doc(`tenants/${userId}/tasks/${taskId}`);
+    const obligationRef = db.doc(`tenants/${userId}/dispatch_obligations/${obligationId}`);
+    const taskDoc = await tx.get(taskRef);
+    const obligationDoc = await tx.get(obligationRef);
+    const obligationData = obligationDoc.exists ? obligationDoc.data()! : {};
+
+    tx.set(obligationRef, {
+      deliveryState: "escalated",
+      escalationReason: reason,
+      escalationLevel: ((obligationData.escalationLevel as number) || 0) + 1,
+      escalatedAt: now,
+      telemetry: {
+        ...(obligationData.telemetry || {}),
+        escalatedAt: now,
+      },
+      updatedAt: now,
+    }, { merge: true });
+
+    if (taskDoc.exists) {
+      tx.update(taskRef, {
+        dispatchDeliveryState: "escalated",
+        dispatchEscalationReason: reason,
+      });
+    }
+  });
+}
+
+async function markRuntimeFailure(
+  userId: string,
+  taskId: string,
+  obligationId: string,
+  reason: string,
+  error: unknown,
+): Promise<void> {
+  await markUptakeEscalated(userId, taskId, obligationId, reason);
+  await updateDispatchObligation(userId, obligationId, {
+    runtimeFailure: {
+      reason,
+      message: runtimeErrorMessage(error),
+    },
+  });
 }
 
 // ─── MAIN HANDLER ────────────────────────────────────────────────────────────
@@ -451,8 +680,60 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     });
   }
 
-  // ── 1. PRE-FLIGHT ──
-  const flight = await queryTargetState(auth.userId, args.target);
+  // ── 1. DURABLE OBLIGATION ──
+  // Persist the recoverable obligation before runtime assessment or wake.
+  // If preflight/wake fails, callers still get an idempotent handle to resume.
+  const { taskId, directiveId, obligationId, deduplicated, deliveryState: initialDeliveryState } = await sendTaskAndDirective(
+    auth,
+    args,
+    verifiedSource,
+    "absent",
+    false,
+    "skipped",
+  );
+
+  // ── 2. PRE-FLIGHT ──
+  let flight: Awaited<ReturnType<typeof queryTargetState>>;
+  try {
+    flight = await queryTargetState(auth.userId, args.target);
+  } catch (error) {
+    await markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error);
+    return jsonResult({
+      success: false,
+      taskId,
+      directiveId,
+      obligationId,
+      pendingHandle: {
+        obligationId,
+        taskId,
+        directiveId,
+        deliveryState: "escalated",
+        claimSlaSeconds: args.uptakeTimeoutSeconds,
+      },
+      deliveryState: "escalated",
+      idempotent: deduplicated || undefined,
+      targetState: "absent",
+      uptakeConfirmed: false,
+      heartbeatAge: "unknown",
+      action_required: "monitor_pending",
+      message: `Dispatch obligation stored for ${args.target}, but runtime preflight failed after persistence: ${runtimeErrorMessage(error)}. Track pendingHandle.obligationId for recovery.`,
+      governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
+      policy_violations:
+        matchedPolicies.length > 0
+          ? matchedPolicies.map((p) => ({
+              policyId: p.policyId,
+              policyName: p.policyName,
+              enforcement: p.enforcement,
+              severity: p.severity,
+              message: p.message,
+            }))
+          : undefined,
+    } satisfies DispatchResponse);
+  }
+  await updateDispatchObligation(auth.userId, obligationId, {
+    targetState: flight.targetState,
+    preflightAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
   // Emit pre-flight telemetry
   emitEvent(auth.userId, {
@@ -463,19 +744,63 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     heartbeat_age_ms: flight.heartbeatAgeMs === Infinity ? -1 : flight.heartbeatAgeMs,
   });
 
-  // ── 2. AUTO-WAKE (if target is not alive and autoWake enabled) ──
+  // ── 3. AUTO-WAKE (if target is not alive and autoWake enabled) ──
   let wakeAttempted = false;
   let wakeResultStr: WakeResult = "skipped";
   let currentTargetState = flight.targetState;
 
   if (flight.targetState !== "alive" && args.autoWake) {
     wakeAttempted = true;
-    const wake = await wakeTarget({
-      userId: auth.userId,
-      target: args.target,
-      waitForAlive: true,
-      callerSource: verifiedSource,
-    });
+    let wake: Awaited<ReturnType<typeof wakeTarget>>;
+    try {
+      wake = await wakeTarget({
+        userId: auth.userId,
+        target: args.target,
+        waitForAlive: true,
+        callerSource: verifiedSource,
+      });
+    } catch (error) {
+      await markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error);
+      await updateDispatchObligation(auth.userId, obligationId, {
+        targetState: currentTargetState,
+        wakeAttempted: true,
+        wakeResult: "timeout",
+        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return jsonResult({
+        success: false,
+        taskId,
+        directiveId,
+        obligationId,
+        pendingHandle: {
+          obligationId,
+          taskId,
+          directiveId,
+          deliveryState: "escalated",
+          claimSlaSeconds: args.uptakeTimeoutSeconds,
+        },
+        deliveryState: "escalated",
+        idempotent: deduplicated || undefined,
+        targetState: currentTargetState,
+        uptakeConfirmed: false,
+        heartbeatAge: flight.heartbeatAge,
+        wakeAttempted: true,
+        wakeResult: "timeout",
+        action_required: "monitor_pending",
+        message: `Dispatch obligation stored for ${args.target}, but wake failed after persistence: ${runtimeErrorMessage(error)}. Track pendingHandle.obligationId for recovery.`,
+        governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
+        policy_violations:
+          matchedPolicies.length > 0
+            ? matchedPolicies.map((p) => ({
+                policyId: p.policyId,
+                policyName: p.policyName,
+                enforcement: p.enforcement,
+                severity: p.severity,
+                message: p.message,
+              }))
+            : undefined,
+      } satisfies DispatchResponse);
+    }
 
     // Map wake module outcomes to dispatch WakeResult type
     switch (wake.outcome) {
@@ -512,9 +837,16 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       wake_outcome: wake.outcome,
       debounce_remaining: wake.debounceRemainingSeconds,
     });
+
+    await updateDispatchObligation(auth.userId, obligationId, {
+      targetState: currentTargetState,
+      wakeAttempted,
+      wakeResult: wakeResultStr,
+      wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
-  // ── 2.5. WAVE 16: TARGET SUGGESTION (advisory only, before send) ──
+  // ── 3.5. WAVE 16: TARGET SUGGESTION (advisory only) ──
   let suggestedTarget: string | undefined;
   let suggestionReason: string | undefined;
 
@@ -539,19 +871,59 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     // Non-blocking — continue with original target
   }
 
-  // ── 3. SEND (always — even if target is stale, task queues for later) ──
-  const { taskId, directiveId } = await sendTaskAndDirective(auth, args, verifiedSource);
-
   // ── 4. UPTAKE WAIT ──
   let uptakeConfirmed = false;
+  let uptakeVia: "claim" | "ack" | undefined;
   let claimedBy: string | undefined;
   let claimedAt: string | undefined;
+  let ackId: string | undefined;
+  let ackAt: string | undefined;
+  let deliveryState: DispatchDeliveryState = initialDeliveryState || (deduplicated ? "stored" : "notified");
 
   if (args.waitForUptake) {
-    const uptake = await waitForUptake(auth.userId, taskId, args.uptakeTimeoutSeconds);
+    const uptake = await waitForUptake(
+      auth.userId,
+      taskId,
+      directiveId,
+      args.target,
+      verifiedSource,
+      args.uptakeTimeoutSeconds,
+    );
     uptakeConfirmed = uptake.confirmed;
+    uptakeVia = uptake.via;
     claimedBy = uptake.claimedBy;
     claimedAt = uptake.claimedAt;
+    ackId = uptake.ackId;
+    ackAt = uptake.ackAt;
+    if (uptakeConfirmed) {
+      deliveryState = "claimed";
+      await markUptakeClaimed(auth.userId, taskId, obligationId, uptake);
+    }
+  } else {
+    if (!deduplicated) {
+      await updateDispatchObligation(auth.userId, obligationId, {
+        pendingReason: "uptake_wait_skipped",
+      });
+    }
+  }
+
+  if (!uptakeConfirmed && args.waitForUptake) {
+    const escalationReason = targetPaused
+      ? "target_paused"
+      : targetQuarantined
+        ? "target_quarantined"
+        : currentTargetState === "alive"
+          ? "claim_sla_missed"
+          : "target_unavailable";
+    deliveryState = targetPaused || targetQuarantined ? "rejected" : "escalated";
+    if (deliveryState === "rejected") {
+      await updateDispatchObligation(auth.userId, obligationId, {
+        deliveryState,
+        rejectionReason: escalationReason,
+      });
+    } else {
+      await markUptakeEscalated(auth.userId, taskId, obligationId, escalationReason);
+    }
   }
 
   // ── Build response ──
@@ -561,16 +933,31 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   // Override success if target is paused or quarantined
   const successResult = targetPaused || targetQuarantined
     ? false
-    : uptakeConfirmed || (currentTargetState === "alive" && !args.waitForUptake);
+    : uptakeConfirmed;
 
   const response: DispatchResponse = {
     success: successResult,
     taskId,
     directiveId,
+    obligationId,
+    pendingHandle: !uptakeConfirmed
+      ? {
+          obligationId,
+          taskId,
+          directiveId,
+          deliveryState,
+          claimSlaSeconds: args.uptakeTimeoutSeconds,
+        }
+      : undefined,
+    deliveryState,
+    idempotent: deduplicated || undefined,
     targetState: currentTargetState,
     uptakeConfirmed: targetPaused || targetQuarantined ? false : uptakeConfirmed,
+    uptakeVia,
     claimedBy,
     claimedAt,
+    ackId,
+    ackAt,
     heartbeatAge: flight.heartbeatAge,
     wakeAttempted: wakeAttempted || undefined,
     wakeResult: wakeAttempted ? wakeResultStr : undefined,
@@ -580,7 +967,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
         ? "spawn_target"
         : uptakeConfirmed && !targetPaused
           ? "none"
-          : "retry",
+          : "monitor_pending",
     spawnSpec: needsSpawn && spawnConfig
       ? {
           programId: args.target,
@@ -594,10 +981,10 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       : targetPaused
         ? `Task created but target "${args.target}" is PAUSED. Task will remain queued until target is resumed.`
         : uptakeConfirmed
-          ? `Dispatched to ${args.target} — task claimed${claimedBy ? ` by ${claimedBy}` : ""}.`
+          ? `Dispatched to ${args.target} — uptake confirmed by ${uptakeVia || "claim"}${claimedBy ? ` from ${claimedBy}` : ""}.`
           : currentTargetState === "alive" && !args.waitForUptake
-            ? `Dispatched to ${args.target} (alive, uptake check skipped).`
-            : `Dispatched to ${args.target} but uptake NOT confirmed. Target is ${currentTargetState} (heartbeat: ${flight.heartbeatAge}).${needsSpawn ? " Spawn required." : ""}`,
+            ? `Dispatch obligation stored for ${args.target}; uptake wait skipped by caller. Track pendingHandle.obligationId until claim or ACK.`
+            : `Dispatch obligation stored for ${args.target} but uptake NOT confirmed within ${args.uptakeTimeoutSeconds}s. deliveryState=${deliveryState}; track pendingHandle.obligationId.${needsSpawn ? " Spawn required." : ""}`,
     governance_warnings: governance.warnings.length > 0 ? governance.warnings : undefined,
     policy_violations:
       matchedPolicies.length > 0
@@ -625,6 +1012,9 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     wake_attempted: wakeAttempted,
     wake_result: wakeResultStr,
     success: response.success,
+    delivery_state: deliveryState,
+    obligation_id: obligationId,
+    uptake_via: uptakeVia,
     governance_warnings_count: governance.warnings.length,
   });
 
