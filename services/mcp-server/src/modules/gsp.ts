@@ -1087,8 +1087,13 @@ const GspSeedSchema = z.object({
 export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspSeedSchema.parse(rawArgs);
 
-  // Authorization: admin/orchestrator only
-  const authorizedPrograms = ["vector", "iso", "admin", "dispatcher"];
+  // Authorization: admin/orchestrator only.
+  // `gsp-sync` is the CI identity for the repo's GSP State Sync workflow. It is
+  // deliberately NOT an orchestrator: its key carries only [gsp.read, gsp.write],
+  // so the capability gate still denies it dispatch/state/keys/etc. Listing it
+  // here rather than widening its capabilities to "*" keeps a CI-resident
+  // credential scoped to governance-state writes and nothing else.
+  const authorizedPrograms = ["vector", "iso", "admin", "dispatcher", "gsp-sync"];
   const hasWildcard = auth.capabilities.includes("*");
 
   if (!authorizedPrograms.includes(auth.programId) && !hasWildcard) {
