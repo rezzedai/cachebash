@@ -199,9 +199,16 @@ export async function listSchedulesHandler(auth: AuthContext, rawArgs: unknown):
     return jsonResult({
       success: true,
       schedules,
-      returned: matched.length,
+      returned: schedules.length,
       degraded: true,
       degradedReason: "FAILED_PRECONDITION: missing composite index; served via paginated unfiltered fallback",
+      // Pagination ran to exhaustion, so matchedTotal is the TRUE collection-wide
+      // match count -- not merely this page's size, unlike the `total` field this
+      // response replaces. `truncated` makes the gap between matchedTotal and
+      // `returned` explicit rather than something a caller has to infer by
+      // comparing the two counts themselves.
+      matchedTotal: matched.length,
+      truncated: schedules.length < matched.length,
       filters,
     });
   }

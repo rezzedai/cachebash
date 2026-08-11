@@ -218,7 +218,7 @@ describe("listSchedulesHandler -- failed-query fallback", () => {
     expect(ids).toContain("s-tail");
   });
 
-  test("returned exceeds the returned page when true matches exceed the public limit", async () => {
+  test("degraded path: returned is the page size, matchedTotal is the true count, truncated makes the gap explicit", async () => {
     for (let i = 0; i < 60; i++) seedSchedule(`s${i}`, { enabled: true });
     failFilteredQueries = true;
 
@@ -226,10 +226,16 @@ describe("listSchedulesHandler -- failed-query fallback", () => {
 
     expect(result.degraded).toBe(true);
     expect(result.schedules).toHaveLength(50);
-    expect(result.returned).toBe(60); // the TRUE total match count, not just this page
+    // `returned` means the SAME thing in both paths: this page's size. It is
+    // never the true collection-wide match count -- that ambiguity is exactly
+    // the class of defect this PR fixes (a field meaning two different things
+    // depending on which branch produced it).
+    expect(result.returned).toBe(50);
+    expect(result.matchedTotal).toBe(60);
+    expect(result.truncated).toBe(true);
   });
 
-  test("returned reflects what was actually sent back, not a lying page-size 'total'", async () => {
+  test("healthy path: returned reflects what was actually sent back, not a lying page-size 'total'", async () => {
     for (let i = 0; i < 5; i++) seedSchedule(`s${i}`, { enabled: true });
     failFilteredQueries = false;
 
@@ -237,6 +243,8 @@ describe("listSchedulesHandler -- failed-query fallback", () => {
 
     expect(result.returned).toBe(3);
     expect(result.schedules).toHaveLength(3);
+    expect(result.matchedTotal).toBeUndefined(); // only meaningful once a fallback scan has actually run
+    expect(result.truncated).toBeUndefined();
     expect(result.total).toBeUndefined(); // the old, misleading field is gone
   });
 
