@@ -194,8 +194,9 @@ export async function listSchedulesHandler(auth: AuthContext, rawArgs: unknown):
     const matched = await paginateAndFilter(collRef, args);
     const schedules = matched.slice(0, args.limit);
     // R5: degraded is an explicit field, not something inferable only from
-    // reading prose. `returned` here is the TRUE matched count (pagination
-    // ran to exhaustion), not merely this page's size.
+    // reading prose. `returned` means the SAME thing here as in the healthy
+    // path above -- this page's size, never the true match count. matchedTotal
+    // below carries that.
     return jsonResult({
       success: true,
       schedules,
