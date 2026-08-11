@@ -124,30 +124,87 @@ export async function createScheduleHandler(auth: AuthContext, rawArgs: unknown)
   });
 }
 
+// gRPC status code for a Firestore query whose backing composite index is
+// missing. This is the ONLY error shape that triggers the fallback below --
+// anything else must still fail unmistakably (R1). Value per
+// google.rpc.Code / @grpc/grpc-js Status.FAILED_PRECONDITION.
+const FAILED_PRECONDITION = 9;
+
+// Internal batch size for the unfiltered pagination fallback. Independent of
+// the public `limit` (capped at 50) -- that cap is exactly what makes
+// filtering a single page silently partial, which R2 exists to prevent.
+const FALLBACK_PAGE_SIZE = 300;
+
+/**
+ * On FAILED_PRECONDITION, page through the WHOLE unfiltered collection and
+ * filter in memory (R2). "Filter one capped page, collections are small" was
+ * the version this PDR was already corrected for once: schedule_list's public
+ * limit is 50, so a single page yields a confident, correctly-shaped, and
+ * silently partial result. This pages to exhaustion regardless of collection
+ * size, matching ALL filters given, and returns the true matched count.
+ */
+async function paginateAndFilter(
+  collRef: FirebaseFirestore.CollectionReference,
+  args: { target?: string; enabled?: boolean }
+): Promise<FirebaseFirestore.DocumentData[]> {
+  const matched: FirebaseFirestore.DocumentData[] = [];
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  for (;;) {
+    let page: FirebaseFirestore.Query = collRef.orderBy("createdAt", "desc").limit(FALLBACK_PAGE_SIZE);
+    if (cursor) page = page.startAfter(cursor);
+    const pageSnap = await page.get();
+    if (pageSnap.empty) break;
+    for (const doc of pageSnap.docs) {
+      const data = doc.data();
+      if (args.target !== undefined && data.target !== args.target) continue;
+      if (args.enabled !== undefined && data.enabled !== args.enabled) continue;
+      matched.push(data);
+    }
+    if (pageSnap.docs.length < FALLBACK_PAGE_SIZE) break; // last page reached
+    cursor = pageSnap.docs[pageSnap.docs.length - 1];
+  }
+  return matched;
+}
+
 export async function listSchedulesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = ListSchedulesSchema.parse(rawArgs);
   const db = getFirestore();
+  const collRef = db.collection(`tenants/${auth.userId}/schedules`);
+  const filters = { target: args.target || null, enabled: args.enabled ?? null };
 
-  let ref: FirebaseFirestore.Query = db.collection(`tenants/${auth.userId}/schedules`);
-
+  let ref: FirebaseFirestore.Query = collRef;
   if (args.target) {
     ref = ref.where("target", "==", args.target);
   }
   if (args.enabled !== undefined) {
     ref = ref.where("enabled", "==", args.enabled);
   }
-
   ref = ref.orderBy("createdAt", "desc").limit(args.limit);
-  const snap = await ref.get();
 
-  const schedules = snap.docs.map(doc => doc.data());
+  try {
+    const snap = await ref.get();
+    const schedules = snap.docs.map(doc => doc.data());
+    // R1/R5: succeeds unmistakably. `returned` is honest about what it counts
+    // (this page), unlike the `total` it replaces, which reported page size
+    // under a name that implies the whole collection.
+    return jsonResult({ success: true, schedules, returned: schedules.length, degraded: false, filters });
+  } catch (err: any) {
+    if (err?.code !== FAILED_PRECONDITION) throw err; // R1: anything else still fails unmistakably.
 
-  return jsonResult({
-    success: true,
-    schedules,
-    total: schedules.length,
-    filters: { target: args.target || null, enabled: args.enabled ?? null },
-  });
+    const matched = await paginateAndFilter(collRef, args);
+    const schedules = matched.slice(0, args.limit);
+    // R5: degraded is an explicit field, not something inferable only from
+    // reading prose. `returned` here is the TRUE matched count (pagination
+    // ran to exhaustion), not merely this page's size.
+    return jsonResult({
+      success: true,
+      schedules,
+      returned: matched.length,
+      degraded: true,
+      degradedReason: "FAILED_PRECONDITION: missing composite index; served via paginated unfiltered fallback",
+      filters,
+    });
+  }
 }
 
 export async function getScheduleHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
