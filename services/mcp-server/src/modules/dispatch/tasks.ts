@@ -29,6 +29,9 @@ const GetTasksSchema = z.object({
   include_archived: z.boolean().default(false),
   // Default false: omit instruction bodies to keep boot payloads small. Fetch full body via get_task_by_id.
   include_instructions: z.boolean().default(false),
+  // R3.1: opaque continuation cursor from a prior response's `cursor` field.
+  // Resumes the raw candidate scan exactly where that page's window ended.
+  cursor: z.string().optional(),
 });
 
 const CreateTaskSchema = z.object({
@@ -117,12 +120,35 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   }
   // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
-  const snapshot = await query.orderBy("createdAt", "desc").limit(args.limit).get();
+  let orderedQuery = query.orderBy("createdAt", "desc");
+
+  // R3.1: resume exactly after the last doc of the previous page's raw window.
+  if (args.cursor) {
+    const cursorDoc = await db.doc(`tenants/${auth.userId}/tasks/${args.cursor}`).get();
+    if (!cursorDoc.exists) {
+      return jsonResult({ success: false, error: "Invalid or expired cursor" });
+    }
+    orderedQuery = orderedQuery.startAfter(cursorDoc);
+  }
+
+  // R3.1: fetch one candidate beyond the page to get an honest completeness
+  // signal. This is deliberately scoped to the RAW CANDIDATE window (pre the
+  // requires_action/auto_archived/expiresAt filter below) — it does NOT fix
+  // the cap mechanism where `limit` bounds candidates considered rather than
+  // matching rows returned (that is R3.2, out of scope here; see PR
+  // description). What it does guarantee: if more matching rows than `limit`
+  // exist, they are necessarily a subset of more raw candidates than `limit`,
+  // so hasMore is true whenever that happens — the two DoD directions this
+  // task requires both hold structurally, independent of R3.2.
+  const snapshot = await orderedQuery.limit(args.limit + 1).get();
+  const hasMore = snapshot.docs.length > args.limit;
+  const windowDocs = snapshot.docs.slice(0, args.limit);
+  const nextCursor = hasMore ? windowDocs[windowDocs.length - 1].id : null;
 
   // Track informational tasks for auto-archive (fire-and-forget)
   const autoArchiveRefs: admin.firestore.DocumentReference[] = [];
 
-  const tasks = snapshot.docs
+  const tasks = windowDocs
     .filter((doc) => {
       const data = doc.data();
       // Filter by requires_action: null = no filter, true/false = exact match
@@ -190,11 +216,32 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     batch.commit().catch((err: unknown) => console.error("[AutoArchive] Failed:", err));
   }
 
+  // R3.1: best-effort total candidate count ("where affordable") — same
+  // population hasMore/cursor paginate over (server-side filters only), NOT
+  // the matching-row count. A missing index or other count() failure must
+  // not fail the read; omit total rather than throw.
+  let total: number | null = null;
+  try {
+    const countSnapshot = await query.count().get();
+    total = countSnapshot.data().count;
+  } catch {
+    total = null;
+  }
+
   return jsonResult({
     success: true,
     hasTasks: tasks.length > 0,
     count: tasks.length,
     tasks,
+    // R3.1 — completeness signal: "I have seen everything" is now something
+    // this response STATES (hasMore/cursor), never something inferred from
+    // count() alone. Does not stop rows disappearing (defect 3's unproven
+    // second mechanism) and does not fix the cap-vs-matching-rows mechanism
+    // (proven, R3.2) — both remain open; this only makes a short result say
+    // it is short.
+    hasMore,
+    cursor: nextCursor,
+    total,
     message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
   });
 }
