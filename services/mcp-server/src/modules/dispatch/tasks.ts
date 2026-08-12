@@ -34,6 +34,12 @@ const GetTasksSchema = z.object({
   cursor: z.string().optional(),
 });
 
+// R3.2: internal Firestore page size for the raw-candidate scan, independent
+// of the public `limit` (capped at 50 -- R3.5 forbids raising that ceiling
+// to fix under-reporting; pagination is the correct fix, not a bigger
+// single page). Same rationale as schedule.ts's FALLBACK_PAGE_SIZE.
+const CANDIDATE_PAGE_SIZE = 200;
+
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
   instructions: z.string().max(32000).optional(),
@@ -120,51 +126,80 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   }
   // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
-  let orderedQuery = query.orderBy("createdAt", "desc");
+  const orderedQuery = query.orderBy("createdAt", "desc");
 
-  // R3.1: resume exactly after the last doc of the previous page's raw window.
+  // R3.1/R3.2: resume exactly after the last raw candidate the previous page
+  // examined (whether it matched or not).
+  let cursorQuery: admin.firestore.Query = orderedQuery;
   if (args.cursor) {
     const cursorDoc = await db.doc(`tenants/${auth.userId}/tasks/${args.cursor}`).get();
     if (!cursorDoc.exists) {
       return jsonResult({ success: false, error: "Invalid or expired cursor" });
     }
-    orderedQuery = orderedQuery.startAfter(cursorDoc);
+    cursorQuery = orderedQuery.startAfter(cursorDoc);
   }
 
-  // R3.1: fetch one candidate beyond the page to get an honest completeness
-  // signal. This is deliberately scoped to the RAW CANDIDATE window (pre the
-  // requires_action/auto_archived/expiresAt filter below) — it does NOT fix
-  // the cap mechanism where `limit` bounds candidates considered rather than
-  // matching rows returned (that is R3.2, out of scope here; see PR
-  // description). What it does guarantee: if more matching rows than `limit`
-  // exist, they are necessarily a subset of more raw candidates than `limit`,
-  // so hasMore is true whenever that happens — the two DoD directions this
-  // task requires both hold structurally, independent of R3.2.
-  const snapshot = await orderedQuery.limit(args.limit + 1).get();
-  const hasMore = snapshot.docs.length > args.limit;
-  const windowDocs = snapshot.docs.slice(0, args.limit);
-  const nextCursor = hasMore ? windowDocs[windowDocs.length - 1].id : null;
+  function passesPostCapFilters(data: admin.firestore.DocumentData): boolean {
+    // Filter by requires_action: null = no filter, true/false = exact match
+    if (args.requires_action !== null) {
+      const reqAction = data.requires_action ?? true; // default true for legacy tasks
+      if (reqAction !== args.requires_action) return false;
+    }
+    // Filter out auto-archived unless explicitly included
+    if (!args.include_archived && data.auto_archived === true) return false;
+    // Filter out expired tasks (TTL-based auto-archive on read)
+    if (data.expiresAt) {
+      const expires = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+      if (expires < new Date()) return false;
+    }
+    return true;
+  }
+
+  // R3.2: `limit` must bound MATCHING rows, not raw candidates. Page through
+  // the raw candidate stream applying the post-cap predicates above until
+  // `limit` matching rows are collected or the stream is genuinely
+  // exhausted. R3.3/R3.4: "no work" (hasTasks:false) is reachable only
+  // through that exhaustion — never inferred from a single short page.
+  const matchedDocs: admin.firestore.QueryDocumentSnapshot[] = [];
+  let lastRawDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+  let hasMore = false;
+
+  for (;;) {
+    const pageSnap = await cursorQuery.limit(CANDIDATE_PAGE_SIZE).get();
+    if (pageSnap.docs.length === 0) {
+      hasMore = false; // Raw stream exhausted with nothing left at all.
+      break;
+    }
+    for (const doc of pageSnap.docs) {
+      lastRawDoc = doc;
+      if (passesPostCapFilters(doc.data())) {
+        matchedDocs.push(doc);
+        if (matchedDocs.length === args.limit) break;
+      }
+    }
+    if (matchedDocs.length === args.limit) {
+      // R3.1's one-sided guarantee, preserved under R3.2: peek exactly one
+      // more raw candidate beyond the last one examined. hasMore can be a
+      // false positive (that candidate turns out not to match) but never a
+      // false negative — hasMore:false is reached only via this peek coming
+      // back empty, or the stream exhausting outright above/below.
+      const peek = await orderedQuery.startAfter(lastRawDoc).limit(1).get();
+      hasMore = peek.docs.length > 0;
+      break;
+    }
+    if (pageSnap.docs.length < CANDIDATE_PAGE_SIZE) {
+      hasMore = false; // Short page: fewer matches than `limit` exist, period.
+      break;
+    }
+    cursorQuery = orderedQuery.startAfter(lastRawDoc);
+  }
+
+  const nextCursor = hasMore && lastRawDoc ? lastRawDoc.id : null;
 
   // Track informational tasks for auto-archive (fire-and-forget)
   const autoArchiveRefs: admin.firestore.DocumentReference[] = [];
 
-  const tasks = windowDocs
-    .filter((doc) => {
-      const data = doc.data();
-      // Filter by requires_action: null = no filter, true/false = exact match
-      if (args.requires_action !== null) {
-        const reqAction = data.requires_action ?? true; // default true for legacy tasks
-        if (reqAction !== args.requires_action) return false;
-      }
-      // Filter out auto-archived unless explicitly included
-      if (!args.include_archived && data.auto_archived === true) return false;
-      // Filter out expired tasks (TTL-based auto-archive on read)
-      if (data.expiresAt) {
-        const expires = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
-        if (expires < new Date()) return false;
-      }
-      return true;
-    })
+  const tasks = matchedDocs
     .map((doc) => {
       const data = doc.data();
       const decrypted = decryptTaskFields(data, auth.encryptionKey);
@@ -216,16 +251,19 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     batch.commit().catch((err: unknown) => console.error("[AutoArchive] Failed:", err));
   }
 
-  // R3.1: best-effort total candidate count ("where affordable") — same
-  // population hasMore/cursor paginate over (server-side filters only), NOT
-  // the matching-row count. A missing index or other count() failure must
-  // not fail the read; omit total rather than throw.
-  let total: number | null = null;
+  // §4.1: renamed from `total` to `totalCandidates` — it has always measured
+  // raw candidates matching the server-side status/type/target filters only
+  // (best-effort, "where affordable"), never the matching-row count. Under
+  // R3.1 that was internally consistent but the field name didn't say so;
+  // R3.2 makes what `limit` bounds explicit throughout, so the rename lands
+  // here rather than costing a separate cycle. A count() failure (e.g. a
+  // missing index) must not fail the read.
+  let totalCandidates: number | null = null;
   try {
     const countSnapshot = await query.count().get();
-    total = countSnapshot.data().count;
+    totalCandidates = countSnapshot.data().count;
   } catch {
-    total = null;
+    totalCandidates = null;
   }
 
   return jsonResult({
@@ -233,15 +271,15 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     hasTasks: tasks.length > 0,
     count: tasks.length,
     tasks,
-    // R3.1 — completeness signal: "I have seen everything" is now something
-    // this response STATES (hasMore/cursor), never something inferred from
-    // count() alone. Does not stop rows disappearing (defect 3's unproven
-    // second mechanism) and does not fix the cap-vs-matching-rows mechanism
-    // (proven, R3.2) — both remain open; this only makes a short result say
-    // it is short.
+    // Completeness signal (R3.1, preserved under R3.2): "I have seen
+    // everything" is something this response STATES, never inferred from
+    // count() alone. `limit` now bounds matching rows (R3.2), so a response
+    // under its own limit is reachable only when the read is genuinely
+    // complete. This still does not close defect 3's unproven second
+    // mechanism (query-vs-point-read divergence) — see PR description.
     hasMore,
     cursor: nextCursor,
-    total,
+    totalCandidates,
     message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
   });
 }
