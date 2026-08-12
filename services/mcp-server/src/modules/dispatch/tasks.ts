@@ -302,7 +302,17 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   return jsonResult({
     success: true,
-    hasTasks: tasks.length > 0,
+    // R3.6 review fix: `degraded` means the scan stopped on a budget
+    // cutoff, not on exhaustion -- zero matches found so far is NOT the
+    // same claim as R3.4's "verified none". Biasing hasTasks true here
+    // preserves the existing boolean contract every current caller's
+    // `if (hasTasks)`/`if (!hasTasks)` check already relies on (no fleet-
+    // wide migration), at the cost of a caller reading ONLY `hasTasks`
+    // being unable to tell "confirmed work" from "budget cut, unconfirmed"
+    // apart -- both read true. That residual gap is a deliberate, narrower
+    // choice than a tri-state field; see PR discussion for why a tri-state
+    // was not picked unilaterally.
+    hasTasks: tasks.length > 0 || degraded,
     count: tasks.length,
     tasks,
     // Completeness signal (R3.1, preserved under R3.2): "I have seen
@@ -320,7 +330,11 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     // confused with hasMore itself.
     degraded,
     degradedReason,
-    message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
+    message: tasks.length > 0
+      ? `Found ${tasks.length} task(s)`
+      : degraded
+        ? "Scan budget reached before any match was found — not verified empty, resume with the returned cursor"
+        : "No tasks found",
   });
 }
 

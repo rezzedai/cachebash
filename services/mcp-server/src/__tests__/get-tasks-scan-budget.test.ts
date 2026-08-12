@@ -229,4 +229,24 @@ describe("get_tasks scan budget — R3.6", () => {
     expect(parsed.degraded).toBe(false); // confirmed via peek, not a budget guess
     expect(parsed.degradedReason).toBeNull();
   });
+
+  it("R3.4 review finding: zero matches inside the budget plus a real match beyond it must not read as idle", async () => {
+    // Exactly the shape flagged in review: the raw candidates within the
+    // budget are entirely non-matching (the auto_archived-mirror population
+    // this budget exists to bound), and the one real match sits just past
+    // the cutoff. hasTasks must not be false here -- that would be
+    // indistinguishable from a genuinely verified-empty read (R3.4), and a
+    // caller following CLAUDE.md's boot protocol ("no work -> report idle")
+    // would falsely report idle with real work sitting past the cutoff.
+    const prefix = noiseRun(2200, 3000); // comfortably past the budget boundary
+    const realMatch = makeDoc("real-match", 1);
+    collectionDocs = [...prefix, realMatch];
+
+    const result = await getTasksHandler(makeAuth(), { limit: 10, status: "created", include_archived: false });
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(parsed.degraded).toBe(true);
+    expect(parsed.count).toBe(0);
+    expect(parsed.hasTasks).not.toBe(false);
+  });
 });
