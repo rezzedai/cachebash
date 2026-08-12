@@ -40,6 +40,23 @@ const GetTasksSchema = z.object({
 // single page). Same rationale as schedule.ts's FALLBACK_PAGE_SIZE.
 const CANDIDATE_PAGE_SIZE = 200;
 
+// R3.6: the R3.2 exhaustion scan (below) had no bound. Proving "no work"
+// (R3.4) walks the entire raw candidate stream, and that population grows
+// monotonically and is never deleted -- relay.ts mirrors every non-RESULT
+// message with auto_archived:true, which the default read always rejects,
+// plus every expired-TTL carry-forward. The idle-program boot read is the
+// fleet's most frequent call, so this is the pathological case, and it was
+// getting slower every day. Measured live 2026-08-12 (post-R3.2 deploy):
+// totalCandidates:1402 for target:"iso" alone -- exhausting that today costs
+// ceil(1402/200)=8 page reads, comfortably inside this budget. At 10x growth
+// (~14020 candidates) a full exhaustive scan would cost ~71 page reads; this
+// budget caps it at 10, trading a truthful `degraded:true` partial result
+// for an ~86% cut in Firestore round trips on the hottest call in the
+// fleet. Bounded by PAGE COUNT rather than elapsed time: round-trip count is
+// the actual cost driver, and unlike wall-clock it is deterministic and
+// directly assertable in tests (see get-tasks-scan-budget.test.ts).
+const MAX_CANDIDATE_PAGES = 10;
+
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
   instructions: z.string().max(32000).optional(),
@@ -163,8 +180,12 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const matchedDocs: admin.firestore.QueryDocumentSnapshot[] = [];
   let lastRawDoc: admin.firestore.QueryDocumentSnapshot | null = null;
   let hasMore = false;
+  let degraded = false;
+  let degradedReason: string | null = null;
+  let pagesRead = 0;
 
   for (;;) {
+    pagesRead++;
     const pageSnap = await cursorQuery.limit(CANDIDATE_PAGE_SIZE).get();
     if (pageSnap.docs.length === 0) {
       hasMore = false; // Raw stream exhausted with nothing left at all.
@@ -189,6 +210,19 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     }
     if (pageSnap.docs.length < CANDIDATE_PAGE_SIZE) {
       hasMore = false; // Short page: fewer matches than `limit` exist, period.
+      break;
+    }
+    if (pagesRead >= MAX_CANDIDATE_PAGES) {
+      // R3.6: budget exhausted before the raw stream was. This is NOT
+      // exhaustion, so the one-sided guarantee (R3.4) demands hasMore:true
+      // here, never false — a bounded scan that reported exhaustion would be
+      // defect 3 again, wearing a fix's label. `degraded` distinguishes this
+      // "budget hit, unknown how much more" case from the confirmed-via-peek
+      // "found `limit` matches, more exist" hasMore:true above, so a caller
+      // can tell a truncated read from a complete one.
+      hasMore = true;
+      degraded = true;
+      degradedReason = `Scan budget (${MAX_CANDIDATE_PAGES} pages of ${CANDIDATE_PAGE_SIZE}) reached before the raw candidate stream was exhausted; resume with the returned cursor.`;
       break;
     }
     cursorQuery = orderedQuery.startAfter(lastRawDoc);
@@ -268,7 +302,17 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   return jsonResult({
     success: true,
-    hasTasks: tasks.length > 0,
+    // R3.6 review fix: `degraded` means the scan stopped on a budget
+    // cutoff, not on exhaustion -- zero matches found so far is NOT the
+    // same claim as R3.4's "verified none". Biasing hasTasks true here
+    // preserves the existing boolean contract every current caller's
+    // `if (hasTasks)`/`if (!hasTasks)` check already relies on (no fleet-
+    // wide migration), at the cost of a caller reading ONLY `hasTasks`
+    // being unable to tell "confirmed work" from "budget cut, unconfirmed"
+    // apart -- both read true. That residual gap is a deliberate, narrower
+    // choice than a tri-state field; see PR discussion for why a tri-state
+    // was not picked unilaterally.
+    hasTasks: tasks.length > 0 || degraded,
     count: tasks.length,
     tasks,
     // Completeness signal (R3.1, preserved under R3.2): "I have seen
@@ -280,7 +324,17 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     hasMore,
     cursor: nextCursor,
     totalCandidates,
-    message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
+    // R3.6: distinguishes a bounded-scan cutoff (unknown how much more, just
+    // that the budget ran out) from a confirmed "found `limit` matches, more
+    // exist" hasMore:true. Deliberately not named anything that could be
+    // confused with hasMore itself.
+    degraded,
+    degradedReason,
+    message: tasks.length > 0
+      ? `Found ${tasks.length} task(s)`
+      : degraded
+        ? "Scan budget reached before any match was found — not verified empty, resume with the returned cursor"
+        : "No tasks found",
   });
 }
 
