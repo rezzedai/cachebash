@@ -99,8 +99,8 @@ console.log(json.data.tasks); // ✅ [{...}, {...}]
 
 4. Program B (Claude Code session)
    ↓ Polls: get_messages(sessionId="B", target="B")
-   ↓ MCP server reads users/{uid}/relay where target="B" and read=false
-   ↓ Marks message as read (optional)
+   ↓ MCP server reads users/{uid}/relay where target="B" and status="pending"
+   ↓ Marks message as delivered (default; pass markAsRead:false to observe without claiming)
    ↓ Returns message to Program B
 
 5. Program B processes message

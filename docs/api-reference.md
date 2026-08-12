@@ -198,7 +198,7 @@ GET /v1/messages
 |-----------|------|----------|---------|-------------|
 | `sessionId` | string | **Yes** | — | Session ID to check |
 | `target` | string | No | — | Filter by target program |
-| `markAsRead` | boolean | No | `false` | Mark returned messages as read |
+| `markAsRead` | boolean | No | `true` | Drain matching messages (pending → delivered). Pass `false` for a non-destructive observer read of another program's inbox (see `/v1/interrupts/peek`). |
 | `message_type` | string | No | — | Filter by message type |
 | `priority` | string | No | — | Filter by priority |
 
