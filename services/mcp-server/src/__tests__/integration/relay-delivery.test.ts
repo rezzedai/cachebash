@@ -520,29 +520,39 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
   });
 
   describe("get_messages — includeDelivered (Option C)", () => {
-    it("delivered re-read returns bodies and does NOT re-claim", async () => {
+    it("delivered re-read returns bodies and does NOT re-claim; a broadcast claim attempt is a no-op (R2.4)", async () => {
       const auth = makeAuth(userId, "scalar");
 
-      // First poll claims the pending broadcast + nothing else for scalar
+      // m4 is a broadcast (target:"all"). R2.4: broadcasts are exempt from
+      // the claim mutation entirely -- a single doc backs every recipient,
+      // so marking it delivered on the first claim would make that reader
+      // silently swallow it for every other program the broadcast targeted.
       const first = parse(await getMessagesHandler(auth, { sessionId: "scalar", markAsRead: true }) as never);
       expect(first.interrupts.map((m: any) => m.id)).toEqual(["m4"]);
 
       const afterClaim = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
-      expect(afterClaim.status).toBe("delivered");
-      expect(afterClaim.deliveryAttempts).toBe(1);
+      expect(afterClaim.status).toBe("pending"); // never mutated
+      // The m4 fixture never sets deliveryAttempts, and increment() never ran
+      // (that's the point) -- so the field was never created. Assert
+      // absence-or-zero rather than assume the field exists.
+      expect(afterClaim.deliveryAttempts ?? 0).toBe(0); // never incremented
 
-      // Default re-poll: empty inbox (pending window closed) — unchanged behavior
+      // Re-poll: m4 is still pending, so it re-serves. This is the intended
+      // trade-off for a schema with no per-recipient delivery state -- a
+      // broadcast always re-serves rather than risk vanishing for whoever
+      // hasn't read it yet.
       const second = parse(await getMessagesHandler(auth, { sessionId: "scalar", markAsRead: true }) as never);
-      expect(second.interrupts).toEqual([]);
+      expect(second.interrupts.map((m: any) => m.id)).toEqual(["m4"]);
 
-      // includeDelivered re-opens the body read without re-claiming
+      // includeDelivered still surfaces m1 (already delivered) alongside m4.
       const reread = parse(await getMessagesHandler(auth, { sessionId: "scalar", markAsRead: true, includeDelivered: true }) as never);
       expect(reread.interrupts.map((m: any) => m.id).sort()).toEqual(["m1", "m4"]);
       const m4 = reread.interrupts.find((m: any) => m.id === "m4");
       expect(m4.message).toBe("broadcast-body");
+      expect(m4.status).toBe("pending");
 
       const afterReread = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
-      expect(afterReread.deliveryAttempts).toBe(1); // no re-claim
+      expect(afterReread.deliveryAttempts ?? 0).toBe(0); // still never claimed
     });
 
     it("includeDelivered read-only poll returns pending + delivered bodies, own target only", async () => {
@@ -555,9 +565,57 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
       expect(m1.status).toBe("delivered");
     });
 
-    it("default behavior unchanged: pending only", async () => {
+    it("R2.4: default now drains -- a bare call claims a pending direct message but leaves the broadcast pending", async () => {
+      // Extra direct message for scalar, isolated to this test.
+      await db.collection(`tenants/${userId}/relay`).doc("m6").set({
+        source: "iso", target: "scalar", payload: "direct-body", message_type: "DIRECTIVE",
+        status: "pending", threadId: "t-other2", priority: "normal", action: "queue",
+        createdAt: ts("2026-06-09T10:05:00Z"),
+      });
+
       const res = parse(await getMessagesHandler(makeAuth(userId, "scalar"), { sessionId: "scalar" }) as never);
+      expect(res.interrupts.map((m: any) => m.id).sort()).toEqual(["m4", "m6"]);
+
+      const m6 = res.interrupts.find((m: any) => m.id === "m6");
+      expect(m6.status).toBe("delivered");
+      const m4 = res.interrupts.find((m: any) => m.id === "m4");
+      expect(m4.status).toBe("pending");
+
+      const afterM6 = (await db.doc(`tenants/${userId}/relay/m6`).get()).data()!;
+      expect(afterM6.status).toBe("delivered");
+      expect(afterM6.deliveryAttempts).toBe(1);
+      const afterM4 = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
+      expect(afterM4.status).toBe("pending");
+      expect(afterM4.deliveryAttempts || 0).toBe(0);
+
+      // A second bare call no longer returns m6 (drained) but still returns m4 (broadcast).
+      const second = parse(await getMessagesHandler(makeAuth(userId, "scalar"), { sessionId: "scalar" }) as never);
+      expect(second.interrupts.map((m: any) => m.id)).toEqual(["m4"]);
+    });
+
+    it("R2.4: markAsRead:false is still the non-destructive observer path", async () => {
+      const res = parse(await getMessagesHandler(makeAuth(userId, "scalar"), { sessionId: "scalar", markAsRead: false }) as never);
       expect(res.interrupts.map((m: any) => m.id)).toEqual(["m4"]);
+
+      const afterRead = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
+      expect(afterRead.status).toBe("pending");
+    });
+
+    it("R2.4: a broadcast survives being read by one recipient -- a different recipient still sees it", async () => {
+      // scalar reads (and, per R2.4, does not claim) the broadcast first.
+      const scalarRead = parse(await getMessagesHandler(makeAuth(userId, "scalar"), { sessionId: "scalar" }) as never);
+      expect(scalarRead.interrupts.map((m: any) => m.id)).toEqual(["m4"]);
+
+      // basher, a different broadcast recipient, still sees it as pending —
+      // this is the exact swallow-bug R2.4's broadcast exemption prevents.
+      // (basher also has m5 pending on its own thread, drained normally.)
+      const basherRead = parse(await getMessagesHandler(makeAuth(userId, "basher"), { sessionId: "basher" }) as never);
+      const ids = basherRead.interrupts.map((m: any) => m.id).sort();
+      expect(ids).toEqual(["m4", "m5"]);
+      const m4ForBasher = basherRead.interrupts.find((m: any) => m.id === "m4");
+      expect(m4ForBasher.status).toBe("pending");
+      const m5ForBasher = basherRead.interrupts.find((m: any) => m.id === "m5");
+      expect(m5ForBasher.status).toBe("delivered");
     });
   });
 
