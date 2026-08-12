@@ -532,7 +532,10 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
 
       const afterClaim = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
       expect(afterClaim.status).toBe("pending"); // never mutated
-      expect(afterClaim.deliveryAttempts).toBe(0); // never incremented
+      // The m4 fixture never sets deliveryAttempts, and increment() never ran
+      // (that's the point) -- so the field was never created. Assert
+      // absence-or-zero rather than assume the field exists.
+      expect(afterClaim.deliveryAttempts ?? 0).toBe(0); // never incremented
 
       // Re-poll: m4 is still pending, so it re-serves. This is the intended
       // trade-off for a schema with no per-recipient delivery state -- a
@@ -549,7 +552,7 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
       expect(m4.status).toBe("pending");
 
       const afterReread = (await db.doc(`tenants/${userId}/relay/m4`).get()).data()!;
-      expect(afterReread.deliveryAttempts).toBe(0); // still never claimed
+      expect(afterReread.deliveryAttempts ?? 0).toBe(0); // still never claimed
     });
 
     it("includeDelivered read-only poll returns pending + delivered bodies, own target only", async () => {
