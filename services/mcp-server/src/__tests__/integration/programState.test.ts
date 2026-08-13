@@ -6,6 +6,7 @@
  */
 
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { initializeFirebase } from "../../firebase/client";
 import {
   getProgramStateHandler,
   updateProgramStateHandler,
@@ -36,6 +37,7 @@ jest.mock("../../modules/events", () => ({
 
 beforeAll(() => {
   db = getTestFirestore();
+  initializeFirebase(); // point module-level handlers at the emulator
 });
 
 beforeEach(async () => {
