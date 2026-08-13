@@ -917,7 +917,16 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
     // 5. Memory — Program state
     try {
-      const stateDoc = await db.doc(`tenants/${auth.userId}/programs/${args.agentId}/state`).get();
+      // Must match where programState.ts actually writes. The previous path,
+      // `tenants/{uid}/programs/{agentId}/state`, was BOTH wrong in location and
+      // structurally invalid — 5 segments, so db.doc() rejected it outright with
+      // "does not contain an even number of components". The throw was swallowed
+      // by the catch below, which sets no loadError, so every caller saw an empty
+      // memory block and read it as "this program has nothing stored yet".
+      // Line 1804 in this same file already used the correct collection.
+      const stateDoc = await db
+        .doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.agentId}`)
+        .get();
 
       if (stateDoc.exists) {
         const stateData = stateDoc.data()!;
