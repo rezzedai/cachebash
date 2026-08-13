@@ -5,6 +5,7 @@
  */
 
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { initializeFirebase } from "../../firebase/client";
 import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "../../modules/keys";
 import type { AuthContext } from "../../auth/authValidator";
 import * as admin from "firebase-admin";
@@ -15,6 +16,7 @@ let auth: AuthContext;
 
 beforeAll(async () => {
   db = getTestFirestore();
+  initializeFirebase(); // point module-level handlers at the emulator
 });
 
 beforeEach(async () => {
