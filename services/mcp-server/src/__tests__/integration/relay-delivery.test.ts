@@ -975,7 +975,7 @@ describe("Grid-help tenant-route", () => {
   it("delivers to group members AND vector_<tenant> when payload.tenant is set", async () => {
     const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
       message: "cerebro needs help",
-      source: "rezzed.agent",
+      source: "basher",
       target: "grid-help",
       message_type: "STATUS",
       payload: { tenant: "cerebro", taskId: "t-abc" },
@@ -999,7 +999,7 @@ describe("Grid-help tenant-route", () => {
 
     const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
       message: "cerebro help request",
-      source: "rezzed.agent",
+      source: "basher",
       target: "grid-help",
       message_type: "STATUS",
       payload: { tenant: "cerebro", taskId: "t-def" },
