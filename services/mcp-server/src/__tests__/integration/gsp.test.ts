@@ -276,8 +276,11 @@ describe("Bootstrap depth tiers", () => {
       createdAt: new Date().toISOString(),
     });
 
-    // Program state with learned patterns
-    await db.doc(`tenants/${userId}/programs/basher/state`).set({
+    // Program state with learned patterns.
+    // Seeded where programState.ts actually writes — the old
+    // `tenants/{uid}/programs/basher/state` was a 5-segment path that Firestore
+    // rejects as a document, which is what made this test fail.
+    await db.doc(`tenants/${userId}/sessions/_meta/program_state/basher`).set({
       learnedPatterns: [
         {
           id: "p1",
