@@ -207,6 +207,7 @@ export const definitions = [
         waitForUptake: { type: "boolean", default: true, description: "Wait for target to claim or ACK before returning (default: true). Set false only to store a pending obligation handle; response success remains false until confirmed uptake." },
         uptakeTimeoutSeconds: { type: "number", minimum: 5, maximum: 120, default: 45, description: "Seconds to wait for uptake confirmation (default: 45)" },
         autoWake: { type: "boolean", default: true, description: "Trigger wake daemon if target is stale/absent (default: true)" },
+        ttl: { type: "number", minimum: 0, maximum: 31536000, description: "Task lifetime in seconds. 0 is the never-expires sentinel (opts out of reaping — resolves to 2099-01-01T00:00:00Z). Omit to use the action-based default: 604800s (7d) for action:\"interrupt\", 86400s (24h) otherwise." },
         idempotency_key: { type: "string", maxLength: 100, description: "Optional idempotency key. Reuse returns the existing dispatch obligation instead of creating duplicate task/directive work." },
         threadId: { type: "string", description: "Optional conversation thread grouping" },
         projectId: { type: "string", description: "Optional project ID" },
