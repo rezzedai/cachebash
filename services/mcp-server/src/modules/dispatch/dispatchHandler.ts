@@ -271,8 +271,13 @@ async function sendTaskAndDirective(
     action: "interrupt",
     priority: args.priority || "high",
     status: "pending",
-    ttl: 86400,
-    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
+    // W2c: the directive record must expire together with the task it announces
+    // (same effectiveTtl/expiresAt computed above for taskData) -- not its own
+    // independent 24h. Before this, an interrupt dispatch's task lived 7 days
+    // while the directive explaining it dead-lettered in 1, so a program reading
+    // its inbox on day 2 saw the task with no directive to explain it.
+    ttl: effectiveTtl,
+    expiresAt,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     threadId: args.threadId || null,
     traceId,
