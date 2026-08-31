@@ -69,7 +69,9 @@ const CreateTaskSchema = z.object({
   target: z.string().max(100),
   projectId: z.string().optional(),
   boardItemId: z.string().optional(),
-  ttl: z.number().positive().optional(),
+  // 0 is the never-expires sentinel (see CONSTANTS.ttl.neverExpiresSentinel) and must
+  // survive validation — min(0), deliberately not .positive().
+  ttl: z.number().int().min(0).max(31536000).optional(),
   replyTo: z.string().optional(),
   threadId: z.string().optional(),
   provenance: z.object({
@@ -357,6 +359,21 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const preview = args.title.length > 50 ? args.title.substring(0, 47) + "..." : args.title;
   const now = serverTimestamp();
 
+  // Resolve the effective ttl once so taskData.ttl and expiresAt can never diverge
+  // (same falsy trap as dispatch(): explicit undefined check, not `||` — 0 is the
+  // never-expires sentinel and is falsy). type="task" with no explicit ttl keeps
+  // the existing 24h default; every other case that previously wrote NO expiresAt
+  // field at all now resolves to 0 (never-expires) instead — see W2b.2: an absent
+  // expiresAt already meant "never filtered by TTL" to every read path, so this is
+  // semantics-preserving, it just stops that field-less-document population from
+  // regrowing after W1's backfill.
+  const effectiveTtl =
+    args.ttl !== undefined ? args.ttl : args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : 0;
+  const expiresAt =
+    effectiveTtl === 0
+      ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+      : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+
   const taskData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,
     type: args.type,
@@ -376,7 +393,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     // message_type drives classification and drain semantics (STATUS/RESULT).
     message_type: args.message_type || null,
     // Envelope v2.1
-    ttl: args.ttl || null,
+    ttl: effectiveTtl,
     replyTo: args.replyTo || null,
     threadId: args.threadId || null,
     provenance: args.provenance || null,
@@ -408,11 +425,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   taskData.task_class = classifyTask(args.type, args.action, args.title);
   taskData.attempt_count = 0;
 
-  // Default 24h TTL for type=task; other types (dream, sprint, question) have no default TTL
-  const effectiveTtl = args.ttl || (args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : null);
-  if (effectiveTtl) {
-    taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
-  }
+  taskData.expiresAt = expiresAt;
 
   const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
 

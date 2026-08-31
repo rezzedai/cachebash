@@ -75,7 +75,7 @@ export const definitions = [
         target: { type: "string", maxLength: 100, description: "Target program ID (required). Use program name or 'all' for broadcast." },
         projectId: { type: "string" },
         boardItemId: { type: "string", description: "Existing GitHub Projects board item ID to link instead of creating a new issue" },
-        ttl: { type: "number", description: "Seconds until expiry" },
+        ttl: { type: "number", minimum: 0, maximum: 31536000, description: "Task lifetime in seconds. 0 is the never-expires sentinel (resolves to 2099-01-01T00:00:00Z). Omit to use the default: 86400s (24h) for type:\"task\", or the never-expires sentinel for any other type." },
         replyTo: { type: "string", description: "Task ID this responds to" },
         threadId: { type: "string", description: "Conversation thread grouping" },
         provenance: { type: "object", properties: { model: { type: "string" }, cost_tokens: { type: "number" }, confidence: { type: "number" } } },
