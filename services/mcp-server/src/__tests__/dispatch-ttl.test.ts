@@ -265,3 +265,67 @@ describe("PLAN-W2: dispatch() ttl", () => {
     ).rejects.toThrow();
   });
 });
+
+function getCreatedRelay() {
+  const entry = Object.entries(mockData).find(
+    ([key, value]) => key.startsWith("tenants/test-user/relay/") && value?.message_type === "DIRECTIVE"
+  );
+  if (!entry) throw new Error("no relay directive doc created");
+  return entry[1];
+}
+
+describe("PLAN-W2c: the relay directive record tracks the task's effectiveTtl", () => {
+  it("interrupt dispatch (no explicit ttl): relay ttl/expiresAt equal the task's (604800s), not a fixed 86400", async () => {
+    await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Interrupt directive",
+      instructions: "Directive must outlive as long as the task it announces",
+      action: "interrupt",
+      waitForUptake: false,
+    });
+
+    const task = getCreatedTask();
+    const relay = getCreatedRelay();
+
+    expect(task.ttl).toBe(604800);
+    expect(relay.ttl).toBe(604800);
+    expect(relay.ttl).not.toBe(86400);
+    expect(relay.expiresAt.toMillis()).toBe(task.expiresAt.toMillis());
+  });
+
+  it("explicit ttl: relay ttl/expiresAt equal the task's", async () => {
+    await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Explicit ttl directive",
+      action: "queue",
+      ttl: 300,
+      waitForUptake: false,
+    });
+
+    const task = getCreatedTask();
+    const relay = getCreatedRelay();
+
+    expect(relay.ttl).toBe(300);
+    expect(relay.expiresAt.toMillis()).toBe(task.expiresAt.toMillis());
+  });
+
+  it("never-expires sentinel (ttl:0): relay expiresAt is 2099 too, not a 24h default", async () => {
+    await dispatchHandler(mockAuth, {
+      source: "iso",
+      target: "builder-test",
+      title: "Never-expires directive",
+      action: "queue",
+      ttl: 0,
+      waitForUptake: false,
+    });
+
+    const task = getCreatedTask();
+    const relay = getCreatedRelay();
+
+    expect(relay.ttl).toBe(0);
+    expect(relay.expiresAt.toDate().getTime()).toBe(new Date(CONSTANTS.ttl.neverExpiresSentinel).getTime());
+    expect(relay.expiresAt.toMillis()).toBe(task.expiresAt.toMillis());
+  });
+});
