@@ -43,6 +43,8 @@ export interface DispatchRequest {
   uptakeTimeoutSeconds?: number;
   /** Trigger wake daemon if target is stale/absent */
   autoWake?: boolean;
+  /** Task lifetime in seconds. 0 is the never-expires sentinel (2099-01-01T00:00:00Z). Omit for the action-based default: 604800s for interrupt, 86400s otherwise. */
+  ttl?: number;
   /** Optional thread grouping */
   threadId?: string;
   /** Optional project ID */
