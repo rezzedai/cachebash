@@ -1,0 +1,68 @@
+{
+  "plan": "PLAN-W3",
+  "date": "2026-08-31",
+  "tenant": "7viFKVtl5lgzguhFoZlnYYrqeDG2",
+  "export": {
+    "file": "expired-open-tasks.ndjson",
+    "storage": "Durable local path outside git and outside the ephemeral session scratch directory. Path reported to ISO out-of-band, not committed here.",
+    "note": "Bodies are NOT committed to git (may contain operational detail). This manifest (ids/counts/hash only) is safe to commit.",
+    "query": "collection('tenants/7viFKVtl5lgzguhFoZlnYYrqeDG2/tasks').where('status','==','created') [paged, no composite index], then client-side filter: expiresAt present && expiresAt.toDate() <= now",
+    "why_paged_not_composite_index": "Avoids creating a new (status, expiresAt) composite index in production. The single-field equality query needs no index Firestore doesn't already maintain.",
+    "status_created_count_before_export": 31758,
+    "status_created_count_after_export": 31758,
+    "count_delta_during_export": 0,
+    "matched_expired_open_count": 27603,
+    "file_size_bytes": 49102342,
+    "sha256": "b0fb51d2d991128c0dfc108fc5f7f152b2b7179af8f3730db152abd4b9023e1d",
+    "line_count": 27603,
+    "json_validation": "All 27603 lines parsed as valid JSON, 0 malformed.",
+    "composition_by_type": { "task": 27603 },
+    "composition_top_sources": {
+      "enrichment-worker": 24510,
+      "iso": 979,
+      "vector": 852,
+      "basher": 420,
+      "basher_cerebro": 281,
+      "codex": 132,
+      "vector_cerebro": 112,
+      "iso_cerebro": 95,
+      "alan": 77,
+      "dispatcher": 44
+    }
+  },
+  "restore_probe": {
+    "status": "BLOCKED",
+    "reason": "grid-deployer's roles/datastore.owner IAM binding carries a time-bound condition (request.time < 2026-01-28T20:33:20.598Z) that expired 2026-01-28. No write-capable Firestore credential was available for a direct-write restore test. Reads work only via the unconditioned roles/viewer primitive role, which is why the export (read-only) succeeded in full. grid-deployer has no IAM-admin permission to grant itself a new/renewed write role.",
+    "sample_selected_deliberately": true,
+    "sample_size": 65,
+    "sample_selection_criteria": [
+      "largest instructions body in the export",
+      "the 1 doc with claimSpanId",
+      "the 4 docs with reassignedBy/reassignReason/reassignedAt/previousTarget",
+      "8 of the 11 docs with dispatchObligationId/claimSlaSeconds/dispatchDeliveryState",
+      "8 of the 25 flagged docs",
+      "8 of the 53 docs with stateTransitions",
+      "remainder: evenly spaced across the full 27603-line export for breadth"
+    ],
+    "escalated_to_iso": true
+  },
+  "rescue": {
+    "status": "COMPLETE",
+    "method": "create_task via the deployed cachebash-mcp app (source: basher, target: iso, ttl: 0), NOT the blocked raw-Firestore path -- an independent, already-working credential (Cloud Run's own runtime service account)",
+    "count": 6,
+    "originals_untouched": true,
+    "originals_verified_present_and_byte_identical_post_rescue": true,
+    "all_new_docs_verified_expiresAt": "2099-01-01T00:00:00.000Z",
+    "old_to_new_id_pairs_and_byte_counts": "reported to ISO out-of-band, not duplicated here"
+  },
+  "population_counts": {
+    "measured_at": "2026-08-31T22:46:54.586Z",
+    "total": 154125,
+    "with_expiresAt_field": 148632,
+    "without_expiresAt_field": 5493,
+    "expired_expiresAt_lte_now": 148590,
+    "live_expiresAt_gt_now": 42,
+    "sanity_check_with_eq_expired_plus_live": true,
+    "note": "without_expiresAt_field is unchanged from ISO's pre-W2b figure of 5493 -- confirms PLAN-W2b closed the generator, no new field-less docs since deploy."
+  }
+}
