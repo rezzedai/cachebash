@@ -36,7 +36,17 @@ const SendMessageSchema = z.object({
   sessionId: z.string().optional(),
   reply_to: z.string().optional(),
   threadId: z.string().optional(),
-  ttl: z.number().positive().optional(),
+  // W2d.2: deliberately NOT z.number().positive() with the generic message -- ttl:0
+  // means never-expires elsewhere in this system (dispatch()/create_task, since W2/W2b),
+  // but relay expiry is load-bearing here (cleanupExpiredRelayMessages dead-letters
+  // expired pending messages; get_messages never surfaces a dead-lettered one again).
+  // A relay message that can never dead-letter is undesirable ballast for a target that
+  // never claims it, unlike a task, which is meant to persist until someone acts on it.
+  // Reject explicitly rather than silently substituting the default -- see the census in
+  // PLAN-W2d for the alternative this deliberately avoids.
+  ttl: z.number().refine((v) => v > 0, {
+    message: "ttl must be a positive number of seconds. ttl:0 (never-expires) is not supported for relay messages -- relay expiry is load-bearing (drives dead-lettering); use dispatch() if you need work that survives indefinitely.",
+  }).optional(),
   provenance: z.object({
     model: z.string().optional(),
     cost_tokens: z.number().optional(),
@@ -152,6 +162,9 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
   }
 
+  // `||` is safe here specifically because SendMessageSchema's ttl refine already
+  // rejects 0 (and negatives) before this line runs -- args.ttl is either undefined
+  // or a genuine positive number, never the never-expires sentinel value.
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
 
