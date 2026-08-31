@@ -1,5 +1,5 @@
 import type { AuthContext } from "../auth/authValidator";
-import { sendDirectiveHandler } from "../modules/relay";
+import { sendDirectiveHandler, sendMessageHandler } from "../modules/relay";
 
 let lastRelayDoc: Record<string, unknown> = {};
 
@@ -180,5 +180,52 @@ describe("send_directive", () => {
         target: "basher",
       })
     ).rejects.toThrow();
+  });
+});
+
+describe("send_message ttl (W2d.2)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    lastRelayDoc = {};
+  });
+
+  it("rejects ttl:0 with a clear, deliberate error -- not a silent substitution of the default", async () => {
+    await expect(
+      sendMessageHandler(auth(), {
+        source: "vector",
+        target: "basher",
+        message: "Never-expires attempt",
+        message_type: "PING",
+        ttl: 0,
+      })
+    ).rejects.toThrow(/never-expires/i);
+  });
+
+  it("still rejects a negative ttl", async () => {
+    await expect(
+      sendMessageHandler(auth(), {
+        source: "vector",
+        target: "basher",
+        message: "Invalid ttl",
+        message_type: "PING",
+        ttl: -5,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("honours an explicit positive ttl", async () => {
+    await sendMessageHandler(auth(), {
+      source: "vector",
+      target: "basher",
+      message: "Custom ttl",
+      message_type: "PING",
+      ttl: 300,
+    });
+
+    expect(lastRelayDoc.ttl).toBe(300);
+    const expiresAtMs = (lastRelayDoc.expiresAt as { toMillis: () => number }).toMillis();
+    const now = Date.now();
+    expect(expiresAtMs).toBeGreaterThanOrEqual(now + 299_000);
+    expect(expiresAtMs).toBeLessThanOrEqual(now + 301_000);
   });
 });
