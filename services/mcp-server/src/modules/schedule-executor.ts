@@ -7,9 +7,10 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { emitEvent } from "./events.js";
 import { computeNextRun } from "./schedule.js";
+import { CONSTANTS } from "../config/constants.js";
 
 export interface ScheduleFired {
   scheduleId: string;
@@ -84,7 +85,12 @@ async function fireSchedule(
 
     const template = schedule.taskTemplate || {};
 
-    // Create the task document
+    // Create the task document. W2e: no expiresAt was ever written here -- every
+    // fired schedule permanently added a field-less task doc. type:"task" with no
+    // explicit ttl gets the same default create_task itself applies in that case
+    // (CONSTANTS.ttl.defaultTaskSeconds, 24h), not the never-expires sentinel: this
+    // is ordinary actionable work for `target`, not open-ended state like a sprint
+    // or an unanswered question.
     const taskRef = db.collection(`tenants/${userId}/tasks`).doc();
     const taskDoc = {
       type: "task",
@@ -98,6 +104,8 @@ async function fireSchedule(
       scheduleId: scheduleRef.id,
       scheduleName: schedule.name,
       createdAt: FieldValue.serverTimestamp(),
+      ttl: CONSTANTS.ttl.defaultTaskSeconds,
+      expiresAt: Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.defaultTaskSeconds * 1000),
     };
     txn.create(taskRef, taskDoc);
 
