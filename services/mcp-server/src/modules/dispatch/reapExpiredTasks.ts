@@ -185,6 +185,23 @@ export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknow
     return reapByIds(db, col, auth.userId, args.ids, args.execute, nowMs);
   }
 
+  // INCIDENT GUARD (2026-09-01): an unbounded scan-mode execute:true call
+  // (no `ids`, no `limit`) was observed deleting far past PLAN-W4 stage 2's
+  // ISO-ruled ~24,510 cap -- cohortSource alone does not bound status, so
+  // "enrichment-worker" matches every status, not just the authorized
+  // status=created slice, and a client that retries after a proxy timeout
+  // resumes the same unbounded scan for free since already-deleted docs
+  // simply vanish from the id-ordered page. Every execute:true call must be
+  // either manifest-driven (`ids`) or explicitly capped (`limit`) -- there
+  // is no such thing as an intentional unbounded live delete in this tool.
+  if (args.execute && args.limit === undefined) {
+    return jsonResult({
+      success: false,
+      error: "UNBOUNDED_EXECUTE_REFUSED",
+      message: "execute:true requires either `ids` (manifest-driven) or an explicit `limit` -- unbounded scan-mode deletes are not permitted.",
+    });
+  }
+
   let scanned = 0;
   let fieldLessCount = 0;
   let liveWithExpiry = 0;
