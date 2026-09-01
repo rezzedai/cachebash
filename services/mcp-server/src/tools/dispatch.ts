@@ -2,7 +2,7 @@
  * Dispatch Domain Registry — Task lifecycle tools.
  */
 import { AuthContext } from "../auth/authValidator.js";
-import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler, suggestTargetHandler, recordTaskTelemetryHandler } from "../modules/dispatch/index.js";
+import { getTasksHandler, getTaskByIdHandler, createTaskHandler, claimTaskHandler, unclaimTaskHandler, completeTaskHandler, batchClaimTasksHandler, batchCompleteTasksHandler, getContentionMetricsHandler, dispatchHandler, retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler, getTaskLineageHandler, exportTasksHandler, suggestTargetHandler, recordTaskTelemetryHandler, backfillTaskExpiresAtHandler, reapExpiredTasksHandler } from "../modules/dispatch/index.js";
 
 type Handler = (auth: AuthContext, args: any) => Promise<any>;
 
@@ -29,6 +29,8 @@ export const handlers: Record<string, Handler> = {
   dispatch_get_task_lineage: getTaskLineageHandler,
   dispatch_export_tasks: exportTasksHandler,
   dispatch_suggest_target: suggestTargetHandler,
+  dispatch_backfill_task_expires_at: backfillTaskExpiresAtHandler,
+  dispatch_reap_expired_tasks: reapExpiredTasksHandler,
 };
 
 export const definitions = [
@@ -353,6 +355,29 @@ export const definitions = [
         taskType: { type: "string", description: "Task type to match (e.g., 'task', 'question', 'dream'). Defaults to 'task'." },
         title: { type: "string", description: "Optional task title for context" },
         instructions: { type: "string", description: "Optional task instructions for context" },
+      },
+    },
+  },
+  {
+    name: "dispatch_backfill_task_expires_at",
+    description: "PLAN-W1: fleet-internal only. Scans the caller's tasks collection for documents with no expiresAt field, classifies each via the reviewed classifyForBackfill() rule, and (only when execute:true) writes expiresAt onto them in batches of <=400 -- never overwrites a doc that already has the field, never touches any other field. Dry-run (execute:false) by default.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        execute: { type: "boolean", default: false, description: "false (default) = dry-run report only. true = actually write expiresAt." },
+        limit: { type: "number", minimum: 1, maximum: 20000, description: "Cap how many field-less docs this call classifies (dry-run) or writes (execute), to stage a rollout. Omitted = no cap." },
+      },
+    },
+  },
+  {
+    name: "dispatch_reap_expired_tasks",
+    description: "PLAN-W4: fleet-internal only. Scans the caller's tasks collection for documents where expiresAt EXISTS and is <= now, and (only when execute:true) deletes them in batches of <=400. NEVER deletes a document lacking expiresAt (W4-R1). Dry-run (execute:false) by default -- reports scanned/fieldLessCount/liveWithExpiry/expiredCandidates/bySource without writing. Optional cohortSource narrows deletion to one `source` value for a staged rollout; the dry-run's bySource breakdown always reports the true, un-narrowed cohort sizes.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        execute: { type: "boolean", default: false, description: "false (default) = dry-run report only. true = actually delete." },
+        cohortSource: { type: "string", maxLength: 100, description: "Narrow deletion to docs with this exact `source` value (staged rollout). Omitted = every expired doc is a candidate." },
+        limit: { type: "number", minimum: 1, maximum: 50000, description: "Cap how many delete candidates this call processes. Omitted = no cap." },
       },
     },
   },
