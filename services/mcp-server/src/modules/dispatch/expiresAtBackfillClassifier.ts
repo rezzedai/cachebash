@@ -35,6 +35,7 @@ export interface BackfillClassification {
 /** Minimal shape this classifier reads. Deliberately narrow -- it must never touch
  *  `ttl`, and touches nothing it doesn't need to decide the branch. */
 export interface ClassifiableTaskData {
+  type?: string;
   status?: string;
   auto_archived?: boolean;
   completedAt?: FirebaseFirestore.Timestamp;
@@ -42,6 +43,18 @@ export interface ClassifiableTaskData {
 }
 
 export function classifyForBackfill(data: ClassifiableTaskData): BackfillClassification {
+  // PLAN-W1 GATE: non-task types (sprint, sprint-story, dream, question, ...)
+  // are intentionally field-less -- tasks.ts's own comment notes these types
+  // have no default TTL. A completed sprint-story is a deliberately-permanent
+  // structure, not a spent record; giving it a finite TTL would make it
+  // reapable garbage on a clock nobody chose. Sentinel unconditionally,
+  // regardless of status, ahead of the terminal check below. A missing or
+  // unknown type also lands here -- fail safe: a classification bug must
+  // leave a document ALIVE, never schedule it for deletion.
+  if (data.type !== "task") {
+    return { branch: "sentinel", expiresAt: new Date(CONSTANTS.ttl.neverExpiresSentinel), ambiguous: false };
+  }
+
   const isTerminal = data.status === "done" || data.status === "cancelled" || data.auto_archived === true;
 
   if (!isTerminal) {
