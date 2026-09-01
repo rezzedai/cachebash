@@ -57,6 +57,22 @@ const CANDIDATE_PAGE_SIZE = 200;
 // directly assertable in tests (see get-tasks-scan-budget.test.ts).
 const MAX_CANDIDATE_PAGES = 10;
 
+// R3.6 (time bound): the page-count budget above bounds ROUND-TRIP COUNT,
+// which is the normal-case cost driver, but says nothing about wall time if
+// individual page reads are slow (Firestore latency spike, cross-region
+// jitter). `withTimeout` (dispatchHandler.ts) exists for exactly this and
+// deliberately does NOT wrap this handler -- the boot-path read this scan
+// serves must degrade gracefully with a resumable cursor, not race a promise
+// it cannot safely abandon mid-page (an in-flight Firestore query has no
+// partial-result API; wrapping the whole loop in withTimeout would discard
+// whatever the current page already read). So the elapsed check lives
+// in-loop, checked between page fetches, same shape as the page-count check:
+// it can only stop the loop from STARTING another round trip, never abort
+// one already in flight. 8s is generous relative to a healthy page read
+// (tens to low hundreds of ms) while still well inside typical MCP
+// tool-call timeouts, so it only fires under genuine degradation.
+const SCAN_TIME_BUDGET_MS = 8_000;
+
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
   instructions: z.string().max(32000).optional(),
@@ -185,6 +201,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   let degraded = false;
   let degradedReason: string | null = null;
   let pagesRead = 0;
+  const scanStartMs = Date.now();
 
   for (;;) {
     pagesRead++;
@@ -214,17 +231,23 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
       hasMore = false; // Short page: fewer matches than `limit` exist, period.
       break;
     }
-    if (pagesRead >= MAX_CANDIDATE_PAGES) {
+    const elapsedMs = Date.now() - scanStartMs;
+    if (pagesRead >= MAX_CANDIDATE_PAGES || elapsedMs >= SCAN_TIME_BUDGET_MS) {
       // R3.6: budget exhausted before the raw stream was. This is NOT
       // exhaustion, so the one-sided guarantee (R3.4) demands hasMore:true
       // here, never false — a bounded scan that reported exhaustion would be
       // defect 3 again, wearing a fix's label. `degraded` distinguishes this
       // "budget hit, unknown how much more" case from the confirmed-via-peek
       // "found `limit` matches, more exist" hasMore:true above, so a caller
-      // can tell a truncated read from a complete one.
+      // can tell a truncated read from a complete one. Two independent
+      // budgets, either can trip first: page count bounds the normal-case
+      // cost, elapsed time bounds a slow-page pathology the count alone
+      // can't see (see SCAN_TIME_BUDGET_MS above).
       hasMore = true;
       degraded = true;
-      degradedReason = `Scan budget (${MAX_CANDIDATE_PAGES} pages of ${CANDIDATE_PAGE_SIZE}) reached before the raw candidate stream was exhausted; resume with the returned cursor.`;
+      degradedReason = elapsedMs >= SCAN_TIME_BUDGET_MS
+        ? `Scan time budget (${SCAN_TIME_BUDGET_MS}ms, ${pagesRead} page(s) of ${CANDIDATE_PAGE_SIZE} read) reached before the raw candidate stream was exhausted; resume with the returned cursor.`
+        : `Scan page budget (${MAX_CANDIDATE_PAGES} pages of ${CANDIDATE_PAGE_SIZE}) reached before the raw candidate stream was exhausted; resume with the returned cursor.`;
       break;
     }
     cursorQuery = orderedQuery.startAfter(lastRawDoc);
