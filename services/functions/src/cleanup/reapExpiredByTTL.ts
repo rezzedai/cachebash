@@ -125,11 +125,18 @@ export async function reapTasks(
   now: admin.firestore.Timestamp
 ): Promise<ReapResult> {
   try {
+    // P1 fix: no status filter here. `status != "done"` was correct under
+    // the OLD update-based semantics (it stopped re-marking an already-done
+    // doc every 15 minutes) but changing update -> delete inverted its
+    // meaning to "never delete a completed task" -- exactly backwards, and
+    // exactly the dominant steady-state accumulation (every finished task
+    // becomes one). The predicate is expiresAt < now, full stop, matching
+    // the on-demand reapExpiredTasks.ts tool exactly.
     const { reaped, pages } = await reapPaginated(
       db,
       "tasks",
       now,
-      (q) => q.where("status", "!=", "done"),
+      (q) => q,
       (batch, doc) => batch.delete(doc.ref),
       "tasks"
     );
