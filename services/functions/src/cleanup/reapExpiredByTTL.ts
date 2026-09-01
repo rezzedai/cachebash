@@ -13,11 +13,25 @@
  * the catch rethrew, so relay and proposal expiry silently never ran either,
  * since 2026-06-09.
  *
- * Throughput (PLAN-W4.2 D4): MAX_PAGE_SIZE(400) * MAX_PAGES_PER_COLLECTION(15)
- * = up to 6,000 docs reaped per collection per run, * 96 runs/day (every 15
- * min) = up to 576,000/day capacity per collection. Task pile growth is
- * ~115,000/day, so this beats growth with ~5x margin even while also
- * draining whatever backlog remains after the one-time W4 cleanup.
+ * Throughput (PLAN-W4.2 D4, CORRECTED — see ISO msg N5or2hLQ2heERM9qRzvf):
+ * measured steady-state ingestion is ~236 docs/day (pinned-readTime count()
+ * on createdAt, 24h window) — the originally-cited ~115,000/day was an
+ * unmeasured error (conflated with an unrelated read-rate figure) and this
+ * reaper is NOT racing an ingestion stream. The 148k pile it's cleaning up
+ * was a one-time historical burst (2026-03/04), not a trickle.
+ *
+ * So sizing is NOT "beat ingestion" — it's backlog-drain-time and future-
+ * burst tolerance: MAX_PAGE_SIZE(400) * MAX_PAGES_PER_COLLECTION(5) = up to
+ * 2,000 docs/collection/run, * 96 runs/day (every 15 min) = up to 192,000/day
+ * capacity per collection — enough to drain a burst on the scale of the one
+ * that actually happened (~138,510 docs) in well under a day of recurring
+ * runs, without being sized against a number nobody measured. Each page's
+ * batch commits immediately (see reapPaginated below), so a mid-run timeout
+ * leaves prior pages' deletes durably committed rather than losing progress
+ * — the precedent this avoids is cleanupExpiredSessions failing wholesale on
+ * Firestore's 500-write cap and therefore deleting nothing, so its own
+ * backlog kept it permanently broken (PR #397). Batches here stay at 400,
+ * under that cap with margin.
  *
  * Predicate is exactly `expiresAt EXISTS AND expiresAt <= now` — every query
  * below uses `expiresAt <` which structurally cannot match a field-less
@@ -30,7 +44,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 
 export const MAX_PAGE_SIZE = 400; // Firestore batch write cap is 500 — stay under it with margin.
-export const MAX_PAGES_PER_COLLECTION = 15; // Bounds worst-case runtime; see throughput note above.
+export const MAX_PAGES_PER_COLLECTION = 5; // Backlog-drain-time/burst-tolerance sizing — see throughput note above.
 
 export interface ReapResult {
   reaped: number;
