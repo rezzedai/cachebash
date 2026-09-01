@@ -23,9 +23,27 @@
  *
  * Idempotent and resumable by document id: a doc, once deleted, simply no
  * longer appears in the scan. There is no cursor to persist across calls.
+ *
+ * MANIFEST-DRIVEN MODE (`ids`): PLAN-W4 stage 2. A cohort computed offline
+ * from a point-in-time export (e.g. PLAN-W3's manifest, filtered to one
+ * source+status) can go stale between export and delete -- a doc the export
+ * saw as expired-and-open may since have been rescued (ttl:0 / 2099
+ * sentinel) or otherwise mutated. Passing `ids` treats that list as
+ * candidates ONLY, never an authority: each id is re-read live
+ * (`db.getAll`) in this same call and the full deletion predicate
+ * (expiresAt EXISTS AND expiresAt <= now, never field-less) is re-asserted
+ * against the CURRENT document before it is ever queued for delete. An id
+ * whose live doc fails the predicate is counted in `skippedIds`, never
+ * deleted -- this is what protects a since-rescued carry-forward even though
+ * its old id still sits in a stale manifest. An id whose doc no longer
+ * exists is counted in `notFoundIds` and treated as an idempotent no-op, not
+ * an error -- re-running the same id list after a partial prior run must be
+ * safe. `ids` is capped at 400 (the same batch-write cap) so one call is one
+ * atomic unit: the caller drives resumption by slicing its own fixed
+ * candidate list, never by any state this handler keeps between calls.
  */
 
-import { FieldPath, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { FieldPath, type CollectionReference, type Firestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { getFirestore } from "../../firebase/client.js";
 import type { AuthContext } from "../../auth/authValidator.js";
@@ -51,12 +69,101 @@ const ReapSchema = z.object({
   // Caps how many delete candidates this call processes, independent of
   // cohortSource -- lets a cohort itself be staged in slices.
   limit: z.number().int().positive().max(50000).optional(),
+  // Manifest-driven mode: an explicit candidate id list (see module header).
+  // When present, this REPLACES the full-collection scan entirely --
+  // cohortSource/limit are ignored, and every id is re-verified live before
+  // any delete. Capped at BATCH_WRITE_MAX so one call is one atomic batch.
+  ids: z.array(z.string().min(1)).max(400).optional(),
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
+}
+
+// Manifest-driven mode -- see module header. Every id is re-read live via
+// `getAll` (one round trip) and the deletion predicate is re-asserted
+// against THAT read, never against whatever the caller's manifest claimed.
+async function reapByIds(
+  db: Firestore,
+  col: CollectionReference,
+  tenantId: string,
+  ids: string[],
+  execute: boolean,
+  nowMs: number
+): Promise<ToolResult> {
+  const refs = ids.map((id) => col.doc(id));
+  const snaps = await db.getAll(...refs);
+
+  let fieldLessCount = 0;
+  let notFoundCount = 0;
+  const skippedIds: string[] = []; // live doc failed the delete predicate (e.g. rescued)
+  const deletedIds: string[] = [];
+  const candidateIds: string[] = []; // dry-run only: would-delete, nothing written
+  const bySource: Record<string, number> = {};
+
+  const batch = execute ? db.batch() : null;
+
+  for (const snap of snaps) {
+    if (!snap.exists) {
+      notFoundCount++; // already gone -- idempotent no-op, not an error
+      continue;
+    }
+
+    const data = snap.data()!;
+
+    // W4-R1, blocking, same as the scan path: a field-less doc is NEVER a
+    // delete candidate, manifest or no manifest.
+    if (data.expiresAt === undefined) {
+      fieldLessCount++;
+      continue;
+    }
+
+    const expiresAtMs: number = data.expiresAt.toMillis
+      ? data.expiresAt.toMillis()
+      : new Date(data.expiresAt).getTime();
+
+    if (expiresAtMs > nowMs) {
+      // Live re-assert failed: the manifest's snapshot is stale for this id
+      // (e.g. a rescue since bumped expiresAt to the 2099 sentinel). Skip,
+      // never delete -- this is the interlock the manifest itself cannot
+      // provide.
+      skippedIds.push(snap.id);
+      continue;
+    }
+
+    const src = (data.source as string) ?? "(none)";
+    bySource[src] = (bySource[src] || 0) + 1;
+
+    if (execute) {
+      batch!.delete(snap.ref);
+      deletedIds.push(snap.id);
+    } else {
+      candidateIds.push(snap.id);
+    }
+  }
+
+  if (execute && deletedIds.length > 0) {
+    await batch!.commit();
+  }
+
+  return jsonResult({
+    success: true,
+    mode: execute ? "EXECUTE" : "DRY-RUN",
+    manifestMode: true,
+    tenantId,
+    requested: ids.length,
+    notFoundCount,
+    fieldLessCount,
+    skippedCount: skippedIds.length,
+    skippedIds,
+    bySource,
+    expiredCandidates: execute ? deletedIds.length : candidateIds.length,
+    deletedCount: deletedIds.length,
+    deletedIds,
+    candidateIds,
+  });
 }
 
 export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -73,6 +180,10 @@ export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknow
   const db = getFirestore();
   const col = db.collection(`tenants/${auth.userId}/tasks`);
   const nowMs = Date.now();
+
+  if (args.ids && args.ids.length > 0) {
+    return reapByIds(db, col, auth.userId, args.ids, args.execute, nowMs);
+  }
 
   let scanned = 0;
   let fieldLessCount = 0;
