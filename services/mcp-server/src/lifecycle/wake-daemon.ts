@@ -273,7 +273,10 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          // Also write to tasks for mobile visibility
+          // Also write to tasks for mobile visibility. W2e: the task mirror tracks
+          // the relay record's own ttl/expiresAt (computed above) instead of being
+          // field-less — same "one resolved value, both records" pattern as
+          // signal.ts's alert mirror and W2c's dispatch()/directive-record fix.
           await db.collection(`tenants/${userId}/tasks`).doc(alertRef.id).set({
             type: "task",
             title: `[Alert: error] ${preview}`,
@@ -284,6 +287,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             status: "created",
             priority: "high",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            ttl: TTL_SECONDS,
+            expiresAt,
           });
 
           console.warn(`[WakeDaemon] Alert sent: ${programId} spawn failure threshold reached (${failCount})`);

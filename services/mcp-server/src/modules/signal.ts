@@ -8,6 +8,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { encryptQuestionData, decrypt, isEncrypted } from "../encryption/crypto.js";
+import { CONSTANTS } from "../config/constants.js";
 import { z } from "zod";
 
 const AskQuestionSchema = z.object({
@@ -92,6 +93,13 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
     createdAt: serverTimestamp(),
     encrypted: shouldEncrypt,
     archived: false,
+    // W2e: a question awaiting a human answer must never silently expire — the
+    // never-expires sentinel, same encoding as create_task's ttl:0 branch. Before
+    // this, this write had no expiresAt at all, contributing to the field-less
+    // population PLAN-W1 backfills and PLAN-W4's reaper must never mistake for
+    // "already expired".
+    ttl: 0,
+    expiresAt: admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
   };
 
   const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
@@ -187,7 +195,12 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
 
   const ref = await db.collection(`tenants/${auth.userId}/relay`).add(alertData);
 
-  // Also write to tasks for mobile visibility
+  // Also write to tasks for mobile visibility. W2e: the task mirror tracks the
+  // relay record's own ttl/expiresAt (computed once, above) rather than being
+  // field-less — an alert whose relay half has already expired is a task nobody
+  // will action, so giving it the same 1h window makes it reapable instead of
+  // permanent scan ballast. Same "one resolved value, both records" pattern as
+  // W2c's dispatch()/directive-record fix.
   await db.collection(`tenants/${auth.userId}/tasks`).doc(ref.id).set({
     schemaVersion: '2.2' as const,
     type: "task",
@@ -202,6 +215,8 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
     createdAt: serverTimestamp(),
     encrypted: false,
     archived: false,
+    ttl: TTL_SECONDS,
+    expiresAt,
   });
 
   return jsonResult({
