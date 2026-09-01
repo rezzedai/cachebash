@@ -12,3 +12,5 @@ export { checkGovernanceRules, CONSTITUTIONAL_RULES, getConstitutionalSeedEntrie
 export { retryTaskHandler, abortTaskHandler, reassignTaskHandler, escalateTaskHandler, quarantineProgramHandler, unquarantineProgramHandler, replayTaskHandler, approveTaskHandler } from "./interventions.js";
 export { getTaskLineageHandler, exportTasksHandler } from "./lineage.js";
 export { suggestTargetHandler } from "./suggestion.js";
+export { backfillTaskExpiresAtHandler } from "./backfillExpiresAt.js";
+export { reapExpiredTasksHandler } from "./reapExpiredTasks.js";
