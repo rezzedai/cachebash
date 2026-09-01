@@ -40,7 +40,25 @@ function makeFixture(docs: Array<{ id: string; data: Record<string, any> }>) {
     };
   }
 
+  type FakeDocRef = { id: string; delete: jest.Mock; get: jest.Mock };
+  function docRef(id: string): FakeDocRef {
+    const ref: FakeDocRef = {
+      id,
+      delete: jest.fn(() => Promise.resolve()),
+      get: jest.fn(),
+    };
+    ref.get.mockImplementation(() =>
+      Promise.resolve(
+        store.has(id)
+          ? { id, exists: true, ref, data: () => ({ ...store.get(id) }) }
+          : { id, exists: false, ref, data: () => undefined }
+      )
+    );
+    return ref;
+  }
+
   const collection = {
+    doc: jest.fn((id: string) => docRef(id)),
     orderBy: jest.fn(() => ({
       limit: jest.fn((n: number) => ({
         get: jest.fn(() => Promise.resolve(buildQuery(null, n))),
@@ -54,6 +72,15 @@ function makeFixture(docs: Array<{ id: string; data: Record<string, any> }>) {
   const batchInstances: Array<{ delete: jest.Mock; commit: jest.Mock }> = [];
   const db = {
     collection: jest.fn(() => collection),
+    getAll: jest.fn((...refs: Array<{ id: string }>) =>
+      Promise.all(
+        refs.map((ref) =>
+          store.has(ref.id)
+            ? { id: ref.id, exists: true, ref: docRef(ref.id), data: () => ({ ...store.get(ref.id) }) }
+            : { id: ref.id, exists: false, ref: docRef(ref.id), data: () => undefined }
+        )
+      )
+    ),
     batch: jest.fn(() => {
       const pendingIds: string[] = [];
       const batch = {
@@ -226,5 +253,98 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
 
     expect(parsed.deletedCount).toBe(3);
     expect(store.size).toBe(7);
+  });
+
+  describe("manifest-driven mode (`ids`)", () => {
+    it("re-asserts the live predicate and skips an id that was rescued since the manifest was taken", async () => {
+      const { db, store } = makeFixture([expiredDoc("stale-a"), rescuedDoc("rescued-b")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), {
+        execute: true,
+        ids: ["stale-a", "rescued-b"],
+      });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.manifestMode).toBe(true);
+      expect(parsed.deletedCount).toBe(1);
+      expect(parsed.deletedIds).toEqual(["stale-a"]);
+      expect(parsed.skippedCount).toBe(1);
+      expect(parsed.skippedIds).toEqual(["rescued-b"]);
+      expect(store.has("stale-a")).toBe(false);
+      expect(store.has("rescued-b")).toBe(true);
+    });
+
+    it("treats an id that no longer exists as an idempotent no-op, not an error", async () => {
+      const { db, store } = makeFixture([expiredDoc("still-here")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), {
+        execute: true,
+        ids: ["still-here", "already-gone"],
+      });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.notFoundCount).toBe(1);
+      expect(parsed.deletedCount).toBe(1);
+      expect(store.has("still-here")).toBe(false);
+    });
+
+    it("W4-R1 holds in manifest mode too: a field-less id is never deleted", async () => {
+      const { db, store } = makeFixture([fieldLessDoc("no-field")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, ids: ["no-field"] });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.fieldLessCount).toBe(1);
+      expect(parsed.deletedCount).toBe(0);
+      expect(store.has("no-field")).toBe(true);
+    });
+
+    it("dry-run (default) reports the same classification but deletes nothing", async () => {
+      const { db, store } = makeFixture([expiredDoc("a"), rescuedDoc("b")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), { ids: ["a", "b"] });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.mode).toBe("DRY-RUN");
+      expect(parsed.deletedCount).toBe(0);
+      expect(parsed.skippedCount).toBe(1);
+      expect(store.size).toBe(2);
+    });
+
+    it("is idempotent: re-running the same id list after a partial delete only touches what remains", async () => {
+      const { db, store } = makeFixture([expiredDoc("a"), expiredDoc("b")]);
+      activeDb = db;
+
+      const first = await reapExpiredTasksHandler(baseAuth(), { execute: true, ids: ["a"] });
+      const second = await reapExpiredTasksHandler(baseAuth(), { execute: true, ids: ["a", "b"] });
+
+      expect(JSON.parse(first.content[0].text).deletedCount).toBe(1);
+      const parsedSecond = JSON.parse(second.content[0].text);
+      expect(parsedSecond.notFoundCount).toBe(1); // "a" is already gone
+      expect(parsedSecond.deletedCount).toBe(1); // only "b"
+      expect(store.size).toBe(0);
+    });
+
+    it("ids takes priority over cohortSource/limit when both are supplied", async () => {
+      const { db, store } = makeFixture([expiredDoc("a", "enrichment-worker"), expiredDoc("b", "system")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), {
+        execute: true,
+        ids: ["b"],
+        cohortSource: "enrichment-worker",
+        limit: 1,
+      });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.manifestMode).toBe(true);
+      expect(parsed.deletedIds).toEqual(["b"]);
+      expect(store.has("a")).toBe(true);
+      expect(store.has("b")).toBe(false);
+    });
   });
 });

@@ -371,13 +371,14 @@ export const definitions = [
   },
   {
     name: "dispatch_reap_expired_tasks",
-    description: "PLAN-W4: fleet-internal only. Scans the caller's tasks collection for documents where expiresAt EXISTS and is <= now, and (only when execute:true) deletes them in batches of <=400. NEVER deletes a document lacking expiresAt (W4-R1). Dry-run (execute:false) by default -- reports scanned/fieldLessCount/liveWithExpiry/expiredCandidates/bySource without writing. Optional cohortSource narrows deletion to one `source` value for a staged rollout; the dry-run's bySource breakdown always reports the true, un-narrowed cohort sizes.",
+    description: "PLAN-W4: fleet-internal only. Scans the caller's tasks collection for documents where expiresAt EXISTS and is <= now, and (only when execute:true) deletes them in batches of <=400. NEVER deletes a document lacking expiresAt (W4-R1). Dry-run (execute:false) by default -- reports scanned/fieldLessCount/liveWithExpiry/expiredCandidates/bySource without writing. Optional cohortSource narrows deletion to one `source` value for a staged rollout; the dry-run's bySource breakdown always reports the true, un-narrowed cohort sizes. Optional `ids` switches to manifest-driven mode: an explicit candidate list (<=400) computed offline (e.g. from a point-in-time export), where each id is re-read live and the deletion predicate re-asserted before any delete -- an id whose live doc no longer matches (e.g. rescued since the export) is reported in skippedIds, never deleted; an id already gone is reported in notFoundCount as an idempotent no-op. `ids` replaces the scan entirely (cohortSource/limit are ignored).",
     inputSchema: {
       type: "object" as const,
       properties: {
         execute: { type: "boolean", default: false, description: "false (default) = dry-run report only. true = actually delete." },
         cohortSource: { type: "string", maxLength: 100, description: "Narrow deletion to docs with this exact `source` value (staged rollout). Omitted = every expired doc is a candidate." },
         limit: { type: "number", minimum: 1, maximum: 50000, description: "Cap how many delete candidates this call processes. Omitted = no cap." },
+        ids: { type: "array", items: { type: "string" }, maxItems: 400, description: "Manifest-driven mode: explicit candidate document ids (<=400). Each is re-read live and the predicate re-asserted before delete; replaces the collection scan entirely." },
       },
     },
   },
