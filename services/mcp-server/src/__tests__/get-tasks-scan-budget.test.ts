@@ -230,6 +230,37 @@ describe("get_tasks scan budget — R3.6", () => {
     expect(parsed.degradedReason).toBeNull();
   });
 
+  it("R3.6 (time bound): a slow-page pathology trips the budget on elapsed time even when page count alone would not have", async () => {
+    // Page-count budget is 10; give it far fewer pages worth of raw
+    // candidates than that (noise sized so each CANDIDATE_PAGE_SIZE=200
+    // page is short of a full page's worth after ~2 pages), so the ONLY way
+    // this can degrade is the elapsed-time check -- proving it is a real,
+    // independent bound rather than dead code shadowed by the page count.
+    collectionDocs = noiseRun(350, 400); // ~2 pages at CANDIDATE_PAGE_SIZE=200
+    const realNow = Date.now;
+    let callCount = 0;
+    jest.spyOn(Date, "now").mockImplementation(() => {
+      callCount++;
+      // First call establishes scanStartMs; jump far past the time budget
+      // on every call after, simulating a pathologically slow page fetch
+      // without the test itself waiting in real wall-clock time.
+      return callCount === 1 ? realNow() : realNow() + 60_000;
+    });
+
+    try {
+      const result = await getTasksHandler(makeAuth(), { limit: 10, status: "created", include_archived: false });
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+
+      expect(parsed.degraded).toBe(true);
+      expect(parsed.hasMore).toBe(true);
+      expect(parsed.degradedReason).toMatch(/time budget/i);
+      // Confirms it stopped on time, not on having read all 10 page-count slots.
+      expect(builtQueries[0].get.mock.calls.length).toBeLessThan(10);
+    } finally {
+      jest.spyOn(Date, "now").mockRestore();
+    }
+  });
+
   it("R3.4 review finding: zero matches inside the budget plus a real match beyond it must not read as idle", async () => {
     // Exactly the shape flagged in review: the raw candidates within the
     // budget are entirely non-matching (the auto_archived-mirror population
