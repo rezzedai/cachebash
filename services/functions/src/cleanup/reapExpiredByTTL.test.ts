@@ -170,6 +170,30 @@ describe("reapTasks — D2: deletes, never updates", () => {
     expect(result.reaped).toBe(2);
     expect(committed.every((c) => c.op === "delete")).toBe(true);
   });
+
+  it("P1 regression: deletes an expired status=done task -- status!=done previously excluded it entirely", async () => {
+    const doneDoc: FakeDoc = { id: "done1", path: "tenants/t1/tasks/done1", expiresAt: 5, status: "done" };
+    const { db, committed } = makeFakeDb([doneDoc]);
+    const result = await reapTasks(db as any, 1000 as any);
+    expect(result.reaped).toBe(1);
+    expect(committed).toEqual([{ op: "delete", path: "tenants/t1/tasks/done1" }]);
+  });
+
+  it("deletes a mix of done and non-done expired tasks -- expiry alone decides, status plays no role", async () => {
+    const docs: FakeDoc[] = [
+      { id: "done1", path: "tenants/t1/tasks/done1", expiresAt: 3, status: "done" },
+      { id: "created1", path: "tenants/t1/tasks/created1", expiresAt: 5, status: "created" },
+      { id: "cancelled1", path: "tenants/t1/tasks/cancelled1", expiresAt: 7, status: "cancelled" },
+    ];
+    const { db, committed } = makeFakeDb(docs);
+    const result = await reapTasks(db as any, 1000 as any);
+    expect(result.reaped).toBe(3);
+    expect(committed.map((c) => c.path).sort()).toEqual([
+      "tenants/t1/tasks/cancelled1",
+      "tenants/t1/tasks/created1",
+      "tenants/t1/tasks/done1",
+    ]);
+  });
 });
 
 describe("D3 — one collection's failure never propagates to another", () => {
