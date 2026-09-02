@@ -42,13 +42,13 @@ export const definitions = [
   },
   {
     name: "relay_get_messages",
-    description: "Check for pending messages from programs. Set includeDelivered to re-read already-claimed message bodies. Replaces get_interrupts.",
+    description: "Check for pending messages from programs. Default call DRAINS your inbox (matching messages transition to delivered). Observer callers reading another program's inbox (dashboards, fleet monitors, audits) MUST pass markAsRead:false explicitly or they will silently claim messages the owner has not yet seen. Set includeDelivered to re-read already-claimed message bodies. Replaces get_interrupts.",
     inputSchema: {
       type: "object" as const,
       properties: {
         sessionId: { type: "string" },
         target: { type: "string", description: "Filter by target program ID" },
-        markAsRead: { type: "boolean", default: false },
+        markAsRead: { type: "boolean", default: true, description: "Default true: drains matching messages (pending -> delivered). Pass false for a non-destructive observer read." },
         includeDelivered: { type: "boolean", default: false, description: "Also return already-delivered messages (bodies re-readable; never re-claims). Default false." },
         message_type: { type: "string", enum: ["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"], description: "Filter by message type" },
         priority: { type: "string", enum: ["low", "normal", "high"], description: "Filter by priority level" },

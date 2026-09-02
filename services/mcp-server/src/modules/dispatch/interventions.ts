@@ -20,6 +20,7 @@ import { emitAnalyticsEvent } from "../analytics.js";
 import { isProgramRegistered } from "../programRegistry.js";
 import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
+import { CONSTANTS } from "../../config/constants.js";
 
 // ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
@@ -650,11 +651,32 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     }
 
     const originalData = originalDoc.data()!;
+    const newType = (originalData.type as string) || "task";
+
+    // W2d: resolve effectiveTtl once, explicit undefined/null check (never truthiness --
+    // originalData.ttl === 0 is the never-expires sentinel and must survive this check).
+    // A legacy original with no ttl at all falls back to the same type-based default
+    // create_task uses (W2b), rather than silently going field-less. expiresAt is written
+    // UNCONDITIONALLY: a replay must preserve the original's expiry semantics, including
+    // "never expires" -- the old `if (effectiveTtl)` truthiness check treated ttl:0 as
+    // "no ttl" and skipped writing expiresAt entirely, manufacturing a field-less document
+    // out of exactly the tasks (like the W3 carry-forward rescues) most in need of the
+    // sentinel's protection.
+    const effectiveTtl =
+      originalData.ttl !== undefined && originalData.ttl !== null
+        ? (originalData.ttl as number)
+        : newType === "task"
+          ? CONSTANTS.ttl.defaultTaskSeconds
+          : 0;
+    const expiresAt =
+      effectiveTtl === 0
+        ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+        : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
 
     // Clone task with modifications
     const newTaskData: Record<string, unknown> = {
       schemaVersion: originalData.schemaVersion || "2.2",
-      type: originalData.type || "task",
+      type: newType,
       title: originalData.title,
       instructions: args.modifiedInstructions || originalData.instructions || "",
       preview: originalData.preview,
@@ -668,7 +690,8 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       encrypted: false,
       archived: false,
-      ttl: originalData.ttl,
+      ttl: effectiveTtl,
+      expiresAt,
       replyTo: null,
       threadId: originalData.threadId || null,
       provenance: null,
@@ -685,12 +708,6 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
       replayReason: args.reason,
       lineageRoot: originalData.lineageRoot || args.taskId,
     };
-
-    // Set TTL expiration
-    const effectiveTtl = originalData.ttl as number;
-    if (effectiveTtl) {
-      newTaskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
-    }
 
     // Create new task
     const newTaskRef = await db.collection(`tenants/${auth.userId}/tasks`).add(newTaskData);

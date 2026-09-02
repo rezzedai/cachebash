@@ -11,6 +11,13 @@ import { z } from "zod";
 import { syncSprintCreated, syncSprintCompleted, syncStoryUpdated } from "./github-sync.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { generateSpanId } from "../utils/trace.js";
+import { CONSTANTS } from "../config/constants.js";
+
+// W2e: sprints, sprint-stories, and the escalation-failure fallback task are all
+// open work with no natural expiry of their own — same "everything else -> sentinel"
+// branch expiresAtBackfillClassifier.ts uses for these exact types. Shared so the
+// four write sites below can't drift from each other or from the classifier.
+const NEVER_EXPIRES = admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel));
 
 const StorySchema = z.object({
   id: z.string(),
@@ -117,6 +124,8 @@ async function escalateToIso(
         createdAt: serverTimestamp(),
         encrypted: false,
         archived: false,
+        ttl: 0,
+        expiresAt: NEVER_EXPIRES,
       });
     } catch (fallbackErr) {
       console.error("[Sprint] Fallback alert task also failed:", fallbackErr);
@@ -178,6 +187,8 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
     traceId: args.traceId || null,
     spanId: sprintSpanId,
     parentSpanId: args.parentSpanId || null,
+    ttl: 0,
+    expiresAt: NEVER_EXPIRES,
   };
 
   const sprintRef = await db.collection(`tenants/${auth.userId}/tasks`).add(sprintData);
@@ -218,6 +229,8 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
       traceId: args.traceId || null,
       spanId: generateSpanId(),
       parentSpanId: sprintSpanId,
+      ttl: 0,
+      expiresAt: NEVER_EXPIRES,
     });
   }
   await batch.commit();
@@ -382,6 +395,8 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
     traceId: args.traceId || null,
     spanId: args.spanId || generateSpanId(),
     parentSpanId: args.parentSpanId || null,
+    ttl: 0,
+    expiresAt: NEVER_EXPIRES,
   });
 
   return jsonResult({

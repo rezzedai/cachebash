@@ -12,6 +12,10 @@ import {
   isKeyProvisioner,
   disallowedMintCapabilities,
   KEY_PROVISION_CAPABILITY,
+  isKeyAdmin,
+  credentialPrincipal,
+  hasFleetObserveCapability,
+  FLEET_OBSERVE_CAPABILITY,
 } from "../auth/ownerAuthz";
 
 function authWith(partial: Partial<AuthContext>): AuthContext {
@@ -81,5 +85,91 @@ describe("disallowedMintCapabilities (SARK #341 capability ceiling)", () => {
 
   it("treats a missing caller capabilities array as granting nothing", () => {
     expect(disallowedMintCapabilities(undefined, ["dispatch.read"])).toEqual(["dispatch.read"]);
+  });
+});
+
+describe("BUG-009: key administration authorization", () => {
+  const authFor = (
+    keyProgramId: string,
+    capabilities: string[] = ["*"],
+    programId?: string,
+  ): any => ({
+    userId: "shared-tenant-uid",
+    apiKeyHash: "hash",
+    encryptionKey: Buffer.from(""),
+    programId: (programId ?? keyProgramId) as any,
+    keyProgramId: keyProgramId as any,
+    capabilities,
+    rateLimitTier: "free",
+  });
+
+  it("credentialPrincipal ignores the X-Program-Id override (BUG-006)", () => {
+    // programId escalated to an admin-tier name; the credential is still radia.
+    const auth = authFor("radia", ["*"], "dispatcher");
+    expect(credentialPrincipal(auth)).toBe("radia");
+  });
+
+  it('a "*" wildcard key is NOT a key admin — this is the #341 no-op class', () => {
+    // radia holds ["*"] in production and is the key BUG-009 was proven with.
+    // A wildcard-expanding capability check here would authorize the very
+    // caller the control exists to stop.
+    expect(isKeyAdmin(authFor("radia", ["*"]))).toBe(false);
+  });
+
+  it("fleet.read does not confer key administration", () => {
+    expect(isKeyAdmin(authFor("tensor", ["fleet.read", "programs.read"]))).toBe(false);
+  });
+
+  it("an X-Program-Id escalation to vector does not confer key administration", () => {
+    // The header can forge programId AND capabilities; it cannot forge the credential.
+    expect(isKeyAdmin(authFor("radia", ["*"], "vector"))).toBe(false);
+  });
+
+  it("the fleet auditor principals are key admins", () => {
+    expect(isKeyAdmin(authFor("vector", ["*"]))).toBe(true);
+    expect(isKeyAdmin(authFor("sark", ["*"]))).toBe(true);
+  });
+
+  it("iso is deliberately NOT a key admin", () => {
+    expect(isKeyAdmin(authFor("iso", ["*"]))).toBe(false);
+  });
+
+  it("an explicit literal keys.admin grant confers it", () => {
+    expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "keys.admin"]))).toBe(true);
+  });
+});
+
+describe("R4/PR-3: hasFleetObserveCapability (gsp_bootstrap foreign-read gate)", () => {
+  function authWith(capabilities: string[]): AuthContext {
+    return {
+      userId: "shared-tenant-uid",
+      apiKeyHash: "hash",
+      programId: "vector",
+      encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
+      capabilities,
+      rateLimitTier: "internal",
+    } as AuthContext;
+  }
+
+  it('a "*" wildcard key does NOT satisfy it — the exact class both prior bugs were proven with', () => {
+    expect(hasFleetObserveCapability(authWith(["*"]))).toBe(false);
+  });
+
+  it("the legacy fleet.read capability does NOT satisfy it — this is a genuinely new capability, not a rename", () => {
+    expect(hasFleetObserveCapability(authWith(["fleet.read"]))).toBe(false);
+    expect(hasFleetObserveCapability(authWith(["*", "fleet.read"]))).toBe(false);
+  });
+
+  it("an explicit literal fleet.observe grant satisfies it, alone or alongside '*'", () => {
+    expect(hasFleetObserveCapability(authWith([FLEET_OBSERVE_CAPABILITY]))).toBe(true);
+    expect(hasFleetObserveCapability(authWith(["*", "fleet.observe"]))).toBe(true);
+  });
+
+  it("denies a caller with no capabilities at all", () => {
+    expect(hasFleetObserveCapability(authWith([]))).toBe(false);
+  });
+
+  it("tolerates a missing/non-array capabilities field", () => {
+    expect(hasFleetObserveCapability(authWith(undefined as unknown as string[]))).toBe(false);
   });
 });

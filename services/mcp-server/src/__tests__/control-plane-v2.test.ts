@@ -21,6 +21,7 @@ import { completeTaskHandler } from "../modules/dispatch/completion.js";
 import { dispatchHandler } from "../modules/dispatch/dispatchHandler.js";
 import { isProgramQuarantined } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
+import { CONSTANTS } from "../config/constants.js";
 import * as admin from "firebase-admin";
 
 jest.setTimeout(20_000);
@@ -326,6 +327,43 @@ describe("Task Replay", () => {
       expect(newTask.replayReason).toBe("Testing replay");
       expect(newTask.status).toBe("created");
     }
+  });
+
+  it("W2d NEGATIVE (falsy trap): replaying a never-expires (ttl:0) task keeps expiresAt PRESENT at the 2099 sentinel, not absent", async () => {
+    // The old `if (effectiveTtl)` truthiness check treated ttl:0 -- the never-expires
+    // sentinel since W2/W2b -- as "no ttl" and skipped writing expiresAt entirely,
+    // manufacturing a field-less document. This is the regression test for that.
+    const taskId = "task_never_expires_original";
+    const originalTaskPath = `tenants/test-user/tasks/${taskId}`;
+    mockData[originalTaskPath] = {
+      schemaVersion: "2.2",
+      type: "task",
+      title: "Rescued carry-forward",
+      instructions: "Must never expire",
+      source: "iso",
+      target: "iso",
+      priority: "high",
+      action: "queue",
+      status: "created",
+      ttl: 0,
+      expiresAt: admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
+    };
+
+    const result = await replayTaskHandler(mockAuth, {
+      taskId,
+      reason: "W2d regression test",
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    expect(data.success).toBe(true);
+
+    const newTaskPath = Object.keys(mockData).find((k) => k.includes("tasks") && k !== originalTaskPath);
+    expect(newTaskPath).toBeDefined();
+    const newTask = mockData[newTaskPath!];
+    expect(newTask.ttl).toBe(0);
+    expect(newTask.expiresAt).toBeDefined();
+    expect(newTask.expiresAt).not.toBeNull();
+    expect(newTask.expiresAt.toDate().getTime()).toBe(new Date(CONSTANTS.ttl.neverExpiresSentinel).getTime());
   });
 
   it("should replay without modifications", async () => {

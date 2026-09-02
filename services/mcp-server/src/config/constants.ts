@@ -9,6 +9,10 @@ export const CONSTANTS = {
     claimEventDays: 7,
     /** Default task TTL in seconds (24h) */
     defaultTaskSeconds: 86400,
+    /** Default TTL in seconds for action:"interrupt" dispatches (7d) — must survive a context recycle. Plan OQ-2. */
+    interruptTaskSeconds: 604800,
+    /** ISO date the never-expires sentinel resolves to. Fixed across PLAN-W1/W2/W4 — do not change independently. */
+    neverExpiresSentinel: "2099-01-01T00:00:00Z",
     /** Default relay message TTL in seconds (24h) */
     relayMessageSeconds: 86400,
     /** Idempotency key TTL in milliseconds (1h) */

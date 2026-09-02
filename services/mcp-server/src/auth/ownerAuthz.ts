@@ -76,3 +76,102 @@ export function disallowedMintCapabilities(
   if (!Array.isArray(callerCaps)) return [...requestedCaps];
   return requestedCaps.filter((cap) => !hasCapability(callerCaps, cap as Capability));
 }
+
+/**
+ * BUG-009 — key ADMINISTRATION (list-all / revoke-foreign), distinct from the
+ * mint gate above.
+ *
+ * `revokeKeyHandler` guarded only on `data?.userId !== auth.userId`, and
+ * `listKeysHandler` queried `where("userId","==",auth.userId)` with no further
+ * check. That is the SAME prod no-op SARK rejected in #341 on the mint path:
+ * the whole fleet is ONE tenant, so tenant-uid equality is satisfied by every
+ * cb_ key and authorizes nothing. Consequence (confirmed live 2026-09-02 with
+ * the dormant `radia` key): any program key could enumerate all 32 fleet
+ * keyHashes and then revoke every one of them — a fleet-wide credential kill
+ * switch reachable from the lowest-privilege key, needing no escalation.
+ *
+ * WHY NOT `hasCapability(auth, "fleet.read")`: it wildcard-expands, and 10 of
+ * the 32 live keys hold ["*"] — including `radia`, the key the exploit was
+ * proven with. Gating on it would authorize the very caller it must stop. A
+ * capability check here must be LITERAL, exactly as KEY_PROVISION_CAPABILITY is.
+ *
+ * WHY THE PRINCIPAL IS `keyProgramId`: `auth.programId` is overridable by the
+ * X-Program-Id header (BUG-006), which also RECOMPUTES `auth.capabilities` from
+ * the target role. Both are attacker-controlled. `keyProgramId` is bound to the
+ * authenticating credential and is never overridable — the same field
+ * verifySource already relies on for Identity Sovereignty inv.6.
+ */
+export const KEYS_ADMIN_CAPABILITY = "keys.admin";
+
+/**
+ * Principals allowed to administer OTHER programs' keys. Deliberately tiny and
+ * credential-bound: VECTOR is the fleet auditor whose boot depends on fleet
+ * reads, SARK is the security auditor. ISO is deliberately NOT here — it
+ * authored this fix, and an orchestrator does not need foreign-key
+ * administration to do its job; granting it would be self-dealing in a security
+ * change. Adding a principal is VECTOR's call, not a code-owner's convenience.
+ */
+export const KEY_ADMIN_PRINCIPALS: readonly string[] = ["vector", "sark"];
+
+/**
+ * The identity of the AUTHENTICATING credential. Never `auth.programId` alone —
+ * that is the X-Program-Id override surface (BUG-006).
+ */
+export function credentialPrincipal(auth: AuthContext): string {
+  return (auth.keyProgramId ?? auth.programId) as string;
+}
+
+/**
+ * True iff `auth` may list or revoke keys belonging to OTHER programs.
+ * Literal capability membership only — "*" does NOT satisfy it.
+ */
+export function isKeyAdmin(auth: AuthContext): boolean {
+  if (KEY_ADMIN_PRINCIPALS.includes(credentialPrincipal(auth))) return true;
+  return Array.isArray(auth.capabilities)
+    && auth.capabilities.includes(KEYS_ADMIN_CAPABILITY);
+}
+
+/**
+ * FLEET_OBSERVE_CAPABILITY — R3/R4 (PDR-cachebash-authz-chokepoint, ISO plan
+ * §3 PR-3). Gates cross-program reads of `gsp_bootstrap` payloads.
+ *
+ * Deliberately NOT `fleet.read`: `fleet.read` sits in the standard
+ * provisioning preset (middleware/capabilities.ts:28,206,250) and 15 of 32
+ * live keys hold it explicitly. Combined with the 11 of 32 keys holding
+ * `["*"]` — which `hasCapability` wildcard-expands unconditionally — 26 of 32
+ * keys would pass a `fleet.read` gate routed through `hasCapability`,
+ * including `radia`, the key both BUG-005 and BUG-009 were proven with (plan
+ * §1.1). Reusing `fleet.read`, or checking it via `hasCapability`, would
+ * satisfy this requirement's own acceptance tests while shipping the exact
+ * defect this PR exists to close.
+ *
+ * Minted 2026-09-02 (grid/plans/ISO-plan-authz-chokepoint.md, commit
+ * `b4521fe6`), verified held by nobody before minting. Granted to exactly two
+ * principals as an ADDITION to their existing `"*"` (never a replacement):
+ * `vector` (fleet auditor; its documented boot depends on cross-program
+ * reads) and `sark` (security auditor). `iso` is deliberately NOT granted —
+ * consistent with its exclusion from key admin in PR-1, it authored this
+ * change. Read-back across all 137 key documents at grant time confirmed
+ * exactly 2 holders, with 80 bare `["*"]` and 31 legacy `fleet.read` holders
+ * as the control group that must NOT pass a literal check.
+ */
+export const FLEET_OBSERVE_CAPABILITY = "fleet.observe";
+
+/**
+ * True iff `auth`'s own capabilities literally include `fleet.observe`.
+ * NEVER routed through `hasCapability` — that wildcard-expands `"*"`, which
+ * would re-admit all 80 `"*"`-holding keys and the 31 legacy `fleet.read`
+ * holders, reproducing the exact defect this capability exists to close.
+ * Same discipline as `isKeyProvisioner` / `KEY_PROVISION_CAPABILITY` above.
+ *
+ * R4a: this function checks CAPABILITIES ONLY. It does not, and must not, by
+ * itself decide who the caller is — a capability may only WIDEN a decision
+ * that is already bound to `credentialPrincipal(auth)`. Call sites must check
+ * `credentialPrincipal(auth) === <subject>` FIRST and consult this function
+ * only for the cross-program (foreign-read) branch. See
+ * `authorizeGspBootstrapRead` in `modules/gsp.ts` for the reference call site.
+ */
+export function hasFleetObserveCapability(auth: AuthContext): boolean {
+  return Array.isArray(auth.capabilities)
+    && auth.capabilities.includes(FLEET_OBSERVE_CAPABILITY);
+}

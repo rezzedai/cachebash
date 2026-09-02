@@ -4,6 +4,7 @@
  */
 
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { initializeFirebase } from "../../firebase/client";
 import * as gsp from "../../modules/gsp";
 import type { AuthContext } from "../../auth/authValidator";
 import type * as admin from "firebase-admin";
@@ -14,6 +15,7 @@ let auth: AuthContext;
 
 beforeAll(() => {
   db = getTestFirestore();
+  initializeFirebase(); // point module-level handlers at the emulator
 });
 
 beforeEach(async () => {
@@ -42,12 +44,15 @@ beforeEach(async () => {
     createdBy: "system",
   });
 
+  // vector holds ["*", "fleet.observe"] in production (grant recorded at plan
+  // commit b4521fe6) — "Bootstrap depth tiers" below reads a foreign agentId
+  // (basher), which is the fleet.observe-gated cross-program read PR-3 adds.
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
     programId: "vector" as any,
     encryptionKey: testUser.encryptionKey,
-    capabilities: ["*"],
+    capabilities: ["*", "fleet.observe"],
     rateLimitTier: "internal",
   };
 });
@@ -274,8 +279,11 @@ describe("Bootstrap depth tiers", () => {
       createdAt: new Date().toISOString(),
     });
 
-    // Program state with learned patterns
-    await db.doc(`tenants/${userId}/programs/basher/state`).set({
+    // Program state with learned patterns.
+    // Seeded where programState.ts actually writes — the old
+    // `tenants/{uid}/programs/basher/state` was a 5-segment path that Firestore
+    // rejects as a document, which is what made this test fail.
+    await db.doc(`tenants/${userId}/sessions/_meta/program_state/basher`).set({
       learnedPatterns: [
         {
           id: "p1",

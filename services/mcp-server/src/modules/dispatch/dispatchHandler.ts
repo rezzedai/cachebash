@@ -58,6 +58,13 @@ const DispatchSchema = z.object({
   waitForUptake: z.boolean().default(true),
   uptakeTimeoutSeconds: z.number().min(5).max(120).default(DEFAULT_UPTAKE_TIMEOUT_SECONDS),
   autoWake: z.boolean().default(true),
+  /**
+   * Task lifetime in seconds. 0 is the never-expires sentinel (opts out of reaping
+   * entirely — see CONSTANTS.ttl.neverExpiresSentinel). Omit to fall back to the
+   * action-based default. min(0) deliberately, not .positive() — 0 must survive
+   * validation for the sentinel to work.
+   */
+  ttl: z.number().int().min(0).max(31536000).optional(),
   threadId: z.string().optional(),
   projectId: z.string().optional(),
   idempotency_key: z.string().max(100).optional(),
@@ -204,6 +211,19 @@ async function sendTaskAndDirective(
 
   // ── Create task ──
   const preview = args.title.length > 50 ? args.title.substring(0, 47) + "..." : args.title;
+
+  // Resolve the effective ttl once so taskData.ttl and expiresAt can never diverge.
+  // Explicit undefined check — NOT `args.ttl || default` — because 0 is the
+  // never-expires sentinel and is falsy, so `||` would silently discard it and
+  // produce a 24h task instead of one that never expires.
+  const defaultTtlSeconds =
+    args.action === "interrupt" ? CONSTANTS.ttl.interruptTaskSeconds : CONSTANTS.ttl.defaultTaskSeconds;
+  const effectiveTtl = args.ttl !== undefined ? args.ttl : defaultTtlSeconds;
+  const expiresAt =
+    effectiveTtl === 0
+      ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+      : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+
   const taskData: Record<string, unknown> = {
     schemaVersion: "2.2",
     type: "task",
@@ -221,7 +241,7 @@ async function sendTaskAndDirective(
     createdAt: now,
     encrypted: false,
     archived: false,
-    ttl: CONSTANTS.ttl.defaultTaskSeconds,
+    ttl: effectiveTtl,
     replyTo: null,
     threadId: args.threadId || null,
     provenance: null,
@@ -240,11 +260,7 @@ async function sendTaskAndDirective(
     claimSlaSeconds: args.uptakeTimeoutSeconds,
   };
 
-  // Set TTL expiration
-  const effectiveTtl = CONSTANTS.ttl.defaultTaskSeconds;
-  if (effectiveTtl) {
-    taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
-  }
+  taskData.expiresAt = expiresAt;
 
   const directiveMessage = args.instructions
     ? `[dispatch:${generatedTaskId}] ${args.title}\n\n${args.instructions.substring(0, 1800)}`
@@ -258,8 +274,13 @@ async function sendTaskAndDirective(
     action: "interrupt",
     priority: args.priority || "high",
     status: "pending",
-    ttl: 86400,
-    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
+    // W2c: the directive record must expire together with the task it announces
+    // (same effectiveTtl/expiresAt computed above for taskData) -- not its own
+    // independent 24h. Before this, an interrupt dispatch's task lived 7 days
+    // while the directive explaining it dead-lettered in 1, so a program reading
+    // its inbox on day 2 saw the task with no directive to explain it.
+    ttl: effectiveTtl,
+    expiresAt,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     threadId: args.threadId || null,
     traceId,

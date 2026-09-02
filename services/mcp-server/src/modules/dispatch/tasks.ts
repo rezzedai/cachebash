@@ -29,7 +29,49 @@ const GetTasksSchema = z.object({
   include_archived: z.boolean().default(false),
   // Default false: omit instruction bodies to keep boot payloads small. Fetch full body via get_task_by_id.
   include_instructions: z.boolean().default(false),
+  // R3.1: opaque continuation cursor from a prior response's `cursor` field.
+  // Resumes the raw candidate scan exactly where that page's window ended.
+  cursor: z.string().optional(),
 });
+
+// R3.2: internal Firestore page size for the raw-candidate scan, independent
+// of the public `limit` (capped at 50 -- R3.5 forbids raising that ceiling
+// to fix under-reporting; pagination is the correct fix, not a bigger
+// single page). Same rationale as schedule.ts's FALLBACK_PAGE_SIZE.
+const CANDIDATE_PAGE_SIZE = 200;
+
+// R3.6: the R3.2 exhaustion scan (below) had no bound. Proving "no work"
+// (R3.4) walks the entire raw candidate stream, and that population grows
+// monotonically and is never deleted -- relay.ts mirrors every non-RESULT
+// message with auto_archived:true, which the default read always rejects,
+// plus every expired-TTL carry-forward. The idle-program boot read is the
+// fleet's most frequent call, so this is the pathological case, and it was
+// getting slower every day. Measured live 2026-08-12 (post-R3.2 deploy):
+// totalCandidates:1402 for target:"iso" alone -- exhausting that today costs
+// ceil(1402/200)=8 page reads, comfortably inside this budget. At 10x growth
+// (~14020 candidates) a full exhaustive scan would cost ~71 page reads; this
+// budget caps it at 10, trading a truthful `degraded:true` partial result
+// for an ~86% cut in Firestore round trips on the hottest call in the
+// fleet. Bounded by PAGE COUNT rather than elapsed time: round-trip count is
+// the actual cost driver, and unlike wall-clock it is deterministic and
+// directly assertable in tests (see get-tasks-scan-budget.test.ts).
+const MAX_CANDIDATE_PAGES = 10;
+
+// R3.6 (time bound): the page-count budget above bounds ROUND-TRIP COUNT,
+// which is the normal-case cost driver, but says nothing about wall time if
+// individual page reads are slow (Firestore latency spike, cross-region
+// jitter). `withTimeout` (dispatchHandler.ts) exists for exactly this and
+// deliberately does NOT wrap this handler -- the boot-path read this scan
+// serves must degrade gracefully with a resumable cursor, not race a promise
+// it cannot safely abandon mid-page (an in-flight Firestore query has no
+// partial-result API; wrapping the whole loop in withTimeout would discard
+// whatever the current page already read). So the elapsed check lives
+// in-loop, checked between page fetches, same shape as the page-count check:
+// it can only stop the loop from STARTING another round trip, never abort
+// one already in flight. 8s is generous relative to a healthy page read
+// (tens to low hundreds of ms) while still well inside typical MCP
+// tool-call timeouts, so it only fires under genuine degradation.
+const SCAN_TIME_BUDGET_MS = 8_000;
 
 const CreateTaskSchema = z.object({
   title: z.string().max(200),
@@ -43,7 +85,9 @@ const CreateTaskSchema = z.object({
   target: z.string().max(100),
   projectId: z.string().optional(),
   boardItemId: z.string().optional(),
-  ttl: z.number().positive().optional(),
+  // 0 is the never-expires sentinel (see CONSTANTS.ttl.neverExpiresSentinel) and must
+  // survive validation — min(0), deliberately not .positive().
+  ttl: z.number().int().min(0).max(31536000).optional(),
   replyTo: z.string().optional(),
   threadId: z.string().optional(),
   provenance: z.object({
@@ -117,28 +161,104 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   }
   // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
-  const snapshot = await query.orderBy("createdAt", "desc").limit(args.limit).get();
+  const orderedQuery = query.orderBy("createdAt", "desc");
+
+  // R3.1/R3.2: resume exactly after the last raw candidate the previous page
+  // examined (whether it matched or not).
+  let cursorQuery: admin.firestore.Query = orderedQuery;
+  if (args.cursor) {
+    const cursorDoc = await db.doc(`tenants/${auth.userId}/tasks/${args.cursor}`).get();
+    if (!cursorDoc.exists) {
+      return jsonResult({ success: false, error: "Invalid or expired cursor" });
+    }
+    cursorQuery = orderedQuery.startAfter(cursorDoc);
+  }
+
+  function passesPostCapFilters(data: admin.firestore.DocumentData): boolean {
+    // Filter by requires_action: null = no filter, true/false = exact match
+    if (args.requires_action !== null) {
+      const reqAction = data.requires_action ?? true; // default true for legacy tasks
+      if (reqAction !== args.requires_action) return false;
+    }
+    // Filter out auto-archived unless explicitly included
+    if (!args.include_archived && data.auto_archived === true) return false;
+    // Filter out expired tasks (TTL-based auto-archive on read)
+    if (data.expiresAt) {
+      const expires = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+      if (expires < new Date()) return false;
+    }
+    return true;
+  }
+
+  // R3.2: `limit` must bound MATCHING rows, not raw candidates. Page through
+  // the raw candidate stream applying the post-cap predicates above until
+  // `limit` matching rows are collected or the stream is genuinely
+  // exhausted. R3.3/R3.4: "no work" (hasTasks:false) is reachable only
+  // through that exhaustion — never inferred from a single short page.
+  const matchedDocs: admin.firestore.QueryDocumentSnapshot[] = [];
+  let lastRawDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+  let hasMore = false;
+  let degraded = false;
+  let degradedReason: string | null = null;
+  let pagesRead = 0;
+  const scanStartMs = Date.now();
+
+  for (;;) {
+    pagesRead++;
+    const pageSnap = await cursorQuery.limit(CANDIDATE_PAGE_SIZE).get();
+    if (pageSnap.docs.length === 0) {
+      hasMore = false; // Raw stream exhausted with nothing left at all.
+      break;
+    }
+    for (const doc of pageSnap.docs) {
+      lastRawDoc = doc;
+      if (passesPostCapFilters(doc.data())) {
+        matchedDocs.push(doc);
+        if (matchedDocs.length === args.limit) break;
+      }
+    }
+    if (matchedDocs.length === args.limit) {
+      // R3.1's one-sided guarantee, preserved under R3.2: peek exactly one
+      // more raw candidate beyond the last one examined. hasMore can be a
+      // false positive (that candidate turns out not to match) but never a
+      // false negative — hasMore:false is reached only via this peek coming
+      // back empty, or the stream exhausting outright above/below.
+      const peek = await orderedQuery.startAfter(lastRawDoc).limit(1).get();
+      hasMore = peek.docs.length > 0;
+      break;
+    }
+    if (pageSnap.docs.length < CANDIDATE_PAGE_SIZE) {
+      hasMore = false; // Short page: fewer matches than `limit` exist, period.
+      break;
+    }
+    const elapsedMs = Date.now() - scanStartMs;
+    if (pagesRead >= MAX_CANDIDATE_PAGES || elapsedMs >= SCAN_TIME_BUDGET_MS) {
+      // R3.6: budget exhausted before the raw stream was. This is NOT
+      // exhaustion, so the one-sided guarantee (R3.4) demands hasMore:true
+      // here, never false — a bounded scan that reported exhaustion would be
+      // defect 3 again, wearing a fix's label. `degraded` distinguishes this
+      // "budget hit, unknown how much more" case from the confirmed-via-peek
+      // "found `limit` matches, more exist" hasMore:true above, so a caller
+      // can tell a truncated read from a complete one. Two independent
+      // budgets, either can trip first: page count bounds the normal-case
+      // cost, elapsed time bounds a slow-page pathology the count alone
+      // can't see (see SCAN_TIME_BUDGET_MS above).
+      hasMore = true;
+      degraded = true;
+      degradedReason = elapsedMs >= SCAN_TIME_BUDGET_MS
+        ? `Scan time budget (${SCAN_TIME_BUDGET_MS}ms, ${pagesRead} page(s) of ${CANDIDATE_PAGE_SIZE} read) reached before the raw candidate stream was exhausted; resume with the returned cursor.`
+        : `Scan page budget (${MAX_CANDIDATE_PAGES} pages of ${CANDIDATE_PAGE_SIZE}) reached before the raw candidate stream was exhausted; resume with the returned cursor.`;
+      break;
+    }
+    cursorQuery = orderedQuery.startAfter(lastRawDoc);
+  }
+
+  const nextCursor = hasMore && lastRawDoc ? lastRawDoc.id : null;
 
   // Track informational tasks for auto-archive (fire-and-forget)
   const autoArchiveRefs: admin.firestore.DocumentReference[] = [];
 
-  const tasks = snapshot.docs
-    .filter((doc) => {
-      const data = doc.data();
-      // Filter by requires_action: null = no filter, true/false = exact match
-      if (args.requires_action !== null) {
-        const reqAction = data.requires_action ?? true; // default true for legacy tasks
-        if (reqAction !== args.requires_action) return false;
-      }
-      // Filter out auto-archived unless explicitly included
-      if (!args.include_archived && data.auto_archived === true) return false;
-      // Filter out expired tasks (TTL-based auto-archive on read)
-      if (data.expiresAt) {
-        const expires = data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
-        if (expires < new Date()) return false;
-      }
-      return true;
-    })
+  const tasks = matchedDocs
     .map((doc) => {
       const data = doc.data();
       const decrypted = decryptTaskFields(data, auth.encryptionKey);
@@ -190,12 +310,56 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     batch.commit().catch((err: unknown) => console.error("[AutoArchive] Failed:", err));
   }
 
+  // §4.1: renamed from `total` to `totalCandidates` — it has always measured
+  // raw candidates matching the server-side status/type/target filters only
+  // (best-effort, "where affordable"), never the matching-row count. Under
+  // R3.1 that was internally consistent but the field name didn't say so;
+  // R3.2 makes what `limit` bounds explicit throughout, so the rename lands
+  // here rather than costing a separate cycle. A count() failure (e.g. a
+  // missing index) must not fail the read.
+  let totalCandidates: number | null = null;
+  try {
+    const countSnapshot = await query.count().get();
+    totalCandidates = countSnapshot.data().count;
+  } catch {
+    totalCandidates = null;
+  }
+
   return jsonResult({
     success: true,
-    hasTasks: tasks.length > 0,
+    // R3.6 review fix: `degraded` means the scan stopped on a budget
+    // cutoff, not on exhaustion -- zero matches found so far is NOT the
+    // same claim as R3.4's "verified none". Biasing hasTasks true here
+    // preserves the existing boolean contract every current caller's
+    // `if (hasTasks)`/`if (!hasTasks)` check already relies on (no fleet-
+    // wide migration), at the cost of a caller reading ONLY `hasTasks`
+    // being unable to tell "confirmed work" from "budget cut, unconfirmed"
+    // apart -- both read true. That residual gap is a deliberate, narrower
+    // choice than a tri-state field; see PR discussion for why a tri-state
+    // was not picked unilaterally.
+    hasTasks: tasks.length > 0 || degraded,
     count: tasks.length,
     tasks,
-    message: tasks.length > 0 ? `Found ${tasks.length} task(s)` : "No tasks found",
+    // Completeness signal (R3.1, preserved under R3.2): "I have seen
+    // everything" is something this response STATES, never inferred from
+    // count() alone. `limit` now bounds matching rows (R3.2), so a response
+    // under its own limit is reachable only when the read is genuinely
+    // complete. This still does not close defect 3's unproven second
+    // mechanism (query-vs-point-read divergence) — see PR description.
+    hasMore,
+    cursor: nextCursor,
+    totalCandidates,
+    // R3.6: distinguishes a bounded-scan cutoff (unknown how much more, just
+    // that the budget ran out) from a confirmed "found `limit` matches, more
+    // exist" hasMore:true. Deliberately not named anything that could be
+    // confused with hasMore itself.
+    degraded,
+    degradedReason,
+    message: tasks.length > 0
+      ? `Found ${tasks.length} task(s)`
+      : degraded
+        ? "Scan budget reached before any match was found — not verified empty, resume with the returned cursor"
+        : "No tasks found",
   });
 }
 
@@ -218,6 +382,21 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   const preview = args.title.length > 50 ? args.title.substring(0, 47) + "..." : args.title;
   const now = serverTimestamp();
 
+  // Resolve the effective ttl once so taskData.ttl and expiresAt can never diverge
+  // (same falsy trap as dispatch(): explicit undefined check, not `||` — 0 is the
+  // never-expires sentinel and is falsy). type="task" with no explicit ttl keeps
+  // the existing 24h default; every other case that previously wrote NO expiresAt
+  // field at all now resolves to 0 (never-expires) instead — see W2b.2: an absent
+  // expiresAt already meant "never filtered by TTL" to every read path, so this is
+  // semantics-preserving, it just stops that field-less-document population from
+  // regrowing after W1's backfill.
+  const effectiveTtl =
+    args.ttl !== undefined ? args.ttl : args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : 0;
+  const expiresAt =
+    effectiveTtl === 0
+      ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+      : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+
   const taskData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,
     type: args.type,
@@ -237,7 +416,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     // message_type drives classification and drain semantics (STATUS/RESULT).
     message_type: args.message_type || null,
     // Envelope v2.1
-    ttl: args.ttl || null,
+    ttl: effectiveTtl,
     replyTo: args.replyTo || null,
     threadId: args.threadId || null,
     provenance: args.provenance || null,
@@ -269,11 +448,7 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
   taskData.task_class = classifyTask(args.type, args.action, args.title);
   taskData.attempt_count = 0;
 
-  // Default 24h TTL for type=task; other types (dream, sprint, question) have no default TTL
-  const effectiveTtl = args.ttl || (args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : null);
-  if (effectiveTtl) {
-    taskData.expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
-  }
+  taskData.expiresAt = expiresAt;
 
   const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
 

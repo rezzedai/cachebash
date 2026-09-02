@@ -36,7 +36,17 @@ const SendMessageSchema = z.object({
   sessionId: z.string().optional(),
   reply_to: z.string().optional(),
   threadId: z.string().optional(),
-  ttl: z.number().positive().optional(),
+  // W2d.2: deliberately NOT z.number().positive() with the generic message -- ttl:0
+  // means never-expires elsewhere in this system (dispatch()/create_task, since W2/W2b),
+  // but relay expiry is load-bearing here (cleanupExpiredRelayMessages dead-letters
+  // expired pending messages; get_messages never surfaces a dead-lettered one again).
+  // A relay message that can never dead-letter is undesirable ballast for a target that
+  // never claims it, unlike a task, which is meant to persist until someone acts on it.
+  // Reject explicitly rather than silently substituting the default -- see the census in
+  // PLAN-W2d for the alternative this deliberately avoids.
+  ttl: z.number().refine((v) => v > 0, {
+    message: "ttl must be a positive number of seconds. ttl:0 (never-expires) is not supported for relay messages -- relay expiry is load-bearing (drives dead-lettering); use dispatch() if you need work that survives indefinitely.",
+  }).optional(),
   provenance: z.object({
     model: z.string().optional(),
     cost_tokens: z.number().optional(),
@@ -52,7 +62,14 @@ const SendMessageSchema = z.object({
 const GetMessagesSchema = z.object({
   sessionId: z.string(),
   target: z.string().max(100).optional(),
-  markAsRead: z.boolean().default(false),
+  // R2.4: default flipped true -- CLAUDE.md's boot protocol and the wake
+  // nudge both call this bare, and a bare call is documented as the inbox
+  // read. A non-draining read is retained as an explicit opt-out for
+  // observer callers (dashboards, fleet monitors, audits) that must not
+  // silently claim an inbox they don't own -- see getMessagesHandler for
+  // the broadcast exemption that keeps the drain safe for multi-recipient
+  // messages regardless of this default.
+  markAsRead: z.boolean().default(true),
   includeDelivered: z.boolean().default(false),
   message_type: z.enum(["PING", "PONG", "HANDSHAKE", "DIRECTIVE", "STATUS", "ACK", "QUERY", "RESULT"]).optional(),
   priority: z.enum(["low", "normal", "high"]).optional(),
@@ -145,6 +162,9 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     }
   }
 
+  // `||` is safe here specifically because SendMessageSchema's ttl refine already
+  // rejects 0 (and negatives) before this line runs -- args.ttl is either undefined
+  // or a genuine positive number, never the never-expires sentinel value.
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
 
@@ -512,13 +532,27 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
       for (const { ref, id, fresh } of freshDocs) {
         if (!fresh.exists) continue;
         const data = fresh.data()!;
+        // R2.4: a broadcast (target:"all") is ONE relay doc read by every
+        // recipient -- there is no per-recipient delivery state in this
+        // schema. Marking it "delivered" on the first claim would make that
+        // reader silently swallow it for every other program the broadcast
+        // targeted, since the next reader's default query only sees
+        // status:"pending". Broadcasts are therefore exempt from the claim
+        // mutation entirely (never transition, deliveryAttempts never
+        // increments) and are always returned read-only, regardless of
+        // markAsRead. This is the same drain-is-safe reasoning as direct
+        // messages, applied to the one case where a single doc has more
+        // than one true recipient.
+        const isBroadcast = data.target === "all";
 
-        if (data.status === "pending") {
+        if (data.status === "pending" && !isBroadcast) {
           tx.update(ref, {
             status: "delivered",
             deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
             deliveryAttempts: admin.firestore.FieldValue.increment(1),
           });
+        } else if (data.status === "pending" && isBroadcast) {
+          // Return it, but never mutate it or count it as a delivery attempt.
         } else if (!(args.includeDelivered && data.status === "delivered")) {
           // Only pending docs are claimable; delivered docs are returned
           // read-only when includeDelivered is set, all others skipped.
@@ -530,7 +564,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
           message: relayBody(data),
           source: data.source,
           message_type: data.message_type,
-          status: data.status === "pending" ? "delivered" : data.status,
+          status: (data.status === "pending" && !isBroadcast) ? "delivered" : data.status,
           action: data.action,
           priority: data.priority,
           context: data.context || null,

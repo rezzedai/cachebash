@@ -16,6 +16,7 @@
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { verifySource } from "../middleware/gate.js";
+import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
 
@@ -562,6 +563,13 @@ interface BootstrapPayload {
     strategicDirection: Array<{ key: string; value: unknown; description?: string }>;
   };
   memory: {
+    /** R5: explicit, positive statement that memory was withheld — never a
+     * silently-empty section that could equally mean "no memory exists".
+     * Present (true) only on a cross-program (fleet.observe) read; absent/false
+     * on a self-read, which always gets the full memory section. */
+    omitted?: boolean;
+    /** R5: stated reason for the omission. Present iff `omitted` is true. */
+    omittedReason?: string;
     learnedPatterns: Array<{
       id: string;
       domain: string;
@@ -611,11 +619,62 @@ function buildReportingChain(role: string | null): string[] {
   return chains[role] || [];
 }
 
+/**
+ * R3/R4/R4a — the `gsp_bootstrap` chokepoint (PDR-cachebash-authz-chokepoint,
+ * ISO plan §3 PR-3). This is the SOLE gate protecting all five of the
+ * handler's reads (identity, capabilities, program_state/memory, pendingTasks,
+ * unreadMessages) — a denial here returns before ANY of them touch Firestore.
+ *
+ * R4a ordering, exactly: bind to `credentialPrincipal(auth)` FIRST. If it
+ * equals the requested subject, this is a self-read — always allowed, always
+ * full payload. Only if it is NOT self do we consult `fleet.observe`, and even
+ * then only as something that WIDENS this already principal-bound decision —
+ * never as a standalone "does auth.capabilities include fleet.observe?" check
+ * that could establish identity by itself. `credentialPrincipal` reads
+ * `auth.keyProgramId` (never overridable by X-Program-Id) in preference to
+ * `auth.programId`, so this cannot be spoofed via header escalation (BUG-006)
+ * — see `authValidator.ts`'s `assertAuthModeAtBoot` (A13) for why that holds
+ * even for `auth.capabilities` itself under the pinned `key_identity` mode.
+ */
+function authorizeGspBootstrapRead(
+  auth: AuthContext,
+  requestedAgentId: string
+): { allowed: boolean; principal: string; isSelf: boolean; foreignReadViaFleetObserve: boolean } {
+  const principal = credentialPrincipal(auth);
+  const isSelf = principal === requestedAgentId;
+  if (isSelf) {
+    return { allowed: true, principal, isSelf: true, foreignReadViaFleetObserve: false };
+  }
+  // Not self — the ONLY widening path is a LITERAL fleet.observe grant. Never
+  // routed through hasCapability (wildcard-expands "*"; see ownerAuthz.ts).
+  const widened = hasFleetObserveCapability(auth);
+  return { allowed: widened, principal, isSelf: false, foreignReadViaFleetObserve: widened };
+}
+
 export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspBootstrapSchema.parse(rawArgs);
   const depth = args.depth;
   const db = getFirestore();
   const now = new Date().toISOString();
+
+  const authz = authorizeGspBootstrapRead(auth, args.agentId);
+  if (!authz.allowed) {
+    return jsonResult({
+      success: false,
+      error: "FORBIDDEN",
+      message: `Access denied: "${authz.principal}" cannot read the bootstrap payload for `
+        + `"${args.agentId}". Cross-program gsp_bootstrap reads require the fleet.observe capability.`,
+      principal: authz.principal,
+      requestedAgentId: args.agentId,
+    });
+  }
+
+  // R5: memory is omitted whenever the reader is not the subject — even though
+  // this read was authorized via fleet.observe. `fleet.observe` widens read
+  // access to identity/context/operational/fleet-health state; it does not
+  // extend to another program's private memory (learned patterns, handoff
+  // notes). Explicit and positive, never a silently-empty section.
+  const omitMemory = !authz.isSelf;
 
   try {
     // Initialize payload
@@ -916,8 +975,27 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
     }
 
     // 5. Memory — Program state
-    try {
-      const stateDoc = await db.doc(`tenants/${auth.userId}/programs/${args.agentId}/state`).get();
+    if (omitMemory) {
+      // R5: cross-program (fleet.observe) read — do not even fetch the
+      // program_state doc. Explicit, positive statement of the omission and
+      // why, so a caller can distinguish "withheld" from "this program has no
+      // memory yet" (payload.memory otherwise defaults to the same empty shape).
+      payload.memory.omitted = true;
+      payload.memory.omittedReason =
+        `cross-program read: "${authz.principal}" read this via the fleet.observe capability, `
+        + `which grants identity/context/operational/fleet-health visibility, not another `
+        + `program's private memory (learned patterns, handoff notes).`;
+    } else try {
+      // Must match where programState.ts actually writes. The previous path,
+      // `tenants/{uid}/programs/{agentId}/state`, was BOTH wrong in location and
+      // structurally invalid — 5 segments, so db.doc() rejected it outright with
+      // "does not contain an even number of components". The throw was swallowed
+      // by the catch below, which sets no loadError, so every caller saw an empty
+      // memory block and read it as "this program has nothing stored yet".
+      // Line 1804 in this same file already used the correct collection.
+      const stateDoc = await db
+        .doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.agentId}`)
+        .get();
 
       if (stateDoc.exists) {
         const stateData = stateDoc.data()!;
@@ -1087,8 +1165,13 @@ const GspSeedSchema = z.object({
 export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GspSeedSchema.parse(rawArgs);
 
-  // Authorization: admin/orchestrator only
-  const authorizedPrograms = ["vector", "iso", "admin", "dispatcher"];
+  // Authorization: admin/orchestrator only.
+  // `gsp-sync` is the CI identity for the repo's GSP State Sync workflow. It is
+  // deliberately NOT an orchestrator: its key carries only [gsp.read, gsp.write],
+  // so the capability gate still denies it dispatch/state/keys/etc. Listing it
+  // here rather than widening its capabilities to "*" keeps a CI-resident
+  // credential scoped to governance-state writes and nothing else.
+  const authorizedPrograms = ["vector", "iso", "admin", "dispatcher", "gsp-sync"];
   const hasWildcard = auth.capabilities.includes("*");
 
   if (!authorizedPrograms.includes(auth.programId) && !hasWildcard) {
