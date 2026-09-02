@@ -47,6 +47,17 @@ import { FieldPath, type CollectionReference, type Firestore, type QueryDocument
 import { z } from "zod";
 import { getFirestore } from "../../firebase/client.js";
 import type { AuthContext } from "../../auth/authValidator.js";
+import { emitEvent } from "../events.js";
+
+// R1.4 (dispatch-defects-1-and-2, ISO-ruled additive-only): a task deleted by
+// the reaper while it never reached a terminal, resolved status ("done" or
+// "failed") lapsed with its requirements unmet -- today that is silent, the
+// doc simply stops existing. This is a brand-new event_type so nothing
+// currently subscribed can be affected; it does not rename or repurpose any
+// existing event_type or webhook event value.
+function isUnresolvedStatus(status: unknown): boolean {
+  return status !== "done" && status !== "failed";
+}
 
 const PAGE_SIZE = 1000;
 // Firestore's 500-writes-per-batch cap; PR #397 is the precedent -- one
@@ -139,6 +150,16 @@ async function reapByIds(
     if (execute) {
       batch!.delete(snap.ref);
       deletedIds.push(snap.id);
+      // R1.4: fire-and-forget, after the delete is queued, never blocking it.
+      if (isUnresolvedStatus(data.status)) {
+        emitEvent(tenantId, {
+          event_type: "TASK_EXPIRED_INCOMPLETE",
+          task_id: snap.id,
+          target: data.target as string | undefined,
+          source: src,
+          was_claimed: data.claimedBy != null,
+        });
+      }
     } else {
       candidateIds.push(snap.id);
     }
@@ -251,6 +272,16 @@ export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknow
         batch!.delete(doc.ref);
         pendingWrites++;
         deletedIds.push(doc.id);
+        // R1.4: fire-and-forget, after the delete is queued, never blocking it.
+        if (isUnresolvedStatus(data.status)) {
+          emitEvent(auth.userId, {
+            event_type: "TASK_EXPIRED_INCOMPLETE",
+            task_id: doc.id,
+            target: data.target as string | undefined,
+            source: src,
+            was_claimed: data.claimedBy != null,
+          });
+        }
         if (pendingWrites >= BATCH_WRITE_MAX) {
           await batch!.commit();
           batch = db.batch();
