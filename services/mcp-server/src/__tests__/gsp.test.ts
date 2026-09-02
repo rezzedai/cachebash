@@ -244,12 +244,19 @@ jest.mock("../modules/events", () => ({
 
 // ── Shared auth context ─────────────────────────────────────────────────────
 
+// vector holds ["*", "fleet.observe"] in production (grant recorded at plan
+// commit b4521fe6) — this suite's bootstrap cases read foreign agentIds
+// (basher, unknown-agent), which is exactly the fleet.observe-gated read
+// PR-3 adds (modules/gsp.ts authorizeGspBootstrapRead). Dedicated authz
+// semantics (deny/allow/memory-omission/AUTH_MODE) live in
+// gsp-bootstrap-authz.test.ts, not here — this file is payload-shape/depth
+// coverage and should keep testing that, not authz.
 const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "test-key-hash",
   programId: "vector" as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
-  capabilities: ["*"],
+  capabilities: ["*", "fleet.observe"],
   rateLimitTier: "internal",
 };
 
