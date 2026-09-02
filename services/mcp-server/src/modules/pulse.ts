@@ -67,6 +67,17 @@ function stateToLifecycle(state: string): LifecycleStatus {
   }
 }
 
+/**
+ * Program that owns a session id: "iso" from "iso.task123", "basher" from
+ * "basher-g2.task". This is the SAME derivation the SARK C2 cross-session
+ * write check already trusts to tell a program's own session from someone
+ * else's -- reused here so the registry-mirror key can never disagree with
+ * the security check three lines above it.
+ */
+function sessionOwnerProgramId(sessionId: string): string {
+  return sessionId.split(".")[0].split("-")[0];
+}
+
 export async function createSessionHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateSessionSchema.parse(rawArgs);
   const db = getFirestore();
@@ -198,8 +209,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   const isPrivileged = !callerProgramId || callerProgramId === "legacy"
     || callerProgramId === "mobile" || callerProgramId === "dispatcher";
   if (!isPrivileged) {
-    // Session ID prefix is the program name: "iso" in "iso.task123", "basher" in "basher-g2.task"
-    const sessionPrefix = sessionId.split(".")[0].split("-")[0];
+    const sessionPrefix = sessionOwnerProgramId(sessionId);
     if (sessionPrefix !== callerProgramId) {
       console.warn(`[C2] Cross-session write rejected: caller="${callerProgramId}" session="${sessionId}"`);
       return jsonResult({
@@ -315,16 +325,31 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     createdAt: now,
   });
 
-  // Piggyback program registry write
-  const programId = auth.programId;
+  // Piggyback program registry write.
+  // R-pulse-1 (dispatch_01a061e4): key the mirror on the SESSION'S OWN
+  // program, not the caller. A privileged caller (the dispatcher, chiefly)
+  // updates every program's session constantly; keying on auth.programId
+  // stamped the CALLER's own registry doc with whichever session it last
+  // touched (via currentSessionId below) and never refreshed the session's
+  // real owner -- so fleet_health read the owning program as permanently
+  // stale while the dispatcher's doc silently acquired other programs'
+  // session ids. A genuine self-update is unaffected: caller and session
+  // owner coincide.
+  const programId = sessionOwnerProgramId(sessionId) || auth.programId;
   if (programId && programId !== "legacy" && programId !== "mobile") {
     const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
     const programData: Record<string, unknown> = {
       programId,
-      lastHeartbeat: now,
       currentState: args.state || "working",
       currentSessionId: sessionId,
     };
+    // Heartbeat semantics: mirror the session-doc rule above (`if
+    // (args.lastHeartbeat) updateData.lastHeartbeat = now`) instead of
+    // stamping unconditionally. The two writes used to skew in both
+    // directions -- an update that never claimed to be a heartbeat must not
+    // manufacture one here either, or a dead session keeps reading alive on
+    // fleet_health via this doc even though its session doc goes silent.
+    if (args.lastHeartbeat) programData.lastHeartbeat = now;
     if (meta) {
       programData.displayName = meta.displayName;
       programData.color = meta.color;
