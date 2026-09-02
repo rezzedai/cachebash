@@ -377,7 +377,7 @@ export const definitions = [
       properties: {
         execute: { type: "boolean", default: false, description: "false (default) = dry-run report only. true = actually delete." },
         cohortSource: { type: "string", maxLength: 100, description: "Narrow deletion to docs with this exact `source` value (staged rollout). Omitted = every expired doc is a candidate." },
-        limit: { type: "number", minimum: 1, maximum: 50000, description: "Cap how many delete candidates this call processes. Omitted = no cap." },
+        limit: { type: "number", minimum: 1, maximum: 50000, description: "Cap how many delete candidates this call processes. Required when execute:true and `ids` is not supplied -- an unbounded scan-mode execute:true call (no `limit`, no `ids`) is refused with UNBOUNDED_EXECUTE_REFUSED." },
         ids: { type: "array", items: { type: "string" }, maxItems: 400, description: "Manifest-driven mode: explicit candidate document ids (<=400). Each is re-read live and the predicate re-asserted before delete; replaces the collection scan entirely." },
       },
     },
