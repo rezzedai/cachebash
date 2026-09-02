@@ -12,6 +12,8 @@ import {
   isKeyProvisioner,
   disallowedMintCapabilities,
   KEY_PROVISION_CAPABILITY,
+  isKeyAdmin,
+  credentialPrincipal,
 } from "../auth/ownerAuthz";
 
 function authWith(partial: Partial<AuthContext>): AuthContext {
@@ -81,5 +83,56 @@ describe("disallowedMintCapabilities (SARK #341 capability ceiling)", () => {
 
   it("treats a missing caller capabilities array as granting nothing", () => {
     expect(disallowedMintCapabilities(undefined, ["dispatch.read"])).toEqual(["dispatch.read"]);
+  });
+});
+
+describe("BUG-009: key administration authorization", () => {
+  const authFor = (
+    keyProgramId: string,
+    capabilities: string[] = ["*"],
+    programId?: string,
+  ): any => ({
+    userId: "shared-tenant-uid",
+    apiKeyHash: "hash",
+    encryptionKey: Buffer.from(""),
+    programId: (programId ?? keyProgramId) as any,
+    keyProgramId: keyProgramId as any,
+    capabilities,
+    rateLimitTier: "free",
+  });
+
+  it("credentialPrincipal ignores the X-Program-Id override (BUG-006)", () => {
+    // programId escalated to an admin-tier name; the credential is still radia.
+    const auth = authFor("radia", ["*"], "dispatcher");
+    expect(credentialPrincipal(auth)).toBe("radia");
+  });
+
+  it('a "*" wildcard key is NOT a key admin — this is the #341 no-op class', () => {
+    // radia holds ["*"] in production and is the key BUG-009 was proven with.
+    // A wildcard-expanding capability check here would authorize the very
+    // caller the control exists to stop.
+    expect(isKeyAdmin(authFor("radia", ["*"]))).toBe(false);
+  });
+
+  it("fleet.read does not confer key administration", () => {
+    expect(isKeyAdmin(authFor("tensor", ["fleet.read", "programs.read"]))).toBe(false);
+  });
+
+  it("an X-Program-Id escalation to vector does not confer key administration", () => {
+    // The header can forge programId AND capabilities; it cannot forge the credential.
+    expect(isKeyAdmin(authFor("radia", ["*"], "vector"))).toBe(false);
+  });
+
+  it("the fleet auditor principals are key admins", () => {
+    expect(isKeyAdmin(authFor("vector", ["*"]))).toBe(true);
+    expect(isKeyAdmin(authFor("sark", ["*"]))).toBe(true);
+  });
+
+  it("iso is deliberately NOT a key admin", () => {
+    expect(isKeyAdmin(authFor("iso", ["*"]))).toBe(false);
+  });
+
+  it("an explicit literal keys.admin grant confers it", () => {
+    expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "keys.admin"]))).toBe(true);
   });
 });
