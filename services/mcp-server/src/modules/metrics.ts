@@ -230,12 +230,19 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   const snapshot = await query.get();
 
   // Aggregate
+  // R-metrics-1 (RULED, dispatch_01a061b1): event_type is only a coarse routing
+  // hint -- TASK_SUCCEEDED fires for every non-FAILED completion regardless of
+  // completed_status (see completion.ts:683/892). completed_status is the
+  // authoritative discriminator (completion.ts:894-897) and must be read here,
+  // or a SKIPPED/CANCELLED/PARTIAL close silently scores as a success.
   let taskCreated = 0, taskClaimed = 0, taskSucceeded = 0, taskFailed = 0;
+  let taskSkipped = 0, taskCancelled = 0, taskPartial = 0, taskExpiredIncomplete = 0;
   let workTasks = 0, controlTasks = 0;
   let guardianAllow = 0, guardianBlock = 0;
   let deadLetterCount = 0;
   let totalQueueLatencyMs = 0, totalRunLatencyMs = 0;
   let latencySamples = 0;
+  let unclassified = 0;
   const reasonClassCounts: Record<string, number> = {};
   const deadLetterReasons: Record<string, number> = {};
   const errorClassCounts: Record<string, number> = {};
@@ -259,17 +266,39 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
       case "TASK_CLAIMED":
         taskClaimed++;
         break;
-      case "TASK_SUCCEEDED":
-        taskSucceeded++;
-        if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].succeeded++;
+      case "TASK_SUCCEEDED": {
+        // completed_status predates this discrimination for some historical
+        // events; an absent field means SUCCESS (it was the only outcome
+        // TASK_SUCCEEDED could ever carry before SKIPPED/CANCELLED/PARTIAL
+        // existed), not unclassified -- do not shift historical counts.
+        const status = data.completed_status;
+        if (status === undefined || status === "SUCCESS") {
+          taskSucceeded++;
+          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].succeeded++;
+        } else if (status === "SKIPPED") {
+          taskSkipped++;
+        } else if (status === "CANCELLED") {
+          taskCancelled++;
+        } else if (status === "PARTIAL") {
+          taskPartial++;
+        } else {
+          unclassified++;
+        }
         // Latency if available
         if (data.queue_latency_ms) { totalQueueLatencyMs += data.queue_latency_ms; latencySamples++; }
         if (data.run_latency_ms) { totalRunLatencyMs += data.run_latency_ms; }
         break;
+      }
       case "TASK_FAILED":
         taskFailed++;
         if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].failed++;
         if (data.error_class) errorClassCounts[data.error_class] = (errorClassCounts[data.error_class] || 0) + 1;
+        break;
+      case "TASK_EXPIRED_INCOMPLETE":
+        // Reaped before ever completing -- not a success, and must not go
+        // invisible the way it did before this fix (#425 added the emit,
+        // nothing here read it).
+        taskExpiredIncomplete++;
         break;
       case "GUARDIAN_CHECK":
         if (data.decision === "ALLOW") guardianAllow++;
@@ -284,10 +313,23 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
           deadLetterReasons[data.dead_letter_reason] = (deadLetterReasons[data.dead_letter_reason] || 0) + 1;
         }
         break;
+      default:
+        // R-metrics-1 structural fix: the next event_type added to the union
+        // (like TASK_EXPIRED_INCOMPLETE was in #425) lands here instead of
+        // going invisible. A wrong number gets questioned; a missing one
+        // looks like health -- this tally is what keeps it from looking like
+        // health.
+        unclassified++;
+        break;
     }
   }
 
-  const firstPassRate = taskCreated > 0 ? round4((taskSucceeded / Math.max(taskSucceeded + taskFailed, 1)) * 100) : null;
+  // firstPassRate denominator (RULED): SKIPPED/CANCELLED/PARTIAL and
+  // TASK_EXPIRED_INCOMPLETE all consumed a dispatch without producing the
+  // work, same as a FAILED -- they belong in the denominator, not just
+  // "visible somewhere". Numerator stays true successes only.
+  const nonSuccessOutcomes = taskFailed + taskSkipped + taskCancelled + taskPartial + taskExpiredIncomplete;
+  const firstPassRate = taskCreated > 0 ? round4((taskSucceeded / Math.max(taskSucceeded + nonSuccessOutcomes, 1)) * 100) : null;
   const avgQueueLatencyMs = latencySamples > 0 ? Math.round(totalQueueLatencyMs / latencySamples) : null;
   const avgRunLatencyMs = latencySamples > 0 ? Math.round(totalRunLatencyMs / latencySamples) : null;
 
@@ -388,11 +430,16 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
     success: true,
     period: args.period,
     totalEvents: snapshot.size,
+    unclassifiedEvents: unclassified,
     tasks: {
       created: taskCreated,
       claimed: taskClaimed,
       succeeded: taskSucceeded,
       failed: taskFailed,
+      skipped: taskSkipped,
+      cancelled: taskCancelled,
+      partial: taskPartial,
+      expiredIncomplete: taskExpiredIncomplete,
       firstPassSuccessRate: firstPassRate,
       workTasks,
       controlTasks,
