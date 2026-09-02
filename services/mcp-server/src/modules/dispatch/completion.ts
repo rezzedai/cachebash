@@ -923,6 +923,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         programId: auth.programId,
         toolName: "batch_complete_tasks",
         success: args.completed_status !== "FAILED",
+        completed_status: args.completed_status,
       });
 
       // batch-event-gaps: the single path dispatches webhooks
