@@ -154,7 +154,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture([fieldLessDoc("a"), fieldLessDoc("b")]);
     activeDb = db;
 
-    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.fieldLessCount).toBe(2);
@@ -167,7 +167,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture([liveDoc("a")]);
     activeDb = db;
 
-    await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     expect(store.has("a")).toBe(true);
   });
 
@@ -175,7 +175,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture([rescuedDoc("carry-forward-1")]);
     activeDb = db;
 
-    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.expiredCandidates).toBe(0);
@@ -187,7 +187,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture([expiredDoc("a"), liveDoc("b"), fieldLessDoc("c"), rescuedDoc("d")]);
     activeDb = db;
 
-    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.deletedCount).toBe(1);
@@ -205,7 +205,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture(docs);
     activeDb = db;
 
-    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, cohortSource: "enrichment-worker" });
+    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, cohortSource: "enrichment-worker", limit: 50000 });
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.bySource).toEqual({ "enrichment-worker": 5, system: 3 });
@@ -218,8 +218,8 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store } = makeFixture([expiredDoc("a"), expiredDoc("b")]);
     activeDb = db;
 
-    await reapExpiredTasksHandler(baseAuth(), { execute: true });
-    const second = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
+    const second = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     const parsed = JSON.parse(second.content[0].text);
 
     expect(parsed.expiredCandidates).toBe(0);
@@ -232,7 +232,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
     const { db, store, batchInstances } = makeFixture(docs);
     activeDb = db;
 
-    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+    const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
     const parsed = JSON.parse(result.content[0].text);
 
     expect(parsed.deletedCount).toBe(850);
@@ -345,6 +345,65 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
       expect(parsed.deletedIds).toEqual(["b"]);
       expect(store.has("a")).toBe(true);
       expect(store.has("b")).toBe(false);
+    });
+
+    // Ordering regression pin: the INCIDENT GUARD (below) must run AFTER
+    // this branch's return, not before it. Manifest mode is explicitly
+    // exempt from `limit` -- a future refactor that reorders these two
+    // checks would wrongly refuse every `ids` + execute:true call that
+    // omits `limit`. This test exists to make that mistake loud.
+    it("ids + execute:true with no `limit` succeeds -- manifest mode is not refused by the unbounded-execute guard", async () => {
+      const { db, store } = makeFixture([expiredDoc("a")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, ids: ["a"] });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.error).toBeUndefined();
+      expect(parsed.manifestMode).toBe(true);
+      expect(parsed.deletedCount).toBe(1);
+      expect(store.has("a")).toBe(false);
+    });
+  });
+
+  describe("INCIDENT GUARD: UNBOUNDED_EXECUTE_REFUSED", () => {
+    it("refuses a scan-mode execute:true call with no `limit` and no `ids`", async () => {
+      const { db, store } = makeFixture([expiredDoc("a"), expiredDoc("b")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), { execute: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toBe("UNBOUNDED_EXECUTE_REFUSED");
+      expect(parsed.message).toMatch(/execute:true requires either `ids`.*or an explicit `limit`/);
+      expect(store.size).toBe(2); // nothing scanned or deleted -- refused before the scan loop
+    });
+
+    it("does not refuse a scan-mode execute:true call when `limit` is supplied", async () => {
+      const { db, store } = makeFixture([expiredDoc("a"), expiredDoc("b")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 1 });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.error).toBeUndefined();
+      expect(parsed.deletedCount).toBe(1);
+      expect(store.size).toBe(1);
+    });
+
+    it("does not refuse a dry-run (execute:false, the default) even with no `limit` and no `ids`", async () => {
+      const { db } = makeFixture([expiredDoc("a")]);
+      activeDb = db;
+
+      const result = await reapExpiredTasksHandler(baseAuth(), {});
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.error).toBeUndefined();
+      expect(parsed.mode).toBe("DRY-RUN");
     });
   });
 });
