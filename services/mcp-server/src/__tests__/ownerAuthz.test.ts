@@ -14,6 +14,8 @@ import {
   KEY_PROVISION_CAPABILITY,
   isKeyAdmin,
   credentialPrincipal,
+  hasFleetObserveCapability,
+  FLEET_OBSERVE_CAPABILITY,
 } from "../auth/ownerAuthz";
 
 function authWith(partial: Partial<AuthContext>): AuthContext {
@@ -134,5 +136,40 @@ describe("BUG-009: key administration authorization", () => {
 
   it("an explicit literal keys.admin grant confers it", () => {
     expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "keys.admin"]))).toBe(true);
+  });
+});
+
+describe("R4/PR-3: hasFleetObserveCapability (gsp_bootstrap foreign-read gate)", () => {
+  function authWith(capabilities: string[]): AuthContext {
+    return {
+      userId: "shared-tenant-uid",
+      apiKeyHash: "hash",
+      programId: "vector",
+      encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
+      capabilities,
+      rateLimitTier: "internal",
+    } as AuthContext;
+  }
+
+  it('a "*" wildcard key does NOT satisfy it — the exact class both prior bugs were proven with', () => {
+    expect(hasFleetObserveCapability(authWith(["*"]))).toBe(false);
+  });
+
+  it("the legacy fleet.read capability does NOT satisfy it — this is a genuinely new capability, not a rename", () => {
+    expect(hasFleetObserveCapability(authWith(["fleet.read"]))).toBe(false);
+    expect(hasFleetObserveCapability(authWith(["*", "fleet.read"]))).toBe(false);
+  });
+
+  it("an explicit literal fleet.observe grant satisfies it, alone or alongside '*'", () => {
+    expect(hasFleetObserveCapability(authWith([FLEET_OBSERVE_CAPABILITY]))).toBe(true);
+    expect(hasFleetObserveCapability(authWith(["*", "fleet.observe"]))).toBe(true);
+  });
+
+  it("denies a caller with no capabilities at all", () => {
+    expect(hasFleetObserveCapability(authWith([]))).toBe(false);
+  });
+
+  it("tolerates a missing/non-array capabilities field", () => {
+    expect(hasFleetObserveCapability(authWith(undefined as unknown as string[]))).toBe(false);
   });
 });

@@ -130,3 +130,48 @@ export function isKeyAdmin(auth: AuthContext): boolean {
   return Array.isArray(auth.capabilities)
     && auth.capabilities.includes(KEYS_ADMIN_CAPABILITY);
 }
+
+/**
+ * FLEET_OBSERVE_CAPABILITY — R3/R4 (PDR-cachebash-authz-chokepoint, ISO plan
+ * §3 PR-3). Gates cross-program reads of `gsp_bootstrap` payloads.
+ *
+ * Deliberately NOT `fleet.read`: `fleet.read` sits in the standard
+ * provisioning preset (middleware/capabilities.ts:28,206,250) and 15 of 32
+ * live keys hold it explicitly. Combined with the 11 of 32 keys holding
+ * `["*"]` — which `hasCapability` wildcard-expands unconditionally — 26 of 32
+ * keys would pass a `fleet.read` gate routed through `hasCapability`,
+ * including `radia`, the key both BUG-005 and BUG-009 were proven with (plan
+ * §1.1). Reusing `fleet.read`, or checking it via `hasCapability`, would
+ * satisfy this requirement's own acceptance tests while shipping the exact
+ * defect this PR exists to close.
+ *
+ * Minted 2026-09-02 (grid/plans/ISO-plan-authz-chokepoint.md, commit
+ * `b4521fe6`), verified held by nobody before minting. Granted to exactly two
+ * principals as an ADDITION to their existing `"*"` (never a replacement):
+ * `vector` (fleet auditor; its documented boot depends on cross-program
+ * reads) and `sark` (security auditor). `iso` is deliberately NOT granted —
+ * consistent with its exclusion from key admin in PR-1, it authored this
+ * change. Read-back across all 137 key documents at grant time confirmed
+ * exactly 2 holders, with 80 bare `["*"]` and 31 legacy `fleet.read` holders
+ * as the control group that must NOT pass a literal check.
+ */
+export const FLEET_OBSERVE_CAPABILITY = "fleet.observe";
+
+/**
+ * True iff `auth`'s own capabilities literally include `fleet.observe`.
+ * NEVER routed through `hasCapability` — that wildcard-expands `"*"`, which
+ * would re-admit all 80 `"*"`-holding keys and the 31 legacy `fleet.read`
+ * holders, reproducing the exact defect this capability exists to close.
+ * Same discipline as `isKeyProvisioner` / `KEY_PROVISION_CAPABILITY` above.
+ *
+ * R4a: this function checks CAPABILITIES ONLY. It does not, and must not, by
+ * itself decide who the caller is — a capability may only WIDEN a decision
+ * that is already bound to `credentialPrincipal(auth)`. Call sites must check
+ * `credentialPrincipal(auth) === <subject>` FIRST and consult this function
+ * only for the cross-program (foreign-read) branch. See
+ * `authorizeGspBootstrapRead` in `modules/gsp.ts` for the reference call site.
+ */
+export function hasFleetObserveCapability(auth: AuthContext): boolean {
+  return Array.isArray(auth.capabilities)
+    && auth.capabilities.includes(FLEET_OBSERVE_CAPABILITY);
+}
