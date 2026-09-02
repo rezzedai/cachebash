@@ -24,6 +24,7 @@ import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -475,7 +476,9 @@ const routes: Route[] = [
       return;
     }
     const body = await readBody(req);
-    const source = auth.keyProgramId ?? auth.programId;
+    // PR-2: adopted credentialPrincipal — identical to the prior inline
+    // `auth.keyProgramId ?? auth.programId`, now the single named primitive.
+    const source = credentialPrincipal(auth);
     try {
       const parsed = await callTool(auth, req, "relay_send_message", { ...body, source }) as { success?: boolean };
       restResponse(res, parsed.success !== false, parsed, parsed.success !== false ? 201 : 400);
