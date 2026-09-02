@@ -44,6 +44,9 @@ const DEFAULT_UPTAKE_TIMEOUT_SECONDS = 45;
 /** Keep dispatch responses inside the observed 55s MCP proxy boundary. */
 const DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS = 45_000;
 
+/** Reserve time for response serialization, transport, and proxy overhead. */
+const DEFAULT_RESPONSE_RESERVE_MS = 5_000;
+
 const DispatchSchema = z.object({
   source: z.string().max(100),
   target: z.string().max(100),
@@ -398,14 +401,16 @@ async function sendTaskAndDirective(
   // Log for ACK compliance
   logDirective(auth.userId, txResult.directiveId!, verifiedSource, args.target, directiveMessage.substring(0, 2000), args.threadId).catch(() => {});
 
-  await updateDispatchObligation(auth.userId, txResult.obligationId, {
+  annotateDispatchObligation(auth.userId, txResult.obligationId, {
     deliveryState: "notified",
     notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  await db.doc(`tenants/${auth.userId}/tasks/${txResult.taskId}`).update({
+  db.doc(`tenants/${auth.userId}/tasks/${txResult.taskId}`).update({
     dispatchDeliveryState: "notified",
+  }).catch((error) => {
+    console.warn(`[Dispatch] Failed to annotate task ${txResult.taskId} as notified:`, error);
   });
 
   emitEvent(auth.userId, {
@@ -439,6 +444,12 @@ function getCallerBoundaryTimeoutMs(): number {
     : DEFAULT_CALLER_BOUNDARY_TIMEOUT_MS;
 }
 
+function getResponseReserveMs(callerBoundaryTimeoutMs: number): number {
+  const configured = Number(process.env.DISPATCH_RESPONSE_RESERVE_MS);
+  if (Number.isFinite(configured) && configured >= 0) return configured;
+  return Math.min(DEFAULT_RESPONSE_RESERVE_MS, Math.floor(callerBoundaryTimeoutMs * 0.2));
+}
+
 function runtimeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -457,6 +468,37 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   } finally {
     if (timeout) clearTimeout(timeout);
   }
+}
+
+async function awaitWithinBudget<T>(
+  promise: Promise<T>,
+  budgetMs: number,
+  onTimeout: () => void,
+): Promise<{ completed: true; value: T } | { completed: false }> {
+  if (budgetMs <= 0) {
+    promise.catch((error) => console.warn("[Dispatch] Background operation failed after budget exhaustion:", error));
+    onTimeout();
+    return { completed: false };
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutResult = Symbol("timeout");
+  const result = await Promise.race([
+    promise.then((value) => ({ value })),
+    new Promise<typeof timeoutResult>((resolve) => {
+      timeout = setTimeout(() => resolve(timeoutResult), budgetMs);
+    }),
+  ]);
+
+  if (timeout) clearTimeout(timeout);
+
+  if (result === timeoutResult) {
+    promise.catch((error) => console.warn("[Dispatch] Background operation failed after budget timeout:", error));
+    onTimeout();
+    return { completed: false };
+  }
+
+  return { completed: true, value: result.value };
 }
 
 /**
@@ -700,11 +742,39 @@ function callerBoundaryPendingResponse(params: {
   } satisfies DispatchResponse);
 }
 
+function logDispatchPhase(
+  userId: string,
+  source: string,
+  target: string,
+  taskId: string,
+  obligationId: string,
+  phase: string,
+  elapsedMs: number,
+  durationMs?: number,
+): void {
+  const durationPart = durationMs === undefined ? "" : ` durationMs=${durationMs}`;
+  console.info(`[Dispatch] phase=${phase} task=${taskId} obligation=${obligationId}${durationPart} elapsedMs=${elapsedMs}`);
+  emitEvent(userId, {
+    event_type: "DISPATCH_PHASE",
+    program_id: source,
+    target,
+    task_id: taskId,
+    obligation_id: obligationId,
+    phase,
+    elapsed_ms: elapsedMs,
+    duration_ms: durationMs,
+  });
+}
+
 // ─── MAIN HANDLER ────────────────────────────────────────────────────────────
 
 export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const dispatchStartedAtMs = Date.now();
   const args = DispatchSchema.parse(rawArgs);
-  const callerBoundaryDeadlineMs = Date.now() + getCallerBoundaryTimeoutMs();
+  const callerBoundaryTimeoutMs = getCallerBoundaryTimeoutMs();
+  const responseReserveMs = getResponseReserveMs(callerBoundaryTimeoutMs);
+  const callerBoundaryDeadlineMs = dispatchStartedAtMs + callerBoundaryTimeoutMs;
+  const responseDeadlineMs = callerBoundaryDeadlineMs - responseReserveMs;
 
   // Enforce source identity
   const verifiedSource = verifySource(args.source, auth, "mcp");
@@ -815,11 +885,13 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     false,
     "skipped",
   );
+  logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "durable_persisted", Date.now() - dispatchStartedAtMs);
 
   // ── 2. PRE-FLIGHT ──
   let flight: Awaited<ReturnType<typeof queryTargetState>>;
   try {
-    const preflightBudgetMs = callerBoundaryDeadlineMs - Date.now();
+    const preflightStartedAtMs = Date.now();
+    const preflightBudgetMs = responseDeadlineMs - Date.now();
     const preflight = await withTimeout(
       queryTargetState(auth.userId, args.target),
       preflightBudgetMs,
@@ -841,8 +913,29 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       });
     }
     flight = preflight;
+    logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "preflight_done", Date.now() - dispatchStartedAtMs, Date.now() - preflightStartedAtMs);
   } catch (error) {
-    await markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error);
+    const runtimeFailureAnnotation = await awaitWithinBudget(
+      markRuntimeFailure(auth.userId, taskId, obligationId, "preflight_failed", error),
+      responseDeadlineMs - Date.now(),
+      () => console.warn(`[Dispatch] phase=preflight_failure_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+    );
+    if (!runtimeFailureAnnotation.completed) {
+      return callerBoundaryPendingResponse({
+        auth,
+        args,
+        taskId,
+        directiveId,
+        obligationId,
+        deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+        targetState: "absent",
+        heartbeatAge: "unknown",
+        deduplicated,
+        governanceWarnings: governance.warnings,
+        matchedPolicies,
+        message: `Dispatch obligation stored for ${args.target}, but runtime preflight failed and failure annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+      });
+    }
     return jsonResult({
       success: false,
       taskId,
@@ -875,10 +968,30 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
           : undefined,
     } satisfies DispatchResponse);
   }
-  await updateDispatchObligation(auth.userId, obligationId, {
-    targetState: flight.targetState,
-    preflightAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  const preflightAnnotation = await awaitWithinBudget(
+    updateDispatchObligation(auth.userId, obligationId, {
+      targetState: flight.targetState,
+      preflightAt: admin.firestore.FieldValue.serverTimestamp(),
+    }),
+    responseDeadlineMs - Date.now(),
+    () => console.warn(`[Dispatch] phase=preflight_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+  );
+  if (!preflightAnnotation.completed) {
+    return callerBoundaryPendingResponse({
+      auth,
+      args,
+      taskId,
+      directiveId,
+      obligationId,
+      deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+      targetState: flight.targetState,
+      heartbeatAge: flight.heartbeatAge,
+      deduplicated,
+      governanceWarnings: governance.warnings,
+      matchedPolicies,
+      message: `Dispatch obligation stored for ${args.target}, but preflight annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+    });
+  }
 
   // Emit pre-flight telemetry
   emitEvent(auth.userId, {
@@ -898,7 +1011,8 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     wakeAttempted = true;
     let wake: Awaited<ReturnType<typeof wakeTarget>>;
     try {
-      const wakeBudgetMs = callerBoundaryDeadlineMs - Date.now();
+      const wakeStartedAtMs = Date.now();
+      const wakeBudgetMs = responseDeadlineMs - Date.now();
       const wakeResponse = await withTimeout(
         wakeTarget({
           userId: auth.userId,
@@ -927,14 +1041,60 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
         });
       }
       wake = wakeResponse;
+      logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "wake_done", Date.now() - dispatchStartedAtMs, Date.now() - wakeStartedAtMs);
     } catch (error) {
-      await markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error);
-      await updateDispatchObligation(auth.userId, obligationId, {
-        targetState: currentTargetState,
-        wakeAttempted: true,
-        wakeResult: "timeout",
-        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const wakeFailedAt = admin.firestore.FieldValue.serverTimestamp();
+      const runtimeFailureAnnotation = await awaitWithinBudget(
+        markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=wake_failure_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!runtimeFailureAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but wake failed and failure annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
+      const wakeFailureAnnotation = await awaitWithinBudget(
+        updateDispatchObligation(auth.userId, obligationId, {
+          targetState: currentTargetState,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          wakeAttemptedAt: wakeFailedAt,
+        }),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=wake_failure_state_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!wakeFailureAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted: true,
+          wakeResult: "timeout",
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but wake failure state annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
       return jsonResult({
         success: false,
         taskId,
@@ -1006,12 +1166,34 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       debounce_remaining: wake.debounceRemainingSeconds,
     });
 
-    await updateDispatchObligation(auth.userId, obligationId, {
-      targetState: currentTargetState,
-      wakeAttempted,
-      wakeResult: wakeResultStr,
-      wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const wakeAnnotation = await awaitWithinBudget(
+      updateDispatchObligation(auth.userId, obligationId, {
+        targetState: currentTargetState,
+        wakeAttempted,
+        wakeResult: wakeResultStr,
+        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }),
+      responseDeadlineMs - Date.now(),
+      () => console.warn(`[Dispatch] phase=wake_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+    );
+    if (!wakeAnnotation.completed) {
+      return callerBoundaryPendingResponse({
+        auth,
+        args,
+        taskId,
+        directiveId,
+        obligationId,
+        deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+        targetState: currentTargetState,
+        heartbeatAge: flight.heartbeatAge,
+        deduplicated,
+        wakeAttempted,
+        wakeResult: wakeResultStr,
+        governanceWarnings: governance.warnings,
+        matchedPolicies,
+        message: `Dispatch obligation stored for ${args.target}, but wake annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+      });
+    }
   }
 
   // ── 3.5. WAVE 16: TARGET SUGGESTION (advisory only) ──
@@ -1019,7 +1201,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   let suggestionReason: string | undefined;
 
   try {
-    const suggestionBudgetMs = Math.min(1_000, callerBoundaryDeadlineMs - Date.now());
+    const suggestionBudgetMs = Math.min(1_000, responseDeadlineMs - Date.now());
     const suggestion = await withTimeout(suggestBetterTarget(auth.userId, {
       currentTarget: args.target,
       taskType: "task", // Default type
@@ -1059,7 +1241,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       args.target,
       verifiedSource,
       claimDeadlineMs,
-      callerBoundaryDeadlineMs,
+      responseDeadlineMs,
     );
     uptakeConfirmed = uptake.confirmed;
     uptakeTimedOutBy = uptake.timedOutBy;
@@ -1070,11 +1252,18 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     ackAt = uptake.ackAt;
     if (uptakeConfirmed) {
       deliveryState = "claimed";
-      await markUptakeClaimed(auth.userId, taskId, obligationId, uptake);
+      const claimAnnotation = await awaitWithinBudget(
+        markUptakeClaimed(auth.userId, taskId, obligationId, uptake),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=claim_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!claimAnnotation.completed) {
+        logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "complete_claim_annotation_background", Date.now() - dispatchStartedAtMs);
+      }
     }
   } else {
     if (!deduplicated) {
-      await updateDispatchObligation(auth.userId, obligationId, {
+      annotateDispatchObligation(auth.userId, obligationId, {
         pendingReason: "uptake_wait_skipped",
       });
     }
@@ -1097,12 +1286,56 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
           : "target_unavailable";
     deliveryState = targetPaused || targetQuarantined ? "rejected" : "escalated";
     if (deliveryState === "rejected") {
-      await updateDispatchObligation(auth.userId, obligationId, {
+      const rejectionAnnotation = await awaitWithinBudget(
+        updateDispatchObligation(auth.userId, obligationId, {
         deliveryState,
         rejectionReason: escalationReason,
-      });
+        }),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=rejection_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!rejectionAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted,
+          wakeResult: wakeAttempted ? wakeResultStr : undefined,
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but rejection annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
     } else {
-      await markUptakeEscalated(auth.userId, taskId, obligationId, escalationReason);
+      const escalationAnnotation = await awaitWithinBudget(
+        markUptakeEscalated(auth.userId, taskId, obligationId, escalationReason),
+        responseDeadlineMs - Date.now(),
+        () => console.warn(`[Dispatch] phase=escalation_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
+      );
+      if (!escalationAnnotation.completed) {
+        return callerBoundaryPendingResponse({
+          auth,
+          args,
+          taskId,
+          directiveId,
+          obligationId,
+          deliveryState: initialDeliveryState || (deduplicated ? "stored" : "notified"),
+          targetState: currentTargetState,
+          heartbeatAge: flight.heartbeatAge,
+          deduplicated,
+          wakeAttempted,
+          wakeResult: wakeAttempted ? wakeResultStr : undefined,
+          governanceWarnings: governance.warnings,
+          matchedPolicies,
+          message: `Dispatch obligation stored for ${args.target}, but escalation annotation exceeded the caller boundary. Track pendingHandle.obligationId for recovery.`,
+        });
+      }
     }
   }
 
@@ -1179,6 +1412,8 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
     suggested_target: suggestedTarget,
     suggestion_reason: suggestionReason,
   };
+
+  logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "complete", Date.now() - dispatchStartedAtMs);
 
   // Emit dispatch completion telemetry
   emitEvent(auth.userId, {
