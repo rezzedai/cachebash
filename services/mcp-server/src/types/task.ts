@@ -118,6 +118,13 @@ export interface Task extends Envelope {
   escalatedFrom?: string;   // taskId this was escalated from
   lineageRoot?: string;     // root ancestor taskId (for quick chain queries)
 
+  // R1.3 (dispatch-defects-1-and-2): required when completed_status is "PARTIAL" —
+  // the task id where the remaining, not-yet-delivered scope continues. The layer
+  // enforces only that this is present as a string; it does not validate that the
+  // referenced task exists or is well-formed (deliberately out of scope, shape (a)
+  // — a structured requirements array — is deferred, not built).
+  successorTaskId?: string;
+
   // State transition log (Wave 11)
   stateTransitions?: StateTransition[];
 
@@ -134,7 +141,10 @@ export interface Task extends Envelope {
   // Metadata
   // Telemetry (v2.2)
   task_class?: "WORK" | "CONTROL";
-  completed_status?: "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
+  // R1.2 (dispatch-defects-1-and-2): "PARTIAL" — meaningful work shipped but the
+  // task's full scope did not. Distinct from SUCCESS (implies full completion) and
+  // CANCELLED (implies nothing worth keeping shipped). Requires successorTaskId (R1.3).
+  completed_status?: "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED" | "PARTIAL";
   attempt_count?: number;
   last_error_code?: string;
   last_error_class?: "TRANSIENT" | "PERMANENT" | "DEPENDENCY" | "POLICY" | "TIMEOUT" | "UNKNOWN";

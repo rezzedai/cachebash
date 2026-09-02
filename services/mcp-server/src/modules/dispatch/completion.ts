@@ -16,12 +16,26 @@ import { type ToolResult, jsonResult, buildTransition, appendTransition, describ
 import { CONSTANTS } from "../../config/constants.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 
+// R1.2/R1.3 (dispatch-defects-1-and-2): "PARTIAL" is a completed_status value
+// distinct from SUCCESS/CANCELLED — meaningful work shipped but the task's
+// full scope did not. successorTaskId is required whenever completed_status
+// is "PARTIAL" (enforced below, not by the schema, since Zod's cross-field
+// refine would report the same generic ZodError shape as any other bad input
+// and we want the actionable, R2.1-style remedy text). The layer enforces
+// only that successorTaskId is a non-empty string; it does NOT validate that
+// the referenced task exists — that is shape (a) from the plan and is
+// deliberately deferred, not built here.
 const CompleteTaskSchema = z.object({
   taskId: z.string(),
   tokens_in: z.number().nonnegative().optional(),
   tokens_out: z.number().nonnegative().optional(),
   cost_usd: z.number().nonnegative().optional(),
-  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
+  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED", "PARTIAL"]).default("SUCCESS"),
+  // No .min(1) here deliberately: an empty string is treated as "absent" by
+  // checkPartialRequiresSuccessor below, so both cases produce the same
+  // graceful, actionable jsonResult error instead of an empty-string case
+  // throwing a raw ZodError while a missing-field case doesn't.
+  successorTaskId: z.string().optional(),
   model: z.string(),
   provider: z.string(),
   result: z.string().max(4000).optional(),
@@ -35,7 +49,13 @@ const CompleteTaskSchema = z.object({
 
 const BatchCompleteTasksSchema = z.object({
   taskIds: z.array(z.string()).min(1).max(CONSTANTS.limits.batchCompleteMax),
-  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED"]).default("SUCCESS"),
+  completed_status: z.enum(["SUCCESS", "FAILED", "SKIPPED", "CANCELLED", "PARTIAL"]).default("SUCCESS"),
+  // Applied to every task in the batch, same as completed_status.
+  // No .min(1) here deliberately: an empty string is treated as "absent" by
+  // checkPartialRequiresSuccessor below, so both cases produce the same
+  // graceful, actionable jsonResult error instead of an empty-string case
+  // throwing a raw ZodError while a missing-field case doesn't.
+  successorTaskId: z.string().optional(),
   result: z.string().max(4000).optional(),
   model: z.string().optional(),
   provider: z.string().optional(),
@@ -44,6 +64,18 @@ const BatchCompleteTasksSchema = z.object({
   spanId: z.string().optional(),
   parentSpanId: z.string().optional(),
 });
+
+/**
+ * R1.3: a PARTIAL completion must carry a successor task id, enforced by the
+ * layer rather than by convention (ISO hit this by hand three times on
+ * 2026-08-11 and still got it wrong each time). Returns a remedy message when
+ * refused, null when the call may proceed.
+ */
+function checkPartialRequiresSuccessor(args: { completed_status: string; successorTaskId?: string }): string | null {
+  if (args.completed_status !== "PARTIAL") return null;
+  if (args.successorTaskId && args.successorTaskId.trim().length > 0) return null;
+  return "PARTIAL completion requires a successorTaskId — the task id where the remaining scope continues. Create that task, then retry with completed_status: \"PARTIAL\" and successorTaskId set.";
+}
 
 /**
  * Tenant compliance config types
@@ -413,6 +445,13 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
+  // R1.3: refuse a PARTIAL close without a successor id, before any Firestore
+  // read/write — this is a pure input-shape check, not task-state-dependent.
+  const partialError = checkPartialRequiresSuccessor(args);
+  if (partialError) {
+    return jsonResult({ success: false, error: partialError });
+  }
+
   // Tenant compliance enforcement (Wave 1.1)
   const complianceError = await validateTelemetryCompliance(auth.userId, args.model, args.provider);
   if (complianceError) {
@@ -550,6 +589,9 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (args.result) updateFields.result = args.result;
       if (args.error_code) updateFields.last_error_code = args.error_code;
       if (args.error_class) updateFields.last_error_class = args.error_class;
+      // R1.3: successorTaskId — required when completed_status is PARTIAL (enforced
+      // above), optionally settable for any other completed_status too.
+      if (args.successorTaskId) updateFields.successorTaskId = args.successorTaskId;
       // Agent Trace L2: propagate trace context on completion
       if (args.traceId) updateFields.traceId = args.traceId;
       if (args.spanId) updateFields.completionSpanId = args.spanId;
@@ -764,6 +806,13 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
   const args = BatchCompleteTasksSchema.parse(rawArgs);
   const db = getFirestore();
 
+  // R1.3: completed_status applies to the whole batch, so the successor-id
+  // refusal is a single up-front check rather than a per-task one.
+  const partialError = checkPartialRequiresSuccessor(args);
+  if (partialError) {
+    return jsonResult({ success: false, error: partialError });
+  }
+
   // Tenant compliance enforcement (Wave 1.1) - shared validation logic
   const complianceError = await validateTelemetryCompliance(auth.userId, args.model, args.provider);
   if (complianceError) {
@@ -825,6 +874,8 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         if (args.result) updateFields.result = args.result;
         if (args.model) updateFields.model = args.model;
         if (args.provider) updateFields.provider = args.provider;
+        // R1.3: successorTaskId — required when completed_status is PARTIAL (enforced above).
+        if (args.successorTaskId) updateFields.successorTaskId = args.successorTaskId;
         // Agent Trace L2: propagate trace context on batch complete
         if (args.traceId) updateFields.traceId = args.traceId;
         if (args.spanId) updateFields.completionSpanId = args.spanId;

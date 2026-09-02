@@ -294,6 +294,8 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
         // Completion fields (populated after complete_task)
         result: data.result || null,
         completed_status: data.completed_status || null,
+        // R1.3: successor task id, required when completed_status is "PARTIAL"
+        successorTaskId: data.successorTaskId || null,
         completedAt: data.completedAt?.toDate?.()?.toISOString() || null,
         claimedBy: data.claimedBy || null,
         claimedAt: data.claimedAt?.toDate?.()?.toISOString() || null,
@@ -559,6 +561,8 @@ export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): P
       createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       result: data.result || null,
       completed_status: data.completed_status || null,
+      // R1.3: successor task id, required when completed_status is "PARTIAL"
+      successorTaskId: data.successorTaskId || null,
       completedAt: data.completedAt?.toDate?.()?.toISOString() || null,
       claimedBy: data.claimedBy || null,
       claimedAt: data.claimedAt?.toDate?.()?.toISOString() || null,
