@@ -237,6 +237,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   // or a SKIPPED/CANCELLED/PARTIAL close silently scores as a success.
   let taskCreated = 0, taskClaimed = 0, taskSucceeded = 0, taskFailed = 0;
   let taskSkipped = 0, taskCancelled = 0, taskPartial = 0, taskExpiredIncomplete = 0;
+  let taskUnclaimed = 0;
   let workTasks = 0, controlTasks = 0;
   let guardianAllow = 0, guardianBlock = 0;
   let deadLetterCount = 0;
@@ -262,6 +263,37 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
     string,
     { created: number; succeeded: number; failed: number; skipped: number; cancelled: number; partial: number }
   > = {};
+  // ITEM B (dispatch_01a061d9): this block builds `perProgram`, keyed on
+  // data.program_id from the events stream (tenants/{uid}/events). program_id
+  // here is auth.programId at emitEvent time in complete_task/
+  // batch_complete_tasks/abort_task (dispatch/completion.ts,
+  // dispatch/interventions.ts) -- i.e. WHO CALLED the completing tool, the
+  // COMPLETER. The `programHealthScores` block below (STORY 1 ENHANCEMENTS)
+  // runs a SEPARATE query over the tasks collection (tenants/{uid}/tasks,
+  // status=="done") and keys on `task.target || task.source` -- the
+  // ASSIGNEE. Both are legitimate but they answer different questions: this
+  // block is "what happened in this window" (an append-only event log),
+  // programHealthScores is "what is the state of tasks that finished in this
+  // window" (a snapshot of task docs). A task whose assignee differs from
+  // its completer -- e.g. the dispatcher SKIP-closing a [RECYCLE] task
+  // targeted at iso -- shows up under a different key in each block. That is
+  // intentional, not a bug: do NOT unify the two keys.
+  //
+  // ITEM C (dispatch_01a061d9): entries used to be created ONLY in the
+  // TASK_CREATED case below, with every other case guarded by
+  // `&& programCounts[data.program_id]`. A program that completes work in
+  // this window but created nothing in it (e.g. basher, which only ever
+  // completes tasks iso creates) got no entry at all and its completions
+  // were silently dropped. ensureProgramCounts lazily creates the entry the
+  // first time ANY event mentions a program_id, regardless of event_type --
+  // `created` still means "created in this window", so a program with
+  // completions and zero creations now shows created:0 instead of vanishing.
+  function ensureProgramCounts(programId: string) {
+    if (!programCounts[programId]) {
+      programCounts[programId] = { created: 0, succeeded: 0, failed: 0, skipped: 0, cancelled: 0, partial: 0 };
+    }
+    return programCounts[programId];
+  }
 
   for (const doc of snapshot.docs) {
     const data = doc.data();
@@ -274,10 +306,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
         if (data.task_class === "CONTROL") controlTasks++;
         // Track by program
         if (data.program_id) {
-          if (!programCounts[data.program_id]) {
-            programCounts[data.program_id] = { created: 0, succeeded: 0, failed: 0, skipped: 0, cancelled: 0, partial: 0 };
-          }
-          programCounts[data.program_id].created++;
+          ensureProgramCounts(data.program_id).created++;
         }
         break;
       case "TASK_CLAIMED":
@@ -291,16 +320,16 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
         const status = data.completed_status;
         if (status === undefined || status === "SUCCESS") {
           taskSucceeded++;
-          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].succeeded++;
+          if (data.program_id) ensureProgramCounts(data.program_id).succeeded++;
         } else if (status === "SKIPPED") {
           taskSkipped++;
-          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].skipped++;
+          if (data.program_id) ensureProgramCounts(data.program_id).skipped++;
         } else if (status === "CANCELLED") {
           taskCancelled++;
-          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].cancelled++;
+          if (data.program_id) ensureProgramCounts(data.program_id).cancelled++;
         } else if (status === "PARTIAL") {
           taskPartial++;
-          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].partial++;
+          if (data.program_id) ensureProgramCounts(data.program_id).partial++;
         } else {
           unclassified++;
           const statusKey = `TASK_SUCCEEDED:${status === null ? "(null)" : String(status)}`;
@@ -313,7 +342,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
       }
       case "TASK_FAILED":
         taskFailed++;
-        if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].failed++;
+        if (data.program_id) ensureProgramCounts(data.program_id).failed++;
         if (data.error_class) errorClassCounts[data.error_class] = (errorClassCounts[data.error_class] || 0) + 1;
         break;
       case "TASK_EXPIRED_INCOMPLETE":
@@ -321,6 +350,31 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
         // invisible the way it did before this fix (#425 added the emit,
         // nothing here read it).
         taskExpiredIncomplete++;
+        break;
+      case "TASK_ABORTED":
+        // ITEM D (dispatch_01a061d9): abort_task (dispatch/interventions.ts)
+        // writes status:"done", completed_status:"CANCELLED" directly on the
+        // task doc -- a genuine terminal completion -- but emits its own
+        // event_type instead of TASK_SUCCEEDED. Treat it as the CANCELLED
+        // completion it actually is (same tallies as the CANCELLED branch
+        // above) rather than letting a real completion fall into
+        // unclassifiedEventTypes. This also means it now correctly feeds the
+        // firstPassRate denominator via nonSuccessOutcomes below.
+        taskCancelled++;
+        if (data.program_id) ensureProgramCounts(data.program_id).cancelled++;
+        break;
+      case "TASK_UNCLAIMED":
+        // ITEM D (dispatch_01a061d9): unclaim_task (dispatch/claims.ts)
+        // returns the task to status:"created" -- it is NOT a completion,
+        // the task is still live and can be claimed and completed again. It
+        // does not belong in taskSucceeded/Failed/Skipped/Cancelled/Partial
+        // or in firstPassRate's denominator, and it deliberately does NOT
+        // touch programCounts (perProgram tracks completion outcomes, and an
+        // unclaim is the absence of one). But it is a real, meaningful
+        // operational signal -- claims.ts flags a task after 3+ unclaims for
+        // manual review -- so it gets its own dedicated tally instead of
+        // being invisible inside unclassifiedEventTypes.
+        taskUnclaimed++;
         break;
       case "GUARDIAN_CHECK":
         if (data.decision === "ALLOW") guardianAllow++;
@@ -371,7 +425,25 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   const tasksSnapshot = await tasksQuery.get();
 
   // Success rate by program
-  const programHealthScores: Record<string, { successRate: number; totalTasks: number; failed: number; avgDurationMinutes: number | null }> = {};
+  // ITEM B (dispatch_01a061d9): this block re-queries tenants/{uid}/tasks
+  // (status=="done") directly and keys on `task.target || task.source` --
+  // the ASSIGNEE. The `perProgram`/programCounts block above (built from the
+  // events stream, ~:261) keys on the completing event's program_id -- the
+  // COMPLETER. See the comment on programCounts above for the full
+  // rationale; the short version: this block answers "what is the state of
+  // tasks that finished in this window", perProgram answers "what happened
+  // in this window", and their keys are expected to diverge when the
+  // assignee and completer differ. Do NOT unify the keys.
+  const programHealthScores: Record<string, {
+    successRate: number;
+    totalTasks: number;
+    succeeded: number;
+    failed: number;
+    skipped: number;
+    cancelled: number;
+    partial: number;
+    avgDurationMinutes: number | null;
+  }> = {};
   const programTaskDurations: Record<string, number[]> = {};
 
   // Error breakdown by class
@@ -397,13 +469,38 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
 
     // Success rate tracking
     if (!programHealthScores[programId]) {
-      programHealthScores[programId] = { successRate: 0, totalTasks: 0, failed: 0, avgDurationMinutes: null };
+      programHealthScores[programId] = {
+        successRate: 0,
+        totalTasks: 0,
+        succeeded: 0,
+        failed: 0,
+        skipped: 0,
+        cancelled: 0,
+        partial: 0,
+        avgDurationMinutes: null,
+      };
       programTaskDurations[programId] = [];
     }
     programHealthScores[programId].totalTasks++;
 
-    const isSuccess = task.completed_status === "SUCCESS";
-    if (!isSuccess) {
+    // ITEM A (dispatch_01a061d9): mirror the discrimination #427 already
+    // applied to the top-level event counters above -- `failed` must mean
+    // completed_status === "FAILED", not "anything that isn't SUCCESS".
+    // SKIPPED/CANCELLED/PARTIAL are surfaced in their own fields instead of
+    // being folded into `failed` or dropped; dropping would be worse than
+    // folding. An absent completed_status predates this discrimination and
+    // means SUCCESS (same historical-compat rule as the events branch
+    // above), not unclassified.
+    const taskStatus = task.completed_status;
+    if (taskStatus === undefined || taskStatus === "SUCCESS") {
+      programHealthScores[programId].succeeded++;
+    } else if (taskStatus === "SKIPPED") {
+      programHealthScores[programId].skipped++;
+    } else if (taskStatus === "CANCELLED") {
+      programHealthScores[programId].cancelled++;
+    } else if (taskStatus === "PARTIAL") {
+      programHealthScores[programId].partial++;
+    } else {
       programHealthScores[programId].failed++;
     }
 
@@ -434,8 +531,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
 
   // Calculate success rates and avg durations per program
   for (const [programId, stats] of Object.entries(programHealthScores)) {
-    const succeeded = stats.totalTasks - stats.failed;
-    stats.successRate = stats.totalTasks > 0 ? round4((succeeded / stats.totalTasks) * 100) : 0;
+    stats.successRate = stats.totalTasks > 0 ? round4((stats.succeeded / stats.totalTasks) * 100) : 0;
     const durations = programTaskDurations[programId];
     stats.avgDurationMinutes = durations.length > 0 ? round4(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
   }
@@ -467,6 +563,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
       cancelled: taskCancelled,
       partial: taskPartial,
       expiredIncomplete: taskExpiredIncomplete,
+      unclaimed: taskUnclaimed,
       firstPassSuccessRate: firstPassRate,
       workTasks,
       controlTasks,
