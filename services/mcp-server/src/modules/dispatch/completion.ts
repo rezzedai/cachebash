@@ -892,6 +892,11 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
         program_id: auth.programId,
         task_id: taskId,
+        // R1.4/batch-event-gaps: the single-completion path has always carried
+        // completed_status (it's the authoritative discriminator between
+        // SUCCESS/FAILED/SKIPPED/CANCELLED/PARTIAL -- event_type is only a
+        // coarse routing hint). The batch path never did. Purely additive.
+        completed_status: args.completed_status,
         successorTaskId: args.successorTaskId,
         model: args.model,
         prompt_hash: taskData.instructions ? computeHash(taskData.instructions) : undefined,
@@ -904,6 +909,20 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         toolName: "batch_complete_tasks",
         success: args.completed_status !== "FAILED",
       });
+
+      // batch-event-gaps: the single path dispatches webhooks
+      // (dispatchTaskWebhooks below); the batch path never did -- confirmed
+      // by grep (one call site, in completeTaskHandler only). This closes an
+      // absence, not a meaning change, but it IS new delivery traffic for any
+      // tenant with webhooks registered on task.completed/task.failed.
+      const webhookEvent = args.completed_status === "FAILED" ? "task.failed" : "task.completed";
+      dispatchTaskWebhooks(auth.userId, {
+        event: webhookEvent,
+        taskId,
+        task: { id: taskId, ...taskData, completed_status: args.completed_status, successorTaskId: args.successorTaskId, result: args.result },
+        timestamp: new Date().toISOString(),
+        tenantId: auth.userId,
+      }).catch((err) => console.error("[TaskWebhook] Failed:", err));
 
       // W1.1.4: Write immutable ledger entry (synchronous — billing audit trail)
       try {
