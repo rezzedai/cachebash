@@ -262,4 +262,59 @@ describe("R1.4: TASK_EXPIRED_INCOMPLETE fires when the reaper deletes an unresol
       expect(mockEmitEvent).not.toHaveBeenCalled();
     });
   });
+
+  // #425 review amendment: the original predicate checked only "done"/"failed"
+  // (three-way, but the lifecycle has seven states) and so wrongly fired on a
+  // task that completed successfully and was later archived -- a false alarm
+  // on the exact population that did everything right. This table pins
+  // emit/no-emit for EVERY state in lifecycle/engine.ts's LifecycleStatus, so
+  // a future eighth state fails this test instead of silently joining the
+  // wrong bucket.
+  describe("full lifecycle-state table (all seven LifecycleStatus values)", () => {
+    const cases: Array<{ status: string; shouldEmit: boolean; why: string }> = [
+      { status: "created", shouldEmit: true, why: "never claimed, no completed_status ever recorded" },
+      { status: "active", shouldEmit: true, why: "claimed, still in progress" },
+      { status: "blocked", shouldEmit: true, why: "claimed, blocked mid-work" },
+      { status: "completing", shouldEmit: true, why: "supervised mode awaiting approval -- never reached done/failed; a deliberate decision, not a fallthrough" },
+      { status: "done", shouldEmit: false, why: "resolved -- completed successfully" },
+      { status: "failed", shouldEmit: false, why: "resolved -- completed_status was FAILED, an outcome was recorded" },
+      { status: "archived", shouldEmit: false, why: "resolved -- terminal, reachable from either done or failed (the #425 amendment's core case)" },
+    ];
+
+    it.each(cases)("status '$status' -> shouldEmit=$shouldEmit ($why)", async ({ status, shouldEmit }) => {
+      const { db } = makeFixture([unresolvedExpiredDoc(`table-${status}`, { status, claimedBy: "basher" })]);
+      activeDb = db;
+
+      await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
+
+      if (shouldEmit) {
+        expect(mockEmitEvent).toHaveBeenCalledTimes(1);
+        expect(mockEmitEvent.mock.calls[0][1].task_id).toBe(`table-${status}`);
+      } else {
+        expect(mockEmitEvent).not.toHaveBeenCalled();
+      }
+    });
+
+    it("named case: a task that completed successfully (done) and was later archived does NOT fire -- the #425 regression itself", async () => {
+      const { db } = makeFixture([
+        { id: "done-then-archived", data: { type: "task", status: "archived", source: "iso", target: "basher", claimedBy: "basher", completed_status: "SUCCESS", expiresAt: yesterday } },
+      ]);
+      activeDb = db;
+
+      await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
+
+      expect(mockEmitEvent).not.toHaveBeenCalled();
+    });
+
+    it("named case: a task that FAILED and was later archived also does NOT fire -- archived is resolved regardless of which terminal state preceded it", async () => {
+      const { db } = makeFixture([
+        { id: "failed-then-archived", data: { type: "task", status: "archived", source: "iso", target: "basher", claimedBy: "basher", completed_status: "FAILED", expiresAt: yesterday } },
+      ]);
+      activeDb = db;
+
+      await reapExpiredTasksHandler(baseAuth(), { execute: true, limit: 50000 });
+
+      expect(mockEmitEvent).not.toHaveBeenCalled();
+    });
+  });
 });
