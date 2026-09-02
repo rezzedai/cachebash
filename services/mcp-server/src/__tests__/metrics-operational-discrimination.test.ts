@@ -131,6 +131,63 @@ describe("get_operational_metrics — completed_status discrimination (RULED dis
     expect(data.tasks.succeeded).toBe(0);
   });
 
+  // R-metrics-2: a brand-new/buggy event_type must be DISTINGUISHABLE in the
+  // response as its own key, not merely folded into the flat total -- a test
+  // that only checked the total incrementing would have passed against the
+  // broken code (event types this handler deliberately doesn't classify, like
+  // RELAY_DELIVERED/SESSION_*/PROGRAM_*/BUDGET_*, already dominate that total
+  // and would mask a genuinely new TASK_* type showing up there).
+  it("surfaces a brand-new unrecognized event_type as its own key in unclassifiedEventTypes", async () => {
+    eventsDocs = [
+      ev({ event_type: "TOTALLY_MADE_UP_EVENT_TYPE_FOR_TEST" }),
+      ev({ event_type: "TOTALLY_MADE_UP_EVENT_TYPE_FOR_TEST" }),
+      ev({ event_type: "RELAY_DELIVERED" }), // a different, pre-existing unhandled type -- must not merge
+    ];
+    const data = await runMetrics();
+    expect(data.unclassifiedEventTypes["TOTALLY_MADE_UP_EVENT_TYPE_FOR_TEST"]).toBe(2);
+    expect(data.unclassifiedEventTypes["RELAY_DELIVERED"]).toBe(1);
+    expect(data.unclassifiedEvents).toBe(3);
+  });
+
+  it("keys a TASK_SUCCEEDED with an unrecognized completed_status under its own TASK_SUCCEEDED:<status> key, distinguishable from an unhandled event_type", async () => {
+    eventsDocs = [
+      ev({ event_type: "TASK_SUCCEEDED", completed_status: "FOO" }),
+      ev({ event_type: "SOME_FUTURE_EVENT_TYPE" }),
+    ];
+    const data = await runMetrics();
+    expect(data.unclassifiedEventTypes["TASK_SUCCEEDED:FOO"]).toBe(1);
+    expect(data.unclassifiedEventTypes["SOME_FUTURE_EVENT_TYPE"]).toBe(1);
+    // must not collide with a real/unhandled event_type key
+    expect(data.unclassifiedEventTypes["TASK_SUCCEEDED"]).toBeUndefined();
+    expect(data.unclassifiedEvents).toBe(2);
+  });
+
+  // Item 1b (ISO amendment): perProgram must not lose skipped/cancelled/
+  // partial completions. Before the fix, only the SUCCESS branch updated
+  // programCounts -- a skipped/cancelled/partial completion for a program
+  // was invisible in perProgram (previously it was miscounted as a success).
+  it("breaks down perProgram by skipped/cancelled/partial, not just created/succeeded/failed", async () => {
+    eventsDocs = [
+      ev({ event_type: "TASK_CREATED", program_id: "basher" }),
+      ev({ event_type: "TASK_CREATED", program_id: "basher" }),
+      ev({ event_type: "TASK_CREATED", program_id: "basher" }),
+      ev({ event_type: "TASK_SUCCEEDED", completed_status: "SUCCESS", program_id: "basher" }),
+      ev({ event_type: "TASK_SUCCEEDED", completed_status: "SKIPPED", program_id: "basher" }),
+      ev({ event_type: "TASK_SUCCEEDED", completed_status: "CANCELLED", program_id: "basher" }),
+      ev({ event_type: "TASK_SUCCEEDED", completed_status: "PARTIAL", program_id: "basher" }),
+      ev({ event_type: "TASK_FAILED", completed_status: "FAILED", program_id: "basher" }),
+    ];
+    const data = await runMetrics();
+    const basher = data.perProgram.find((p: { program: string }) => p.program === "basher");
+    expect(basher).toBeDefined();
+    expect(basher.created).toBe(3);
+    expect(basher.succeeded).toBe(1);
+    expect(basher.failed).toBe(1);
+    expect(basher.skipped).toBe(1);
+    expect(basher.cancelled).toBe(1);
+    expect(basher.partial).toBe(1);
+  });
+
   it("includes SKIPPED/CANCELLED/PARTIAL/TASK_EXPIRED_INCOMPLETE in the firstPassSuccessRate denominator", async () => {
     eventsDocs = [
       ev({ event_type: "TASK_CREATED", program_id: "basher" }),

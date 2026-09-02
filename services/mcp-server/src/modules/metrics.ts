@@ -243,10 +243,25 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   let totalQueueLatencyMs = 0, totalRunLatencyMs = 0;
   let latencySamples = 0;
   let unclassified = 0;
+  // R-metrics-2: a flat `unclassified` total hides WHICH event_type is
+  // falling through the switch -- it reads ~14.7% "unclassified" today
+  // purely from event types this handler deliberately doesn't classify
+  // (RELAY_DELIVERED, SESSION_*, PROGRAM_*, BUDGET_*, GITHUB_SYNC_*, ...).
+  // A genuinely new/buggy TASK_* event type would be one more count in that
+  // same noisy bucket and invisible. Break it down by the raw event_type
+  // string so a brand-new type shows up as its own key. The inner
+  // TASK_SUCCEEDED/unrecognized-completed_status case is a DIFFERENT kind of
+  // gap (unrecognized status, not unrecognized event_type) and gets its own
+  // "TASK_SUCCEEDED:<status>" key so it can never collide with a real
+  // event_type key.
+  const unclassifiedByType: Record<string, number> = {};
   const reasonClassCounts: Record<string, number> = {};
   const deadLetterReasons: Record<string, number> = {};
   const errorClassCounts: Record<string, number> = {};
-  const programCounts: Record<string, { created: number; succeeded: number; failed: number }> = {};
+  const programCounts: Record<
+    string,
+    { created: number; succeeded: number; failed: number; skipped: number; cancelled: number; partial: number }
+  > = {};
 
   for (const doc of snapshot.docs) {
     const data = doc.data();
@@ -259,7 +274,9 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
         if (data.task_class === "CONTROL") controlTasks++;
         // Track by program
         if (data.program_id) {
-          if (!programCounts[data.program_id]) programCounts[data.program_id] = { created: 0, succeeded: 0, failed: 0 };
+          if (!programCounts[data.program_id]) {
+            programCounts[data.program_id] = { created: 0, succeeded: 0, failed: 0, skipped: 0, cancelled: 0, partial: 0 };
+          }
           programCounts[data.program_id].created++;
         }
         break;
@@ -277,12 +294,17 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
           if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].succeeded++;
         } else if (status === "SKIPPED") {
           taskSkipped++;
+          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].skipped++;
         } else if (status === "CANCELLED") {
           taskCancelled++;
+          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].cancelled++;
         } else if (status === "PARTIAL") {
           taskPartial++;
+          if (data.program_id && programCounts[data.program_id]) programCounts[data.program_id].partial++;
         } else {
           unclassified++;
+          const statusKey = `TASK_SUCCEEDED:${status === null ? "(null)" : String(status)}`;
+          unclassifiedByType[statusKey] = (unclassifiedByType[statusKey] || 0) + 1;
         }
         // Latency if available
         if (data.queue_latency_ms) { totalQueueLatencyMs += data.queue_latency_ms; latencySamples++; }
@@ -320,6 +342,10 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
         // looks like health -- this tally is what keeps it from looking like
         // health.
         unclassified++;
+        {
+          const typeKey = eventType === undefined ? "(missing)" : String(eventType);
+          unclassifiedByType[typeKey] = (unclassifiedByType[typeKey] || 0) + 1;
+        }
         break;
     }
   }
@@ -431,6 +457,7 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
     period: args.period,
     totalEvents: snapshot.size,
     unclassifiedEvents: unclassified,
+    unclassifiedEventTypes: unclassifiedByType,
     tasks: {
       created: taskCreated,
       claimed: taskClaimed,
