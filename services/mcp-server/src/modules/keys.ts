@@ -9,7 +9,7 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
-import { isKeyProvisioner, disallowedMintCapabilities, isKeyAdmin, credentialPrincipal } from "../auth/ownerAuthz.js";
+import { isKeyProvisioner, disallowedMintCapabilities } from "../auth/ownerAuthz.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
@@ -161,20 +161,6 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
     };
   }
 
-  // BUG-009: tenant-uid equality above is NOT authorization — the whole fleet is
-  // one tenant, so it is satisfied by every cb_ key. Authorize on the PRINCIPAL:
-  // a program may revoke only its own keys, unless it is an explicit key admin.
-  const principal = credentialPrincipal(auth);
-  const targetProgramId = data?.programId;
-  if (targetProgramId !== principal && !isKeyAdmin(auth)) {
-    return {
-      content: [{ type: "text", text: JSON.stringify({
-        success: false,
-        error: `Access denied: "${principal}" cannot revoke a key belonging to "${targetProgramId}"`,
-      }) }],
-    };
-  }
-
   await keyRef.update({
     active: false,
     revokedAt: FieldValue.serverTimestamp(),
@@ -266,14 +252,7 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
 
   const snapshot = await query.get();
 
-  // BUG-009: an ordinary program key must not receive a fleet keyHash inventory
-  // (keyHash is exactly the argument keys_revoke_key takes). Own keys only,
-  // unless the caller is an explicit key admin.
-  const principal = credentialPrincipal(auth);
-  const fleetWide = isKeyAdmin(auth);
-
   const keys = snapshot.docs
-    .filter((doc: any) => fleetWide || (doc.data().programId || "legacy") === principal)
     .map((doc) => {
       const data = doc.data();
       return {
