@@ -37,6 +37,17 @@ jest.mock("../auth/ownerAuthz", () => ({
   isKeyProvisioner: jest.fn(() => true),
   disallowedMintCapabilities: jest.fn(() => []),
   KEY_PROVISION_CAPABILITY: "keys.provision",
+  // BUG-009: NOT jest.fn() stubs — these are the real predicates, so the
+  // authorization behaviour under test here is the shipped behaviour and not a
+  // mock that always says yes. Their own unit tests live in ownerAuthz.test.ts.
+  KEYS_ADMIN_CAPABILITY: "keys.admin",
+  KEY_ADMIN_PRINCIPALS: ["vector", "sark"],
+  credentialPrincipal: (auth: any) => auth.keyProgramId ?? auth.programId,
+  isKeyAdmin: (auth: any) => {
+    const principal = auth.keyProgramId ?? auth.programId;
+    if (["vector", "sark"].includes(principal)) return true;
+    return Array.isArray(auth.capabilities) && auth.capabilities.includes("keys.admin");
+  },
 }));
 
 // Mock Firestore
@@ -125,6 +136,14 @@ const mockAuth: AuthContext = {
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*"],
   rateLimitTier: "internal",
+};
+
+// BUG-009: a key-admin caller (credential-bound principal, not an X-Program-Id
+// override) — the only kind that may see or revoke other programs' keys.
+const adminAuth: AuthContext = {
+  ...mockAuth,
+  programId: "vector" as any,
+  keyProgramId: "vector" as any,
 };
 
 describe("Keys Module Unit Tests", () => {
@@ -340,10 +359,13 @@ describe("Keys Module Unit Tests", () => {
 
   describe("revokeKeyHandler", () => {
     it("soft revokes an existing key", async () => {
-      // Seed a key
+      // Seed a key belonging to the CALLER's own program. BUG-009: revoking your
+      // own key is the legitimate path; this test previously seeded programId
+      // "basher" against an "orchestrator" caller, i.e. it asserted the
+      // cross-program revoke that was the vulnerability.
       mockKeyDocs["abc123"] = {
         userId: "test-user-123",
-        programId: "basher",
+        programId: "orchestrator",
         label: "Test Key",
         active: true,
         createdAt: { toDate: () => new Date() },
@@ -376,6 +398,62 @@ describe("Keys Module Unit Tests", () => {
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(false);
       expect(data.error).toContain("different user");
+    });
+
+    it("BUG-009: DENIES revoking another program's key, naming the true principal", async () => {
+      mockKeyDocs["victim"] = {
+        userId: "test-user-123", // same tenant — the old guard passed on this alone
+        programId: "vector",
+        label: "Someone else's key",
+        active: true,
+        createdAt: { toDate: () => new Date() },
+      };
+
+      const result = await revokeKeyHandler(mockAuth, { keyHash: "victim" });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("orchestrator");
+      expect(data.error).toContain("vector");
+      // The key must remain usable — this is the fleet kill switch.
+      expect(mockKeyDocs["victim"].active).toBe(true);
+      expect(mockKeyDocs["victim"].revokedAt).toBeUndefined();
+    });
+
+    it("BUG-009: an X-Program-Id override does NOT authorize a foreign revoke", async () => {
+      mockKeyDocs["victim2"] = {
+        userId: "test-user-123", programId: "vector", label: "Victim",
+        active: true, createdAt: { toDate: () => new Date() },
+      };
+
+      // Credential is radia; the header claims vector. BUG-006 lets programId and
+      // capabilities be forged — keyProgramId cannot be.
+      const forged: AuthContext = {
+        ...mockAuth,
+        programId: "vector" as any,
+        keyProgramId: "radia" as any,
+        capabilities: ["*"],
+      };
+
+      const result = await revokeKeyHandler(forged, { keyHash: "victim2" });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("radia");
+      expect(mockKeyDocs["victim2"].active).toBe(true);
+    });
+
+    it("BUG-009: a key admin MAY revoke a foreign key", async () => {
+      mockKeyDocs["target"] = {
+        userId: "test-user-123", programId: "basher", label: "Target",
+        active: true, createdAt: { toDate: () => new Date() },
+      };
+
+      const result = await revokeKeyHandler(adminAuth, { keyHash: "target" });
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(true);
+      expect(mockKeyDocs["target"].active).toBe(false);
     });
 
     it("returns error for nonexistent key", async () => {
@@ -487,7 +565,11 @@ describe("Keys Module Unit Tests", () => {
         createdAt: { toDate: () => new Date("2024-01-01") },
       };
 
-      const result = await listKeysHandler(mockAuth, {});
+      // BUG-009: enumerating OTHER programs' keys is now an admin-only view.
+      // The intent of this test is the response SHAPE (metadata only, never raw
+      // keys), so it runs as an admin caller; the non-admin scoping is asserted
+      // by its own test below.
+      const result = await listKeysHandler(adminAuth, {});
 
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(true);
@@ -534,11 +616,38 @@ describe("Keys Module Unit Tests", () => {
         createdAt: { toDate: () => new Date() },
       };
 
-      const result = await listKeysHandler(mockAuth, { includeRevoked: true });
+      const result = await listKeysHandler(adminAuth, { includeRevoked: true });
 
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(true);
       expect(data.count).toBe(3);
+    });
+
+    it("BUG-009: a non-admin caller sees ONLY its own keys, not a fleet inventory", async () => {
+      mockKeyDocs["own"] = {
+        userId: "test-user-123", programId: "orchestrator", label: "Mine",
+        capabilities: ["*"], active: true, createdAt: { toDate: () => new Date() },
+      };
+      mockKeyDocs["foreign1"] = {
+        userId: "test-user-123", programId: "basher", label: "Not mine",
+        capabilities: ["*"], active: true, createdAt: { toDate: () => new Date() },
+      };
+      mockKeyDocs["foreign2"] = {
+        userId: "test-user-123", programId: "vector", label: "Not mine either",
+        capabilities: ["*"], active: true, createdAt: { toDate: () => new Date() },
+      };
+
+      const result = await listKeysHandler(mockAuth, {});
+
+      const data = JSON.parse(result.content[0].text);
+      expect(data.success).toBe(true);
+      expect(data.count).toBe(1);
+      expect(data.keys[0].keyHash).toBe("own");
+      // keyHash is exactly the argument keys_revoke_key takes — leaking the
+      // inventory is what made the revoke chain reachable.
+      const hashes = data.keys.map((k: any) => k.keyHash);
+      expect(hashes).not.toContain("foreign1");
+      expect(hashes).not.toContain("foreign2");
     });
 
     it("handles empty key list", async () => {

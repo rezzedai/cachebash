@@ -76,3 +76,57 @@ export function disallowedMintCapabilities(
   if (!Array.isArray(callerCaps)) return [...requestedCaps];
   return requestedCaps.filter((cap) => !hasCapability(callerCaps, cap as Capability));
 }
+
+/**
+ * BUG-009 — key ADMINISTRATION (list-all / revoke-foreign), distinct from the
+ * mint gate above.
+ *
+ * `revokeKeyHandler` guarded only on `data?.userId !== auth.userId`, and
+ * `listKeysHandler` queried `where("userId","==",auth.userId)` with no further
+ * check. That is the SAME prod no-op SARK rejected in #341 on the mint path:
+ * the whole fleet is ONE tenant, so tenant-uid equality is satisfied by every
+ * cb_ key and authorizes nothing. Consequence (confirmed live 2026-09-02 with
+ * the dormant `radia` key): any program key could enumerate all 32 fleet
+ * keyHashes and then revoke every one of them — a fleet-wide credential kill
+ * switch reachable from the lowest-privilege key, needing no escalation.
+ *
+ * WHY NOT `hasCapability(auth, "fleet.read")`: it wildcard-expands, and 10 of
+ * the 32 live keys hold ["*"] — including `radia`, the key the exploit was
+ * proven with. Gating on it would authorize the very caller it must stop. A
+ * capability check here must be LITERAL, exactly as KEY_PROVISION_CAPABILITY is.
+ *
+ * WHY THE PRINCIPAL IS `keyProgramId`: `auth.programId` is overridable by the
+ * X-Program-Id header (BUG-006), which also RECOMPUTES `auth.capabilities` from
+ * the target role. Both are attacker-controlled. `keyProgramId` is bound to the
+ * authenticating credential and is never overridable — the same field
+ * verifySource already relies on for Identity Sovereignty inv.6.
+ */
+export const KEYS_ADMIN_CAPABILITY = "keys.admin";
+
+/**
+ * Principals allowed to administer OTHER programs' keys. Deliberately tiny and
+ * credential-bound: VECTOR is the fleet auditor whose boot depends on fleet
+ * reads, SARK is the security auditor. ISO is deliberately NOT here — it
+ * authored this fix, and an orchestrator does not need foreign-key
+ * administration to do its job; granting it would be self-dealing in a security
+ * change. Adding a principal is VECTOR's call, not a code-owner's convenience.
+ */
+export const KEY_ADMIN_PRINCIPALS: readonly string[] = ["vector", "sark"];
+
+/**
+ * The identity of the AUTHENTICATING credential. Never `auth.programId` alone —
+ * that is the X-Program-Id override surface (BUG-006).
+ */
+export function credentialPrincipal(auth: AuthContext): string {
+  return (auth.keyProgramId ?? auth.programId) as string;
+}
+
+/**
+ * True iff `auth` may list or revoke keys belonging to OTHER programs.
+ * Literal capability membership only — "*" does NOT satisfy it.
+ */
+export function isKeyAdmin(auth: AuthContext): boolean {
+  if (KEY_ADMIN_PRINCIPALS.includes(credentialPrincipal(auth))) return true;
+  return Array.isArray(auth.capabilities)
+    && auth.capabilities.includes(KEYS_ADMIN_CAPABILITY);
+}
