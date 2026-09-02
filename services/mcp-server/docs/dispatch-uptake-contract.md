@@ -13,7 +13,9 @@ Actionable dispatch must never report `success: true` until one of these is obse
 
 If uptake is not observed, the API returns `success: false` with `pendingHandle`. Supervisors should track `pendingHandle.obligationId` instead of redispatching blindly.
 
-The server also maintains an internal caller-boundary deadline below the observed MCP proxy timeout. If wake/preflight work consumes that budget before claim SLA elapses, `dispatch_dispatch` returns `success: false` with the durable `pendingHandle` and `pendingReason: "caller_boundary_deadline"` rather than waiting for the outer transport to time out. The default internal boundary is 45 seconds, leaving response margin under the observed 55-second MCP proxy boundary.
+The server also maintains an internal caller-boundary deadline below the observed MCP proxy timeout. If wake/preflight work consumes that budget before claim SLA elapses, `dispatch_dispatch` returns `success: false` with the durable `pendingHandle` and `pendingReason: "caller_boundary_deadline"` rather than waiting for the outer transport to time out. The default internal boundary is 45 seconds, with a response reserve for serialization, network, and proxy overhead under the observed 55-second MCP proxy boundary.
+
+After the durable obligation/task/directive exists, non-critical annotations must not block the caller past the response reserve. Slow phase annotations continue in the background and dispatch returns the tracked pending handle instead.
 
 ## Durable Records
 
