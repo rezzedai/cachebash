@@ -19,7 +19,7 @@ export interface UsageLedgerEntry {
   completedAt: FirestoreTimestamp;
   programId: string;
   taskType: string;
-  completed_status: "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
+  completed_status: "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED" | "PARTIAL";
 }
 
 /**
