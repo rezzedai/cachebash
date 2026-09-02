@@ -136,6 +136,49 @@ export async function validateApiKey(
 
 export { hashApiKey };
 
+/**
+ * A13 (PDR-cachebash-authz-chokepoint, ISO plan §1.1 / §4) — assert AUTH_MODE
+ * explicitly at boot rather than trust the `|| 'key_identity'` fallback above
+ * silently.
+ *
+ * That fallback is fail-secure, but it is a DEFAULT, not a pinned invariant:
+ * as of this plan, AUTH_MODE is set on NO env var on the serving revision.
+ * Every R4a decision in `modules/gsp.ts` (the new `fleet.observe` gate on
+ * `gsp_bootstrap`) is only safe because `key_identity` mode ignores
+ * `X-Program-Id` entirely — under `hybrid`/`gsp_identity` mode,
+ * `auth.capabilities` gets RECOMPUTED from the header-named program's role
+ * (BUG-006), so a capability check divorced from that assumption is
+ * forgeable. One env var, set with no code change and no test noticing,
+ * would silently revert that assumption.
+ *
+ * Deliberately logs LOUD and does NOT `process.exit` — AUTH_MODE is not yet
+ * pinned as an explicit Cloud Run env var on the serving revision, and a hard
+ * boot-crash here would brick request-serving for the entire fleet (a
+ * materially worse failure than the misconfiguration this assertion detects).
+ * Escalated to BASHER/ISO: tighten this to a hard boot failure once
+ * `AUTH_MODE=key_identity` is confirmed set explicitly on the serving Cloud
+ * Run revision, coordinated with the PR-3 deploy.
+ */
+export function assertAuthModeAtBoot(
+  env: NodeJS.ProcessEnv = process.env
+): { ok: boolean; mode: string | undefined } {
+  const mode = env.AUTH_MODE;
+  const ok = mode === "key_identity";
+  if (!ok) {
+    console.error(
+      `[BOOT][SECURITY] AUTH_MODE is ${mode === undefined ? "UNSET" : JSON.stringify(mode)}, ` +
+      `not explicitly pinned to "key_identity". This service is relying on authValidator.ts's ` +
+      `"|| 'key_identity'" fallback default, not an asserted invariant. If AUTH_MODE is ever set ` +
+      `to "hybrid" or "gsp_identity", auth.capabilities becomes recomputable from the forgeable ` +
+      `X-Program-Id header (BUG-006) — the exact path the gsp_bootstrap fleet.observe gate (R4a) ` +
+      `assumes cannot happen. Set AUTH_MODE=key_identity explicitly on this service.`
+    );
+  } else {
+    console.log('[BOOT] AUTH_MODE asserted: "key_identity" (explicit env var, not inherited from fallback default).');
+  }
+  return { ok, mode };
+}
+
 import { validateFirebaseToken, isFirebaseToken } from "./firebaseAuthValidator.js";
 import { validateOAuthToken, isOAuthToken } from "./oauthTokenValidator.js";
 import { resolveTenant } from "./tenant-resolver.js";

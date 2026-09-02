@@ -11,7 +11,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
-import { validateAuth, type AuthContext } from "./auth/authValidator.js";
+import { validateAuth, assertAuthModeAtBoot, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult, loadAuthCounters } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
@@ -103,6 +103,9 @@ async function getActiveUserIds(): Promise<string[]> {
 }
 
 async function main() {
+  // A13 — assert AUTH_MODE explicitly at boot (see authValidator.ts for why).
+  assertAuthModeAtBoot();
+
   initializeFirebase();
 
   // Seed canonical accounts and authorized emails (idempotent, fire-and-forget)
