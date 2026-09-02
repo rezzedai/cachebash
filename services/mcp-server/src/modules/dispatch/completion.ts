@@ -12,7 +12,7 @@ import { syncTaskCompleted } from "../github-sync.js";
 import { emitEvent, computeHash } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
-import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
+import { type ToolResult, jsonResult, buildTransition, appendTransition, describeTaskCompletionError } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 
@@ -755,7 +755,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
   } catch (error) {
     return jsonResult({
       success: false,
-      error: `Failed to complete task: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to complete task: ${describeTaskCompletionError(args.taskId, error)}`,
     });
   }
 }
@@ -890,7 +890,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
 
       results.push({ taskId, success: true });
     } catch (error) {
-      results.push({ taskId, success: false, error: error instanceof Error ? error.message : String(error) });
+      results.push({ taskId, success: false, error: describeTaskCompletionError(taskId, error) });
     }
   }
 
