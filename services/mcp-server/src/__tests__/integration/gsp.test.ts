@@ -44,12 +44,15 @@ beforeEach(async () => {
     createdBy: "system",
   });
 
+  // vector holds ["*", "fleet.observe"] in production (grant recorded at plan
+  // commit b4521fe6) — "Bootstrap depth tiers" below reads a foreign agentId
+  // (basher), which is the fleet.observe-gated cross-program read PR-3 adds.
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
     programId: "vector" as any,
     encryptionKey: testUser.encryptionKey,
-    capabilities: ["*"],
+    capabilities: ["*", "fleet.observe"],
     rateLimitTier: "internal",
   };
 });
