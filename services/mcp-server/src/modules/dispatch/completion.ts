@@ -684,6 +684,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       program_id: auth.programId,
       task_id: args.taskId,
       completed_status: args.completed_status,
+      successorTaskId: args.successorTaskId,
       tokens_in: args.tokens_in,
       tokens_out: args.tokens_out,
       cost_usd: args.cost_usd,
@@ -719,7 +720,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     dispatchTaskWebhooks(auth.userId, {
       event: webhookEvent,
       taskId: args.taskId,
-      task: { id: args.taskId, ...taskData, completed_status: args.completed_status, result: args.result },
+      task: { id: args.taskId, ...taskData, completed_status: args.completed_status, successorTaskId: args.successorTaskId, result: args.result },
       timestamp: new Date().toISOString(),
       tenantId: auth.userId,
     }).catch((err) => console.error("[TaskWebhook] Failed:", err));
@@ -891,6 +892,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
         program_id: auth.programId,
         task_id: taskId,
+        successorTaskId: args.successorTaskId,
         model: args.model,
         prompt_hash: taskData.instructions ? computeHash(taskData.instructions) : undefined,
         config_hash: taskData.source ? computeHash(`${taskData.source}:${taskData.target}:${args.model}`) : undefined,
