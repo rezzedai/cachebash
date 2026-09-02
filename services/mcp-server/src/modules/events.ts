@@ -61,7 +61,7 @@ export type EventType =
   | "RELAY_SENT";
 export type TaskClass = "WORK" | "CONTROL";
 
-export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED";
+export type CompletedStatus = "SUCCESS" | "FAILED" | "SKIPPED" | "CANCELLED" | "PARTIAL";
 
 export type ErrorClass = "TRANSIENT" | "PERMANENT" | "DEPENDENCY" | "POLICY" | "TIMEOUT" | "UNKNOWN";
 

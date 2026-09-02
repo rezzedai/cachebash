@@ -192,6 +192,8 @@ export async function exportTasksHandler(auth: AuthContext, rawArgs: unknown): P
       action: data.action || "queue",
       projectId: data.projectId || null,
       completed_status: data.completed_status || null,
+      // R1.3: successor task id, required when completed_status is "PARTIAL"
+      successorTaskId: data.successorTaskId || null,
       model: data.model || null,
       provider: data.provider || null,
       result: data.result || null,
