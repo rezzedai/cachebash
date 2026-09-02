@@ -50,13 +50,41 @@ import type { AuthContext } from "../../auth/authValidator.js";
 import { emitEvent } from "../events.js";
 
 // R1.4 (dispatch-defects-1-and-2, ISO-ruled additive-only): a task deleted by
-// the reaper while it never reached a terminal, resolved status ("done" or
-// "failed") lapsed with its requirements unmet -- today that is silent, the
-// doc simply stops existing. This is a brand-new event_type so nothing
-// currently subscribed can be affected; it does not rename or repurpose any
-// existing event_type or webhook event value.
+// the reaper while it never reached a resolved outcome lapsed with its
+// requirements unmet -- today that is silent, the doc simply stops existing.
+// This is a brand-new event_type so nothing currently subscribed can be
+// affected; it does not rename or repurpose any existing event_type or
+// webhook event value.
+//
+// RESOLVED = "done", "failed", or "archived" (lifecycle/engine.ts:29-38: both
+// done and failed transition to archived, and archived is terminal -- a
+// task's fate is settled either way it got there). #425 review amendment:
+// the original predicate checked only done/failed, so a task that completed
+// successfully and was later archived was wrongly classified unresolved and
+// flagged as a false "unmet requirements" alarm on exactly the population
+// that did everything right.
+//
+// UNRESOLVED = "created", "active", "blocked", or "completing" -- none of
+// these ever had a completed_status recorded. "completing" (supervised-mode,
+// awaiting approval) is deliberately included here, on the record: it never
+// reached "done" or "failed", so if it lapses before approval the requirement
+// genuinely went unmet -- this is a decision, not a fallthrough.
+//
+// NOT extracted into a shared predicate with interventions.ts:410
+// (`data.status === "done" || data.status === "archived"`), even though that
+// is the repo's other "is this task resolved" check and also includes
+// archived. That check deliberately EXCLUDES "failed" -- it exists to block
+// re-escalating a task that already completed, and a failed task is
+// intentionally still escalatable (failed -> created is a valid retry
+// transition per the lifecycle table). Reusing it here would silently
+// exclude "failed" from RESOLVED and re-introduce this exact bug for any
+// failed-then-archived task. Reusing THIS predicate there would silently
+// forbid escalating a failed task, which is not this PR's call to make. The
+// two answer different questions with the same-looking status literals; if
+// either changes, check whether the other should too, but they are not one
+// predicate wearing two names.
 function isUnresolvedStatus(status: unknown): boolean {
-  return status !== "done" && status !== "failed";
+  return status !== "done" && status !== "failed" && status !== "archived";
 }
 
 const PAGE_SIZE = 1000;
