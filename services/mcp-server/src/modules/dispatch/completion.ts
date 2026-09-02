@@ -706,11 +706,20 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     }
 
     // Analytics: task_lifecycle complete
+    // DELIBERATE DIVERGENCE from updateProgramStats' `success` below (~line 786,
+    // "Wave 16: Update program stats"): this `success` is `!== "FAILED"` (SKIPPED/
+    // CANCELLED/PARTIAL count as success) while program_stats uses strict
+    // `=== "SUCCESS"` because it drives live auto-routing (dispatch_suggest_target /
+    // dispatchHandler). This is an external analytics signal with no in-repo reader
+    // (confirmed by grep) — its historical meaning must not move, so do NOT redefine
+    // `success` here; supplement with fields instead, same principle as the
+    // additive-only event_type handling elsewhere in this file.
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_lifecycle",
       programId: auth.programId,
       toolName: "complete_task",
       success: args.completed_status !== "FAILED",
+      completed_status: args.completed_status,
       errorCode: args.error_code,
       errorClass: args.error_class,
     });
@@ -779,6 +788,12 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     }
 
     // Wave 16: Update program stats with task-type success tracking
+    // DELIBERATE DIVERGENCE from the emitAnalyticsEvent `success` above (~line 713,
+    // "Analytics: task_lifecycle complete"): this `success` must stay strict
+    // `=== "SUCCESS"` because it drives live auto-routing (dispatch_suggest_target /
+    // dispatchHandler) — a program that only SKIPPED/CANCELLED/PARTIAL-closed a task
+    // did not do the work as asked, and loosening this would misroute work. Do not
+    // change this to match the analytics boolean.
     if (taskData.target) {
       try {
         await updateProgramStats(db, auth.userId, taskData.target as string, {

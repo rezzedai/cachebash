@@ -11,6 +11,7 @@
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import type { AnalyticsEventType } from "../types/analytics.js";
+import type { CompletedStatus } from "./events.js";
 
 /**
  * Parameters for emitting an analytics event.
@@ -37,6 +38,12 @@ export interface EmitAnalyticsParams {
 
   // Outcome
   success: boolean;
+  // Additive, single-completion path only (complete_task). Carries the raw
+  // completed_status alongside `success` so an external consumer can compute
+  // whichever success definition it wants without us redefining `success`
+  // itself (see the divergence comments in dispatch/completion.ts around the
+  // complete_task emitAnalyticsEvent and updateProgramStats call sites).
+  completed_status?: CompletedStatus;
   errorCode?: string;
   errorClass?: string;
   latencyMs?: number;
@@ -82,6 +89,7 @@ export function emitAnalyticsEvent(userId: string, params: EmitAnalyticsParams):
     if (params.action) event.action = params.action;
 
     // Optional outcome fields
+    if (params.completed_status) event.completed_status = params.completed_status;
     if (params.errorCode) event.errorCode = params.errorCode;
     if (params.errorClass) event.errorClass = params.errorClass;
     if (params.latencyMs !== undefined) event.latencyMs = params.latencyMs;
