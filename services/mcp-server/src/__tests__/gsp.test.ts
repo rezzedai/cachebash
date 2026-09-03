@@ -711,6 +711,90 @@ describe("gspBootstrapHandler", () => {
     expect(payload.constitutional.guidingLightDigest).toContain("Full guiding light content");
   });
 
+  // Regression: full-depth activeDecisions must never ship a complete document
+  // body — depth controls how many entries you see, not how much of each one.
+  it("truncates a long string ADR value at full depth and flags valueTruncated", async () => {
+    seedBootstrapData();
+
+    const longBody = "x".repeat(600);
+    seedDoc("tenants/test-user-123/gsp/architecture/entries/decision-long", {
+      key: "decision-long",
+      namespace: "architecture",
+      tier: "architectural",
+      version: 1,
+      value: longBody,
+      description: "Long decision",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+
+    const result = await gspBootstrapHandler(mockAuth, { agentId: "basher", depth: "full" });
+    const data = parse(result);
+    const payload = data.payload;
+
+    const entry = payload.architectural.activeDecisions.find((d: any) => d.key === "decision-long");
+    expect(entry).toBeDefined();
+    expect(typeof entry.value).toBe("string");
+    expect(entry.value.length).toBeLessThanOrEqual(503);
+    expect(entry.valueTruncated).toBe(true);
+
+    // Untruncated entries must not carry the flag at all
+    const shortEntry = payload.architectural.activeDecisions.find((d: any) => d.key === "decision-auth");
+    expect(shortEntry.valueTruncated).toBeFalsy();
+  });
+
+  it("truncates a long object-branch summary at full depth and flags valueTruncated", async () => {
+    seedBootstrapData();
+
+    seedDoc("tenants/test-user-123/gsp/architecture/entries/decision-obj-long", {
+      key: "decision-obj-long",
+      namespace: "architecture",
+      tier: "architectural",
+      version: 1,
+      value: { summary: "y".repeat(600) },
+      description: "Long object decision",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+
+    const result = await gspBootstrapHandler(mockAuth, { agentId: "basher", depth: "full" });
+    const data = parse(result);
+    const payload = data.payload;
+
+    const entry = payload.architectural.activeDecisions.find((d: any) => d.key === "decision-obj-long");
+    expect(entry).toBeDefined();
+    expect(typeof entry.value).toBe("string");
+    expect(entry.value.length).toBeLessThanOrEqual(503);
+    expect(entry.valueTruncated).toBe(true);
+  });
+
+  it("truncates a long serviceMap value at full depth and flags valueTruncated", async () => {
+    seedBootstrapData();
+
+    seedDoc("tenants/test-user-123/gsp/architecture/entries/service-long", {
+      key: "service-long",
+      namespace: "architecture",
+      tier: "architectural",
+      version: 1,
+      value: "z".repeat(600),
+      description: "Long service entry",
+      updatedAt: "2026-01-01T00:00:00Z",
+    });
+
+    const result = await gspBootstrapHandler(mockAuth, { agentId: "basher", depth: "full" });
+    const data = parse(result);
+    const payload = data.payload;
+
+    const entry = payload.architectural.serviceMap.find((s: any) => s.key === "service-long");
+    expect(entry).toBeDefined();
+    expect(entry.value.length).toBeLessThanOrEqual(503);
+    expect(entry.valueTruncated).toBe(true);
+
+    const shortEntry = payload.architectural.serviceMap.find((s: any) => s.key === "service-api");
+    expect(shortEntry.valueTruncated).toBeFalsy();
+
+    // Hint must surface once anything in either section could be truncated
+    expect(payload.architectural.decisionsHint).toBeTruthy();
+  });
+
   // #17
   it("populates identity from program registry", async () => {
     seedBootstrapData();

@@ -549,10 +549,11 @@ interface BootstrapPayload {
     guidingLightDigest: string;
   };
   architectural: {
-    activeDecisions: Array<{ key: string; value: unknown; description?: string }>;
-    serviceMap: Array<{ key: string; value: unknown; description?: string }>;
+    activeDecisions: Array<{ key: string; value: unknown; description?: string; valueTruncated?: boolean }>;
+    serviceMap: Array<{ key: string; value: unknown; description?: string; valueTruncated?: boolean }>;
     pendingProposals: Array<{ id: string; namespace: string; key: string; status: string }>;
     decisionsOmitted?: number;
+    decisionsHint?: string;
   };
   operational: {
     fleetStatus: {
@@ -846,17 +847,20 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
           .limit(depth === "standard" ? 30 : 100)
           .get();
 
-        const activeDecisions: Array<{ key: string; value: unknown; description?: string }> = [];
-        const serviceMap: Array<{ key: string; value: unknown; description?: string }> = [];
+        const activeDecisions: Array<{ key: string; value: unknown; description?: string; valueTruncated?: boolean }> = [];
+        const serviceMap: Array<{ key: string; value: unknown; description?: string; valueTruncated?: boolean }> = [];
 
         architecturalSnap.docs.forEach((doc) => {
           const data = doc.data();
 
-          // Create entry with depth-aware value truncation
+          // Depth controls how many entries you see, not how much of each one —
+          // a complete document body never belongs in a boot payload at any depth.
           let entryValue = data.value;
-          if (depth === "standard" && typeof entryValue === "string" && entryValue.length > 500) {
+          let valueTruncated = false;
+          if (typeof entryValue === "string" && entryValue.length > 500) {
             entryValue = entryValue.substring(0, 500) + "...";
-          } else if (depth === "standard" && typeof entryValue === "object" && entryValue !== null) {
+            valueTruncated = true;
+          } else if (typeof entryValue === "object" && entryValue !== null) {
             // For objects, try to extract summary if available
             const valueObj = entryValue as any;
             if (valueObj.summary) {
@@ -864,12 +868,17 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
             } else if (valueObj.description) {
               entryValue = valueObj.description;
             }
+            if (typeof entryValue === "string" && entryValue.length > 500) {
+              entryValue = entryValue.substring(0, 500) + "...";
+              valueTruncated = true;
+            }
           }
 
           const entry = {
             key: data.key,
             value: entryValue,
             description: data.description,
+            ...(valueTruncated ? { valueTruncated: true } : {}),
           };
 
           if (data.key.startsWith("decision") || data.key.startsWith("adr-")) {
@@ -893,6 +902,11 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
           // Full: Include everything
           payload.architectural.activeDecisions = activeDecisions;
           payload.architectural.serviceMap = serviceMap;
+        }
+
+        if (payload.architectural.activeDecisions.length > 0 || payload.architectural.serviceMap.length > 0) {
+          payload.architectural.decisionsHint =
+            "Decision and service-map values above may be truncated (see valueTruncated). Fetch a full body with gsp_read({ namespace: \"architecture\", key }).";
         }
 
         // Check for pending proposals (only for full depth and orchestrators/admin)
