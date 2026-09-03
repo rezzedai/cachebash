@@ -335,6 +335,35 @@ describe("Bootstrap depth tiers", () => {
     // Full uses raw guiding light from Firestore
     expect(full.constitutional.guidingLightDigest).toContain("Full guiding light");
   });
+
+  it("truncates full-depth ADR bodies and flags valueTruncated", async () => {
+    await gsp.gspSeedHandler(auth, {
+      namespace: "architecture",
+      entries: [
+        {
+          key: "decision-long-adr",
+          tier: "architectural" as const,
+          value: "x".repeat(600),
+          description: "Long ADR body",
+        },
+      ],
+    });
+
+    const fullResult = await gsp.gspBootstrapHandler(auth, {
+      agentId: "vector",
+      depth: "full",
+    });
+    const full = parse(fullResult).payload;
+
+    const entry = full.architectural.activeDecisions.find((d: any) => d.key === "decision-long-adr");
+    expect(entry).toBeDefined();
+    expect(entry.value.length).toBeLessThanOrEqual(503);
+    expect(entry.valueTruncated).toBe(true);
+
+    const shortEntry = full.architectural.activeDecisions.find((d: any) => d.key === "decision-auth");
+    expect(shortEntry.valueTruncated).toBeFalsy();
+    expect(full.architectural.decisionsHint).toBeTruthy();
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
