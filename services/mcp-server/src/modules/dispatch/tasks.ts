@@ -170,7 +170,21 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   // which is a UI decision, not ours to make here. `passesPostCapFilters`
   // below still re-checks requires_action, so this is purely a cost
   // optimization — it changes nothing about which rows ultimately match.
-  if (args.requires_action !== null && auth.programId !== "mobile") {
+  // INDEX CONSTRAINT (ISO review, 2026-09-11): adding requires_action as a
+  // fourth equality field doubles the composite-index lattice over
+  // {status, type, target} + createdAt. This PR ships only two of the eight
+  // shapes -- (status, requires_action, createdAt) and
+  // (status, target, requires_action, createdAt). Emitting the clause for an
+  // uncovered shape (status:"all", or any type filter) would make a query that
+  // works TODAY start throwing FAILED_PRECONDITION. Backfilling the other six
+  // indexes is the obvious fix and the wrong one: every composite index costs
+  // write amplification on every task write, and this change exists to REDUCE
+  // spend. So the clause is emitted only where an index already covers it --
+  // which is exactly the fleet's hot path (dispatcher, wake daemon and boot
+  // reads are all status:"created" with the default type:"all"). Every other
+  // shape keeps today's post-filter behaviour, unchanged and un-regressed.
+  const shapeHasIndex = args.status !== "all" && args.type === "all";
+  if (args.requires_action !== null && auth.programId !== "mobile" && shapeHasIndex) {
     query = query.where("requires_action", "==", args.requires_action);
   }
 

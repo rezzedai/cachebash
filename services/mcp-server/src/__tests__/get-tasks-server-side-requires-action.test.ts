@@ -124,4 +124,22 @@ describe("get_tasks server-side requires_action filter (WP-2)", () => {
     expect(parsed.count).toBe(1);
     expect(parsed.tasks[0].id).toBe("task-missing-field");
   });
+
+  it("INDEX CONSTRAINT: status:\"all\" issues no server-side clause (no composite index covers it)", async () => {
+    await getTasksHandler(makeAuth("iso"), { status: "all" });
+
+    expect(requiresActionWhereArgs()).toHaveLength(0);
+  });
+
+  it("INDEX CONSTRAINT: a type filter issues no server-side clause (no composite index covers it)", async () => {
+    await getTasksHandler(makeAuth("iso"), { status: "created", type: "question" });
+
+    expect(requiresActionWhereArgs()).toHaveLength(0);
+  });
+
+  it("the indexed hot path (status:created, default type) still gets the clause", async () => {
+    await getTasksHandler(makeAuth("iso"), { status: "created" });
+
+    expect(requiresActionWhereArgs()).toEqual([["requires_action", "==", true]]);
+  });
 });
