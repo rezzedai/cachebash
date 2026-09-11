@@ -26,7 +26,7 @@ export interface AuthContext {
 }
 
 /** Throttle for the keyIndex.lastUsedAt write (see validateApiKey). */
-export const LAST_USED_WRITE_INTERVAL_MS = 60_000;
+export const LAST_USED_WRITE_INTERVAL_MS = 60 * 60_000;
 
 function hashApiKey(apiKey: string): string {
   return crypto.createHash("sha256").update(apiKey).digest("hex");
@@ -115,8 +115,8 @@ export async function validateApiKey(
       }
     }
 
-    // Update lastUsedAt (fire-and-forget — don't block auth), at most once a
-    // minute per key. Its only reader (index.ts) asks "used in the last 7
+    // Update lastUsedAt (fire-and-forget — don't block auth), at most once an
+    // hour per key (COST PDR 2c). Its only reader (index.ts) asks "used in the last 7
     // days", and writing it on every call made it one Firestore write per
     // request for the fleet's busiest caller. Uses the doc already read above.
     const lastUsedMs: number = data.lastUsedAt?.toMillis?.() ?? 0;

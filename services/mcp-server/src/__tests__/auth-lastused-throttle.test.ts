@@ -1,5 +1,5 @@
 /**
- * keyIndex.lastUsedAt is written at most once a minute per key.
+ * keyIndex.lastUsedAt is written at most once an hour per key (COST PDR 2c).
  *
  * It was written on every authenticated request, which made it one Firestore
  * write per call for the fleet's busiest caller (the dispatcher polls every
@@ -22,7 +22,7 @@ import { validateApiKey } from "../auth/authValidator.js";
 
 // Local copy of the interval rather than an import, so this file also runs
 // (and must fail) against the pre-throttle validator.
-const LAST_USED_WRITE_INTERVAL_MS = 60_000;
+const LAST_USED_WRITE_INTERVAL_MS = 60 * 60_000;
 
 function tsMsAgo(ms: number) {
   const at = Date.now() - ms;
@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe("keyIndex.lastUsedAt write throttle", () => {
   it("skips the write when the key was used within the interval", async () => {
-    keyData.lastUsedAt = tsMsAgo(5_000);
+    keyData.lastUsedAt = tsMsAgo(30 * 60_000); // 30 min: inside the hour
     const auth = await validateApiKey("cb_test_key");
     expect(auth?.userId).toBe("u1");
     expect(update).not.toHaveBeenCalled();
