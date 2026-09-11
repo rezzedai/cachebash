@@ -166,6 +166,8 @@ async function blockDerez(
     priority: "high",
     status: "created",
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    // WP-1: target is a programId, not "user" — actionable by default.
+    requires_action: true,
   };
 
   await db.collection(`tenants/${userId}/tasks`).add(taskData);

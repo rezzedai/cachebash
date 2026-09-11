@@ -172,6 +172,8 @@ export const onTaskCompleteFailed = functions.firestore
         priority: "normal",
         status: "created",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        // WP-1: target is "iso", not "user" — actionable by default.
+        requires_action: true,
       });
 
       functions.logger.info(

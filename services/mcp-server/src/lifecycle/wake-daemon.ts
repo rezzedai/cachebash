@@ -289,6 +289,8 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             ttl: TTL_SECONDS,
             expiresAt,
+            // notification mirror: delivered by push, never claimed (ISO ruling, WP-1 review)
+            requires_action: false,
           });
 
           console.warn(`[WakeDaemon] Alert sent: ${programId} spawn failure threshold reached (${failCount})`);

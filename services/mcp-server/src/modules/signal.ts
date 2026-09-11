@@ -100,6 +100,11 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
     // "already expired".
     ttl: 0,
     expiresAt: admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
+    // WP-1: target:"user" tasks are mobile-app visibility artifacts, not work a
+    // program's get_tasks() boot poll should ever claim — false keeps this out
+    // of the WP-2 requires_action==true default query, matching relay.ts's
+    // mirror convention for non-RESULT informational docs.
+    requires_action: false,
   };
 
   const ref = await db.collection(`tenants/${auth.userId}/tasks`).add(taskData);
@@ -217,6 +222,9 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
     archived: false,
     ttl: TTL_SECONDS,
     expiresAt,
+    // WP-1: target:"user" alert mirror — informational, not program-actionable.
+    // See ask_question's write above for the same rationale.
+    requires_action: false,
   });
 
   return jsonResult({
