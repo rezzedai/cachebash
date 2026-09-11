@@ -157,22 +157,35 @@ curl http://localhost:3001/v1/health
 ### 2. Deploy to Cloud Run
 
 ```bash
-# Deploy from source (Cloud Run auto-builds with Buildpacks)
-gcloud run deploy cachebash-mcp \
-  --source . \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --min-instances 1 \
-  --max-instances 10 \
-  --concurrency 80 \
-  --cpu 1 \
-  --memory 512Mi \
-  --timeout 300 \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=cachebash-app,FIREBASE_PROJECT_ID=cachebash-app"
+# Deploy from source (Cloud Run auto-builds with Buildpacks).
+# BARE. Code only. Do not add flags.
+gcloud run deploy cachebash-mcp --source . --region us-central1 --project cachebash-app
 ```
 
-**Note:** `--allow-unauthenticated` is required because Cloud Run's auth is separate from CacheBash's API key auth. Security is enforced at the application layer.
+> **Do NOT pass `--set-env-vars` to a code deploy.** It does not merge --- it
+> REPLACES the service's entire environment map with exactly what you list. The
+> serving revision currently carries four variables (`GITHUB_FEEDBACK_PAT`,
+> `GOOGLE_CLOUD_PROJECT`, `FIREBASE_PROJECT_ID`, `AUTH_MODE`), so the two-variable
+> command this file used to prescribe would have silently dropped
+> `GITHUB_FEEDBACK_PAT` and `AUTH_MODE` --- changing how the fleet's own auth
+> service authenticates, with no error at deploy time.
+
+The scaling/IAM/env envelope (`--min-instances`, `--max-instances`, `--concurrency`,
+`--cpu`, `--memory`, `--timeout`, `--allow-unauthenticated`, and the env map) is owned
+by Terraform, not by the deploy command --- see `infra/terraform/README.md`:
+"Terraform manages the envelope (scaling, IAM, env vars), CI manages the code."
+A bare `gcloud run deploy --source .` inherits the existing revision template, so the
+envelope survives untouched. Passing those flags by hand is at best a no-op and at
+worst a silent reset.
+
+**Note:** `--allow-unauthenticated` is already configured on the service. It is
+required because Cloud Run's auth is separate from CacheBash's API key auth --- security
+is enforced at the application layer. You do not need to re-pass it on a deploy.
+
+**Rollback:** note the currently serving revision before deploying
+(`gcloud run services describe cachebash-mcp --region us-central1 --format='value(status.latestReadyRevisionName)'`)
+and route traffic back to it with
+`gcloud run services update-traffic cachebash-mcp --region us-central1 --to-revisions <REVISION>=100`.
 
 ### 3. Get Service URL
 
