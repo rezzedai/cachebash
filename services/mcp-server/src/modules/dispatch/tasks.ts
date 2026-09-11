@@ -161,6 +161,19 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   }
   // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
+  // WP-2 (cost PDR): push the requires_action equality server-side so a poll
+  // reads only actionable rows instead of every created task in the tenant.
+  // Mobile is excluded — Flynn's phone (apps/mobile useTasks.ts) has no
+  // requires_action param and relies on the post-filter's missing-field-as-true
+  // default to surface the target:"user" alerts that WP-1 deliberately left
+  // without the field. A server-side `== true` would silently empty that list,
+  // which is a UI decision, not ours to make here. `passesPostCapFilters`
+  // below still re-checks requires_action, so this is purely a cost
+  // optimization — it changes nothing about which rows ultimately match.
+  if (args.requires_action !== null && auth.programId !== "mobile") {
+    query = query.where("requires_action", "==", args.requires_action);
+  }
+
   const orderedQuery = query.orderBy("createdAt", "desc");
 
   // R3.1/R3.2: resume exactly after the last raw candidate the previous page
