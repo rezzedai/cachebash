@@ -18,11 +18,14 @@
  * ordered by document id and filters client-side for
  * `requires_action === undefined`.
  *
- * CLASSIFICATION: false when target === "user" (mobile-app-visibility
- * artifacts — informational, never claimed by a program's own get_tasks()
- * poll), true otherwise (scheduled/program-directed work is actionable by
- * default). See the WP-1 PR body for the full rationale and the list of
- * write sites this backfill exists to catch up.
+ * CLASSIFICATION: false when target is a notification-mirror target ("user"
+ * or "admin" — mobile-app-visibility artifacts, delivered by push and never
+ * claimed by any program's own get_tasks() poll; no program is named
+ * "admin", so an admin-target row marked true would sit unclaimed in the
+ * dispatcher's actionable window forever — ISO ruling, WP-1 review), true
+ * otherwise (scheduled/program-directed work is actionable by default). See
+ * the WP-1 PR body for the full rationale and the list of write sites this
+ * backfill exists to catch up.
  */
 
 import { FieldPath, type QueryDocumentSnapshot } from "firebase-admin/firestore";
@@ -39,12 +42,20 @@ export interface ClassifiableTaskData {
 }
 
 /**
- * Pure classification rule: false for target:"user" (mobile-visibility /
- * informational, never a program's own get_tasks() claim target), true for
- * everything else (scheduled/program-directed work is actionable by default).
+ * Notification-mirror targets: rows here are delivered by push and never
+ * claimed by any program's own get_tasks() poll, so requires_action is
+ * always false for them (ISO ruling, WP-1 review).
+ */
+export const NOTIFICATION_TARGETS = new Set(["user", "admin"]);
+
+/**
+ * Pure classification rule: false for a notification-mirror target
+ * (mobile-visibility / informational, never a program's own get_tasks()
+ * claim target), true for everything else (scheduled/program-directed work
+ * is actionable by default).
  */
 export function classifyRequiresActionForBackfill(data: ClassifiableTaskData): boolean {
-  return data.target !== "user";
+  return !(data.target != null && NOTIFICATION_TARGETS.has(data.target));
 }
 
 export interface BackfillCounts {

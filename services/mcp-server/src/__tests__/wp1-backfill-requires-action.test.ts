@@ -96,7 +96,10 @@ describe("WP-1: classifyRequiresActionForBackfill (pure rule)", () => {
   it("target:'user' -> false", () => {
     expect(classifyRequiresActionForBackfill({ target: "user" })).toBe(false);
   });
-  it("any non-'user' target -> true", () => {
+  it("target:'admin' -> false (ISO ruling: notification mirror, same as 'user')", () => {
+    expect(classifyRequiresActionForBackfill({ target: "admin" })).toBe(false);
+  });
+  it("any non-notification target -> true", () => {
     expect(classifyRequiresActionForBackfill({ target: "iso" })).toBe(true);
     expect(classifyRequiresActionForBackfill({ target: null })).toBe(true);
     expect(classifyRequiresActionForBackfill({})).toBe(true);
@@ -127,6 +130,20 @@ describe("WP-1: backfill-requires-action.ts dry-run classification", () => {
     expect(store.get("p1")!.requires_action).toBeUndefined();
     expect(store.get("s1")!.requires_action).toBe(true);
     expect(store.get("s2")!.requires_action).toBe(false);
+  });
+
+  it("classifies a target:'admin' fixture row (missing field) as false — same as 'user'", async () => {
+    const { db, store } = makeFixture([
+      { id: "a1", data: { type: "task", target: "admin", status: "created" } },
+    ]);
+
+    const result = await runRequiresActionBackfill(db, "test-tenant", { apply: false });
+
+    expect(result.missingFieldFound).toBe(1);
+    expect(result.classifiedFalse).toBe(1);
+    expect(result.classifiedTrue).toBe(0);
+    expect(result.byTargetWouldUpdate).toEqual({ admin: 1 });
+    expect(store.get("a1")!.requires_action).toBeUndefined(); // dry-run never writes
   });
 
   it("only scans status=='created' docs", async () => {
