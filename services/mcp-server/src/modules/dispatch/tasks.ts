@@ -205,7 +205,16 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   for (;;) {
     pagesRead++;
-    const pageSnap = await cursorQuery.limit(CANDIDATE_PAGE_SIZE).get();
+    // Cost: the first page asks for only `limit + 1` candidates. Nearly every
+    // row matches the default predicates, so a full 200-doc page read to
+    // return 50 was a 4x over-read on the fleet's most frequent call (the
+    // dispatcher polls it tenant-wide every 5s). Later pages use the full
+    // CANDIDATE_PAGE_SIZE, so a sparse-match stream still pages efficiently
+    // and the round-trip budget below is unchanged in meaning.
+    const pageSize = pagesRead === 1
+      ? Math.min(CANDIDATE_PAGE_SIZE, args.limit + 1)
+      : CANDIDATE_PAGE_SIZE;
+    const pageSnap = await cursorQuery.limit(pageSize).get();
     if (pageSnap.docs.length === 0) {
       hasMore = false; // Raw stream exhausted with nothing left at all.
       break;
@@ -227,7 +236,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
       hasMore = peek.docs.length > 0;
       break;
     }
-    if (pageSnap.docs.length < CANDIDATE_PAGE_SIZE) {
+    if (pageSnap.docs.length < pageSize) {
       hasMore = false; // Short page: fewer matches than `limit` exist, period.
       break;
     }
