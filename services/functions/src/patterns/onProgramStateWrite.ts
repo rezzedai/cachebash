@@ -213,6 +213,8 @@ export const onProgramStateWrite = functions.firestore
           priority: "low",
           status: "created",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          // WP-1: target is a programId, not "user" — actionable by default.
+          requires_action: true,
         });
 
         // PATTERN_PROMOTED telemetry — measures promotion rate (OPP-3 dry-run

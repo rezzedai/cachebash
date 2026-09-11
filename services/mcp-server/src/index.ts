@@ -790,6 +790,8 @@ async function main() {
                 ...alertDoc,
                 type: "task",
                 title: `[Alert: ${alertType}] ${session.programId} stale`,
+                // notification mirror: delivered by push, never claimed (ISO ruling, WP-1 review)
+                requires_action: false,
               });
             } catch (err) {
               console.error(`[Stale Sessions] Failed alert write for ${userId}/${session.sessionId}:`, err);

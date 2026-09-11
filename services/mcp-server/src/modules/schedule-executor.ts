@@ -106,6 +106,11 @@ async function fireSchedule(
       createdAt: FieldValue.serverTimestamp(),
       ttl: CONSTANTS.ttl.defaultTaskSeconds,
       expiresAt: Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.defaultTaskSeconds * 1000),
+      // WP-1: scheduled work is actionable by default — a get_tasks() boot query
+      // filtered on requires_action==true (WP-2) must never silently exclude a
+      // fired schedule's task just because this writer bypasses the
+      // classifyRequiresAction() helper in dispatch/tasks.ts.
+      requires_action: true,
     };
     txn.create(taskRef, taskDoc);
 

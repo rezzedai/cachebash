@@ -126,6 +126,8 @@ async function escalateToIso(
         archived: false,
         ttl: 0,
         expiresAt: NEVER_EXPIRES,
+        // WP-1: target "iso", not "user" — program-directed escalation, actionable.
+        requires_action: true,
       });
     } catch (fallbackErr) {
       console.error("[Sprint] Fallback alert task also failed:", fallbackErr);
@@ -189,6 +191,9 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
     parentSpanId: args.parentSpanId || null,
     ttl: 0,
     expiresAt: NEVER_EXPIRES,
+    // WP-1: target is null (sprint parent has no single program target) —
+    // scheduled/program-directed work is actionable by default.
+    requires_action: true,
   };
 
   const sprintRef = await db.collection(`tenants/${auth.userId}/tasks`).add(sprintData);
@@ -231,6 +236,8 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
       parentSpanId: sprintSpanId,
       ttl: 0,
       expiresAt: NEVER_EXPIRES,
+      // WP-1: target null — see parent sprint task above.
+      requires_action: true,
     });
   }
   await batch.commit();
@@ -397,6 +404,8 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
     parentSpanId: args.parentSpanId || null,
     ttl: 0,
     expiresAt: NEVER_EXPIRES,
+    // WP-1: target null — see createSprintHandler's parent sprint task.
+    requires_action: true,
   });
 
   return jsonResult({
