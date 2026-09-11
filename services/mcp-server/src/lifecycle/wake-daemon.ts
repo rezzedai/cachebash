@@ -289,6 +289,13 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             ttl: TTL_SECONDS,
             expiresAt,
+            // WP-1: target is "admin" here, not "user" — per the WP-1 sweep rule
+            // (false only for target=="user", true otherwise) this is actionable.
+            // Flagged in the WP-1 PR: an "admin"-target alert mirror is arguably
+            // as informational as the "user"-target alerts in signal.ts, but the
+            // rule as specified is literal on target=="user"; left as `true` for
+            // ISO/Flynn to confirm rather than guessing at broader semantics.
+            requires_action: true,
           });
 
           console.warn(`[WakeDaemon] Alert sent: ${programId} spawn failure threshold reached (${failCount})`);

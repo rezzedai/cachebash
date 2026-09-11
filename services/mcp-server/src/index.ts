@@ -790,6 +790,9 @@ async function main() {
                 ...alertDoc,
                 type: "task",
                 title: `[Alert: ${alertType}] ${session.programId} stale`,
+                // WP-1: target is "admin", not "user" — see wake-daemon.ts's
+                // alert mirror for the same literal-rule note; flagged for review.
+                requires_action: true,
               });
             } catch (err) {
               console.error(`[Stale Sessions] Failed alert write for ${userId}/${session.sessionId}:`, err);

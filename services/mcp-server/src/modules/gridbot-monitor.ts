@@ -240,6 +240,9 @@ export async function runHealthCheck(
         ...alertDoc,
         title: "[GRIDBOT] Health Critical Alert",
         instructions: alertMessage,
+        // WP-1: target is "admin", not "user" — see wake-daemon.ts's alert
+        // mirror for the same literal-rule note; flagged for review.
+        requires_action: true,
       });
 
       alertsSent.push("HEALTH_CRITICAL alert to admin (mobile)");
