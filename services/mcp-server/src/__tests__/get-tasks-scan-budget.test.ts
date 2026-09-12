@@ -129,6 +129,32 @@ beforeEach(() => {
   builtQueries = [];
 });
 
+describe("get_tasks first candidate page is sized to the limit (cost)", () => {
+  // The dispatcher polls get_tasks tenant-wide every 5s with limit=50. A
+  // full CANDIDATE_PAGE_SIZE=200 first page read 4x the documents it could
+  // ever return. The first page now asks for limit+1; later pages stay 200.
+  it("asks Firestore for limit+1 candidates on the first page, not 200", async () => {
+    collectionDocs = Array.from({ length: 7 }, (_, i) => makeDoc(`t${7 - i}`, 7 - i));
+
+    await getTasksHandler(makeAuth(), { limit: 10, status: "created" });
+
+    expect(builtQueries[0].limit.mock.calls[0][0]).toBe(11);
+  });
+
+  it("a read that fills `limit` on the first page costs one page plus the peek", async () => {
+    collectionDocs = Array.from({ length: 30 }, (_, i) => makeDoc(`m${30 - i}`, 30 - i));
+
+    const result = await getTasksHandler(makeAuth(), { limit: 10, status: "created" });
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(parsed.count).toBe(10);
+    expect(parsed.hasMore).toBe(true);
+    expect(parsed.degraded).toBe(false);
+    const sizes = builtQueries[0].limit.mock.calls.map((c: number[]) => c[0]);
+    expect(sizes).toEqual([11, 1]); // first page, then the one-row peek
+  });
+});
+
 describe("get_tasks scan budget — R3.6", () => {
   it("the one-sided guarantee still rules: a budget cutoff sets hasMore:true, NEVER false, and marks degraded:true", async () => {
     // 5000 non-matching raw candidates, nothing else. Large enough to

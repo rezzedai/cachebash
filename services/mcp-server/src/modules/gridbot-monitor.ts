@@ -60,43 +60,54 @@ export async function runHealthCheck(
   });
 
   // 2. Session death count (SESSION_DEATH events in last hour)
-  const deathEvents = await firestore
+  const deathCount = (await firestore
     .collection(`tenants/${userId}/events`)
     .where("event_type", "==", "SESSION_DEATH")
     .where("timestamp", ">=", oneHourAgo)
-    .get();
+    .count()
+    .get()).data().count;
 
   indicators.push({
     name: "session_death_count",
-    value: deathEvents.size,
-    status: deathEvents.size > 10 ? "critical" : deathEvents.size > 3 ? "warning" : "ok",
+    value: deathCount,
+    status: deathCount > 10 ? "critical" : deathCount > 3 ? "warning" : "ok",
     threshold: { warning: 3, critical: 10 },
   });
 
-  // 3. Stale task count (tasks in created status > 30 min)
-  const staleTasks = await firestore
+  // 3. Stale task count (tasks in created status > 30 min, created within 24h).
+  // The 24h lower bound keeps the cost proportional to recent work: without it
+  // the query matched every task that ever stayed in `created` (4,137 rows,
+  // re-read every 5 minutes), and a task stale for a day is not news this
+  // check can act on.
+  const oneDayAgo = admin.firestore.Timestamp.fromDate(
+    new Date(now.toDate().getTime() - 24 * 60 * 60 * 1000)
+  );
+  const staleCount = (await firestore
     .collection(`tenants/${userId}/tasks`)
     .where("status", "==", "created")
+    .where("createdAt", ">=", oneDayAgo)
     .where("createdAt", "<=", thirtyMinAgo)
-    .get();
+    .count()
+    .get()).data().count;
 
   indicators.push({
     name: "stale_task_count",
-    value: staleTasks.size,
-    status: staleTasks.size > 15 ? "critical" : staleTasks.size > 5 ? "warning" : "ok",
+    value: staleCount,
+    status: staleCount > 15 ? "critical" : staleCount > 5 ? "warning" : "ok",
     threshold: { warning: 5, critical: 15 },
   });
 
   // 4. Relay queue depth (pending relay messages)
-  const pendingRelay = await firestore
+  const pendingRelayCount = (await firestore
     .collection(`tenants/${userId}/relay`)
     .where("status", "==", "pending")
-    .get();
+    .count()
+    .get()).data().count;
 
   indicators.push({
     name: "relay_queue_depth",
-    value: pendingRelay.size,
-    status: pendingRelay.size > 50 ? "critical" : pendingRelay.size > 20 ? "warning" : "ok",
+    value: pendingRelayCount,
+    status: pendingRelayCount > 50 ? "critical" : pendingRelayCount > 20 ? "warning" : "ok",
     threshold: { warning: 20, critical: 50 },
   });
 
@@ -119,16 +130,17 @@ export async function runHealthCheck(
   });
 
   // 6. Cleanup backlog (expired but uncleaned relay messages)
-  const expiredRelay = await firestore
+  const expiredRelayCount = (await firestore
     .collection(`tenants/${userId}/relay`)
     .where("status", "==", "pending")
     .where("expiresAt", "<=", now)
-    .get();
+    .count()
+    .get()).data().count;
 
   indicators.push({
     name: "cleanup_backlog",
-    value: expiredRelay.size,
-    status: expiredRelay.size > 50 ? "critical" : expiredRelay.size > 10 ? "warning" : "ok",
+    value: expiredRelayCount,
+    status: expiredRelayCount > 50 ? "critical" : expiredRelayCount > 10 ? "warning" : "ok",
     threshold: { warning: 10, critical: 50 },
   });
 

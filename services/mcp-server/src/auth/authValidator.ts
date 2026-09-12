@@ -25,6 +25,9 @@ export interface AuthContext {
   seatId?: string;
 }
 
+/** Throttle for the keyIndex.lastUsedAt write (see validateApiKey). */
+export const LAST_USED_WRITE_INTERVAL_MS = 60 * 60_000;
+
 function hashApiKey(apiKey: string): string {
   return crypto.createHash("sha256").update(apiKey).digest("hex");
 }
@@ -112,8 +115,14 @@ export async function validateApiKey(
       }
     }
 
-    // Update lastUsedAt (fire-and-forget — don't block auth)
-    db.doc(`keyIndex/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
+    // Update lastUsedAt (fire-and-forget — don't block auth), at most once an
+    // hour per key (COST PDR 2c). Its only reader (index.ts) asks "used in the last 7
+    // days", and writing it on every call made it one Firestore write per
+    // request for the fleet's busiest caller. Uses the doc already read above.
+    const lastUsedMs: number = data.lastUsedAt?.toMillis?.() ?? 0;
+    if (Date.now() - lastUsedMs >= LAST_USED_WRITE_INTERVAL_MS) {
+      db.doc(`keyIndex/${keyHash}`).update({ lastUsedAt: FieldValue.serverTimestamp() }).catch(() => {});
+    }
 
     // WS-2: seatId comes ONLY from the validated key doc — never from a request header.
     const seatId: string | undefined = typeof data.seatId === "string" ? data.seatId : undefined;

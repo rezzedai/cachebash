@@ -18,11 +18,19 @@ const mockDb: any = {
   collection: jest.fn(),
 };
 
-const mockCollection = {
+const mockCollection: any = {
   where: jest.fn().mockReturnThis(),
   get: jest.fn(),
   add: jest.fn(),
 };
+// count() aggregations share the document queries' call sequence: each query
+// still issues exactly one get(), so the callCount-indexed fixtures below keep
+// meaning "the Nth query". The count reads the fixture's `size`.
+mockCollection.count = jest.fn(() => ({
+  get: () => Promise.resolve(mockCollection.get()).then((snap: any) => ({
+    data: () => ({ count: snap?.size ?? 0 }),
+  })),
+}));
 
 describe("Health Monitor", () => {
   const testUserId = "test-user-123";
@@ -213,5 +221,33 @@ describe("Health Monitor", () => {
       expect(indicator.threshold).toHaveProperty("critical");
       expect(["ok", "warning", "critical"]).toContain(indicator.status);
     });
+  });
+
+  // W5 F1: the four indicators that only need an integer use count()
+  // aggregations (one read per 1,000 index entries) instead of fetching
+  // every matching document to read `.size`.
+  it("computes the count-only indicators with count() aggregations (W5 F1)", async () => {
+    mockCollection.get.mockResolvedValue({ size: 0, docs: [] });
+
+    await runHealthCheck(testUserId);
+
+    expect(mockCollection.count).toHaveBeenCalledTimes(4);
+  });
+
+  // W5 F2: stale_task_count is bounded below at 24h, so its cost follows
+  // recent work instead of every task that ever stayed in `created`.
+  it("bounds stale_task_count to tasks created within the last 24h (W5 F2)", async () => {
+    mockCollection.get.mockResolvedValue({ size: 0, docs: [] });
+    const before = Date.now();
+
+    await runHealthCheck(testUserId);
+
+    const lowerBounds = mockCollection.where.mock.calls.filter(
+      (c: any[]) => c[0] === "createdAt" && c[1] === ">="
+    );
+    expect(lowerBounds).toHaveLength(1);
+    const boundMs = lowerBounds[0][2].toMillis();
+    const dayMs = 24 * 60 * 60 * 1000;
+    expect(Math.abs(before - dayMs - boundMs)).toBeLessThan(60 * 1000);
   });
 });
