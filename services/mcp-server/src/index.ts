@@ -27,6 +27,7 @@ import { SessionManager } from "./transport/SessionManager.js";
 import { emitEvent } from "./modules/events.js";
 import { reconcileGitHub } from "./modules/github-reconcile.js";
 import { detectStaleSessions } from "./modules/stale-session-detector.js";
+import { getBuildIdentity } from "./utils/buildInfo.js";
 import { executeSchedulesForUser } from "./modules/schedule-executor.js";
 import { checkSessionCompliance, resetTransportCompliance } from "./middleware/sessionCompliance.js";
 import { checkPricing } from "./middleware/pricingEnforce.js";
@@ -375,6 +376,7 @@ async function main() {
       return sendJson(res, 200, {
         status: "ok",
         version: "2.0.0",
+        ...getBuildIdentity(),
         timestamp: new Date().toISOString(),
         endpoints: {
           mcp: "/v1/mcp",
