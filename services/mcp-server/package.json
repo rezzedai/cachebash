@@ -12,7 +12,8 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:integration": "jest --config jest.integration.config.js"
+    "test:integration": "jest --config jest.integration.config.js",
+    "test:probes": "jest --config jest.probes.config.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
