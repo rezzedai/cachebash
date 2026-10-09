@@ -14,5 +14,6 @@ module.exports = {
   globalSetup: "<rootDir>/src/__tests__/probes/harness/globalSetup.ts",
   globalTeardown: "<rootDir>/src/__tests__/probes/harness/globalTeardown.ts",
   testTimeout: 60000,
+  testSequencer: "<rootDir>/src/__tests__/probes/harness/sequencer.js",
   maxWorkers: 1, // one server, one emulator, serial: the transport keeps per-request auth on a shared field
 };

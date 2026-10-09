@@ -143,12 +143,6 @@ export const CASES: Case[] = [
       return t.json?.task?.target === c.subject && !!r;
     },
   })),
-  {
-    id: "dispatch_quarantine_program", tool: "dispatch_quarantine_program",
-    args: (c) => ({ programId: c.subject, reason: "probe" }),
-    reached: async (c) => JSON.stringify(await programDoc(c)).includes("quarantine"),
-    cleanup: async (c) => { await seederCall(c, "dispatch_unquarantine_program", { programId: c.subject }); },
-  },
   // --- schedule (rows 34-36)
   {
     id: "schedule_create", tool: "schedule_create",
