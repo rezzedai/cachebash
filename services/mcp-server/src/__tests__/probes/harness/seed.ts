@@ -44,7 +44,7 @@ export function credentialSpecs(): Spec[] {
     { name: "observer", tenant: "A", programId: "beta", capabilities: [...preset, "fleet.observe"] },
     { name: "admin", tenant: "A", programId: "beta", capabilities: [...preset, "fleet.admin"] },
     { name: "tenantB", tenant: "B", programId: "alpha", capabilities: ["*"] },
-    { name: "disposable", tenant: "A", programId: "alpha", capabilities: preset },
+    { name: "disposable", tenant: "A", programId: "alpha", capabilities: scopedCapabilities() }, // keys.write is needed to revoke at all; the wingman preset has none
   ];
 }
 
