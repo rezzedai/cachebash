@@ -11,6 +11,8 @@ export interface WorldCredential {
   keyHash: string;
 }
 
+import type { SeedData } from "./data";
+
 export interface World {
   baseUrl: string;
   serverPid: number;
@@ -22,6 +24,8 @@ export interface World {
   creds: Record<CredentialName, WorldCredential>;
   /** setup-only credentials, one per tenant, program "legacy" with ["*"]; used to seed through the real handlers */
   seeders: { A: WorldCredential; B: WorldCredential };
+  /** ids of the rows seeded through the real handlers, per tenant and program */
+  seed: SeedData;
 }
 
 export const WORLD_FILE_ENV = "PROBE_WORLD_FILE";
