@@ -41,7 +41,7 @@ export function credentialSpecs(): Spec[] {
     { name: "restricted", tenant: "A", programId: "alpha", capabilities: preset },
     { name: "scoped", tenant: "A", programId: "alpha", capabilities: scopedCapabilities() },
     { name: "wildcard", tenant: "A", programId: "alpha", capabilities: ["*"] },
-    { name: "observer", tenant: "A", programId: "beta", capabilities: [...preset, "fleet.observe"] },
+    { name: "observer", tenant: "A", programId: "beta", capabilities: [...preset, "gsp.write", "fleet.observe"] }, // gsp_bootstrap is mapped to gsp.write; the bare preset cannot call it at all
     { name: "admin", tenant: "A", programId: "beta", capabilities: [...preset, "fleet.admin"] },
     { name: "tenantB", tenant: "B", programId: "alpha", capabilities: ["*"] },
     { name: "disposable", tenant: "A", programId: "alpha", capabilities: scopedCapabilities() }, // keys.write is needed to revoke at all; the wingman preset has none
@@ -59,6 +59,8 @@ export async function writeKey(
     programId,
     label,
     capabilities,
+    // the default tier is 60 requests a minute per key; a probe makes hundreds. Data on the key document, not a code switch.
+    rateLimitTier: "internal",
     active: true,
     createdAt: Timestamp.now(),
     expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600 * 1000),
