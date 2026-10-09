@@ -5,6 +5,7 @@ import { assertEmulatorOnly } from "./guard";
 import { clearEmulator } from "./emulator";
 import { seedAll } from "./seed";
 import { startServer } from "./server";
+import { seedData } from "./data";
 import { WORLD_FILE_ENV, World } from "./world";
 
 /** Runs once before the whole corpus. The production-refusal assertion is the first thing that happens. */
@@ -18,6 +19,8 @@ export default async function globalSetup(): Promise<void> {
   const serverDir = process.env.PROBE_SERVER_DIR || undefined;
   const srv = await startServer({ serverDir, authMode, logPath: path.join(dir, "server.log") });
 
+  const seed = await seedData({ baseUrl: srv.baseUrl }, seeders);
+
   const world: World = {
     baseUrl: srv.baseUrl,
     serverPid: srv.pid,
@@ -28,6 +31,7 @@ export default async function globalSetup(): Promise<void> {
     tenants,
     creds,
     seeders,
+    seed,
   };
   const file = path.join(dir, "world.json");
   fs.writeFileSync(file, JSON.stringify(world), { mode: 0o600 });
