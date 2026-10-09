@@ -168,11 +168,9 @@ export const CASES: Case[] = [
     args: (c) => ({ programId: c.subject, displayName: `pu-${c.n}` }),
     reached: async (c) => (await programDoc(c)).displayName === `pu-${c.n}`,
   },
-  {
-    id: "audit_get_audit", tool: "audit_get_audit",
-    args: (c) => ({ programId: c.subject }),
-    reached: async (c, r) => !!r.json?.success && JSON.stringify(r.json).includes(`"${c.subject}"`),
-  },
+  // audit_get_audit is deliberately not here: its only gate is the capability audit.read, which authorises reading
+  // the audit of any program (W.07 covers the wildcard half). Whether it "reaches beta" depends on what beta
+  // has already done in the ledger, so the verdict would be data-dependent, not a property of the gate.
   {
     id: "audit_get_ack_compliance", tool: "audit_get_ack_compliance",
     args: (c) => ({ programId: c.subject }),

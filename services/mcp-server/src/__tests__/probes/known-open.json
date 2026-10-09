@@ -134,5 +134,21 @@
   "W.19": {
     "closes_in": "PR-N",
     "hole": "a bare [\"*\"] credential passes: gsp.ts:1189 gsp_seed"
+  },
+  "B.typed_memory_status": {
+    "closes_in": "PR-I",
+    "hole": "payload.memory.status is not typed (loaded/empty/omitted/error)"
+  },
+  "M.unreadable_state_is_an_error": {
+    "closes_in": "PR-I",
+    "hole": "a failed self-read is swallowed; the caller sees an empty memory block"
+  },
+  "H.override_changes_nothing": {
+    "closes_in": "PR-H",
+    "hole": "under AUTH_MODE=hybrid the X-Program-Id header recomputes principal and capabilities"
+  },
+  "N.denials_name_the_principal": {
+    "closes_in": "PR-K, PR-L",
+    "hole": "silent empties (relay_get_messages, relay_get_sent_messages) and an anonymous denial (programs_update_program)"
   }
 }

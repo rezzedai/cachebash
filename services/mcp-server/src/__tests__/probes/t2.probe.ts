@@ -17,13 +17,16 @@ describe("T2 identifier-argument tools", () => {
       const r = await callTool(w, w.creds[k.cred ?? "scoped"], k.tool, k.args(c));
       const reached = await k.reached(c, r);
       await k.cleanup?.(c);
+      last = r.text.slice(0, 300);
       return reached;
     };
+    let last = "";
     probe(`T2.${k.id}`, async () => {
       expect(await run("beta")).toBe(false);
     });
     test(`T2.${k.id} control: own subject reaches seeded data`, async () => {
-      expect(await run("alpha")).toBe(true);
+      const reached = await run("alpha");
+      expect({ reached, response: last }).toMatchObject({ reached: true });
     });
   }
 });

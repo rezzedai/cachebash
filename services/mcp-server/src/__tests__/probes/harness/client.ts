@@ -84,13 +84,13 @@ export async function callTool(
 }
 
 /** tools/list as `cred` (what the transport shows that credential). */
-export async function listTools(world: World, cred: WorldCredential, transport: Transport = "mcp"): Promise<string[]> {
+export async function listTools(world: World, cred: WorldCredential, transport: Transport = "mcp", headers: Record<string, string> = {}): Promise<string[]> {
   const init = await post(world, transport, cred.key, {
     jsonrpc: "2.0", id: rpcId++, method: "initialize",
     params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "rd5-probe", version: "1" } },
-  });
+  }, undefined, headers);
   const sessionId = init.headers.get("mcp-session-id") ?? undefined;
-  const r = await post(world, transport, cred.key, { jsonrpc: "2.0", id: rpcId++, method: "tools/list", params: {} }, sessionId);
+  const r = await post(world, transport, cred.key, { jsonrpc: "2.0", id: rpcId++, method: "tools/list", params: {} }, sessionId, headers);
   return (r.parsed?.result?.tools ?? []).map((t: any) => t.name as string);
 }
 
