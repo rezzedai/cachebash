@@ -62,5 +62,77 @@
   "T2.rest_messages_mark_read": {
     "closes_in": "PR-M",
     "hole": "POST /v1/messages/mark_read marks any message read, no ownership check (row 53)"
+  },
+  "W.01": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: index.ts:193 per-tool gate, /v1/mcp"
+  },
+  "W.02": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: iso/isoServer.ts:102 per-tool gate, /v1/iso/mcp"
+  },
+  "W.03": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:197 callTool gate, REST"
+  },
+  "W.04": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:301 enforceBreaker gate, REST"
+  },
+  "W.05": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: middleware/capabilities.ts:318 unmapped tool passes for *"
+  },
+  "W.06": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: ownerAuthz.ts:77 mint ceiling lets a [*] provisioner mint literal-only capabilities"
+  },
+  "W.07": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/audit.ts:25"
+  },
+  "W.08": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:62 comms metrics"
+  },
+  "W.09": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:131 cost summary"
+  },
+  "W.10": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:218 operational metrics"
+  },
+  "W.11": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:622 cost forecast"
+  },
+  "W.12": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:723 sla compliance"
+  },
+  "W.13": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:841 program health"
+  },
+  "W.14": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/pulse.ts:401 fleet health"
+  },
+  "W.15": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:131 requireAdmin"
+  },
+  "W.17": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: dispatch/backfillExpiresAt.ts:61"
+  },
+  "W.18": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: dispatch/reapExpiredTasks.ts:219"
+  },
+  "W.19": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: gsp.ts:1189 gsp_seed"
   }
 }
