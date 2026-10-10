@@ -1,0 +1,12 @@
+# mutation for probe T6.keys: the tenant-uid comparison is removed: with a shared program name, tenant B can revoke tenant A's key (recon C-2)
+diff --git a/src/modules/keys.ts b/src/modules/keys.ts
+index 3965e25..dc4566b 100644
+--- a/src/modules/keys.ts
++++ b/src/modules/keys.ts
+@@ -156,5 +156,5 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
+ 
+   const data = keyDoc.data();
+-  if (data?.userId !== auth.userId) {
++  if (false) {
+     return {
+       content: [{ type: "text", text: JSON.stringify({ success: false, error: "Key belongs to a different user" }) }],

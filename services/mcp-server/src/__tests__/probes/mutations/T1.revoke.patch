@@ -1,0 +1,12 @@
+# mutation for probe T1.revoke: the principal guard (BUG-009) is removed: any program may revoke any key in its tenant
+diff --git a/src/modules/keys.ts b/src/modules/keys.ts
+index 3965e25..5b7b6ed 100644
+--- a/src/modules/keys.ts
++++ b/src/modules/keys.ts
+@@ -167,5 +167,5 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
+   const principal = credentialPrincipal(auth);
+   const targetProgramId = data?.programId;
+-  if (targetProgramId !== principal && !isKeyAdmin(auth)) {
++  if (false) {
+     return {
+       content: [{ type: "text", text: JSON.stringify({

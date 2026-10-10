@@ -1,0 +1,12 @@
+# mutation for probe T2.state_store_memory: the canWrite check in this handler no longer runs, so another program's memory is writable
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+index 68cbd9a..3faea9f 100644
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -324,5 +324,5 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
+   }
+ 
+-  if (!canWrite(auth, args.programId)) {
++  if (false) {
+     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+   }

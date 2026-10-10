@@ -1,0 +1,12 @@
+# mutation for probe B.foreign_denied: a foreign bootstrap read is allowed for every key
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 752eb62..86c3757 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -650,5 +650,5 @@ function authorizeGspBootstrapRead(
+   // routed through hasCapability (wildcard-expands "*"; see ownerAuthz.ts).
+   const widened = hasFleetObserveCapability(auth);
+-  return { allowed: widened, principal, isSelf: false, foreignReadViaFleetObserve: widened };
++  return { allowed: true, principal, isSelf: false, foreignReadViaFleetObserve: widened };
+ }
+ 

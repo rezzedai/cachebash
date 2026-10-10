@@ -12,7 +12,9 @@ describe("B bootstrap memory", () => {
     const w = world();
     const r = await callTool(w, w.creds.scoped, "gsp_bootstrap", { agentId: "alpha", depth: "standard" });
     expect(r.json?.success).toBe(true);
-    expect(r.text).toContain("mk-A-alpha"); // alpha's seeded memory pattern
+    // in the memory block itself, not anywhere in the payload (other sections can echo seeded strings)
+    expect(r.json.payload.memory.omitted).not.toBe(true);
+    expect(JSON.stringify(r.json.payload.memory)).toContain("mk-A-alpha"); // alpha's seeded memory pattern
   });
 
   probe("B.foreign_denied", async () => {
