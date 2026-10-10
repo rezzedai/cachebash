@@ -1,0 +1,12 @@
+# mutation for probe T2.relay_get_sent_messages: every caller may name the source whose sent messages it reads
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+index cf9f4a1..b758bec 100644
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -612,5 +612,5 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
+ 
+   // Programs see own sent only; admin can pass optional source to see any
+-  const isPrivileged = isAdmin(auth);
++  const isPrivileged = true;
+   const source = isPrivileged && args.source ? args.source : auth.programId;
+ 

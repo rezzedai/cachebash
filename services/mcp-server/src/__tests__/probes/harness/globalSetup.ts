@@ -11,7 +11,9 @@ import { WORLD_FILE_ENV, World } from "./world";
 /** Runs once before the whole corpus. The production-refusal assertion is the first thing that happens. */
 export default async function globalSetup(): Promise<void> {
   const target = assertEmulatorOnly(); // before any seeding, before any server start
-  await clearEmulator();
+  // a mutation-control run (mutations.probe.ts) is nested inside a live run and must not wipe the outer run's data;
+  // every tenant uid is random, so a nested run cannot collide with it
+  if (!process.env.PROBE_NESTED) await clearEmulator();
   const { tenants, creds, seeders } = await seedAll();
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rd5-probes-"));

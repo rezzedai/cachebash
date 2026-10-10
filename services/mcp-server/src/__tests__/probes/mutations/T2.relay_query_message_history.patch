@@ -1,0 +1,12 @@
+# mutation for probe T2.relay_query_message_history: the participant-scope check is skipped for every caller
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+index cf9f4a1..7aff126 100644
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -732,5 +732,5 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
+   // Caller-supplied identity args naming another program are rejected,
+   // never passed through to the query.
+-  const privileged = isAdmin(auth);
++  const privileged = true;
+   if (!privileged) {
+     const self = auth.programId;

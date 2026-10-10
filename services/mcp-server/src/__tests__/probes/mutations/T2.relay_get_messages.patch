@@ -1,0 +1,12 @@
+# mutation for probe T2.relay_get_messages: program keys get the admin read path: the requested target, not the caller, selects the inbox
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+index cf9f4a1..bfd440c 100644
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -475,5 +475,5 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
+     if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "dispatcher") {
+       // Program keys: only see messages targeted at this program or broadcast
+-      return t === auth.programId || t === "all";
++      return !t || t === requestedTarget || t === "all";
+     }
+     // Legacy/mobile keys: original behavior (filter by requested target)
