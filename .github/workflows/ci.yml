@@ -69,6 +69,9 @@ jobs:
         with:
           path: ~/.cache/firebase/emulators
           key: firestore-emulator-${{ runner.os }}-${{ hashFiles('services/mcp-server/package-lock.json', 'package-lock.json') }}
+      - name: Build the server under test (the harness drives dist/index.js)
+        working-directory: ./services/mcp-server
+        run: npm run build
       - name: Authorization probes (Firestore emulator)
         working-directory: ./services/mcp-server
         run: npx firebase-tools emulators:exec --only firestore --project demo-rd5 "npm run test:probes"
