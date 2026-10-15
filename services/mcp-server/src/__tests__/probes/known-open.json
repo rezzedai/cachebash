@@ -150,5 +150,9 @@
   "N.denials_name_the_principal": {
     "closes_in": "PR-K, PR-L",
     "hole": "silent empties (relay_get_messages, relay_get_sent_messages) and an anonymous denial (programs_update_program)"
+  },
+  "T6.admin_merge_accounts_legacy_cross_tenant": {
+    "closes_in": "PR-L",
+    "hole": "a legacy key in tenant B merges a uid into tenant A's canonical account: the gate checks programId == legacy and never compares canonicalUid to the caller's tenant (account-merge.ts)"
   }
 }
