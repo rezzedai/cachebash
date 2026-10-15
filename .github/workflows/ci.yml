@@ -48,3 +48,30 @@ jobs:
       - name: Build TypeScript
         working-directory: ./services/mcp-server
         run: npm run build
+
+  probes:
+    name: Probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci -w services/mcp-server
+      - name: Cache Firestore emulator binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firestore-emulator-${{ runner.os }}-${{ hashFiles('services/mcp-server/package-lock.json', 'package-lock.json') }}
+      - name: Build the server under test (the harness drives dist/index.js)
+        working-directory: ./services/mcp-server
+        run: npm run build
+      - name: Authorization probes (Firestore emulator)
+        working-directory: ./services/mcp-server
+        run: npx firebase-tools emulators:exec --only firestore --project demo-rd5 "npm run test:probes"

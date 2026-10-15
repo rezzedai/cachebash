@@ -1,0 +1,12 @@
+# mutation for probe T6.admin_merge_accounts: the admin gate is removed: any key may merge accounts
+diff --git a/src/modules/account-merge.ts b/src/modules/account-merge.ts
+index 6821fb0..a0d21d9 100644
+--- a/src/modules/account-merge.ts
++++ b/src/modules/account-merge.ts
+@@ -23,5 +23,5 @@ function jsonResult(data: unknown): ToolResult {
+ export async function mergeAccountsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   // Admin gate: only legacy (Flynn) keys can merge accounts
+-  if (auth.programId !== "legacy") {
++  if (false) {
+     return jsonResult({ success: false, error: "Admin only: merge_accounts requires legacy (admin) key" });
+   }

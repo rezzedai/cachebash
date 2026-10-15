@@ -1,0 +1,12 @@
+# mutation for probe T2.pulse_update_session: the session-owner binding no longer runs, so any key may update a sibling's session
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+index 5e2af39..ac299ee 100644
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -209,5 +209,5 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
+   const isPrivileged = !callerProgramId || callerProgramId === "legacy"
+     || callerProgramId === "mobile" || callerProgramId === "dispatcher";
+-  if (!isPrivileged) {
++  if (false) {
+     const sessionPrefix = sessionOwnerProgramId(sessionId);
+     if (sessionPrefix !== callerProgramId) {

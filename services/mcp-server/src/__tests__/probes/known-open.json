@@ -1,0 +1,154 @@
+{
+  "T2.pulse_create_session": {
+    "closes_in": "PR-L",
+    "hole": "creates a session under any program's id (recon row 11)"
+  },
+  "T2.pulse_list_sessions": {
+    "closes_in": "PR-L",
+    "hole": "lists any program's sessions (row 13)"
+  },
+  "T2.pulse_get_context_utilization": {
+    "closes_in": "PR-L",
+    "hole": "reads any session's context history (row 14)"
+  },
+  "T2.pulse_pause_program": {
+    "closes_in": "PR-L",
+    "hole": "pauses any program (row 15)"
+  },
+  "T2.pulse_resume_program": {
+    "closes_in": "PR-L",
+    "hole": "resumes any program (row 16)"
+  },
+  "T2.dispatch_get_tasks": {
+    "closes_in": "PR-K",
+    "hole": "reads any target's tasks when target is supplied (row 24)"
+  },
+  "T2.dispatch_reassign_task": {
+    "closes_in": "PR-L",
+    "hole": "moves a task to any program (row 30)"
+  },
+  "T2.dispatch_retry_task": {
+    "closes_in": "PR-L",
+    "hole": "re-targets a task to any program (row 29)"
+  },
+  "T2.dispatch_replay_task": {
+    "closes_in": "PR-L",
+    "hole": "clones a task onto any program (row 31)"
+  },
+  "T2.schedule_create": {
+    "closes_in": "PR-L",
+    "hole": "schedules work for any program (row 34)"
+  },
+  "T2.schedule_list": {
+    "closes_in": "PR-L",
+    "hole": "lists any program's schedules (row 35)"
+  },
+  "T2.schedule_update": {
+    "closes_in": "PR-L",
+    "hole": "re-targets a schedule to any program (row 36)"
+  },
+  "T2.audit_get_ack_compliance": {
+    "closes_in": "PR-L",
+    "hole": "reads any program's ack compliance (row 41)"
+  },
+  "T2.metrics_get_rate_limit_events": {
+    "closes_in": "PR-L",
+    "hole": "reads any session's rate-limit events (row 43)"
+  },
+  "T2.rest_messages_unread": {
+    "closes_in": "PR-M",
+    "hole": "GET /v1/messages/unread?sessionId=<other> reads any program's pending messages (row 52)"
+  },
+  "T2.rest_messages_mark_read": {
+    "closes_in": "PR-M",
+    "hole": "POST /v1/messages/mark_read marks any message read, no ownership check (row 53)"
+  },
+  "W.01": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: index.ts:193 per-tool gate, /v1/mcp"
+  },
+  "W.02": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: iso/isoServer.ts:102 per-tool gate, /v1/iso/mcp"
+  },
+  "W.03": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:197 callTool gate, REST"
+  },
+  "W.04": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:301 enforceBreaker gate, REST"
+  },
+  "W.05": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: middleware/capabilities.ts:318 unmapped tool passes for *"
+  },
+  "W.06": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: ownerAuthz.ts:77 mint ceiling lets a [*] provisioner mint literal-only capabilities"
+  },
+  "W.07": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/audit.ts:25"
+  },
+  "W.08": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:62 comms metrics"
+  },
+  "W.09": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:131 cost summary"
+  },
+  "W.10": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:218 operational metrics"
+  },
+  "W.11": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:622 cost forecast"
+  },
+  "W.12": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:723 sla compliance"
+  },
+  "W.13": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/metrics.ts:841 program health"
+  },
+  "W.14": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: modules/pulse.ts:401 fleet health"
+  },
+  "W.15": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:131 requireAdmin"
+  },
+  "W.17": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: dispatch/backfillExpiresAt.ts:61"
+  },
+  "W.18": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: dispatch/reapExpiredTasks.ts:219"
+  },
+  "W.19": {
+    "closes_in": "PR-N",
+    "hole": "a bare [\"*\"] credential passes: gsp.ts:1189 gsp_seed"
+  },
+  "B.typed_memory_status": {
+    "closes_in": "PR-I",
+    "hole": "payload.memory.status is not typed (loaded/empty/omitted/error)"
+  },
+  "M.unreadable_state_is_an_error": {
+    "closes_in": "PR-I",
+    "hole": "a failed self-read is swallowed; the caller sees an empty memory block"
+  },
+  "H.override_changes_nothing": {
+    "closes_in": "PR-H",
+    "hole": "under AUTH_MODE=hybrid the X-Program-Id header recomputes principal and capabilities"
+  },
+  "N.denials_name_the_principal": {
+    "closes_in": "PR-K, PR-L",
+    "hole": "silent empties (relay_get_messages, relay_get_sent_messages) and an anonymous denial (programs_update_program)"
+  }
+}
