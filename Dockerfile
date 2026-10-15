@@ -47,7 +47,20 @@ RUN npm install --omit=dev
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-COPY services/mcp-server/package.json ./
+
+# Build identity for /v1/health (src/utils/buildInfo.ts). Precedence per field:
+#   1. build-info.json, written by scripts/deploy-mcp.sh (file wins if present)
+#   2. GIT_SHA / BUILD_TIME env, from these ARGs (local: docker build --build-arg GIT_SHA=...)
+#   3. "unknown"
+# The glob build-info.jso[n] matches zero or one file, so the build still
+# succeeds when the file is absent (plain docker build, or a bare
+# `gcloud run deploy --source .` not made through the wrapper). package.json
+# is a second source so the COPY always has at least one match.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
+COPY services/mcp-server/package.json services/mcp-server/build-info.jso[n] ./
 
 # Set up non-root user for security
 RUN addgroup -g 1001 -S cachebash && \
