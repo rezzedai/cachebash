@@ -1,0 +1,12 @@
+# mutation for probe T1.list: every caller lists the whole tenant's keys
+diff --git a/src/modules/keys.ts b/src/modules/keys.ts
+index 3965e25..236267c 100644
+--- a/src/modules/keys.ts
++++ b/src/modules/keys.ts
+@@ -271,5 +271,5 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
+   // unless the caller is an explicit key admin.
+   const principal = credentialPrincipal(auth);
+-  const fleetWide = isKeyAdmin(auth);
++  const fleetWide = true;
+ 
+   const keys = snapshot.docs

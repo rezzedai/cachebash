@@ -1,0 +1,12 @@
+# mutation for probe B.self_returns_memory: a program's own bootstrap omits its memory
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 752eb62..42ac5a2 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -676,5 +676,5 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown):
+   // extend to another program's private memory (learned patterns, handoff
+   // notes). Explicit and positive, never a silently-empty section.
+-  const omitMemory = !authz.isSelf;
++  const omitMemory = true;
+ 
+   try {

@@ -1,0 +1,12 @@
+# mutation for probe B.observer_gets_no_memory: a fleet.observe reader is served another program's memory
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 752eb62..0e921b5 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -676,5 +676,5 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown):
+   // extend to another program's private memory (learned patterns, handoff
+   // notes). Explicit and positive, never a silently-empty section.
+-  const omitMemory = !authz.isSelf;
++  const omitMemory = false;
+ 
+   try {
