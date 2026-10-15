@@ -28,6 +28,12 @@ describe("WP-1 (ISO ruling): gridbot-monitor.ts admin-target alert mirror", () =
     const fakeDb: any = {
       collection: jest.fn((path: string) => ({
         where: jest.fn().mockReturnThis(),
+        // #432 moved the count-only indicators to aggregate count() queries.
+        // They report zero, so the failure-rate get() below stays the one
+        // that drives overall_status to critical.
+        count: jest.fn(() => ({
+          get: jest.fn(() => Promise.resolve({ data: () => ({ count: 0 }) })),
+        })),
         get: jest.fn(() => {
           getCallCount++;
           if (getCallCount === 1) {
