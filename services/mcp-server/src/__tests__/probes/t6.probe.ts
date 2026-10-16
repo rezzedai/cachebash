@@ -69,4 +69,15 @@ describe("T6 tenant isolation", () => {
     expect(ok.json?.success).toBe(true);
     expect((await emulatorDb().collection("canonical_accounts").where("email", "==", email).get()).size).toBe(1);
   });
+
+  // PR-B finding 2, pinned on VECTOR's review: the gate passes any legacy key, and nothing compares
+  // canonicalUid to the caller's tenant, so tenant B's legacy seeder folds a uid into tenant A's account.
+  // Known-open: this probe asserts the DENIAL, so it fails today and runs as test.failing until the fix.
+  probe("T6.admin_merge_accounts_legacy_cross_tenant", async () => {
+    const w = world();
+    const email = "t6-legacy-victim@example.invalid";
+    const hit = await callTool(w, w.seeders.B, "admin_merge_accounts", { email, canonicalUid: w.tenants.A, alternateUid: "t6-legacy-alt" });
+    expect(hit.json?.success).toBe(false);
+    expect((await emulatorDb().collection("canonical_accounts").where("email", "==", email).get()).size).toBe(0);
+  });
 });
