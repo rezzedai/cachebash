@@ -110,6 +110,8 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
       priority: "high",
       action: "interrupt",
       status: "created",
+      // actionable work for iso: get_tasks filters on requires_action == true (WP-1/WP-2)
+      requires_action: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       encrypted: false,
       archived: false,
