@@ -23,14 +23,36 @@ const TaskTemplateSchema = z.object({
   action: z.enum(["queue", "interrupt"]).default("queue"),
 });
 
-const CreateScheduleSchema = z.object({
-  name: z.string().max(200),
-  target: z.string().max(100),
-  cron: z.string().max(100),
-  taskTemplate: TaskTemplateSchema,
-  budgetCap: z.number().min(0).optional(),
-  enabled: z.boolean().default(true),
+// A "watch" schedule creates no task. When it fires it looks at the tasks a
+// different schedule (watch.scheduleId) made in the last withinHours, and writes
+// one alert if they are all still in watch.status -- or if there are none.
+export const WatchSchema = z.object({
+  scheduleId: z.string().min(1).max(100),
+  status: z.string().min(1).max(50),
+  withinHours: z.number().positive().max(168),
+  message: z.string().min(1).max(1500),
 });
+
+const CreateScheduleSchema = z
+  .object({
+    name: z.string().max(200),
+    target: z.string().max(100),
+    cron: z.string().max(100),
+    kind: z.enum(["task", "watch"]).default("task"),
+    taskTemplate: TaskTemplateSchema.optional(),
+    watch: WatchSchema.optional(),
+    budgetCap: z.number().min(0).optional(),
+    enabled: z.boolean().default(true),
+  })
+  .superRefine((v, ctx) => {
+    if (v.kind === "watch") {
+      if (!v.watch) ctx.addIssue({ code: "custom", path: ["watch"], message: 'kind "watch" requires a watch config' });
+      if (v.taskTemplate) ctx.addIssue({ code: "custom", path: ["taskTemplate"], message: 'kind "watch" creates no task; omit taskTemplate' });
+    } else {
+      if (!v.taskTemplate) ctx.addIssue({ code: "custom", path: ["taskTemplate"], message: 'kind "task" requires a taskTemplate' });
+      if (v.watch) ctx.addIssue({ code: "custom", path: ["watch"], message: 'watch config is only valid with kind "watch"' });
+    }
+  });
 
 const ListSchedulesSchema = z.object({
   target: z.string().max(100).optional(),
@@ -50,6 +72,7 @@ const UpdateScheduleSchema = z.object({
   name: z.string().max(200).optional(),
   target: z.string().max(100).optional(),
   taskTemplate: TaskTemplateSchema.optional(),
+  watch: WatchSchema.optional(),
 });
 
 const DeleteScheduleSchema = z.object({
@@ -104,7 +127,11 @@ export async function createScheduleHandler(auth: AuthContext, rawArgs: unknown)
     name: args.name,
     target: args.target,
     cron: args.cron,
-    taskTemplate: args.taskTemplate,
+    // Absent kind means "task" for every schedule written before this field
+    // existed; new docs record it explicitly. Only watch docs carry `watch`,
+    // and a watch doc has no taskTemplate.
+    kind: args.kind,
+    ...(args.kind === "watch" ? { watch: args.watch } : { taskTemplate: args.taskTemplate }),
     budgetCap: args.budgetCap ?? null,
     enabled: args.enabled,
     lastRunAt: null,
@@ -267,7 +294,19 @@ export async function updateScheduleHandler(auth: AuthContext, rawArgs: unknown)
   if (args.enabled !== undefined) updates.enabled = args.enabled;
   if (args.name !== undefined) updates.name = args.name;
   if (args.target !== undefined) updates.target = args.target;
-  if (args.taskTemplate !== undefined) updates.taskTemplate = args.taskTemplate;
+  const existingKind = doc.data()?.kind ?? "task";
+  if (args.taskTemplate !== undefined) {
+    if (existingKind === "watch") {
+      return jsonResult({ success: false, error: "INVALID_KIND", message: `Schedule "${args.scheduleId}" is a watch; it has no taskTemplate.` });
+    }
+    updates.taskTemplate = args.taskTemplate;
+  }
+  if (args.watch !== undefined) {
+    if (existingKind !== "watch") {
+      return jsonResult({ success: false, error: "INVALID_KIND", message: `Schedule "${args.scheduleId}" is a task schedule; it has no watch config.` });
+    }
+    updates.watch = args.watch;
+  }
 
   await docRef.update(updates);
 
