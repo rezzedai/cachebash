@@ -17,7 +17,7 @@ export const handlers: Record<string, Handler> = {
 export const definitions = [
   {
     name: "schedule_create",
-    description: "Create a recurring schedule: {name, target, cron, taskTemplate, budgetCap, enabled}",
+    description: "Create a recurring schedule: {name, target, cron, taskTemplate, budgetCap, enabled}. kind \"watch\" (with `watch` instead of taskTemplate) creates no task: when it fires it alerts the user (push + Slack) if the tasks schedule watch.scheduleId made in the last watch.withinHours are all still in watch.status, or if there are none.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -35,10 +35,22 @@ export const definitions = [
           },
           required: ["title"],
         },
+        kind: { type: "string", enum: ["task", "watch"], default: "task", description: "task (default): create a task each run. watch: alert instead; requires `watch`, omit taskTemplate" },
+        watch: {
+          type: "object",
+          description: "kind \"watch\" only: what to watch and what to say",
+          properties: {
+            scheduleId: { type: "string", maxLength: 100, description: "The schedule whose tasks are watched" },
+            status: { type: "string", maxLength: 50, description: "Alert while every watched task is still in this status (e.g. 'created')" },
+            withinHours: { type: "number", exclusiveMinimum: 0, maximum: 168, description: "Look at tasks created within this many hours" },
+            message: { type: "string", maxLength: 1500, description: "Alert text" },
+          },
+          required: ["scheduleId", "status", "withinHours", "message"],
+        },
         budgetCap: { type: "number", minimum: 0, description: "Max $ per execution" },
         enabled: { type: "boolean", default: true },
       },
-      required: ["name", "target", "cron", "taskTemplate"],
+      required: ["name", "target", "cron"],
     },
   },
   {
@@ -86,6 +98,17 @@ export const definitions = [
             action: { type: "string", enum: ["queue", "interrupt"] },
           },
           required: ["title"],
+        },
+        watch: {
+          type: "object",
+          description: "kind \"watch\" only: what to watch and what to say",
+          properties: {
+            scheduleId: { type: "string", maxLength: 100, description: "The schedule whose tasks are watched" },
+            status: { type: "string", maxLength: 50, description: "Alert while every watched task is still in this status (e.g. 'created')" },
+            withinHours: { type: "number", exclusiveMinimum: 0, maximum: 168, description: "Look at tasks created within this many hours" },
+            message: { type: "string", maxLength: 1500, description: "Alert text" },
+          },
+          required: ["scheduleId", "status", "withinHours", "message"],
         },
       },
       required: ["scheduleId"],
