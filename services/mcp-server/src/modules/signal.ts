@@ -172,33 +172,58 @@ export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): P
   });
 }
 
-export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  const args = SendAlertSchema.parse(rawArgs);
-  const db = getFirestore();
+export interface AlertDocInput {
+  message: string;
+  alertType: "error" | "warning" | "success" | "info";
+  priority: "low" | "normal" | "high";
+  context?: string | null;
+  sessionId?: string | null;
+  /** Relay `source`. sendAlertHandler uses "program"; the watchdog uses "watchdog". */
+  source?: string;
+  /**
+   * Relay `target`. "user" (default) is the FCM-only shape sendAlertHandler writes.
+   * "slack-bridge" is what onSlackBridge keys on; onRelayCreate pushes to devices
+   * for ANY target when priority is "high", so one doc with target "slack-bridge"
+   * reaches both channels.
+   */
+  relayTarget?: string;
+}
 
-  const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
+/**
+ * The alert shape: a relay doc plus its mirrored task. Shared by send_alert and
+ * the schedule executor's watch kind so the two cannot drift apart.
+ *
+ * `txn` is optional. With it both docs are created inside the caller's
+ * transaction (the relay id is minted up front); without it the relay is
+ * `add`ed and the task mirror `set` after, exactly as send_alert always did.
+ */
+export async function writeAlertDocs(
+  db: FirebaseFirestore.Firestore,
+  userId: string,
+  input: AlertDocInput,
+  txn?: FirebaseFirestore.Transaction,
+): Promise<string> {
+  const preview = input.message.length > 50 ? input.message.substring(0, 47) + "..." : input.message;
   const TTL_SECONDS = 3600; // 1 hour for alerts
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
 
   // Alerts go to relay with short TTL
   const alertData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,
-    source: "program",
-    target: "user",
+    source: input.source ?? "program",
+    target: input.relayTarget ?? "user",
     message_type: "STATUS",
-    payload: args.message,
-    priority: args.priority,
+    payload: input.message,
+    priority: input.priority,
     action: "queue",
-    sessionId: args.sessionId || null,
+    sessionId: input.sessionId || null,
     status: "pending",
     ttl: TTL_SECONDS,
     expiresAt,
-    alertType: args.alertType,
-    context: args.context || null,
+    alertType: input.alertType,
+    context: input.context || null,
     createdAt: serverTimestamp(),
   };
-
-  const ref = await db.collection(`tenants/${auth.userId}/relay`).add(alertData);
 
   // Also write to tasks for mobile visibility. W2e: the task mirror tracks the
   // relay record's own ttl/expiresAt (computed once, above) rather than being
@@ -206,15 +231,15 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
   // will action, so giving it the same 1h window makes it reapable instead of
   // permanent scan ballast. Same "one resolved value, both records" pattern as
   // W2c's dispatch()/directive-record fix.
-  await db.collection(`tenants/${auth.userId}/tasks`).doc(ref.id).set({
+  const taskData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,
     type: "task",
-    title: `[Alert: ${args.alertType}] ${preview}`,
-    instructions: args.message,
+    title: `[Alert: ${input.alertType}] ${preview}`,
+    instructions: input.message,
     preview,
-    source: "program",
+    source: input.source ?? "program",
     target: "user",
-    priority: args.priority,
+    priority: input.priority,
     action: "queue",
     status: "created",
     createdAt: serverTimestamp(),
@@ -225,12 +250,39 @@ export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Pro
     // WP-1: target:"user" alert mirror — informational, not program-actionable.
     // See ask_question's write above for the same rationale.
     requires_action: false,
+  };
+
+  const relayCol = db.collection(`tenants/${userId}/relay`);
+  const taskCol = db.collection(`tenants/${userId}/tasks`);
+
+  if (txn) {
+    const relayRef = relayCol.doc();
+    txn.create(relayRef, alertData);
+    txn.create(taskCol.doc(relayRef.id), taskData);
+    return relayRef.id;
+  }
+
+  const ref = await relayCol.add(alertData);
+  await taskCol.doc(ref.id).set(taskData);
+  return ref.id;
+}
+
+export async function sendAlertHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+  const args = SendAlertSchema.parse(rawArgs);
+  const db = getFirestore();
+
+  const alertId = await writeAlertDocs(db, auth.userId, {
+    message: args.message,
+    alertType: args.alertType,
+    priority: args.priority,
+    context: args.context,
+    sessionId: args.sessionId,
   });
 
   return jsonResult({
     success: true,
-    alertId: ref.id,
+    alertId,
     alertType: args.alertType,
-    message: `Alert sent to user's device. Alert ID: "${ref.id}"`,
+    message: `Alert sent to user's device. Alert ID: "${alertId}"`,
   });
 }
