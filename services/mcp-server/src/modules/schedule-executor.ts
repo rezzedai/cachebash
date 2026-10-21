@@ -4,6 +4,12 @@
  *
  * For each tenant, queries schedules where enabled=true and nextRunAt <= now,
  * creates a task from the schedule's taskTemplate, and advances nextRunAt.
+ *
+ * A schedule with kind "watch" creates no task. It checks the tasks another
+ * schedule made recently and writes one alert if they are all still unclaimed
+ * (or if none exist). It runs from here -- a Cloud Scheduler job every minute --
+ * so it needs no live session, which is the point: the alert goes to the user's
+ * phone and Slack, not to a program.
  */
 
 import { getFirestore } from "../firebase/client.js";
@@ -11,12 +17,16 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { emitEvent } from "./events.js";
 import { computeNextRun } from "./schedule.js";
 import { CONSTANTS } from "../config/constants.js";
+import { writeAlertDocs } from "./signal.js";
 
 export interface ScheduleFired {
   scheduleId: string;
   scheduleName: string;
-  taskId: string;
+  /** Null for a watch schedule, which creates no task. */
+  taskId: string | null;
   target: string;
+  /** Set when a watch schedule wrote an alert. */
+  alertId?: string;
 }
 
 export interface ScheduleExecutionResult {
@@ -83,6 +93,11 @@ async function fireSchedule(
     if (!schedule.enabled) return null;
     if (schedule.nextRunAt && schedule.nextRunAt > now.toISOString()) return null;
 
+    // Missing kind means "task": every schedule written before kind existed.
+    if (schedule.kind === "watch") {
+      return fireWatch(db, userId, scheduleRef, schedule, now, txn);
+    }
+
     const template = schedule.taskTemplate || {};
 
     // Create the task document. W2e: no expiresAt was ever written here -- every
@@ -138,4 +153,83 @@ async function fireSchedule(
       target: schedule.target,
     };
   });
+}
+
+/**
+ * Watch branch of fireSchedule, inside its transaction. Reads happen before any
+ * write (Firestore requires it), and the caller's nextRunAt re-check already ran,
+ * so a concurrent second fire never reaches here and writes no second alert.
+ */
+async function fireWatch(
+  db: FirebaseFirestore.Firestore,
+  userId: string,
+  scheduleRef: FirebaseFirestore.DocumentReference,
+  schedule: FirebaseFirestore.DocumentData,
+  now: Date,
+  txn: FirebaseFirestore.Transaction,
+): Promise<ScheduleFired> {
+  const watch = schedule.watch;
+  if (!watch || typeof watch.scheduleId !== "string" || typeof watch.status !== "string" || !(watch.withinHours > 0)) {
+    // A malformed watch must not look like a quiet pass. Throwing aborts the
+    // transaction, nextRunAt stays due, and executeSchedulesForUser counts an error.
+    throw new Error(`watch schedule ${scheduleRef.id} has no valid watch config`);
+  }
+
+  const cutoffMs = now.getTime() - watch.withinHours * 3600 * 1000;
+  // Equality on scheduleId only (single-field index, no composite index to
+  // deploy); the window is applied in memory. A task whose createdAt cannot be
+  // read counts as inside the window so it can never be skipped silently.
+  const tasksSnap = await txn.get(
+    db.collection(`tenants/${userId}/tasks`).where("scheduleId", "==", watch.scheduleId),
+  );
+  const inWindow = tasksSnap.docs.filter((d) => {
+    const createdAt = d.data().createdAt;
+    const ms = createdAt && typeof createdAt.toMillis === "function" ? createdAt.toMillis() : null;
+    return ms === null || ms >= cutoffMs;
+  });
+
+  let alertId: string | undefined;
+  if (inWindow.length === 0) {
+    // Silent absence: the watched schedule produced nothing. Never a pass.
+    alertId = await writeAlertDocs(db, userId, {
+      message: `Watched schedule ${watch.scheduleId} did not fire: no task created in the last ${watch.withinHours}h. ${watch.message ?? ""}`.trim(),
+      alertType: "error",
+      priority: "high",
+      context: `watch:${scheduleRef.id} not_fired`,
+      source: "watchdog",
+      relayTarget: "slack-bridge",
+    }, txn);
+  } else if (inWindow.every((d) => d.data().status === watch.status)) {
+    alertId = await writeAlertDocs(db, userId, {
+      message: watch.message ?? `Tasks from schedule ${watch.scheduleId} are still ${watch.status}.`,
+      alertType: "error",
+      priority: "high",
+      context: `watch:${scheduleRef.id} still_${watch.status}`,
+      source: "watchdog",
+      relayTarget: "slack-bridge",
+    }, txn);
+  }
+
+  txn.update(scheduleRef, {
+    lastRunAt: now.toISOString(),
+    nextRunAt: computeNextRun(schedule.cron),
+    updatedAt: now.toISOString(),
+  });
+
+  emitEvent(userId, {
+    event_type: "SCHEDULE_FIRED",
+    schedule_id: scheduleRef.id,
+    schedule_name: schedule.name,
+    target: schedule.target,
+    cron: schedule.cron,
+    watch_alerted: alertId !== undefined,
+  });
+
+  return {
+    scheduleId: scheduleRef.id,
+    scheduleName: schedule.name,
+    taskId: null,
+    target: schedule.target,
+    ...(alertId ? { alertId } : {}),
+  };
 }
