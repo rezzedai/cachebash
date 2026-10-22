@@ -1,7 +1,7 @@
 import {
   reapPaginated,
   reapTasks,
-  reapRelay,
+  reapProposals,
   MAX_PAGE_SIZE,
   MAX_PAGES_PER_COLLECTION,
 } from "./reapExpiredByTTL";
@@ -204,16 +204,24 @@ describe("D3 — one collection's failure never propagates to another", () => {
     expect(result.error).toContain("FAILED_PRECONDITION");
   });
 
-  it("reapRelay succeeds independently when tasks' collectionGroup throws", async () => {
-    const relayDocs: FakeDoc[] = [
-      { id: "r1", path: "tenants/t1/relay/r1", expiresAt: 5, status: "pending" },
+  it("reapProposals succeeds independently when tasks' collectionGroup throws", async () => {
+    const proposalDocs: FakeDoc[] = [
+      { id: "p1", path: "tenants/t1/_proposals/p1", expiresAt: 5, status: "pending" },
     ];
-    const { db, committed } = makeFakeDb(relayDocs, { throwOnCollectionGroup: "tasks" });
+    const { db, committed } = makeFakeDb(proposalDocs, { throwOnCollectionGroup: "tasks" });
     const tasksResult = await reapTasks(db as any, 1000 as any);
-    const relayResult = await reapRelay(db as any, 1000 as any);
+    const proposalsResult = await reapProposals(db as any, 1000 as any);
     expect(tasksResult.error).toBeDefined();
-    expect(relayResult.error).toBeUndefined();
-    expect(relayResult.reaped).toBe(1);
-    expect(committed).toEqual([{ op: "update", path: "tenants/t1/relay/r1", data: expect.objectContaining({ status: "expired" }) }]);
+    expect(proposalsResult.error).toBeUndefined();
+    expect(proposalsResult.reaped).toBe(1);
+    expect(committed).toEqual([{ op: "update", path: "tenants/t1/_proposals/p1", data: expect.objectContaining({ status: "expired" }) }]);
+  });
+});
+
+describe("reapExpiredByTTL leaves relay to processDeadLetters", () => {
+  it("no longer exports a relay reaper that could race processDeadLetters on the expiresAt boundary", () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require("./reapExpiredByTTL");
+    expect(mod.reapRelay).toBeUndefined();
   });
 });
