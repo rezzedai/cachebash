@@ -674,7 +674,17 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
     .limit(args.limit)
     .get();
 
-  const deadLetters = snapshot.docs.map((doc) => {
+  // Legacy: until 2026-10 processDeadLetters COPIED unread messages to
+  // tenants/{uid}/dead_letters (status "dead_letter") and DELETED them from
+  // relay, so those messages are only here. Read them too, flagged legacy, so
+  // get_dead_letters shows what that function removed (K0NF26vX).
+  const legacySnapshot = await db
+    .collection(`tenants/${auth.userId}/dead_letters`)
+    .orderBy("deadLetteredAt", "desc")
+    .limit(args.limit)
+    .get();
+
+  const toRow = (doc: admin.firestore.QueryDocumentSnapshot, legacy: boolean) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -687,13 +697,21 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
       context: data.context || null,
       deliveryAttempts: data.deliveryAttempts || 0,
       maxDeliveryAttempts: data.maxDeliveryAttempts || 3,
-      dead_letter_reason: data.dead_letter_reason || "EXPIRED_TTL",
-      dead_letter_class: data.dead_letter_class || "EXPIRED_TTL",
+      dead_letter_reason: data.dead_letter_reason || (legacy ? "UNREAD_AFTER_1H_LEGACY" : "EXPIRED_TTL"),
+      dead_letter_class: data.dead_letter_class || (legacy ? "UNREAD_AFTER_1H_LEGACY" : "EXPIRED_TTL"),
+      legacy,
       createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
       deadLetteredAt: data.deadLetteredAt?.toDate?.()?.toISOString() || null,
       expiresAt: data.expiresAt?.toDate?.()?.toISOString() || null,
     };
-  });
+  };
+
+  const deadLetters = [
+    ...snapshot.docs.map((doc) => toRow(doc, false)),
+    ...legacySnapshot.docs.map((doc) => toRow(doc, true)),
+  ]
+    .sort((a, b) => (b.deadLetteredAt || "").localeCompare(a.deadLetteredAt || ""))
+    .slice(0, args.limit);
 
   return jsonResult({
     success: true,
