@@ -1,9 +1,12 @@
 /**
- * TTL Reaper — Auto-expire tasks, relay messages, and proposals past their TTL.
+ * TTL Reaper — Auto-expire tasks and proposals past their TTL.
  * Runs every 15 minutes.
  *
  * Tasks: DELETE (the pile must actually shrink — see PLAN-W4.2 D2).
- * Relay: Set status=expired, add expiredAt timestamp (unchanged — no growth problem).
+ * Relay: NOT handled here. processDeadLetters is the only function that acts on
+ *   a pending relay doc past its TTL (marks it dead_lettered in place), so the
+ *   two do not race on the expiresAt boundary and an expired message cannot end
+ *   up "expired" (invisible to get_dead_letters) at random. See processDeadLetters.ts.
  * Proposals: Set status=expired (frees proposer quota, preserves audit trail).
  *
  * Collection group queries for scalability. Each collection is reaped in its
@@ -150,33 +153,6 @@ export async function reapTasks(
   }
 }
 
-export async function reapRelay(
-  db: admin.firestore.Firestore,
-  now: admin.firestore.Timestamp
-): Promise<ReapResult> {
-  try {
-    const { reaped, pages } = await reapPaginated(
-      db,
-      "relay",
-      now,
-      (q) => q.where("status", "==", "pending"),
-      (batch, doc) =>
-        batch.update(doc.ref, {
-          status: "expired",
-          expiredAt: admin.firestore.FieldValue.serverTimestamp(),
-        }),
-      "relay"
-    );
-    functions.logger.info(
-      `[reapExpiredByTTL] relay: expired ${reaped} across ${pages} page(s)`
-    );
-    return { reaped, pages };
-  } catch (error) {
-    functions.logger.error("[reapExpiredByTTL] relay reap failed:", error);
-    return { reaped: 0, pages: 0, error: String(error) };
-  }
-}
-
 export async function reapProposals(
   db: admin.firestore.Firestore,
   now: admin.firestore.Timestamp
@@ -215,18 +191,17 @@ export const reapExpiredByTTL = functions
     const now = admin.firestore.Timestamp.now();
 
     functions.logger.info(
-      `[reapExpiredByTTL] Reaping expired tasks, relay messages, and proposals (expiresAt < ${now.toDate().toISOString()})`
+      `[reapExpiredByTTL] Reaping expired tasks and proposals (expiresAt < ${now.toDate().toISOString()})`
     );
 
     // Each reaper isolates its own failure (D3) — run concurrently, none can
     // starve another.
-    const [tasks, relay, proposals] = await Promise.all([
+    const [tasks, proposals] = await Promise.all([
       reapTasks(db, now),
-      reapRelay(db, now),
       reapProposals(db, now),
     ]);
 
-    const result = { tasks, relay, proposals };
+    const result = { tasks, proposals };
     functions.logger.info("[reapExpiredByTTL] Run complete", result);
     return result;
   });
