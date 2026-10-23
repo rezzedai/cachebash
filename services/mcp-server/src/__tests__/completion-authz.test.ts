@@ -58,6 +58,23 @@ function taskDoc(claimedBy: string | null) {
   mockDoc.mockReturnValue({ path: "tenants/u1/tasks/t1", get: jest.fn(() => Promise.resolve({ exists: false })) });
 }
 
+// Task claimed by a different program's key than the one that will complete it,
+// with an explicit claim sessionId (the dispatcher pre-claim shape).
+function taskDocClaimedWithSession(claimedBy: string, sessionId: string) {
+  const data = () => ({
+    status: "active",
+    claimedBy,
+    sessionId,
+    policy_mode: null,
+    stateTransitions: [],
+    title: "test",
+    type: "task",
+    priority: "normal",
+  });
+  mockTx.get.mockResolvedValue({ exists: true, data });
+  mockDoc.mockReturnValue({ path: "tenants/u1/tasks/t1", get: jest.fn(() => Promise.resolve({ exists: false })) });
+}
+
 function parse(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
 }
@@ -104,6 +121,26 @@ describe("complete_task authorization gate (SARK C3)", () => {
     const res = parse(await completeTaskHandler(auth("basher"), ARGS) as never);
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/Unauthorized/);
+  });
+});
+
+// KVvLfbA8: the dispatcher pre-claims with its own key (claimedBy "dispatcher") and
+// the claim's sessionId is what lets the spawned builder complete. Pins the server
+// side so an authz change cannot silently re-break the dispatcher's pre-claim.
+describe("complete_task: dispatcher pre-claim (claimedBy dispatcher) — KVvLfbA8", () => {
+  it("ALLOWS a basher key when the pre-claim sessionId is the program id", async () => {
+    taskDocClaimedWithSession("dispatcher", "basher");
+    const res = parse(await completeTaskHandler(auth("basher"), ARGS) as never);
+    expect(res.success).toBe(true);
+    expect(mockTx.update).toHaveBeenCalled();
+  });
+
+  it("REFUSES a basher key when the pre-claim sessionId is basher-pending", async () => {
+    taskDocClaimedWithSession("dispatcher", "basher-pending");
+    const res = parse(await completeTaskHandler(auth("basher"), ARGS) as never);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/only the claiming owner/);
+    expect(mockTx.update).not.toHaveBeenCalled();
   });
 });
 
