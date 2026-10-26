@@ -17,6 +17,7 @@ import { gspListNamespacesHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
 import { checkPricing } from "../middleware/pricingEnforce.js";
+import { CapabilityError } from "../middleware/capabilities.js";
 import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
 import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
 import { ADMIN_READERS } from "../config/access-tiers.js";
@@ -196,9 +197,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   const { checkToolCapability } = await import("../middleware/capabilities.js");
   const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
-    throw new Error(
-      `Insufficient capability: ${toolName} requires "${capCheck.required}" but key has [${capCheck.held.join(", ")}]`
-    );
+    throw new CapabilityError(toolName, capCheck.required, capCheck.held);
   }
 
   // WS-3: Boundary circuit breaker — server-measured mutation ceilings, fail-closed.
@@ -300,9 +299,7 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
   const { checkToolCapability } = await import("../middleware/capabilities.js");
   const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
-    throw new Error(
-      `Insufficient capability: ${toolName} requires "${capCheck.required}" but key has [${capCheck.held.join(", ")}]`
-    );
+    throw new CapabilityError(toolName, capCheck.required, capCheck.held);
   }
 
   const breakerResult = await checkCircuitBreaker(auth, toolName);
@@ -1054,6 +1051,12 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
             code: "PRICING_LIMIT_REACHED",
             message: err.message,
           }, 402);
+        }
+        if (err instanceof CapabilityError) {
+          return restResponse(res, false, {
+            code: err.code,
+            message: err.message,
+          }, 403);
         }
         if (err instanceof BreakerError) {
           res.setHeader("Retry-After", String(Math.ceil(err.retryAfterMs / 1000)));
