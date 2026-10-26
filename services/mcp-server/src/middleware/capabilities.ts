@@ -298,6 +298,15 @@ export function hasCapability(capabilities: string[], required: Capability): boo
   return capabilities.includes(required);
 }
 
+/** Thrown by transports when a key lacks the capability a tool requires; REST maps it to 403. */
+export class CapabilityError extends Error {
+  readonly code = "INSUFFICIENT_CAPABILITY";
+  constructor(toolName: string, required: string, held: string[]) {
+    super(`Insufficient capability: ${toolName} requires "${required}" but key has [${held.join(", ")}]`);
+    this.name = "CapabilityError";
+  }
+}
+
 /**
  * Check capability for a tool invocation.
  * Returns { allowed: true } or { allowed: false, required, held }.
