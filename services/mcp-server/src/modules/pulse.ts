@@ -29,7 +29,8 @@ const CreateSessionSchema = z.object({
 });
 
 const UpdateSessionSchema = z.object({
-  status: z.string().max(200),
+  // Optional only for heartbeat/context-only updates (enforced in updateSessionHandler).
+  status: z.string().max(200).optional(),
   sessionId: z.string().max(100).optional(),
   state: z.enum(["working", "blocked", "complete", "pinned"]).optional(),
   progress: z.number().min(0).max(100).optional(),
@@ -220,6 +221,39 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     }
   }
 
+  // Heartbeat/context-only update (squO9AGj): no status text. It must never blank
+  // or overwrite name/currentAction/status/progress/projectName, so it is rejected
+  // if it tries to carry them, and it never creates a session.
+  const heartbeatOnly = args.status === undefined;
+  if (heartbeatOnly) {
+    const hasHeartbeatOrContext = args.lastHeartbeat !== undefined
+      || args.contextBytes !== undefined
+      || args.contextUsedPct !== undefined
+      || args.handoffRequired !== undefined;
+    if (!hasHeartbeatOrContext) {
+      return jsonResult({
+        success: false,
+        error: "status is required unless the update is heartbeat or context only",
+        sessionId,
+      });
+    }
+    if (args.state !== undefined || args.progress !== undefined || args.projectName !== undefined) {
+      return jsonResult({
+        success: false,
+        error: "state, progress and projectName require status; omit them for a heartbeat or context only update",
+        sessionId,
+      });
+    }
+    const existing = await db.doc(`tenants/${auth.userId}/sessions/${sessionId}`).get();
+    if (!existing.exists) {
+      return jsonResult({
+        success: false,
+        error: "session not found; send status to create it",
+        sessionId,
+      });
+    }
+  }
+
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
@@ -266,14 +300,16 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     }
   }
 
-  const updateData: Record<string, unknown> = {
-    name: args.status,
-    currentAction: args.status,
-    status: lifecycleStatus,
-    progress: args.progress ?? null,
-    lastUpdate: now,
-    archived: lifecycleStatus === "done",
-  };
+  const updateData: Record<string, unknown> = heartbeatOnly
+    ? { lastUpdate: now }
+    : {
+        name: args.status,
+        currentAction: args.status,
+        status: lifecycleStatus,
+        progress: args.progress ?? null,
+        lastUpdate: now,
+        archived: lifecycleStatus === "done",
+      };
 
   if (args.projectName) updateData.projectName = args.projectName;
   if (args.lastHeartbeat) updateData.lastHeartbeat = now;
@@ -317,13 +353,15 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     await sessionRef.update({ contextHistory: trimmedHistory });
   }
 
-  // Add to history
-  await db.collection(`tenants/${auth.userId}/sessions/${sessionId}/updates`).add({
-    status: args.status,
-    lifecycleStatus,
-    progress: args.progress ?? null,
-    createdAt: now,
-  });
+  // Add to history (a heartbeat carries no status text, and fires on every tool call)
+  if (!heartbeatOnly) {
+    await db.collection(`tenants/${auth.userId}/sessions/${sessionId}/updates`).add({
+      status: args.status,
+      lifecycleStatus,
+      progress: args.progress ?? null,
+      createdAt: now,
+    });
+  }
 
   // Piggyback program registry write.
   // R-pulse-1 (dispatch_01a061e4): key the mirror on the SESSION'S OWN
@@ -340,9 +378,10 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
     const programData: Record<string, unknown> = {
       programId,
-      currentState: args.state || "working",
       currentSessionId: sessionId,
     };
+    // A heartbeat must not reset a program's blocked/pinned state to "working".
+    if (!heartbeatOnly) programData.currentState = args.state || "working";
     // Heartbeat semantics: mirror the session-doc rule above (`if
     // (args.lastHeartbeat) updateData.lastHeartbeat = now`) instead of
     // stamping unconditionally. The two writes used to skew in both
@@ -374,7 +413,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   return jsonResult({
     success: true,
     sessionId,
-    message: `Status updated: "${args.status}"`,
+    message: heartbeatOnly ? "Heartbeat recorded" : `Status updated: "${args.status}"`,
     ...(patternExtractionMissing && { patternExtractionMissing: true }),
   });
 }
