@@ -298,10 +298,6 @@ export function hasCapability(capabilities: string[], required: Capability): boo
   return capabilities.includes(required);
 }
 
-/**
- * Check capability for a tool invocation.
- * Returns { allowed: true } or { allowed: false, required, held }.
- */
 /** Thrown by transports when a key lacks the capability a tool requires; REST maps it to 403. */
 export class CapabilityError extends Error {
   readonly code = "INSUFFICIENT_CAPABILITY";
@@ -311,6 +307,10 @@ export class CapabilityError extends Error {
   }
 }
 
+/**
+ * Check capability for a tool invocation.
+ * Returns { allowed: true } or { allowed: false, required, held }.
+ */
 export function checkToolCapability(
   toolName: string,
   capabilities: string[]
