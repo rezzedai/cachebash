@@ -283,7 +283,7 @@ PATCH /v1/sessions/:id
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `status` | string (max 200) | **Yes** | — | Status text visible in app |
+| `status` | string (max 200) | Unless heartbeat/context only | — | Status text visible in app. May be omitted when the body carries `lastHeartbeat`, `contextBytes`, `contextUsedPct` or `handoffRequired`; such an update changes only the heartbeat/context fields, rejects `state`/`progress`/`projectName`, and returns `success:false` if the session does not exist. |
 | `state` | `working` \| `blocked` \| `complete` \| `pinned` | No | `working` | Session state |
 | `progress` | number (0–100) | No | — | Progress percentage |
 | `projectName` | string (max 100) | No | — | Project name |
