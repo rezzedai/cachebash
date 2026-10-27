@@ -157,10 +157,15 @@ curl http://localhost:3001/v1/health
 ### 2. Deploy to Cloud Run
 
 ```bash
-# Deploy from source (Cloud Run auto-builds with Buildpacks).
-# BARE. Code only. Do not add flags.
-gcloud run deploy cachebash-mcp --source . --region us-central1 --project cachebash-app
+bash scripts/deploy-mcp.sh
 ```
+
+The script stamps `services/mcp-server/build-info.json` with the git sha (so
+`/v1/health` reports which code is live), then runs the bare
+`gcloud run deploy cachebash-mcp --source . --region us-central1 --project cachebash-app`
+from `services/mcp-server`. Cloud Run builds with buildpacks from that directory. Run
+from the repo root, the same command would build the root `Dockerfile` and Cloud Run
+would refuse it. `DEPLOY_DRY_RUN=1` prints the directory and command without deploying.
 
 > **Do NOT pass `--set-env-vars` to a code deploy.** It does not merge --- it
 > REPLACES the service's entire environment map with exactly what you list. The

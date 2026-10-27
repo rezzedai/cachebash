@@ -5,13 +5,18 @@
 #    generated, gitignored, and copied into the image by the Dockerfile, which is
 #    how /v1/health reports it. (.gcloudignore excludes .git/, so the build cannot
 #    read the sha itself.)
-# 2. Runs the documented deploy command UNCHANGED.
+# 2. Runs the documented deploy command UNCHANGED, from services/mcp-server.
+#    Every real revision is a buildpack source deploy from that directory. From
+#    the repo root the same command builds the root Dockerfile, and Cloud Run
+#    refuses it: "Missing required argument [--clear-base-image]".
 #
 # A dirty working tree (tracked changes or untracked files, ignoring
 # build-info.json itself) stamps "<sha>-dirty" and the deploy PROCEEDS.
 #
-# DEPLOY_DRY_RUN=1 writes the stamp file, prints the exact command, and exits
-# without invoking gcloud.
+# The dirty check covers the whole repo, not only services/mcp-server.
+#
+# DEPLOY_DRY_RUN=1 writes the stamp file, prints the working directory and the
+# exact command, and exits without invoking gcloud.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,8 +41,12 @@ echo "Stamped $STAMP_REL: gitSha=$sha buildTime=$build_time"
 # wipe production configuration (docs/deployment.md).
 DEPLOY_CMD=(gcloud run deploy cachebash-mcp --source . --region us-central1 --project cachebash-app)
 
+DEPLOY_DIR="$REPO_ROOT/services/mcp-server"
+cd "$DEPLOY_DIR"
+
 if [ "${DEPLOY_DRY_RUN:-}" = "1" ]; then
-  echo "DRY RUN, not executing: ${DEPLOY_CMD[*]}"
+  echo "DRY RUN, not executing. cwd: $DEPLOY_DIR"
+  echo "command: ${DEPLOY_CMD[*]}"
   exit 0
 fi
 
