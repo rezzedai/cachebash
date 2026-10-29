@@ -183,7 +183,8 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       targets = dynamicGroupMembers;
     } else {
       // Not a group — must be a registered program or a known special relay target
-      const RELAY_SPECIAL_TARGETS = new Set(["user", "admin"]);
+      // "slack-bridge" is consumed by functions/onSlackBridge, which posts to #grid-ops.
+      const RELAY_SPECIAL_TARGETS = new Set(["user", "admin", "slack-bridge"]);
       if (!RELAY_SPECIAL_TARGETS.has(rawTarget)) {
         const registered = await isProgramRegistered(auth.userId, rawTarget);
         if (!registered) {
