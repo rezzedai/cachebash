@@ -1,94 +1,111 @@
-# Dependabot config (PDR #1501 R1/R3). One entry per ecosystem; majors stay ungrouped (one PR each).
+# Dependabot config (PDR #1501 R1/R3, revised after the first-run grouping miss).
+# Version updates: one grouped PR per ecosystem entry (all minor and patch, any directory).
+# Majors are ignored here (update-types does not suppress security updates) and are swept by hand.
 # Security fixes arrive as one grouped PR per ecosystem. No auto-merge workflow.
 version: 2
 updates:
-  - package-ecosystem: npm
-    directories:
-      - "/"
-      - "/apps/web"
-      - "/apps/mobile"
-      - "/packages/cli"
-      - "/packages/memory"
-      - "/packages/types"
-      - "/services/functions"
-      - "/services/mcp-server"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      npm-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
-      npm-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-  - package-ecosystem: github-actions
-    directories:
-      - "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      github-actions-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
-      github-actions-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-  - package-ecosystem: docker
-    directories:
-      - "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      docker-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
-      docker-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-  - package-ecosystem: docker-compose
-    directories:
-      - "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      docker-compose-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
-      docker-compose-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-  - package-ecosystem: terraform
-    directories:
-      - "/infra/terraform/envs/cachebash-app"
-      - "/infra/terraform/envs/cerebro-grid"
-      - "/infra/terraform/modules/cloud-run-service"
-      - "/infra/terraform/modules/cloud-scheduler-job"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      terraform-minor-patch:
-        applies-to: version-updates
-        update-types:
-          - "minor"
-          - "patch"
-      terraform-security:
-        applies-to: security-updates
-        patterns:
-          - "*"
+- package-ecosystem: npm
+  directories:
+  - /
+  - /apps/web
+  - /apps/mobile
+  - /packages/cli
+  - /packages/memory
+  - /packages/types
+  - /services/functions
+  - /services/mcp-server
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 1
+  groups:
+    npm-updates:
+      applies-to: version-updates
+      patterns:
+      - '*'
+    npm-security:
+      applies-to: security-updates
+      patterns:
+      - '*'
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: github-actions
+  directories:
+  - /
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 1
+  groups:
+    github-actions-updates:
+      applies-to: version-updates
+      patterns:
+      - '*'
+    github-actions-security:
+      applies-to: security-updates
+      patterns:
+      - '*'
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: docker
+  directories:
+  - /
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 1
+  groups:
+    docker-updates:
+      applies-to: version-updates
+      patterns:
+      - '*'
+    docker-security:
+      applies-to: security-updates
+      patterns:
+      - '*'
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: docker-compose
+  directories:
+  - /
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 1
+  groups:
+    docker-compose-updates:
+      applies-to: version-updates
+      patterns:
+      - '*'
+    docker-compose-security:
+      applies-to: security-updates
+      patterns:
+      - '*'
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
+- package-ecosystem: terraform
+  directories:
+  - /infra/terraform/envs/cachebash-app
+  - /infra/terraform/envs/cerebro-grid
+  - /infra/terraform/modules/cloud-run-service
+  - /infra/terraform/modules/cloud-scheduler-job
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 1
+  groups:
+    terraform-updates:
+      applies-to: version-updates
+      patterns:
+      - '*'
+    terraform-security:
+      applies-to: security-updates
+      patterns:
+      - '*'
+  ignore:
+  - dependency-name: '*'
+    update-types:
+    - version-update:semver-major
