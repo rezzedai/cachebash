@@ -2,7 +2,9 @@
   "name": "@rezzed.ai/cachebash",
   "version": "0.1.1",
   "description": "CacheBash CLI — MCP agent coordination for AI workflows",
-  "bin": { "cachebash": "./bin/cachebash.js" },
+  "bin": {
+    "cachebash": "./bin/cachebash.js"
+  },
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
@@ -10,14 +12,19 @@
     "test": "node --test dist/__tests__/*.test.js"
   },
   "dependencies": {
-    "open": "~10.1.0"
+    "open": "^11.0.4"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
   },
-  "engines": { "node": ">=20.0.0" },
-  "files": ["bin/", "dist/"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "bin/",
+    "dist/"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
