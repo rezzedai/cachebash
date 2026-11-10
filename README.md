@@ -2,47 +2,48 @@
 
 [![CI](https://github.com/rezzedai/cachebash/actions/workflows/ci.yml/badge.svg)](https://github.com/rezzedai/cachebash/actions/workflows/ci.yml)
 
-**The coordination layer between your AI coding agents and your phone.**
+CacheBash is an open-source MCP server for multi-agent coordination. It is written in TypeScript and works with any model and any MCP client. Agents use it to hand work to each other, message each other, report their state and ask a human for decisions. The human answers from a phone.
 
-Your AI agents can't reach you when you close the laptop. CacheBash connects them. Task queues, relay messaging, session monitoring, human-in-the-loop approvals. One MCP server. Every client that speaks the protocol.
+## Architecture at a glance
 
----
+- **108 MCP tools in 21 domains.** The default deployment profile serves 107 of them. A smaller "lite" profile for tenant deployments serves 96.
+- **Task dispatch.** Agents create, claim and complete tasks. Claims run inside a Firestore transaction, so two agents cannot claim the same task.
+- **Relay messaging.** Direct messages, group multicast and message history. Messages that cannot be delivered go to a dead-letter queue for inspection.
+- **Human in the loop.** Agents send questions and approval requests. The mobile app shows them, and the agent continues when the human answers.
+- **Capability-scoped keys.** Each API key carries capabilities such as `dispatch.read` or `relay.write`. The tool list a client sees is filtered to that key's capabilities, and every call is checked again.
+- **Policy checks before dispatch.** The dispatch pre-flight evaluates the configured policies before a task is created.
+- **Per-task telemetry.** Task completion records the status, model, provider, input and output tokens, cost, and a failure class.
+- **Persistent agent memory.** Each program keeps state, learned patterns and memories across sessions.
 
-## The Problem
+How it runs:
 
-You're running AI agents in your terminal. They write code, run tests, make decisions. But the moment they need your input, everything stops. You're at lunch. You closed the laptop. You're in a meeting.
+- **Server:** TypeScript on Cloud Run, or any Node.js host.
+- **Storage:** Google Cloud Firestore, with data isolated per user.
+- **Auth:** Firebase Auth (GitHub and Google sign-in) plus per-program API keys.
+- **Mobile:** React Native and Expo, for iOS and Android.
+- **Transport:** MCP Streamable HTTP with Bearer token auth.
 
-Your agents can't coordinate with each other without you copying context between sessions. They can't ask you a question unless you're staring at the terminal. They can't run overnight because nobody's there to answer when they get stuck.
-
-## The Fix
-
-```bash
-npx cachebash init
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ Claude Code │  │   Cursor    │  │   VS Code   │
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       └────────────────┼────────────────┘
+                        │  MCP (Streamable HTTP)
+                        ▼
+              ┌───────────────────┐
+              │ CacheBash server  │
+              │    (Cloud Run)    │
+              └─────────┬─────────┘
+                ┌───────┴────────┐
+                ▼                ▼
+         ┌────────────┐   ┌────────────┐
+         │ Firestore  │   │ Mobile app │
+         └────────────┘   └────────────┘
 ```
 
-One command. Authenticates via browser. Injects the MCP config into your Claude Code, Cursor, or VS Code setup. Done. Under 60 seconds.
-
-Open the mobile app. Your agents appear. Send tasks, answer questions, monitor sessions — all from your phone.
-
 ---
 
-## What It Does
-
-**Task Queues** — Dispatch work from your phone. Your agent picks it up in the terminal. Create tasks while you're away from your desk. Agents execute when they check in.
-
-**Relay Messaging** — Your agents talk to each other through CacheBash. Agent A creates a task. Agent B claims it. Direct messaging, multicast to groups, delivery confirmation. No copy-paste. No you in the middle.
-
-**Session Monitoring** — See which agents are running, what they're working on, how far along they are. Real-time updates. Push notifications when something needs your attention.
-
-**Human-in-the-Loop** — Agent needs a decision? Your phone buzzes. Read the context. Tap to respond. The agent continues. You never opened a laptop.
-
-**Dream Mode** — Dispatch work before bed. Set budget caps. Agents execute autonomously overnight. Wake up to pull requests, not a blank terminal.
-
-**Sprint Orchestration** — Group related tasks into sprints with wave-based execution. Define dependencies between stories. Track progress across parallel workstreams.
-
----
-
-## Supported Clients
+## Supported clients
 
 | Client | Status |
 |--------|--------|
@@ -52,33 +53,46 @@ Open the mobile app. Your agents appear. Send tasks, answer questions, monitor s
 | Gemini CLI | Supported |
 | Any MCP-compatible client | Supported |
 
-CacheBash uses Streamable HTTP transport with Bearer token auth. Standard MCP protocol. No vendor lock-in.
+CacheBash uses the standard MCP protocol. No orchestration logic depends on one vendor's SDK.
 
 ---
 
-## 34 MCP Tools
+## Tool domains
 
-Organized into 8 modules:
+Counts come from the tool definitions in `services/mcp-server/src/tools/`. Most tools are named `<domain>_<action>`.
 
-| Module | What It Does | Tools |
-|--------|-------------|-------|
-| **Dispatch** | Task lifecycle — create, claim, complete, query | `create_task`, `get_tasks`, `claim_task`, `complete_task` |
-| **Relay** | Inter-agent messaging with delivery confirmation | `send_message`, `get_messages`, `get_sent_messages`, `query_message_history` |
-| **Pulse** | Session health — create, update, list, heartbeat | `create_session`, `update_session`, `list_sessions` |
-| **Sprint** | Parallel work orchestration with dependencies | `create_sprint`, `update_sprint_story`, `add_story_to_sprint`, `complete_sprint`, `get_sprint` |
-| **Signal** | Push notifications and mobile questions | `ask_question`, `get_response`, `send_alert` |
-| **Dream** | Autonomous overnight execution with budget caps | `dream_peek`, `dream_activate` |
-| **State** | Persistent per-program memory across sessions | `get_program_state`, `update_program_state` |
-| **Keys** | API key lifecycle — create, revoke, list | `create_key`, `revoke_key`, `list_keys` |
-| **Observability** | Audit logs, metrics, cost tracking, traces | `get_audit`, `get_comms_metrics`, `get_cost_summary`, `get_operational_metrics`, `query_traces` |
+| Domain | Tools | What it does |
+|--------|------:|--------------|
+| dispatch | 24 | Task lifecycle: create, claim, complete, approve, retry, reassign, escalate, lineage, telemetry |
+| gsp | 9 | Grid State Protocol: bootstrap, read, write, search, diff, propose and resolve shared state |
+| pulse | 9 | Sessions and fleet health: create, update, list, pause, resume, timeline, snapshots |
+| metrics | 8 | Cost summary and forecast, operational and comms metrics, SLA compliance, rate-limit events |
+| state | 8 | Per-program state and memory: store, recall, reinforce, delete, context history |
+| relay | 7 | Messages, directives, groups, history and dead letters |
+| policy | 6 | Create, read, update, delete, list and check policies |
+| schedule | 5 | Recurring and one-off scheduled work |
+| sprint | 5 | Sprints with stories, dependencies and wave-based execution |
+| keys | 4 | API key create, list, revoke and rotate |
+| webhook | 4 | Register, list and delete webhooks, and read delivery logs |
+| clu | 3 | Ingest, analyze and report on transcripts |
+| signal | 3 | Push alerts and questions to the mobile app, and read the answers |
+| audit | 2 | Audit log and acknowledgement compliance |
+| dream | 2 | Overnight autonomous runs with budget caps |
+| pattern | 2 | Consolidate learned patterns across programs |
+| programs | 2 | List and update registered programs |
+| trace | 2 | Query request traces |
+| admin | 1 | Account administration |
+| feedback | 1 | Submit feedback |
+| request_help | 1 | Cross-grid help requests (lite profile only) |
+| **Total** | **108** | |
 
-Full reference: [docs.rezzed.ai](https://docs.rezzed.ai)
+API reference: [docs/api-reference.md](docs/api-reference.md) and [docs.rezzed.ai](https://docs.rezzed.ai)
 
 ---
 
-## Quick Start
+## Quick start
 
-### Hosted (Recommended)
+### Hosted
 
 ```bash
 # 1. Install and authenticate
@@ -87,12 +101,12 @@ npx cachebash init
 # 2. Verify connection
 cachebash ping
 
-# 3. Open the mobile app — your agent appears
+# 3. Open the mobile app. Your agent appears.
 ```
 
-The hosted version runs on Google Cloud. Free tier: 3 programs, 500 tasks/month, 1 concurrent session.
+`npx cachebash init` signs you in through the browser and writes the MCP config for Claude Code, Cursor or VS Code.
 
-### Self-Hosted
+### Self-hosted
 
 ```bash
 # 1. Clone the repo
@@ -103,8 +117,8 @@ cd cachebash
 cd services/mcp-server && npm install
 
 # 3. Set up Firebase
-# Create a Firebase project, enable Firestore
-# Download service account key → set GOOGLE_APPLICATION_CREDENTIALS
+# Create a Firebase project and enable Firestore.
+# Download a service account key and set GOOGLE_APPLICATION_CREDENTIALS.
 
 # 4. Configure environment
 cp .env.example .env
@@ -127,42 +141,11 @@ npm start
 }
 ```
 
----
-
-## Architecture
-
-```
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│ Claude Code  │  │   Cursor    │  │   VS Code   │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       └────────────┬────┴────────────────┘
-                    │  MCP Protocol
-                    ▼
-          ┌─────────────────┐
-          │  CacheBash MCP  │
-          │     Server      │
-          │  (Cloud Run)    │
-          └────────┬────────┘
-                   │
-          ┌────────┴────────┐
-          │                 │
-          ▼                 ▼
-   ┌────────────┐   ┌────────────┐
-   │  Firestore  │   │ Mobile App │
-   │  (Storage)  │   │  (iOS/And) │
-   └─────────────┘   └────────────┘
-```
-
-- **MCP Server:** TypeScript, runs on Cloud Run (or any Node.js host)
-- **Storage:** Google Cloud Firestore (multi-tenant, per-user isolation)
-- **Auth:** Firebase Auth (GitHub + Google OAuth) + per-program API keys
-- **Mobile:** React Native + Expo (iOS + Android)
-- **Transport:** Streamable HTTP with Bearer token auth
+Set `CACHEBASH_PROFILE=lite` to serve the smaller tool set. The profile logic is in `services/mcp-server/src/tools/index.ts`. Deployment notes: [docs/deployment.md](docs/deployment.md).
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 cachebash/
@@ -180,29 +163,15 @@ cachebash/
 └── package.json         # npm workspaces root
 ```
 
----
-
-## Pricing
-
-| | Free | Pro | Team |
-|---|---|---|---|
-| Price | $0 | $29/mo | $99/mo |
-| Programs | 3 | Unlimited | Unlimited |
-| Tasks/month | 500 | Unlimited | Unlimited |
-| Concurrent sessions | 1 | 5 | 10 |
-
-You bring the models. CacheBash runs the orchestra. We never touch your LLM API keys.
-
-Free tier is real. 500 tasks/month runs a serious workflow. Upgrade when you outgrow it.
+More detail: [docs/architecture.md](docs/architecture.md)
 
 ---
 
 ## Contributing
 
-CacheBash MCP server is MIT licensed. Contributions welcome.
+The CacheBash MCP server is MIT licensed. Contributions are welcome.
 
 ```bash
-# Set up development environment
 git clone https://github.com/rezzedai/cachebash.git
 cd cachebash
 npm install          # installs all workspaces
@@ -216,8 +185,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## Links
 
 - [Documentation](https://docs.rezzed.ai)
-- [Mobile App (iOS)](https://apps.apple.com/app/cachebash) *(coming soon)*
-- [Mobile App (Android)](https://play.google.com/store/apps/details?id=ai.rezzed.cachebash) *(coming soon)*
 - [Privacy Policy](https://rezzed.ai/privacy)
 - [Blog](https://rezzed.ai/blog)
 
@@ -225,6 +192,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT. See [LICENSE](LICENSE).
 
 Built by [Rezzed.ai](https://rezzed.ai)
