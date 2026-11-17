@@ -26,12 +26,12 @@ export interface ConstitutionalRule {
 
 export const CONSTITUTIONAL_RULES: ConstitutionalRule[] = [
   {
-    key: "flynn-gate",
+    key: "owner-gate",
     tier: "constitutional",
-    description: "Strategic decisions require Flynn's approval. Programs handle ops autonomously.",
+    description: "Strategic decisions require the owner's approval. Programs handle ops autonomously.",
     value: {
-      rule: "Strategic decisions (roadmap, priorities, new projects, capital allocation) require Flynn's approval. Programs handle ops autonomously.",
-      enforcement: "Dispatch pre-flight checks for strategic keywords in instructions. Escalation chain enforced: Workers → ISO, ISO → VECTOR, VECTOR → Flynn.",
+      rule: "Strategic decisions (roadmap, priorities, new projects, capital allocation) require the owner's approval. Programs handle ops autonomously.",
+      enforcement: "Dispatch pre-flight checks for strategic keywords in instructions. Escalation chain enforced: Workers → ISO, ISO → VECTOR, VECTOR → owner.",
       violation_severity: "P0",
     },
   },
@@ -70,7 +70,7 @@ export const CONSTITUTIONAL_RULES: ConstitutionalRule[] = [
     tier: "constitutional",
     description: "Escalate when uncertainty exceeds program capability.",
     value: {
-      rule: "When uncertainty exceeds program capability, escalate up the chain. Workers → ISO, ISO → VECTOR, VECTOR → Flynn. Never guess on high-stakes decisions.",
+      rule: "When uncertainty exceeds program capability, escalate up the chain. Workers → ISO, ISO → VECTOR, VECTOR → owner. Never guess on high-stakes decisions.",
       enforcement: "Monitored via task completion patterns. Programs with repeated failures without escalation flagged in health checks.",
       violation_severity: "P2",
     },

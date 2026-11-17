@@ -1,7 +1,7 @@
 /**
  * /enroll endpoint tests — SARK G-4 controls
  *
- * Verifies all 11 controls from cerebro/enrollment/DESIGN.md.
+ * Verifies all 11 controls from the enrollment design doc.
  * F-368-1: jest (not vitest) — mirrors portal-owner-send-message.test.ts pattern.
  * F-368-2: MAX_TTL_MS cap enforced at redeem.
  * F-368-3: cb_key capabilities are tier-scoped (Trial/Standard/Dedicated).
@@ -61,7 +61,7 @@ function seedEnrollment(token: string, overrides: Partial<any> = {}) {
 }
 
 // Helper: simulate a POST /enroll request
-async function callEnroll(body: unknown, env: Record<string, string> = { LITE_URL: "https://lite.cerebro.cachebash.dev" }) {
+async function callEnroll(body: unknown, env: Record<string, string> = { LITE_URL: "https://lite.tenant.example.com" }) {
   const originalEnv = { ...process.env };
   Object.assign(process.env, env);
 
@@ -97,7 +97,7 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(status).toBe(200);
     // G-4 control 7: response EXACTLY {lite_url, cb_key}
     expect(Object.keys(body).sort()).toEqual(["cb_key", "lite_url"]);
-    expect(body.lite_url).toBe("https://lite.cerebro.cachebash.dev");
+    expect(body.lite_url).toBe("https://lite.tenant.example.com");
     // G-4 control 1: cb_ prefix, 64-char hex suffix (32 bytes)
     expect(body.cb_key).toMatch(/^cb_[0-9a-f]{64}$/);
 
@@ -118,7 +118,7 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(JSON.stringify(keyDoc)).not.toContain(body.cb_key);
 
     // G-4 control 10: no hub-scoped caps
-    expect(keyDoc.programId).toBe("cerebro");
+    expect(keyDoc.programId).toBe("tenant");
     expect(keyDoc.userId).toBe("tenant-sayf");
   });
 
@@ -288,14 +288,14 @@ describe("POST /enroll — SARK G-4 controls", () => {
     }
   });
 
-  it("G-4-10: minted key is tenant-scoped (cerebro programId), never hub-scoped", async () => {
+  it("G-4-10: minted key is tenant-scoped (tenant programId), never hub-scoped", async () => {
     const token = crypto.randomBytes(32).toString("hex");
     seedEnrollment(token);
 
     await callEnroll({ token });
 
     const keyDoc = Object.values(mockTxSets)[0] as any;
-    expect(keyDoc.programId).toBe("cerebro");
+    expect(keyDoc.programId).toBe("tenant");
     // Hub-scoped keys would have programId 'iso', 'basher', '*', etc.
     expect(["iso", "basher", "vector", "alan", "sark"]).not.toContain(keyDoc.programId);
   });
@@ -308,7 +308,7 @@ describe("POST /enroll — SARK G-4 controls", () => {
 
   it("WS-2: wingman tier — mints a key with EXACTLY the 9 canonical wingman caps + seatId + tier", async () => {
     const token = crypto.randomBytes(32).toString("hex");
-    seedEnrollment(token, { tier: "wingman", seatId: "seat-maverick-01" });
+    seedEnrollment(token, { tier: "wingman", seatId: "seat-a-01" });
 
     const { status } = await callEnroll({ token });
 
@@ -330,16 +330,16 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(caps).not.toContain("admin.write");
     expect(caps).not.toContain("fleet.control");
     expect(caps).not.toContain("policy.read");
-    expect(keyDoc.seatId).toBe("seat-maverick-01");
+    expect(keyDoc.seatId).toBe("seat-a-01");
     expect(keyDoc.tier).toBe("wingman");
     // still tenant-scoped, never hub-scoped
-    expect(keyDoc.programId).toBe("cerebro");
+    expect(keyDoc.programId).toBe("tenant");
     expect(keyDoc.userId).toBe("tenant-sayf");
   });
 
   it("WS-2: wingman tier — response stays topology-free (no seatId/tier leak)", async () => {
     const token = crypto.randomBytes(32).toString("hex");
-    seedEnrollment(token, { tier: "wingman", seatId: "seat-goose-02" });
+    seedEnrollment(token, { tier: "wingman", seatId: "seat-b-02" });
 
     const { status, body } = await callEnroll({ token });
 

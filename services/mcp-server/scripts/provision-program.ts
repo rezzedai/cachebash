@@ -35,9 +35,9 @@
  *     services/mcp-server/scripts/provision-program.ts '<json>'
  *
  *   <json> = a program object (or array):
- *     { "programId": "iso_cerebro", "displayName": "ISO-Cerebro",
+ *     { "programId": "iso_tenant_a", "displayName": "ISO-TenantA",
  *       "role": "orchestrator", "groups": ["builders"],
- *       "tags": ["opus","cerebro"], "color": "#0EA5E9",
+ *       "tags": ["opus","tenant-a"], "color": "#0EA5E9",
  *       "capabilities": ["dispatch.read", ...],   // optional; defaults below
  *       "mintKey": true }                          // optional; default true
  *
@@ -78,7 +78,7 @@ function parseInput(): ProgramSpec[] {
   if (!raw) {
     console.error(
       "ERROR: pass a program JSON object or array as argv[2].\n" +
-        'Example: provision-program.ts \'{"programId":"iso_cerebro","role":"orchestrator"}\'',
+        'Example: provision-program.ts \'{"programId":"iso_tenant_a","role":"orchestrator"}\'',
     );
     process.exit(1);
   }

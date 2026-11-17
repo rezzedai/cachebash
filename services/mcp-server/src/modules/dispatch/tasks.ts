@@ -111,7 +111,7 @@ function classifyRequiresAction(taskData: Record<string, unknown>): boolean {
   const messageType = taskData.message_type as string | undefined;
   const completedStatus = taskData.completed_status as string | undefined;
 
-  // Admin (Flynn) tasks always require action
+  // Admin (owner) tasks always require action
   if (source === "admin") return true;
 
   // Classify by message_type
@@ -163,7 +163,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   // WP-2 (cost PDR): push the requires_action equality server-side so a poll
   // reads only actionable rows instead of every created task in the tenant.
-  // Mobile is excluded — Flynn's phone (apps/mobile useTasks.ts) has no
+  // Mobile is excluded — the owner's phone (apps/mobile useTasks.ts) has no
   // requires_action param and relies on the post-filter's missing-field-as-true
   // default to surface the target:"user" alerts that WP-1 deliberately left
   // without the field. A server-side `== true` would silently empty that list,

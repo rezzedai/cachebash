@@ -12,7 +12,7 @@
  * SARK NO-GO on the first attempt (PR #341): the original gate ALSO allowed
  * `getAllowedUids().includes(auth.userId)`. That branch was a PROD NO-OP that
  * passed EVERYTHING. The whole fleet is ONE tenant, so `auth.userId` for any
- * cb_ key is the shared TENANT uid (Flynn's allowlisted uid), NOT the calling
+ * cb_ key is the shared TENANT uid (the owner's allowlisted uid), NOT the calling
  * principal — authValidator stamps it, createKey copies it. Every program key
  * — including ~50 wildcards — carried that uid, so the owner branch was always
  * true and the literal keys.provision branch never ran. The unit test passed
@@ -21,7 +21,7 @@
  * The fix: drop the uid/owner branch entirely. The SOLE gate on the mint path
  * is a LITERAL `keys.provision` capability, matched by literal membership
  * (never the wildcard-expanding matcher), so "*" does NOT satisfy it and no
- * program key can self-provision. Flynn's provisioning principal is granted
+ * program key can self-provision. The owner's provisioning principal is granted
  * `keys.provision` by name. A capability ceiling (see
  * `disallowedMintCapabilities`) additionally clamps minted caps to the caller's
  * own grant, so `keys.provision` can never be used to launder wildcards.

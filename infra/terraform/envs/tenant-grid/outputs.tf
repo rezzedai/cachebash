@@ -15,7 +15,7 @@ output "lite_service_url" {
 
 output "cloud_armor_policy" {
   description = "Cloud Armor security policy name attached to the LB backend"
-  value       = google_compute_security_policy.cerebro_armor.name
+  value       = google_compute_security_policy.tenant_armor.name
 }
 
 output "backend_service_name" {

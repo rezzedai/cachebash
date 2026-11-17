@@ -1,13 +1,13 @@
 /**
  * Mint command-center's API key — closes the identity gap where the
  * command-center CLI session had no keyfile and fell back (pre-#775) to a
- * leaked shared key, running as scalar. (2026-06-11, Flynn-authorized.)
+ * leaked shared key, running as scalar. (2026-06-11, owner-authorized.)
  *
  * Why a script and not keys_create_key via MCP: the #341 ownerAuthz gate
  * requires a LITERAL `keys.provision` capability to mint, and — by design — NO
  * program key holds it (wildcard "*" deliberately does not satisfy it). So the
  * very first key for a new identity must be bootstrapped at the DB layer by a
- * principal with Firestore write (Flynn / datastore.owner). This script does
+ * principal with Firestore write (owner / datastore.owner). This script does
  * EXACTLY what modules/keys.ts createKey does: generate cb_<hex>, sha256 the
  * doc id, write keyIndex/<hash> with bounded caps + active:true. It grants NO
  * `keys.provision` to anyone — it only creates one coordinator key.

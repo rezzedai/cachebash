@@ -30,7 +30,7 @@ function keyDocFor(overrides: Record<string, any>) {
       exists: overrides.exists ?? true,
       data: () => ({
         userId: "tenant-org",
-        programId: "cerebro",
+        programId: "tenant",
         active: true,
         rateLimitTier: "wingman",
         capabilities: ["dispatch.read", "dispatch.write"],

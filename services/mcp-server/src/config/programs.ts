@@ -12,7 +12,7 @@ export const REGISTERED_PROGRAMS = [
   'tester', 'admin-mirror', 'council', 'codex', 'strategist', 'vector',
   // Grid program identities (named programs)
   'basher', 'alan', 'sark', 'quorra', 'casp', 'ram', 'radia', 'castor', 'able', 'beck', 'scalar',
-  // Wingman tier — least-privilege identity for Flynn's day-job agents (MAVERICK/GOOSE/ROOSTER/HANGMAN)
+  // Wingman tier — least-privilege identity for restricted agents
   'wingman',
   // CIS enrichment processors (ephemeral, dispatcher-spawned)
   'sonnet-enrichment', 'opus-enrichment',
@@ -75,7 +75,7 @@ export const PROGRAM_REGISTRY: Partial<Record<ProgramId, ProgramMeta>> = {
   designer:     { displayName: "Designer",      color: "#E8E0D0", role: "Vision" },
   codex:        { displayName: "Codex",         color: "#10A37F", role: "Cross-Model Builder" },
   strategist:   { displayName: "Strategist",    color: "#C4A052", role: "Strategic Counsel" },
-  vector:       { displayName: "VECTOR",        color: "#FFFFFF", role: "Flynn's Strategic Interface" },
+  vector:       { displayName: "VECTOR",        color: "#FFFFFF", role: "Owner's Strategic Interface" },
   basher:       { displayName: "BASHER",        color: "#E87040", role: "Builder" },
   alan:         { displayName: "ALAN",          color: "#6FC3DF", role: "Historian & Analyst" },
   sark:         { displayName: "SARK",          color: "#C44040", role: "Security & Risk" },

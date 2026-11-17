@@ -21,7 +21,7 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function mergeAccountsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin gate: only legacy (Flynn) keys can merge accounts
+  // Admin gate: only legacy (owner) keys can merge accounts
   if (auth.programId !== "legacy") {
     return jsonResult({ success: false, error: "Admin only: merge_accounts requires legacy (admin) key" });
   }

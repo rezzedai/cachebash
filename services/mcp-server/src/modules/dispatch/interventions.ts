@@ -378,7 +378,7 @@ function getDefaultEscalationTarget(currentTarget: string): string | null {
   if (currentTarget === "iso" || currentTarget === "orchestrator") {
     return "vector";
   }
-  // VECTOR -> Flynn (null = requires Flynn)
+  // VECTOR -> owner (null = requires owner)
   if (currentTarget === "vector") {
     return null;
   }
@@ -452,7 +452,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
         newPriority: args.newPriority || "high",
         previousTarget: currentTarget,
         escalatedTo: escalationTarget,
-        requiresFlynn: escalationTarget === null,
+        requiresOwner: escalationTarget === null,
       };
     });
 
@@ -467,7 +467,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
       new_priority: result.newPriority as string,
       previous_target: result.previousTarget as string,
       escalated_to: result.escalatedTo as string | null,
-      requires_flynn: result.requiresFlynn,
+      requires_owner: result.requiresOwner,
       reason: args.reason,
     });
 
@@ -478,8 +478,8 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
       success: true,
     });
 
-    const escalationMsg = result.requiresFlynn
-      ? "Escalation requires Flynn approval (at top of chain)."
+    const escalationMsg = result.requiresOwner
+      ? "Escalation requires owner approval (at top of chain)."
       : `Escalated to ${result.escalatedTo}.`;
 
     return jsonResult({
@@ -488,7 +488,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
       previousPriority: result.previousPriority,
       newPriority: result.newPriority,
       escalatedTo: result.escalatedTo,
-      requiresFlynn: result.requiresFlynn,
+      requiresOwner: result.requiresOwner,
       message: `Task escalated. Priority: ${result.previousPriority} → ${result.newPriority}. ${escalationMsg}`,
     });
   } catch (error) {

@@ -32,7 +32,7 @@ describe("OAuth program binding allowlist", () => {
   });
 });
 
-describe("Flynn-only principal allowlist (callback)", () => {
+describe("Owner-only principal allowlist (callback)", () => {
   const ENV_KEYS = ["OAUTH_ALLOWED_EMAILS", "OAUTH_ALLOWED_UIDS"] as const;
   const saved: Record<string, string | undefined> = {};
 
@@ -49,7 +49,7 @@ describe("Flynn-only principal allowlist (callback)", () => {
     }
   });
 
-  it("defaults to Flynn's two emails and the rezzed.ai uid", () => {
+  it("defaults to the owner's two emails and the rezzed.ai uid", () => {
     expect(getAllowedEmails()).toEqual(["christianbourlier@gmail.com", "christian@rezzed.ai"]);
     expect(getAllowedUids()).toEqual(["7viFKVtl5lgzguhFoZlnYYrqeDG2"]);
   });

@@ -77,13 +77,13 @@ jest.mock("../utils/trace.js", () => ({
   generateSpanId: jest.fn(() => "mock-span"),
 }));
 
-function flynnAuth(): AuthContext {
+function ownerAuth(): AuthContext {
   return {
-    userId: "u-flynn",
-    apiKeyHash: "firebase:uid-flynn",
+    userId: "u-owner",
+    apiKeyHash: "firebase:uid-owner",
     encryptionKey: Buffer.from("abc"),
-    programId: "flynn" as any,
-    keyProgramId: "flynn" as any,
+    programId: "owner" as any,
+    keyProgramId: "owner" as any,
     capabilities: ["relay:write"],
     rateLimitTier: "standard",
   };
@@ -99,8 +99,8 @@ describe("relay target validation: slack-bridge is a special target", () => {
   // No program is registered under that name, so the false-success guard refused it and
   // no REST or MCP caller could reach the bridge (recognizer-vm, PDR #1496 R4, 2026-10-29).
   it("accepts target slack-bridge although no program is registered under it", async () => {
-    const result = await sendMessageHandler(flynnAuth(), {
-      source: "flynn",
+    const result = await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "slack-bridge",
       message_type: "STATUS",
       message: "ORCHESTRATOR STUCK: test",
@@ -111,8 +111,8 @@ describe("relay target validation: slack-bridge is a special target", () => {
   });
 
   it("still refuses an unregistered program name", async () => {
-    const result = await sendMessageHandler(flynnAuth(), {
-      source: "flynn",
+    const result = await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "no-such-program",
       message_type: "STATUS",
       message: "x",

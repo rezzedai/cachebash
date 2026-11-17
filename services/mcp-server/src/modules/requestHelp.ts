@@ -1,7 +1,7 @@
 /**
  * requestHelp module — LITE-profile only.
  *
- * Server-side cross-grid egress: tenant (cerebro) asks the home grid for help
+ * Server-side cross-grid egress: tenant (tenant-a) asks the home grid for help
  * via the `grid-help` alias, authenticating as `rezzed.agent` (relay-only key).
  *
  * Uses the stateful MCP handshake transport — REST /v1/messages is owner-only
@@ -135,7 +135,7 @@ export async function requestHelpHandler(
     throw new Error("[request_help] REZZED_AGENT_KEY not configured");
   }
 
-  const tenant = process.env.CACHEBASH_TENANT_ID ?? "cerebro";
+  const tenant = process.env.CACHEBASH_TENANT_ID ?? "tenant";
   const correlationId = randomUUID();
 
   const relayArgs = {

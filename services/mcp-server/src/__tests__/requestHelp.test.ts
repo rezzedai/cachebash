@@ -92,7 +92,7 @@ const fakeAuth = {} as any;
 
 beforeEach(() => {
   process.env.REZZED_AGENT_KEY = "cb_testrelaykey00000000000000000000000000000";
-  process.env.CACHEBASH_TENANT_ID = "cerebro";
+  process.env.CACHEBASH_TENANT_ID = "tenant-a";
   process.env.HOME_GRID_MCP = "https://api.cachebash.dev/v1/mcp";
 });
 
@@ -204,7 +204,7 @@ describe("relay payload", () => {
 
     const toolsCall = mockFetch.calls.find((c) => c.body.method === "tools/call");
     const payload = (toolsCall?.body as any)?.params?.arguments?.payload;
-    expect(payload?.tenant).toBe("cerebro");
+    expect(payload?.tenant).toBe("tenant-a");
   });
 
   it("carries symptom, loopId, context, and msgId in payload", async () => {
