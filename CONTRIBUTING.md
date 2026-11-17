@@ -146,7 +146,7 @@ mcp-server/src/
 
 ## Community
 
-- [Documentation](https://docs.rezzed.ai)
+- [Documentation](docs/)
 - [GitHub Issues](https://github.com/rezzedai/cachebash/issues) — bugs and feature requests
 - [GitHub Discussions](https://github.com/rezzedai/cachebash/discussions) — questions and ideas
 
