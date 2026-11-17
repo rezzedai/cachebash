@@ -36,5 +36,8 @@
     "@types/react": "~19.3.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
+  }
 }
