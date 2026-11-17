@@ -5,14 +5,14 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000;
 
 export const cleanupOrphanedTasks = functions.pubsub
   .schedule("every 5 minutes")
   .onRun(async () => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const staleThreshold = Date.now() - ORPHAN_THRESHOLD_MS;
 
     functions.logger.info(
@@ -42,7 +42,7 @@ export const cleanupOrphanedTasks = functions.pubsub
           sessionId: null,
           startedAt: null,
           lastHeartbeat: null,
-          revertedAt: admin.firestore.FieldValue.serverTimestamp(),
+          revertedAt: FieldValue.serverTimestamp(),
           revertReason: "heartbeat_timeout",
         });
         revertedIds.push(doc.id);

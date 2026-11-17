@@ -1,9 +1,24 @@
 "use strict";
 /**
- * Process dead letter queue.
- * Runs every 15 minutes. Finds pending relay messages that have been
- * undelivered for too long, increments delivery attempts, and moves
- * them to the dead_letters collection after max attempts exceeded.
+ * Dead-letter expired relay messages.
+ * Runs every 15 minutes. A pending relay message is deliverable until its
+ * expiresAt (the sender's TTL, default 24h). Past that, it is marked
+ * status "dead_lettered" IN PLACE, in tenants/{uid}/relay, so get_sent_messages,
+ * query_message_history and get_dead_letters can still see it.
+ *
+ * This function used to dead-letter on AGE (pending for 1h, three runs) and
+ * then copy the doc to tenants/{uid}/dead_letters and DELETE it from relay. A
+ * message to a slow reader (TENSOR reads from occasional sessions) was removed
+ * about 1.5-2h after sending, unread, and no tool could see it again
+ * (2026-10-21, K0NF26vX). It never deletes and never copies now.
+ *
+ * Fields written match mcp-server's cleanupExpiredRelayMessages.
+ *
+ * ORDERING WITH THE OTHER REAPERS (all every 15 minutes, order unspecified):
+ *   - this function is the ONLY one that acts on a pending relay doc past its
+ *     TTL (reapExpiredByTTL no longer handles relay; cleanupExpiredRelay never
+ *     touches a pending doc), so there is no race on the expiresAt boundary;
+ *   - cleanupExpiredRelay retires a dead_lettered doc 7 days after its expiresAt.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -40,64 +55,60 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processDeadLetters = void 0;
+exports.deadLetterExpiredRelay = deadLetterExpiredRelay;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_DELIVERY_ATTEMPTS = 3;
-const DEAD_LETTER_AGE_MS = 60 * 60 * 1000; // 1 hour
+const BATCH_LIMIT = 400; // Firestore batch cap is 500
+async function deadLetterExpiredRelay(db, now = new Date()) {
+    const fallbackCutoff = new Date(now.getTime() - DEFAULT_TTL_MS);
+    // Pending past its explicit expiresAt.
+    const expiredByTTL = await db
+        .collectionGroup("relay")
+        .where("status", "==", "pending")
+        .where("expiresAt", "<", now)
+        .limit(BATCH_LIMIT)
+        .get();
+    // Pending with no expiresAt at all: older than the default TTL. A doc that
+    // has an expiresAt in the future is NOT expired, however old it is.
+    const expiredByAge = await db
+        .collectionGroup("relay")
+        .where("status", "==", "pending")
+        .where("createdAt", "<", fallbackCutoff)
+        .limit(BATCH_LIMIT)
+        .get();
+    const targets = new Map();
+    expiredByTTL.docs.forEach((doc) => targets.set(doc.ref.path, doc));
+    expiredByAge.docs.forEach((doc) => {
+        if (doc.data().expiresAt == null)
+            targets.set(doc.ref.path, doc);
+    });
+    if (targets.size === 0)
+        return { deadLettered: 0 };
+    const batch = db.batch();
+    for (const doc of targets.values()) {
+        const data = doc.data();
+        const attempts = data.deliveryAttempts || 0;
+        const maxAttempts = data.maxDeliveryAttempts || MAX_DELIVERY_ATTEMPTS;
+        batch.update(doc.ref, {
+            status: "dead_lettered",
+            reason: "TTL expired",
+            dead_letter_reason: "EXPIRED_TTL",
+            dead_letter_class: attempts >= maxAttempts ? "MAX_ATTEMPTS_EXCEEDED" : "EXPIRED_TTL",
+            deadLetteredAt: firestore_1.FieldValue.serverTimestamp(),
+        });
+    }
+    await batch.commit();
+    return { deadLettered: targets.size };
+}
 exports.processDeadLetters = functions.pubsub
     .schedule("every 15 minutes")
     .onRun(async () => {
-    const db = admin.firestore();
-    const cutoff = new Date(Date.now() - DEAD_LETTER_AGE_MS);
-    functions.logger.info(`[processDeadLetters] Checking for undelivered messages older than ${cutoff.toISOString()}`);
     try {
-        // Find pending relay messages older than 1 hour
-        const pendingDocs = await db
-            .collectionGroup("relay")
-            .where("status", "==", "pending")
-            .where("createdAt", "<", cutoff)
-            .limit(500)
-            .get();
-        if (pendingDocs.empty) {
-            functions.logger.info("[processDeadLetters] No pending messages to process");
-            return { processed: 0, deadLettered: 0 };
-        }
-        let processed = 0;
-        let deadLettered = 0;
-        // Process in batches of 500 (Firestore limit)
-        const batch = db.batch();
-        for (const doc of pendingDocs.docs) {
-            const data = doc.data();
-            const attempts = (data.deliveryAttempts || 0) + 1;
-            const maxAttempts = data.maxDeliveryAttempts || MAX_DELIVERY_ATTEMPTS;
-            if (attempts >= maxAttempts) {
-                // Move to dead letter queue
-                // Extract userId from doc path: tenants/{uid}/relay/{id}
-                const pathParts = doc.ref.path.split("/");
-                const userId = pathParts[1];
-                const deadLetterRef = db.doc(`tenants/${userId}/dead_letters/${doc.id}`);
-                batch.set(deadLetterRef, {
-                    ...data,
-                    status: "dead_letter",
-                    deliveryAttempts: attempts,
-                    deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
-                    originalPath: doc.ref.path,
-                });
-                // Delete from relay
-                batch.delete(doc.ref);
-                deadLettered++;
-            }
-            else {
-                // Increment delivery attempts
-                batch.update(doc.ref, {
-                    deliveryAttempts: attempts,
-                });
-            }
-            processed++;
-        }
-        await batch.commit();
-        functions.logger.info(`[processDeadLetters] Processed ${processed} messages, dead-lettered ${deadLettered}`);
-        return { processed, deadLettered };
+        const result = await deadLetterExpiredRelay((0, firestore_1.getFirestore)());
+        functions.logger.info(`[processDeadLetters] Dead-lettered ${result.deadLettered} expired pending messages in place`);
+        return result;
     }
     catch (error) {
         functions.logger.error("[processDeadLetters] Error:", error);

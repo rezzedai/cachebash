@@ -1,8 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
+import { getMessaging, Notification, ApnsConfig, AndroidConfig } from "firebase-admin/messaging";
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -92,10 +93,10 @@ export const onTaskCreate = functions.firestore
           break;
       }
 
-      const notification: admin.messaging.Notification = { title, body };
+      const notification: Notification = { title, body };
       const isHighPriority = task.priority === "high" || taskType === "question";
 
-      const android: admin.messaging.AndroidConfig = {
+      const android: AndroidConfig = {
         priority: isHighPriority ? "high" : "normal",
         notification: {
           channelId,
@@ -111,7 +112,7 @@ export const onTaskCreate = functions.firestore
         .count()
         .get();
 
-      const apns: admin.messaging.ApnsConfig = {
+      const apns: ApnsConfig = {
         payload: {
           aps: {
             alert: notification,

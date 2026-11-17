@@ -6,7 +6,6 @@
  */
 
 import http from "http";
-import * as admin from "firebase-admin";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
@@ -42,6 +41,7 @@ import { handleOAuthToken, cleanupCcRateLimits } from "./oauth/token.js";
 import { handleOAuthRevoke } from "./oauth/revoke.js";
 import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
 import { validateOidcToken } from "./auth/oidcValidator.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_BODY_BYTES = 64 * 1024; // 64KB body limit
@@ -782,8 +782,8 @@ async function main() {
               alertType,
               priority: session.action === "archived" ? "high" : "normal",
               status: "pending",
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 3600000)),
+              createdAt: FieldValue.serverTimestamp(),
+              expiresAt: Timestamp.fromDate(new Date(Date.now() + 3600000)),
             };
 
             try {

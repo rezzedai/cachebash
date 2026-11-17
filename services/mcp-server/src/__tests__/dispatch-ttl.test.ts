@@ -20,7 +20,7 @@ jest.mock("../modules/github-sync.js", () => ({
 import { dispatchHandler } from "../modules/dispatch/dispatchHandler.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { CONSTANTS } from "../config/constants.js";
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 jest.setTimeout(20_000);
 
@@ -154,7 +154,7 @@ const mockFirestore = {
 
 jest.mock("../firebase/client.js", () => ({
   getFirestore: jest.fn(() => mockFirestore),
-  serverTimestamp: jest.fn(() => admin.firestore.Timestamp.now()),
+  serverTimestamp: jest.fn(() => Timestamp.now()),
 }));
 
 beforeEach(() => {

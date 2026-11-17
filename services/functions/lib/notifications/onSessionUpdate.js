@@ -35,9 +35,10 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onSessionUpdate = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
-const db = admin.firestore();
-const messaging = admin.messaging();
+const firestore_1 = require("firebase-admin/firestore");
+const messaging_1 = require("firebase-admin/messaging");
+const db = (0, firestore_1.getFirestore)();
+const messaging = (0, messaging_1.getMessaging)();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const MAX_UPDATES_PER_WINDOW = 20;
 /**
@@ -74,14 +75,14 @@ exports.onSessionUpdate = functions.firestore
                 return;
             }
             if (now - windowStart >= RATE_LIMIT_WINDOW_MS) {
-                await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
+                await rateLimitRef.set({ windowStart: firestore_1.Timestamp.now(), count: 1 });
             }
             else {
-                await rateLimitRef.update({ count: admin.firestore.FieldValue.increment(1) });
+                await rateLimitRef.update({ count: firestore_1.FieldValue.increment(1) });
             }
         }
         else {
-            await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
+            await rateLimitRef.set({ windowStart: firestore_1.Timestamp.now(), count: 1 });
         }
         const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
         if (devicesSnapshot.empty)

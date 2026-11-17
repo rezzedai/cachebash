@@ -7,11 +7,11 @@
  * - Resolution aggregation averages numeric fields
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Fleet Timeline Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -38,8 +38,8 @@ describe("Fleet Timeline Integration", () => {
       heartbeatHealth: number;
     }> = {}
   ): Promise<string> {
-    const ts = admin.firestore.Timestamp.fromDate(timestamp);
-    const ttl = admin.firestore.Timestamp.fromDate(
+    const ts = Timestamp.fromDate(timestamp);
+    const ttl = Timestamp.fromDate(
       new Date(timestamp.getTime() + 7 * 24 * 60 * 60 * 1000)
     );
 
@@ -74,7 +74,7 @@ describe("Fleet Timeline Integration", () => {
       // Query ordered by timestamp
       // Use a start time safely before all test data (1 hour before oldest snapshot)
       const queryStart = new Date(now.getTime() - 4 * 60 * 1000); // 4 min ago (before t1 at 3 min ago)
-      const startTs = admin.firestore.Timestamp.fromDate(queryStart);
+      const startTs = Timestamp.fromDate(queryStart);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)
@@ -91,7 +91,7 @@ describe("Fleet Timeline Integration", () => {
     it("should return empty array when no snapshots exist", async () => {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
-      const startTs = admin.firestore.Timestamp.fromDate(startOfDay);
+      const startTs = Timestamp.fromDate(startOfDay);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)
@@ -120,7 +120,7 @@ describe("Fleet Timeline Integration", () => {
       // Query "today" only
       // Use a start time that excludes yesterday but includes today
       const queryStart = new Date(now.getTime() - 60 * 60 * 1000); // 1 hour ago (after yesterdaySnapshot at 25h ago, before todaySnapshot at 30m ago)
-      const startTs = admin.firestore.Timestamp.fromDate(queryStart);
+      const startTs = Timestamp.fromDate(queryStart);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)
@@ -149,7 +149,7 @@ describe("Fleet Timeline Integration", () => {
       const startOfWeek = new Date(now);
       startOfWeek.setHours(0, 0, 0, 0);
       startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-      const startTs = admin.firestore.Timestamp.fromDate(startOfWeek);
+      const startTs = Timestamp.fromDate(startOfWeek);
 
       const snapshot = await db
         .collection(`tenants/${userId}/fleet_snapshots`)
@@ -190,8 +190,8 @@ describe("Fleet Timeline Integration", () => {
       expect(data?.ttl).toBeDefined();
 
       // TTL should be ~7 days from timestamp
-      const tsMs = (data?.timestamp as admin.firestore.Timestamp).toMillis();
-      const ttlMs = (data?.ttl as admin.firestore.Timestamp).toMillis();
+      const tsMs = (data?.timestamp as Timestamp).toMillis();
+      const ttlMs = (data?.ttl as Timestamp).toMillis();
       const diffDays = (ttlMs - tsMs) / (24 * 60 * 60 * 1000);
       expect(diffDays).toBeCloseTo(7, 0);
     });

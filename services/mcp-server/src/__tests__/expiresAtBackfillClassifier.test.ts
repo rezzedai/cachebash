@@ -1,12 +1,12 @@
 import { classifyForBackfill } from "../modules/dispatch/expiresAtBackfillClassifier.js";
 import { CONSTANTS } from "../config/constants.js";
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 const SENTINEL_MS = new Date(CONSTANTS.ttl.neverExpiresSentinel).getTime();
 
 describe("PLAN-W1: classifyForBackfill", () => {
   it("type=task, status=done with completedAt -> reapable, completedAt + 7d", () => {
-    const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+    const completedAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
     const result = classifyForBackfill({ type: "task", status: "done", completedAt });
 
     expect(result.branch).toBe("reapable");
@@ -15,7 +15,7 @@ describe("PLAN-W1: classifyForBackfill", () => {
   });
 
   it("type=task, status=cancelled with only createdAt -> reapable, createdAt + 7d", () => {
-    const createdAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+    const createdAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
     const result = classifyForBackfill({ type: "task", status: "cancelled", createdAt });
 
     expect(result.branch).toBe("reapable");
@@ -23,15 +23,15 @@ describe("PLAN-W1: classifyForBackfill", () => {
   });
 
   it("type=task, auto_archived=true (regardless of status) -> reapable", () => {
-    const createdAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+    const createdAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
     const result = classifyForBackfill({ type: "task", status: "created", auto_archived: true, createdAt });
 
     expect(result.branch).toBe("reapable");
   });
 
   it("type=task prefers completedAt over createdAt when both present", () => {
-    const createdAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
-    const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-02-01T00:00:00Z"));
+    const createdAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+    const completedAt = Timestamp.fromDate(new Date("2026-02-01T00:00:00Z"));
     const result = classifyForBackfill({ type: "task", status: "done", createdAt, completedAt });
 
     expect(result.expiresAt.getTime()).toBe(completedAt.toDate().getTime() + 7 * 24 * 3600 * 1000);
@@ -57,7 +57,7 @@ describe("PLAN-W1: classifyForBackfill", () => {
   });
 
   it("NEGATIVE (falsy trap check): terminal branch never reads ttl -- ttl:0 must not influence the branch", () => {
-    const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+    const completedAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
     const withZeroTtl = classifyForBackfill({ type: "task", status: "done", completedAt, ...( { ttl: 0 } as any) });
     const withoutTtl = classifyForBackfill({ type: "task", status: "done", completedAt });
 
@@ -80,7 +80,7 @@ describe("PLAN-W1: classifyForBackfill", () => {
 
   describe("PLAN-W1 GATE: non-task types always sentinel, ahead of the terminal check", () => {
     it("type=sprint-story, status=done -> sentinel (was reapable before the gate; this IS the 46-doc delta)", () => {
-      const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+      const completedAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
       const result = classifyForBackfill({ type: "sprint-story", status: "done", completedAt });
 
       expect(result.branch).toBe("sentinel");
@@ -112,14 +112,14 @@ describe("PLAN-W1: classifyForBackfill", () => {
     });
 
     it("missing type entirely -> sentinel (fail safe: unknown never reaps)", () => {
-      const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+      const completedAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
       const result = classifyForBackfill({ status: "done", completedAt });
       expect(result.branch).toBe("sentinel");
       expect(result.ambiguous).toBe(false);
     });
 
     it("a non-task type never reads ttl either (same falsy-trap guarantee as the task path)", () => {
-      const completedAt = admin.firestore.Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
+      const completedAt = Timestamp.fromDate(new Date("2026-01-01T00:00:00Z"));
       const withZeroTtl = classifyForBackfill({ type: "sprint", status: "done", completedAt, ...( { ttl: 0 } as any) });
       const withoutTtl = classifyForBackfill({ type: "sprint", status: "done", completedAt });
       expect(withZeroTtl).toEqual(withoutTtl);

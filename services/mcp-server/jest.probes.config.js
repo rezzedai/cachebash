@@ -3,6 +3,9 @@
 // Probe files are *.probe.ts so the unit-test config (jest.config.js, *.test.ts) never picks them up.
 module.exports = {
   preset: "ts-jest",
+  transform: {
+    "^.+\\.[tj]sx?$": ["ts-jest", { tsconfig: { allowJs: true, esModuleInterop: true, module: "commonjs", moduleResolution: "node", target: "ES2022", skipLibCheck: true } }],
+  },
   testEnvironment: "node",
   roots: ["<rootDir>/src/__tests__/probes"],
   testMatch: ["**/*.probe.ts"],
@@ -10,7 +13,7 @@ module.exports = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  transformIgnorePatterns: ["node_modules/(?!@octokit/.*)"],
+  transformIgnorePatterns: ["node_modules/(?!(@octokit|jose)/)"],
   globalSetup: "<rootDir>/src/__tests__/probes/harness/globalSetup.ts",
   globalTeardown: "<rootDir>/src/__tests__/probes/harness/globalTeardown.ts",
   testTimeout: 60000,

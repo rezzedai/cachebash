@@ -17,6 +17,7 @@ import { generateSpanId } from "../utils/trace.js";
 import { z } from "zod";
 import { logDirective, markDirectiveAcknowledged } from "./ack-compliance.js";
 import { getComplianceConfig } from "../config/compliance.js";
+import { FieldValue, Timestamp, Query, QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 // ADR-014: normalize relay body across split-brain write paths.
 // sendMessageHandler writes `payload`; sendTaskAndDirective (dispatchHandler) wrote `message`.
@@ -166,7 +167,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   // rejects 0 (and negatives) before this line runs -- args.ttl is either undefined
   // or a genuine positive number, never the never-expires sentinel value.
   const ttl = args.ttl || RELAY_DEFAULT_TTL_SECONDS;
-  const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + ttl * 1000);
+  const expiresAt = Timestamp.fromMillis(Date.now() + ttl * 1000);
 
   // Resolve target — may be a group (fan-out) or single program
   let targets = await resolveTargetsAsync(auth.userId, args.target);
@@ -309,7 +310,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       await db.doc(`tenants/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
         multicastId,
         recipients: targets.length,
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
+        expiresAt: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
         createdAt: serverTimestamp(),
       });
     }
@@ -420,7 +421,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   if (args.idempotency_key) {
     await db.doc(`tenants/${auth.userId}/idempotency_keys/${args.idempotency_key}`).set({
       messageId: relayRef.id,
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
+      expiresAt: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000), // 1 hour TTL
       createdAt: serverTimestamp(),
     });
   }
@@ -453,7 +454,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   // ADR-013: includeDelivered re-opens the body-read window after a claim.
   // Target enforcement below scopes it; the claim transaction skips
   // non-pending docs, so delivered re-reads can never re-claim.
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
+  let query: Query = db.collection(`tenants/${auth.userId}/relay`);
   query = args.includeDelivered
     ? query.where("status", "in", ["pending", "delivered"])
     : query.where("status", "==", "pending");
@@ -549,8 +550,8 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
         if (data.status === "pending" && !isBroadcast) {
           tx.update(ref, {
             status: "delivered",
-            deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
-            deliveryAttempts: admin.firestore.FieldValue.increment(1),
+            deliveredAt: FieldValue.serverTimestamp(),
+            deliveryAttempts: FieldValue.increment(1),
           });
         } else if (data.status === "pending" && isBroadcast) {
           // Return it, but never mutate it or count it as a delivery attempt.
@@ -615,7 +616,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const isPrivileged = isAdmin(auth);
   const source = isPrivileged && args.source ? args.source : auth.programId;
 
-  let query: admin.firestore.Query = db
+  let query: Query = db
     .collection(`tenants/${auth.userId}/relay`)
     .where("source", "==", source);
 
@@ -685,7 +686,7 @@ export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown)
     .limit(args.limit)
     .get();
 
-  const toRow = (doc: admin.firestore.QueryDocumentSnapshot, legacy: boolean) => {
+  const toRow = (doc: QueryDocumentSnapshot, legacy: boolean) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -773,7 +774,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   // Sort: ASC when threadId filter set (conversation thread), DESC otherwise
   const sortDirection: "asc" | "desc" = args.threadId ? "asc" : "desc";
 
-  const applyCommonFilters = (q: admin.firestore.Query): admin.firestore.Query => {
+  const applyCommonFilters = (q: Query): Query => {
     if (args.threadId) {
       q = q.where("threadId", "==", args.threadId);
     }
@@ -785,19 +786,19 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
     }
     q = q.orderBy("createdAt", sortDirection);
     if (args.since) {
-      q = q.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(new Date(args.since)));
+      q = q.where("createdAt", ">=", Timestamp.fromDate(new Date(args.since)));
     }
     if (args.until) {
-      q = q.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(new Date(args.until)));
+      q = q.where("createdAt", "<=", Timestamp.fromDate(new Date(args.until)));
     }
     return q.limit(args.limit);
   };
 
-  let queries: admin.firestore.Query[];
+  let queries: Query[];
   if (privileged || args.source || args.target) {
     // Admin: filters as given. Non-admin: source/target already coerced to
     // self/"all" above, so a single filtered query is participant-scoped.
-    let q: admin.firestore.Query = collection;
+    let q: Query = collection;
     if (args.source) {
       q = q.where("source", "==", args.source);
     }
@@ -817,7 +818,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   }
 
   const snapshots = await Promise.all(queries.map((q) => q.get()));
-  const byId = new Map<string, admin.firestore.QueryDocumentSnapshot>();
+  const byId = new Map<string, QueryDocumentSnapshot>();
   for (const snapshot of snapshots) {
     for (const doc of snapshot.docs) {
       byId.set(doc.id, doc);
@@ -908,7 +909,7 @@ function classifyDeadLetter(data: Record<string, unknown>): string {
 
 export async function cleanupExpiredRelayMessages(userId: string): Promise<{ expired: number; cleaned: number }> {
   const db = getFirestore();
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
 
   const snapshot = await db
     .collection(`tenants/${userId}/relay`)
@@ -931,7 +932,7 @@ export async function cleanupExpiredRelayMessages(userId: string): Promise<{ exp
       reason: "TTL expired",           // keep for backwards compat
       dead_letter_reason: "EXPIRED_TTL" as const,  // new structured field
       dead_letter_class: classifyDeadLetter(data),  // add classification
-      deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
+      deadLetteredAt: FieldValue.serverTimestamp(),
     });
     count++;
   }

@@ -1,8 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { getMessaging, Notification } from "firebase-admin/messaging";
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const MAX_UPDATES_PER_WINDOW = 20;
@@ -42,12 +43,12 @@ export const onSessionUpdate = functions.firestore
           return;
         }
         if (now - windowStart >= RATE_LIMIT_WINDOW_MS) {
-          await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
+          await rateLimitRef.set({ windowStart: Timestamp.now(), count: 1 });
         } else {
-          await rateLimitRef.update({ count: admin.firestore.FieldValue.increment(1) });
+          await rateLimitRef.update({ count: FieldValue.increment(1) });
         }
       } else {
-        await rateLimitRef.set({ windowStart: admin.firestore.Timestamp.now(), count: 1 });
+        await rateLimitRef.set({ windowStart: Timestamp.now(), count: 1 });
       }
 
       const devicesSnapshot = await db.collection(`tenants/${userId}/devices`).get();
@@ -86,7 +87,7 @@ export const onSessionUpdate = functions.firestore
           body = statusText;
       }
 
-      const notification: admin.messaging.Notification = { title, body };
+      const notification: Notification = { title, body };
 
       const response = await messaging.sendEachForMulticast({
         tokens,

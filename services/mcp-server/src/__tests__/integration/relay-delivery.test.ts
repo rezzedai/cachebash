@@ -9,11 +9,10 @@
  * - Idempotency key deduplication
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser, seedTestData } from "./setup";
 
 describe("Relay Delivery Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -36,7 +35,7 @@ describe("Relay Delivery Integration", () => {
         message_type: "DIRECTIVE",
         priority: "normal",
         status: "pending",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         ttl: 86400, // 24 hours in seconds
       };
 
@@ -65,7 +64,7 @@ describe("Relay Delivery Integration", () => {
           message: `${type} message`,
           message_type: type,
           status: "pending",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -87,7 +86,7 @@ describe("Relay Delivery Integration", () => {
         message_type: "QUERY",
         status: "pending",
         payload,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
@@ -108,7 +107,7 @@ describe("Relay Delivery Integration", () => {
         message: "Transition test",
         message_type: "DIRECTIVE",
         status: "pending",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Ensure document exists before updating
@@ -118,7 +117,7 @@ describe("Relay Delivery Integration", () => {
       // Mark as delivered
       await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "delivered",
-        deliveredAt: admin.firestore.FieldValue.serverTimestamp(),
+        deliveredAt: FieldValue.serverTimestamp(),
       });
 
       messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
@@ -128,7 +127,7 @@ describe("Relay Delivery Integration", () => {
       // Mark as read
       await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "read",
-        readAt: admin.firestore.FieldValue.serverTimestamp(),
+        readAt: FieldValue.serverTimestamp(),
       });
 
       messageDoc = await db.collection(`tenants/${userId}/relay`).doc(messageId).get();
@@ -145,7 +144,7 @@ describe("Relay Delivery Integration", () => {
         message: "Failed delivery",
         message_type: "DIRECTIVE",
         status: "pending",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Ensure document exists before updating
@@ -154,7 +153,7 @@ describe("Relay Delivery Integration", () => {
 
       await db.collection(`tenants/${userId}/relay`).doc(messageId).update({
         status: "failed",
-        failedAt: admin.firestore.FieldValue.serverTimestamp(),
+        failedAt: FieldValue.serverTimestamp(),
         error: "Target not reachable",
       });
 
@@ -172,8 +171,8 @@ describe("Relay Delivery Integration", () => {
       const messageId = "msg-005";
       const ttlSeconds = 3600; // 1 hour
 
-      const createdAt = admin.firestore.Timestamp.now();
-      const expiresAt = admin.firestore.Timestamp.fromMillis(
+      const createdAt = Timestamp.now();
+      const expiresAt = Timestamp.fromMillis(
         createdAt.toMillis() + ttlSeconds * 1000
       );
 
@@ -192,14 +191,14 @@ describe("Relay Delivery Integration", () => {
       const data = messageDoc.data();
 
       expect(data?.expiresAt).toBeDefined();
-      expect((data?.expiresAt as admin.firestore.Timestamp).toMillis()).toBeGreaterThan(
+      expect((data?.expiresAt as Timestamp).toMillis()).toBeGreaterThan(
         createdAt.toMillis()
       );
     });
 
     it("should identify expired messages", async () => {
       const messageId = "msg-006";
-      const pastTimestamp = admin.firestore.Timestamp.fromDate(
+      const pastTimestamp = Timestamp.fromDate(
         new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
       );
 
@@ -213,7 +212,7 @@ describe("Relay Delivery Integration", () => {
         expiresAt: pastTimestamp,
       });
 
-      const now = admin.firestore.Timestamp.now();
+      const now = Timestamp.now();
       const expiredMessages = await db
         .collection(`tenants/${userId}/relay`)
         .where("expiresAt", "<", now)
@@ -238,7 +237,7 @@ describe("Relay Delivery Integration", () => {
           message_type: "DIRECTIVE",
           status: "pending",
           threadId: baseMessageId, // Same thread for grouped messages
-          createdAt: admin.firestore.Timestamp.now(),
+          createdAt: Timestamp.now(),
         });
       }
 
@@ -270,7 +269,7 @@ describe("Relay Delivery Integration", () => {
             message_type: "DIRECTIVE",
             status: "pending",
             groupTarget: group,
-            createdAt: admin.firestore.Timestamp.now(),
+            createdAt: Timestamp.now(),
           });
         }
       }
@@ -294,7 +293,7 @@ describe("Relay Delivery Integration", () => {
         message_type: "DIRECTIVE",
         status: "pending",
         idempotency_key: idempotencyKey,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       };
 
       // First message
@@ -333,7 +332,7 @@ describe("Relay Delivery Integration", () => {
           message_type: "DIRECTIVE",
           status: "pending",
           idempotency_key: msg.key,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -375,6 +374,7 @@ import {
 import { getTasksHandler } from "../../modules/dispatch/tasks";
 import { createRestRouter } from "../../transport/rest";
 import type { AuthContext } from "../../auth/authValidator";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 function makeAuth(userId: string, programId: string): AuthContext {
   return {
@@ -403,11 +403,11 @@ function parse(result: { content: Array<{ text: string }> }) {
 }
 
 function ts(isoDate: string) {
-  return admin.firestore.Timestamp.fromDate(new Date(isoDate));
+  return Timestamp.fromDate(new Date(isoDate));
 }
 
 describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -699,7 +699,7 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
  * Replaces SARK's sweeper-skip regex stopgap for new writes; stopgap stays for legacy.
  */
 describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -820,7 +820,7 @@ describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
  *   - Dynamic Firestore-only group → resolved to members (multicast).
  */
 describe("Relay false-success guard", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -952,7 +952,7 @@ describe("Relay false-success guard", () => {
  * Wake-on-arrival is fire-and-forget; tested indirectly (no assertion on spawn).
  */
 describe("Grid-help tenant-route", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {

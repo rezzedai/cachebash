@@ -20,7 +20,6 @@
  * - Then run: npm run test:integration --workspace=services/mcp-server
  */
 
-import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import { Readable } from "stream";
 import type http from "http";
@@ -34,9 +33,10 @@ import { handleOAuthToken } from "../../oauth/token";
 import { handleOAuthRevoke } from "../../oauth/revoke";
 import { validateAuth } from "../../auth/authValidator";
 import { initializeFirebase } from "../../firebase/client";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("OAuth 2.1 End-to-End Flow", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -303,8 +303,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state,
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(codeExpiresAt),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(codeExpiresAt),
         used: false,
       });
 
@@ -400,8 +400,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         state,
         scope: "mcp:full",
         programId: pendingDoc.data()?.programId,
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
         used: false,
       });
       await db.doc(`oauthPendingAuth/${pendingAuthId}`).delete();
@@ -580,8 +580,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state: "test-state",
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
         used: false,
       });
     });
@@ -601,8 +601,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state: "test-state",
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(pastTime),
-        expiresAt: admin.firestore.Timestamp.fromDate(pastTime), // Already expired
+        createdAt: Timestamp.fromDate(pastTime),
+        expiresAt: Timestamp.fromDate(pastTime), // Already expired
         used: false,
       });
 
@@ -696,8 +696,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state: "test-state",
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
         used: false,
       });
 
@@ -826,8 +826,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state: "test-state",
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
         used: false,
       });
 
@@ -933,8 +933,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         grantTypes: ["authorization_code", "refresh_token"],
         responseTypes: ["code"],
         tokenEndpointAuthMethod: "none",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastUsedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        lastUsedAt: FieldValue.serverTimestamp(),
       });
 
       const pkce = generatePkce();
@@ -951,8 +951,8 @@ describe("OAuth 2.1 End-to-End Flow", () => {
         codeChallengeMethod: "S256",
         state: "test-state",
         scope: "mcp:full",
-        createdAt: admin.firestore.Timestamp.fromDate(now),
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
+        createdAt: Timestamp.fromDate(now),
+        expiresAt: Timestamp.fromDate(new Date(now.getTime() + 10 * 60 * 1000)),
         used: false,
       });
 

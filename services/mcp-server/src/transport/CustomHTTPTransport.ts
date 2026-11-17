@@ -11,6 +11,7 @@ import {
   internalErrorResponse,
 } from "./ResponseBuilder.js";
 import { validateRequestHeaders } from "../security/dns-rebinding.js";
+import { FieldValue } from "firebase-admin/firestore";
 
 export class CustomHTTPTransport implements Transport {
   private config: TransportConfig;
@@ -156,7 +157,7 @@ export class CustomHTTPTransport implements Transport {
       const db = (await import("../firebase/client.js")).getFirestore();
       const admin = await import("firebase-admin");
       await db.doc(`tenants/${authContext.userId}/sessions/${this.sessionId}`).update({
-        lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+        lastHeartbeat: FieldValue.serverTimestamp(),
       }).catch((err) => {
         // Session may not exist in sessions collection (e.g., MCP client without Grid program)
         // This is not an error — only Grid programs create entries in the sessions collection

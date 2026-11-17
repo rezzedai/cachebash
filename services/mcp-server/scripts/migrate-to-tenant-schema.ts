@@ -11,10 +11,11 @@
  * - Or running in a GCP environment with appropriate permissions
  */
 
-import * as admin from 'firebase-admin';
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 const SUBCOLLECTIONS = [
   'tasks', 'relay', 'events', 'analytics_events', 'analytics_aggregates',

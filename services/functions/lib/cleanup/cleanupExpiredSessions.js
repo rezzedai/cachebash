@@ -40,13 +40,13 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cleanupExpiredSessions = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const SESSION_TIMEOUT_MS = 65 * 60 * 1000; // 65 min
 exports.cleanupExpiredSessions = functions.pubsub
     .schedule("every 5 minutes")
     .onRun(async () => {
-    const db = admin.firestore();
-    const staleThreshold = admin.firestore.Timestamp.fromMillis(Date.now() - SESSION_TIMEOUT_MS);
+    const db = (0, firestore_1.getFirestore)();
+    const staleThreshold = firestore_1.Timestamp.fromMillis(Date.now() - SESSION_TIMEOUT_MS);
     functions.logger.info(`[cleanupExpiredSessions] Looking for active/created sessions with lastHeartbeat < ${staleThreshold.toDate().toISOString()}`);
     try {
         // Two queries: (1) stale active/created sessions, (2) done-but-unarchived zombies
@@ -93,10 +93,10 @@ exports.cleanupExpiredSessions = functions.pubsub
             batch.update(doc.ref, {
                 status: "archived",
                 archived: true,
-                archivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                endedAt: admin.firestore.FieldValue.serverTimestamp(),
+                archivedAt: firestore_1.FieldValue.serverTimestamp(),
+                endedAt: firestore_1.FieldValue.serverTimestamp(),
                 reapReason: isZombie ? "zombie_done_unarchived" : "heartbeat_timeout",
-                lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+                lastUpdate: firestore_1.FieldValue.serverTimestamp(),
             });
             // Emit relay message to ISO (only for heartbeat timeouts, not zombie cleanup)
             if (!isZombie) {
@@ -112,7 +112,7 @@ exports.cleanupExpiredSessions = functions.pubsub
                     read: false,
                     ttl: 86400,
                     expiresAt: new Date(now + 86400000),
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: firestore_1.FieldValue.serverTimestamp(),
                 });
             }
             reapedSessions.push(`${sessionId} (${programId}) [${isZombie ? "zombie" : "stale"}]`);

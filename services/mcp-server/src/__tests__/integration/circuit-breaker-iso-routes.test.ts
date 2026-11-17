@@ -23,7 +23,6 @@
  *     fix.
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData } from "./setup";
 import type { AuthContext } from "../../auth/authValidator";
 
@@ -31,10 +30,10 @@ import type { AuthContext } from "../../auth/authValidator";
 // instead of the production firebase/client.ts singleton.
 jest.mock("../../firebase/client.js", () => ({
   getFirestore: () => getTestFirestoreLazy(),
-  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
 
-function getTestFirestoreLazy(): admin.firestore.Firestore {
+function getTestFirestoreLazy(): Firestore {
   return getTestFirestore();
 }
 
@@ -130,9 +129,10 @@ import { resetCircuitBreakerState } from "../../middleware/circuitBreaker";
 import { createTaskHandler } from "../../modules/dispatch/index.js";
 import { sendMessageHandler } from "../../modules/relay.js";
 import { getCurrentPeriod } from "../../middleware/usage.js";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 describe("WS-3 ISO transport enforcement — POST /v1/iso/mcp CallToolRequestSchema", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   const userId = "test-org-breaker-iso";
 
   beforeAll(() => {
@@ -268,7 +268,7 @@ describe("WS-2 gap closure: ISO transport (/v1/iso/mcp) usage metering", () => {
   // (incrementSeatUsage). A seat key could call tools via this transport and
   // bypass per-seat ceilings entirely, since nothing ever landed in
   // tenants/{userId}/usage/{period}.seats.{seatId}.
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   const userId = "test-org-usage-iso";
 
   beforeAll(() => {

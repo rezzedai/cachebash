@@ -7,12 +7,12 @@
  * - Alert routing
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser, seedTestData } from "./setup";
 import { runHealthCheck } from "../../modules/gridbot-monitor";
+import { Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Health Monitoring Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -27,8 +27,8 @@ describe("Health Monitoring Integration", () => {
 
   describe("Task Failure Rate Indicator", () => {
     it("should report OK status when failure rate is low", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 
@@ -67,8 +67,8 @@ describe("Health Monitoring Integration", () => {
     });
 
     it("should report WARNING status when failure rate exceeds threshold", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 
@@ -110,8 +110,8 @@ describe("Health Monitoring Integration", () => {
     });
 
     it("should report CRITICAL status when failure rate is very high", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 
@@ -154,11 +154,11 @@ describe("Health Monitoring Integration", () => {
 
   describe("Stale Task Indicator", () => {
     it("should detect stale tasks older than 30 minutes", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const thirtyMinAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const thirtyMinAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 35 * 60 * 1000) // 35 min ago
       );
-      const recentTime = admin.firestore.Timestamp.fromDate(
+      const recentTime = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 10 * 60 * 1000) // 10 min ago
       );
 
@@ -198,7 +198,7 @@ describe("Health Monitoring Integration", () => {
             source: "orchestrator",
             target: "builder",
             message: `Pending message ${i}`,
-            createdAt: admin.firestore.Timestamp.now(),
+            createdAt: Timestamp.now(),
           },
         });
       }
@@ -217,8 +217,8 @@ describe("Health Monitoring Integration", () => {
 
   describe("Session Death Indicator", () => {
     it("should count SESSION_DEATH events in last hour", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 
@@ -248,8 +248,8 @@ describe("Health Monitoring Integration", () => {
 
   describe("Overall Health Status", () => {
     it("should report overall status as CRITICAL when any indicator is critical", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 
@@ -286,8 +286,8 @@ describe("Health Monitoring Integration", () => {
     });
 
     it("should report overall status as WARNING when no critical but some warnings", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const thirtyMinAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const thirtyMinAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 35 * 60 * 1000)
       );
 
@@ -323,8 +323,8 @@ describe("Health Monitoring Integration", () => {
     });
 
     it("should generate alerts for critical indicators", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 60 * 60 * 1000)
       );
 

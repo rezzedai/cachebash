@@ -8,11 +8,11 @@
  * - Authorization checks
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 describe("Unclaim Task Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -37,9 +37,9 @@ describe("Unclaim Task Integration", () => {
         source: "orchestrator",
         target: "builder",
         sessionId: "session-123",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
+        lastHeartbeat: FieldValue.serverTimestamp(),
       });
 
       // Simulate unclaim via transaction (same pattern as handler)
@@ -56,8 +56,8 @@ describe("Unclaim Task Integration", () => {
           sessionId: null,
           startedAt: null,
           lastHeartbeat: null,
-          unclaimCount: admin.firestore.FieldValue.increment(1),
-          lastUnclaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+          unclaimCount: FieldValue.increment(1),
+          lastUnclaimedAt: FieldValue.serverTimestamp(),
           lastUnclaimReason: "manual",
         });
       });
@@ -85,7 +85,7 @@ describe("Unclaim Task Integration", () => {
         status: "created",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);
@@ -123,8 +123,8 @@ describe("Unclaim Task Integration", () => {
         status: "done",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         completed_status: "SUCCESS",
       });
 
@@ -161,7 +161,7 @@ describe("Unclaim Task Integration", () => {
         target: "builder",
         sessionId: "session-456",
         unclaimCount: 1,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);
@@ -198,7 +198,7 @@ describe("Unclaim Task Integration", () => {
         target: "builder",
         sessionId: "session-789",
         unclaimCount: 2,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);
@@ -246,7 +246,7 @@ describe("Unclaim Task Integration", () => {
         target: "builder",
         sessionId: "session-101",
         unclaimCount: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);
@@ -291,7 +291,7 @@ describe("Unclaim Task Integration", () => {
         target: "builder",
         sessionId: "session-202",
         unclaimCount: 5,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       const taskRef = db.collection(`tenants/${userId}/tasks`).doc(taskId);

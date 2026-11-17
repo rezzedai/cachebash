@@ -5,11 +5,11 @@
  * Verifies subscriptionBudget, contextHealth, taskContention, and rateLimits.
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Fleet Health Dashboard Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -38,8 +38,8 @@ describe("Fleet Health Dashboard Integration", () => {
       programId,
       currentState: overrides.currentState ?? "working",
       lastHeartbeat: overrides.lastHeartbeat
-        ? admin.firestore.Timestamp.fromDate(overrides.lastHeartbeat)
-        : admin.firestore.FieldValue.serverTimestamp(),
+        ? Timestamp.fromDate(overrides.lastHeartbeat)
+        : FieldValue.serverTimestamp(),
       currentSessionId: overrides.currentSessionId ?? `${programId}-session`,
     };
     if (overrides.contextBytes !== undefined) data.contextBytes = overrides.contextBytes;
@@ -64,7 +64,7 @@ describe("Fleet Health Dashboard Integration", () => {
       contextBytes: overrides.contextBytes ?? null,
       archived: overrides.archived ?? false,
       status: "active",
-      lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+      lastUpdate: FieldValue.serverTimestamp(),
     });
   }
 
@@ -74,14 +74,14 @@ describe("Fleet Health Dashboard Integration", () => {
     outcome: "claimed" | "contention",
     timestamp?: Date
   ): Promise<void> {
-    const ttl = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const ttl = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await db.collection(`tenants/${userId}/claim_events`).add({
       taskId,
       sessionId,
       outcome,
       timestamp: timestamp
-        ? admin.firestore.Timestamp.fromDate(timestamp)
-        : admin.firestore.FieldValue.serverTimestamp(),
+        ? Timestamp.fromDate(timestamp)
+        : FieldValue.serverTimestamp(),
       ttl,
     });
   }
@@ -95,11 +95,11 @@ describe("Fleet Health Dashboard Integration", () => {
       timestamp: Date;
     }> = {}
   ): Promise<void> {
-    const ttl = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const ttl = Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await db.collection(`tenants/${userId}/rate_limit_events`).add({
       timestamp: overrides.timestamp
-        ? admin.firestore.Timestamp.fromDate(overrides.timestamp)
-        : admin.firestore.FieldValue.serverTimestamp(),
+        ? Timestamp.fromDate(overrides.timestamp)
+        : FieldValue.serverTimestamp(),
       sessionId: overrides.sessionId ?? "test-session",
       programId: "basher",
       modelTier: overrides.modelTier ?? "opus",
@@ -123,8 +123,8 @@ describe("Fleet Health Dashboard Integration", () => {
       status: overrides.status ?? "created",
       target: overrides.target ?? "basher",
       createdAt: overrides.createdAt
-        ? admin.firestore.Timestamp.fromDate(overrides.createdAt)
-        : admin.firestore.FieldValue.serverTimestamp(),
+        ? Timestamp.fromDate(overrides.createdAt)
+        : FieldValue.serverTimestamp(),
     });
   }
 
@@ -320,7 +320,7 @@ describe("Fleet Health Dashboard Integration", () => {
       await seedClaimEvent("task-2", "session-b", "claimed", now);
       await seedClaimEvent("task-2", "session-a", "contention", now);
 
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+      const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
       const snap = await db
         .collection(`tenants/${userId}/claim_events`)
         .where("timestamp", ">=", oneHourAgo)
@@ -348,7 +348,7 @@ describe("Fleet Health Dashboard Integration", () => {
     });
 
     it("should return zero contention when no claim events exist", async () => {
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+      const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
       const snap = await db
         .collection(`tenants/${userId}/claim_events`)
         .where("timestamp", ">=", oneHourAgo)
@@ -367,7 +367,7 @@ describe("Fleet Health Dashboard Integration", () => {
       await seedRateLimitEvent("/v1/tasks", { timestamp: now });
       await seedRateLimitEvent("/v1/mcp", { timestamp: now });
 
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+      const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
       const snap = await db
         .collection(`tenants/${userId}/rate_limit_events`)
         .where("timestamp", ">=", oneHourAgo)
@@ -394,7 +394,7 @@ describe("Fleet Health Dashboard Integration", () => {
     });
 
     it("should return zero events when no rate limits occurred", async () => {
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
+      const oneHourAgo = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
       const snap = await db
         .collection(`tenants/${userId}/rate_limit_events`)
         .where("timestamp", ">=", oneHourAgo)
