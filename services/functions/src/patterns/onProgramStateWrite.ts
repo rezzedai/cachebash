@@ -7,7 +7,7 @@ import { emitEvent } from "../util/emitEvent";
  *
  * SINGLE SOURCE OF TRUTH: grid/schemas/program.schema.json declares promotion at
  * confidence >= 0.8 (learnedPatterns.confidence description). grid/workflows/pattern-promotion.md
- * is reconciled to match. Do not change here without changing both. (Operator decision, OPP-3.)
+ * is reconciled to match. Do not change here without changing both. (owner decision, OPP-3.)
  */
 const PROMOTION_CONFIDENCE_THRESHOLD = 0.8;
 

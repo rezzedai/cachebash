@@ -254,7 +254,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
     "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],
-  // SCALAR — Operator's web/mobile Grid identity (OAuth-bound, claude.ai connector).
+  // SCALAR — the owner's web/mobile Grid identity (OAuth-bound, claude.ai connector).
   // Explicit minted set: operational read+write, observability read-only.
   // Deliberately NO keys.*, NO audit, NO programs.write, NO wildcard.
   scalar: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
@@ -275,7 +275,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
   vector: ["*"],
   bit: ["*"],
   dispatcher: ["*"],
-  // Wingman tier — least-privilege identity spine for Operator's restricted agents.
+  // Wingman tier — least-privilege identity spine for restricted agents.
   // ALLOWED: dispatch + relay + signal (orchestrate + coordinate) + result reads.
   // HARD-DENY (absent, not just execution-denied): keys.*, admin.write, fleet.control,
   // policy.*, gsp.write (governance resolution), fleet.read (fleet control reads),

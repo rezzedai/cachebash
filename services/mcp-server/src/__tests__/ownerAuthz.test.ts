@@ -4,7 +4,7 @@
  * The load-bearing assertion: a "*" wildcard key must NOT be able to provision
  * keys. The SOLE gate is a LITERAL keys.provision grant. uid is irrelevant —
  * the #341 NO-GO proved the old uid/owner branch was a PROD NO-OP, because every
- * cb_ key carries the shared TENANT uid (Operator's allowlisted uid), not the
+ * cb_ key carries the shared TENANT uid (the owner's allowlisted uid), not the
  * calling principal, so the branch passed the entire fleet.
  */
 import type { AuthContext } from "../auth/authValidator";
@@ -52,11 +52,11 @@ describe("isKeyProvisioner", () => {
   });
 
   // #341 REGRESSION: the prod no-op. Every cb_ key's userId is the shared tenant
-  // uid (Operator's allowlisted uid). uid must NOT grant provisioning — only the
+  // uid (the owner's allowlisted uid). uid must NOT grant provisioning — only the
   // literal cap does. A wildcard key carrying the real tenant uid is still DENIED.
   it("ignores uid entirely — a tenant-uid wildcard key cannot provision (prod no-op fixed)", () => {
     expect(isKeyProvisioner(authWith({
-      userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2", // Operator's allowlisted tenant uid
+      userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2", // the owner's allowlisted tenant uid
       capabilities: ["*"],
     }))).toBe(false);
   });

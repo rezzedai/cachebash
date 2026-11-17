@@ -22,10 +22,10 @@
       "iso": 979,
       "vector": 852,
       "basher": 420,
-      "basher_tenant": 281,
+      "basher_tenant_a": 281,
       "codex": 132,
-      "vector_tenant": 112,
-      "iso_tenant": 95,
+      "vector_tenant_a": 112,
+      "iso_tenant_a": 95,
       "alan": 77,
       "dispatcher": 44
     }

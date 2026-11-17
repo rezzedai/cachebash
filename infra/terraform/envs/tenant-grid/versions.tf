@@ -9,8 +9,8 @@ terraform {
   }
 
   backend "gcs" {
-    # Bucket configured via: terraform init -backend-config="bucket=tenant-grid-terraform-state"
-    prefix = "envs/tenant-grid"
+    # Partial config, supplied at init time (values live outside this repo):
+    #   terraform init -backend-config="bucket=<state-bucket>" -backend-config="prefix=<state-prefix>"
   }
 }
 

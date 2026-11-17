@@ -2,8 +2,8 @@
  * EAS Build Webhook Handler
  *
  * Receives POST from Expo EAS on build status change.
- * On error: creates high-priority task for ISO + sends alert to Operator.
- * On success: sends success alert to Operator.
+ * On error: creates high-priority task for ISO + sends alert to the owner.
+ * On success: sends success alert to the owner.
  *
  * Signature: expo-signature header, HMAC-SHA1 of body with webhook secret.
  *
@@ -117,7 +117,7 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
       archived: false,
     });
 
-    // Send alert to Operator's device
+    // Send alert to the owner's device
     await admin.firestore().collection(`${basePath}/relay`).add({
       schemaVersion: "2.2",
       source: "system",

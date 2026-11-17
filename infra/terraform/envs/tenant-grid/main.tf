@@ -2,7 +2,7 @@
 # Tenant Grid — Secure Edge
 #
 # Provisions the LB + Cloud Armor + internal-ingress layer required by
-# SARK GO-WITH-CONTROLS (grid/assessments/sark-assessment-tenant-ungate-2026-06-16.md).
+# SARK GO-WITH-CONTROLS (private grid repo assessment, 2026-06-16).
 #
 # ⛔ HARD GATE G-1: ingress=INTERNAL_LOAD_BALANCER + LB + Armor are applied here.
 #    The IAM allUsers invoker (allow_unauthenticated) is in iam.tf and is GATED —
@@ -31,7 +31,7 @@ resource "google_project_service" "apis" {
 
 # ---------------------------------------------------------------------------
 # Cloud Run — cachebash-lite (ingress restricted to LB-only)
-# Deployed via gcloud (tenant/deploy/cloud-run-tenant-grid.yaml).
+# Deployed via gcloud (tenant deploy manifest in the private grid repo).
 # Terraform manages the ingress setting and IAM gate.
 # ---------------------------------------------------------------------------
 
@@ -59,8 +59,8 @@ module "cachebash_lite" {
   allow_unauthenticated = true
 
   env_vars = {
-    CACHEBASH_PROFILE  = "lite"
-    CACHEBASH_TENANT_ID = "tenant"
+    CACHEBASH_PROFILE   = "lite"
+    CACHEBASH_TENANT_ID = var.tenant_id
   }
 
   depends_on = [google_project_service.apis["run.googleapis.com"]]

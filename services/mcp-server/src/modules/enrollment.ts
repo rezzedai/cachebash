@@ -3,7 +3,7 @@
  *
  * Exchanges a one-time enrollment token for a tenant-scoped cb_ key.
  * Public route (no cb_ key yet — that's what this returns).
- * All 11 SARK G-4 controls per tenant/enrollment/DESIGN.md.
+ * All 11 SARK G-4 controls per the enrollment design doc.
  *
  * ⛔ HARD GATE G-4: code reviewed by SARK before exposure.
  * ⛔ HARD GATE G-1: LB + Cloud Armor must be live before this is reachable.
@@ -14,6 +14,7 @@ import http from "http";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { WINGMAN_TIER_CAPABILITIES } from "../middleware/capabilities.js";
+import { ENROLLMENT_PROGRAM_ID } from "../config/owner.js";
 
 const GENERIC_ERROR = { error: "invalid_or_expired_enrollment" } as const;
 
@@ -175,7 +176,7 @@ export async function enrollHandler(req: http.IncomingMessage, res: http.ServerR
       // F-368-3: tier-scoped capabilities; G-4 control 9/10: tenant-scoped, no hub caps
       tx.set(db.doc(`keyIndex/${keyHash}`), {
         userId: tenantId,
-        programId: "tenant",
+        programId: ENROLLMENT_PROGRAM_ID,
         label: "enrollment-key",
         capabilities: tierCapabilities(tier),
         rateLimitTier: tier,

@@ -1,7 +1,7 @@
 /**
  * /enroll endpoint tests — SARK G-4 controls
  *
- * Verifies all 11 controls from tenant/enrollment/DESIGN.md.
+ * Verifies all 11 controls from the enrollment design doc.
  * F-368-1: jest (not vitest) — mirrors portal-owner-send-message.test.ts pattern.
  * F-368-2: MAX_TTL_MS cap enforced at redeem.
  * F-368-3: cb_key capabilities are tier-scoped (Trial/Standard/Dedicated).
@@ -61,7 +61,7 @@ function seedEnrollment(token: string, overrides: Partial<any> = {}) {
 }
 
 // Helper: simulate a POST /enroll request
-async function callEnroll(body: unknown, env: Record<string, string> = { LITE_URL: "https://lite.tenant.cachebash.dev" }) {
+async function callEnroll(body: unknown, env: Record<string, string> = { LITE_URL: "https://lite.tenant.example.com" }) {
   const originalEnv = { ...process.env };
   Object.assign(process.env, env);
 
@@ -97,7 +97,7 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(status).toBe(200);
     // G-4 control 7: response EXACTLY {lite_url, cb_key}
     expect(Object.keys(body).sort()).toEqual(["cb_key", "lite_url"]);
-    expect(body.lite_url).toBe("https://lite.tenant.cachebash.dev");
+    expect(body.lite_url).toBe("https://lite.tenant.example.com");
     // G-4 control 1: cb_ prefix, 64-char hex suffix (32 bytes)
     expect(body.cb_key).toMatch(/^cb_[0-9a-f]{64}$/);
 

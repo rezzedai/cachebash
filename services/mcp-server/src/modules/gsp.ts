@@ -19,6 +19,7 @@ import { verifySource } from "../middleware/gate.js";
 import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
+import { OWNER_PROGRAM_ID } from "../config/owner.js";
 
 // ── Schema version for all GSP entries ──────────────────────────────────────
 const GSP_SCHEMA_VERSION = 1;
@@ -107,7 +108,7 @@ Rule: Tier can be dynamically adjusted. Demote trivial Specialist tasks to Worke
 |-------|----------|-------------|
 | Auto-delegate | Verifiable output, well-defined scope, low-stakes | Format lock validation |
 | Supervised | Medium complexity, touches production, needs taste | ISO review + spot-check |
-| Operator-reserved | Strategy, vision, client relationships, pricing, branding | Operator approval required |
+| Owner-reserved | Strategy, vision, client relationships, pricing, branding | Owner approval required |
 
 Full Constitution: CONSTITUTION.md`;
 
@@ -1378,7 +1379,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
     }
 
     // Step 4: Auto-assign reviewers based on tier
-    const reviewers = tier === "constitutional" ? ["operator"] : ["vector"];
+    const reviewers = tier === "constitutional" ? [OWNER_PROGRAM_ID] : ["vector"];
 
     // Step 5: Set TTL (30 days from now)
     const createdAt = now;

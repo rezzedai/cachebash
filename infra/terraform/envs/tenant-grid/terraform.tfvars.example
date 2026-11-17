@@ -1,8 +1,9 @@
 # Copy to terraform.tfvars (gitignored) and fill in values before applying.
 
-project_id = "tenant-grid"
+project_id = "your-tenant-project"
+tenant_id  = "your-tenant-id"
 region     = "us-central1"
-lite_domain = "lite.tenant.cachebash.dev"  # DNS A record → lb_ip_address output
+lite_domain = "lite.tenant.example.com"  # DNS A record → lb_ip_address output
 
 # Rate limits (SARK G-3 — load-bearing, not advisory)
 mcp_rate_limit_per_min    = 120

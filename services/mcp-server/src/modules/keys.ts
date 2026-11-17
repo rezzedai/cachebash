@@ -1,7 +1,7 @@
 /**
  * Key Management — Create, revoke, and list per-program API keys.
  *
- * Only Operator's userId can manage keys (Phase 2 hardcode).
+ * Only the owner's userId can manage keys (Phase 2 hardcode).
  * Phase 4: Scoped capabilities per key.
  */
 

@@ -2,7 +2,7 @@
 # IAM — tenant-grid
 # ---------------------------------------------------------------------------
 
-# cachebash-lite SA already provisioned via gcloud (tenant/deploy/cloud-run-tenant-grid.yaml).
+# cachebash-lite SA already provisioned via gcloud (tenant deploy manifest in the private grid repo).
 # Firestore (ADC via workload identity) is handled by the SA at deploy time.
 
 # ⛔ HARD GATE G-1 — allUsers invoker BLOCKED until SARK live-verifies:

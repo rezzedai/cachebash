@@ -1,7 +1,7 @@
 /**
  * requestHelp module — LITE-profile only.
  *
- * Server-side cross-grid egress: tenant (tenant) asks the home grid for help
+ * Server-side cross-grid egress: tenant (tenant-a) asks the home grid for help
  * via the `grid-help` alias, authenticating as `rezzed.agent` (relay-only key).
  *
  * Uses the stateful MCP handshake transport — REST /v1/messages is owner-only

@@ -88,7 +88,7 @@ export const SPAWNABLE_PROGRAMS: Map<string, ProgramLaunchConfig> = new Map([
     spawnable: true,
     model: "opus",
     repo: "rezzed-ai",
-    description: "Operator's exclusive strategic interface — directive authority over ISO",
+    description: "The owner's exclusive strategic interface — directive authority over ISO",
   }],
   ["sonnet-enrichment", {
     programId: "sonnet-enrichment",

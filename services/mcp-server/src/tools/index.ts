@@ -4,9 +4,9 @@
  *
  * Deploy profiles (CACHEBASH_PROFILE env var):
  *   "full" (default) — all modules; Grid prod (cachebash-app)
- *   "lite"           — core modules only; tenant deployments (tenant-grid, future tenants)
+ *   "lite"           — core modules only; tenant deployments (tenant deployments)
  *                      Excludes: dream, schedule, clu, patternConsolidation, usage
- *                      Spec: tenant/cachebash-lite.profile.js in rezzedai/grid
+ *                      Spec: the lite profile definition in the private grid repo
  */
 import { AuthContext } from "../auth/authValidator.js";
 

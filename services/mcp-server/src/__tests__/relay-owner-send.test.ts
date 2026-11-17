@@ -77,13 +77,13 @@ jest.mock("../utils/trace.js", () => ({
   generateSpanId: jest.fn(() => "mock-span"),
 }));
 
-function operatorAuth(): AuthContext {
+function ownerAuth(): AuthContext {
   return {
-    userId: "u-operator",
-    apiKeyHash: "firebase:uid-operator",
+    userId: "u-owner",
+    apiKeyHash: "firebase:uid-owner",
     encryptionKey: Buffer.from("abc"),
-    programId: "operator" as any,
-    keyProgramId: "operator" as any,
+    programId: "owner" as any,
+    keyProgramId: "owner" as any,
     capabilities: ["relay:write"],
     rateLimitTier: "standard",
   };
@@ -95,10 +95,10 @@ describe("relay owner send-message — identity sovereignty", () => {
     lastRelayDoc = {};
   });
 
-  it("succeeds when source matches auth.programId (operator)", async () => {
+  it("succeeds when source matches auth.programId (owner)", async () => {
     // Simulates the route injecting source: auth.programId after stripping client input.
-    const result = await sendMessageHandler(operatorAuth(), {
-      source: "operator",
+    const result = await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "basher",
       message_type: "DIRECTIVE",
       message: "Investigate BUG-005",
@@ -108,21 +108,21 @@ describe("relay owner send-message — identity sovereignty", () => {
     expect(data.messageId).toBe("msg-id-1");
   });
 
-  it("writes relay doc with source=operator (server-derived identity)", async () => {
-    await sendMessageHandler(operatorAuth(), {
-      source: "operator",
+  it("writes relay doc with source=owner (server-derived identity)", async () => {
+    await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "iso",
       message_type: "QUERY",
       message: "What is the fleet status?",
     });
-    expect(lastRelayDoc.source).toBe("operator");
+    expect(lastRelayDoc.source).toBe("owner");
     expect(lastRelayDoc.target).toBe("iso");
     expect(lastRelayDoc.message_type).toBe("QUERY");
   });
 
   it("writes required relay doc fields", async () => {
-    await sendMessageHandler(operatorAuth(), {
-      source: "operator",
+    await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "vector",
       message_type: "PING",
       message: "ping",
@@ -133,12 +133,12 @@ describe("relay owner send-message — identity sovereignty", () => {
     expect(lastRelayDoc.createdAt).toBe("MOCK_TIMESTAMP");
   });
 
-  it("rejects impersonation: source=basher with operator credentials", async () => {
+  it("rejects impersonation: source=basher with owner credentials", async () => {
     // verifySource (real) must throw when claimed source !== credential identity.
     // The route strips client source before this ever runs, but the handler
     // enforces it as a second line of defence.
     await expect(
-      sendMessageHandler(operatorAuth(), {
+      sendMessageHandler(ownerAuth(), {
         source: "basher",
         target: "iso",
         message_type: "DIRECTIVE",
@@ -147,9 +147,9 @@ describe("relay owner send-message — identity sovereignty", () => {
     ).rejects.toThrow(/Source mismatch/);
   });
 
-  it("rejects impersonation: source=iso with operator credentials", async () => {
+  it("rejects impersonation: source=iso with owner credentials", async () => {
     await expect(
-      sendMessageHandler(operatorAuth(), {
+      sendMessageHandler(ownerAuth(), {
         source: "iso",
         target: "basher",
         message_type: "STATUS",
@@ -159,8 +159,8 @@ describe("relay owner send-message — identity sovereignty", () => {
   });
 
   it("accepts priority and context from client body", async () => {
-    await sendMessageHandler(operatorAuth(), {
-      source: "operator",
+    await sendMessageHandler(ownerAuth(), {
+      source: "owner",
       target: "basher",
       message_type: "QUERY",
       message: "Status check",
