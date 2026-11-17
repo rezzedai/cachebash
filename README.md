@@ -86,7 +86,7 @@ Counts come from the tool definitions in `services/mcp-server/src/tools/`. Most 
 | request_help | 1 | Cross-grid help requests (lite profile only) |
 | **Total** | **108** | |
 
-API reference: [docs/api-reference.md](docs/api-reference.md) and [docs.rezzed.ai](https://docs.rezzed.ai)
+API reference: [docs/api-reference.md](docs/api-reference.md)
 
 ---
 
@@ -184,7 +184,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Links
 
-- [Documentation](https://docs.rezzed.ai)
+- [Documentation](docs/)
 - [Privacy Policy](https://rezzed.ai/privacy)
 - [Blog](https://rezzed.ai/blog)
 

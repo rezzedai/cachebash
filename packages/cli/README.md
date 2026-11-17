@@ -45,7 +45,7 @@ Uses Streamable HTTP transport with Bearer token auth. Standard MCP protocol. No
 
 ## Links
 
-- [Documentation](https://docs.rezzed.ai)
+- [Documentation](https://github.com/rezzedai/cachebash/tree/main/docs)
 - [GitHub](https://github.com/rezzedai/cachebash)
 - [Website](https://rezzed.ai/cachebash)
 
