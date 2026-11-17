@@ -28,10 +28,11 @@
  * new docs are created with createdAt + createdBy (defaults to "vector").
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 interface ProgramEntry {
   programId: string;
@@ -102,7 +103,7 @@ async function registerPrograms() {
       groups: prog.groups ?? [],
       tags: prog.tags ?? [],
       active: true,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       updatedBy: prog.createdBy ?? "vector",
     };
     if (prog.color) doc.color = prog.color;
@@ -114,7 +115,7 @@ async function registerPrograms() {
     } else {
       await ref.set({
         ...doc,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         createdBy: prog.createdBy ?? "vector",
       });
       console.log(`  CREATED: ${prog.programId} (${doc.displayName}) — ${doc.role}`);

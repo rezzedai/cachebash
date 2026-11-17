@@ -3,11 +3,12 @@
  * already has a WS-3 ceilings doc. Owner ADC required (read-only is fine).
  *   GOOGLE_CLOUD_PROJECT=cachebash-app npx tsx services/mcp-server/scripts/enumerate-tenants.ts
  */
-import * as admin from "firebase-admin";
+import { getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 async function main() {
-  if (!admin.apps.length) admin.initializeApp();
-  const db = admin.firestore();
+  if (!getApps().length) initializeApp();
+  const db = getFirestore();
 
   const keys = await db.collection("keyIndex").get();
   const orgs = new Map<string, { active: number; programs: Set<string> }>();

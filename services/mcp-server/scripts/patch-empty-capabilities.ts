@@ -8,10 +8,11 @@
  * Usage: npx tsx services/mcp-server/scripts/patch-empty-capabilities.ts
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 const BROKEN_HASHES = [
   "08ca989d952feee2dea6ee4b20ea6e457748a55b6ed91ab72f7c0f38c0f71eb5",
