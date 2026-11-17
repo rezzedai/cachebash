@@ -35,10 +35,10 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onUserCreate = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
 const structuredLog_1 = require("../util/structuredLog");
-const db = admin.firestore();
+const firestore_1 = require("firebase-admin/firestore");
+const db = (0, firestore_1.getFirestore)();
 function hashEmail(email) {
     return crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
 }
@@ -61,11 +61,11 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
             photoURL: photoURL || null,
             provider,
             plan: "free",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // 3. Create config/preferences doc
         await db.doc(`tenants/${uid}/config/preferences`).set({
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
             tourCompleted: false,
             plan: "free",
             notificationsEnabled: true,
@@ -83,7 +83,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
                 "sprint.read",
                 "metrics.read", "fleet.read",
             ],
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
             active: true,
         });
         // 5. Store first key for one-time display in mobile app
@@ -91,7 +91,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
             key: Buffer.from(rawKey).toString("base64"),
             keyHash,
             retrieved: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // 6. Create billing config (free tier default)
         await db.doc(`tenants/${uid}/config/billing`).set({
@@ -102,21 +102,21 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
                 concurrentSessions: 1,
             },
             softWarnOnly: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // 7. W1.3.1: Create usage-based billing config
         await db.doc(`tenants/${uid}/_meta/billing`).set({
             monthlyBudgetUsd: null, // unlimited by default
             tokenBudgetMonthly: null, // unlimited by default
             alertThresholds: [], // no alerts by default
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // 8. Track 2 Gate 1: Set telemetry compliance to strict for new tenants
         await db.doc(`tenants/${uid}/_meta/compliance`).set({
             telemetryMode: "strict",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // 9. Track 2 Gate 1: Seed canonical_accounts for multi-provider account linking
         if (email) {
@@ -130,8 +130,8 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
                     canonicalUid: uid,
                     alternateUids: [],
                     provider,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: firestore_1.FieldValue.serverTimestamp(),
+                    updatedAt: firestore_1.FieldValue.serverTimestamp(),
                 });
             }
             else {
@@ -140,8 +140,8 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
                 const existingAlts = canonicalData.alternateUids || [];
                 if (canonicalData.canonicalUid !== uid && !existingAlts.includes(uid)) {
                     await canonicalRef.update({
-                        alternateUids: admin.firestore.FieldValue.arrayUnion(uid),
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        alternateUids: firestore_1.FieldValue.arrayUnion(uid),
+                        updatedAt: firestore_1.FieldValue.serverTimestamp(),
                     });
                 }
             }
@@ -149,7 +149,7 @@ exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
             await db.doc(`authorizedEmails/${email}`).set({
                 dataUid: uid,
                 provider,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
             }, { merge: true });
         }
         (0, structuredLog_1.logSuccess)({

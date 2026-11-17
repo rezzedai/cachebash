@@ -7,7 +7,7 @@
 import { getFirestore } from "../firebase/client.js";
 import { SPAWNABLE_PROGRAMS, type ProgramLaunchConfig } from "../config/launch.js";
 import { emitEvent } from "../modules/events.js";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 export interface WakeDetail {
   programId: string;
@@ -256,7 +256,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
       if (failCount >= PROGRAM_SPAWN_FAILURE_THRESHOLD) {
         const alertMessage = `Wake daemon: ${programId} failed to spawn ${failCount} consecutive times. ${pending.tasks} tasks and ${pending.messages} messages waiting. Auto-spawn may be broken for this program.`;
         const TTL_SECONDS = 3600;
-        const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
+        const expiresAt = Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
         const preview = alertMessage.substring(0, 47) + "...";
 
         try {
@@ -270,7 +270,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             expiresAt,
             alertType: "error",
             context: `program:${programId},failures:${failCount}`,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           });
 
           // Also write to tasks for mobile visibility. W2e: the task mirror tracks
@@ -286,7 +286,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
             target: "admin",
             status: "created",
             priority: "high",
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             ttl: TTL_SECONDS,
             expiresAt,
             // notification mirror: delivered by push, never claimed (ISO ruling, WP-1 review)

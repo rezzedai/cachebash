@@ -45,10 +45,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cliAuthStatus = exports.cliAuthApprove = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
 const crypto_1 = require("crypto");
 const structuredLog_1 = require("../util/structuredLog");
-const db = admin.firestore();
+const firestore_1 = require("firebase-admin/firestore");
+const auth_1 = require("firebase-admin/auth");
+const db = (0, firestore_1.getFirestore)();
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 // CORS: only allow the Firebase Hosting origin (where cli-auth.html is served)
 const ALLOWED_ORIGINS = [
@@ -92,7 +93,7 @@ exports.cliAuthApprove = functions.https.onRequest(async (req, res) => {
             return;
         }
         // Verify the Firebase ID token
-        const decoded = await admin.auth().verifyIdToken(idToken);
+        const decoded = await (0, auth_1.getAuth)().verifyIdToken(idToken);
         const userId = decoded.uid;
         const sessionRef = db.collection("cli_sessions").doc(sessionToken);
         await db.runTransaction(async (tx) => {
@@ -113,7 +114,7 @@ exports.cliAuthApprove = functions.https.onRequest(async (req, res) => {
             // Generate API key
             const rawKey = `cb_live_${(0, crypto_1.randomBytes)(24).toString("hex")}`;
             const keyHash = (0, crypto_1.createHash)("sha256").update(rawKey).digest("hex");
-            const now = admin.firestore.FieldValue.serverTimestamp();
+            const now = firestore_1.FieldValue.serverTimestamp();
             // Write API key to keyIndex
             tx.set(db.collection("keyIndex").doc(keyHash), {
                 userId,

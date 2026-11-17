@@ -40,12 +40,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cleanupLedger = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const RETENTION_DAYS = 30;
 exports.cleanupLedger = functions.pubsub
     .schedule("every 24 hours")
     .onRun(async () => {
-    const db = admin.firestore();
+    const db = (0, firestore_1.getFirestore)();
     const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
     functions.logger.info(`[cleanupLedger] Deleting ledger entries older than ${cutoff.toISOString()}`);
     try {

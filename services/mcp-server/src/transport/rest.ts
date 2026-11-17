@@ -26,6 +26,7 @@ import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
+import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
@@ -324,10 +325,10 @@ const routes: Route[] = [
 
     if (target || (period && period !== "all")) {
       // Filtered: fetch docs and count in memory to avoid composite index issues
-      let q: admin.firestore.Query = tasksRef;
+      let q: Query = tasksRef;
       if (target) q = q.where("target", "==", target);
       if (period && period !== "all") {
-        q = q.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(periodStart(period)));
+        q = q.where("createdAt", ">=", Timestamp.fromDate(periodStart(period)));
       }
       q = q.orderBy("createdAt", "desc").limit(5000);
       const snap = await q.get();
@@ -417,7 +418,7 @@ const routes: Route[] = [
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const db = getFirestore();
     const relayRef = db.collection(`tenants/${auth.userId}/relay`);
-    let q: admin.firestore.Query = relayRef.where("status", "==", "pending");
+    let q: Query = relayRef.where("status", "==", "pending");
     if (query.sessionId) {
       q = q.where("target", "==", query.sessionId);
     }
@@ -437,7 +438,7 @@ const routes: Route[] = [
     for (const id of messageIds.slice(0, 100)) {
       batch.update(db.doc(`tenants/${auth.userId}/relay/${id}`), {
         status: "read",
-        readAt: admin.firestore.FieldValue.serverTimestamp(),
+        readAt: FieldValue.serverTimestamp(),
       });
     }
     await batch.commit();
@@ -748,7 +749,7 @@ const routes: Route[] = [
     const db = getFirestore();
     const colRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
     const status = query.status as string | undefined;
-    let q: admin.firestore.Query = colRef;
+    let q: Query = colRef;
     if (status) {
       q = q.where("status", "==", status);
     }

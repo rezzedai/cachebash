@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 interface Task {
   type?: string;
@@ -10,7 +10,7 @@ interface Task {
   source?: string;
   status?: string;
   completed_status?: string;
-  completedAt?: admin.firestore.Timestamp;
+  completedAt?: Timestamp;
   instructions?: string;
   [key: string]: any;
 }
@@ -99,7 +99,7 @@ export const onTaskCompleteFailed = functions.firestore
       const failuresSnapshot = await db
         .collection(`tenants/${userId}/tasks`)
         .where("completed_status", "==", "FAILED")
-        .where("completedAt", ">=", admin.firestore.Timestamp.fromDate(thirtyDaysAgo))
+        .where("completedAt", ">=", Timestamp.fromDate(thirtyDaysAgo))
         .get();
 
       if (failuresSnapshot.empty) {
@@ -171,7 +171,7 @@ export const onTaskCompleteFailed = functions.firestore
         action: "queue",
         priority: "normal",
         status: "created",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         // WP-1: target is "iso", not "user" — actionable by default.
         requires_action: true,
       });

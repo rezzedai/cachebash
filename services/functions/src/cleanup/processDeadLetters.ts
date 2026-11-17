@@ -21,7 +21,7 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_DELIVERY_ATTEMPTS = 3;
@@ -72,7 +72,7 @@ export async function deadLetterExpiredRelay(
       reason: "TTL expired",
       dead_letter_reason: "EXPIRED_TTL",
       dead_letter_class: attempts >= maxAttempts ? "MAX_ATTEMPTS_EXCEEDED" : "EXPIRED_TTL",
-      deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
+      deadLetteredAt: FieldValue.serverTimestamp(),
     });
   }
   await batch.commit();
@@ -83,7 +83,7 @@ export const processDeadLetters = functions.pubsub
   .schedule("every 15 minutes")
   .onRun(async () => {
     try {
-      const result = await deadLetterExpiredRelay(admin.firestore());
+      const result = await deadLetterExpiredRelay(getFirestore());
       functions.logger.info(`[processDeadLetters] Dead-lettered ${result.deadLettered} expired pending messages in place`);
       return result;
     } catch (error) {

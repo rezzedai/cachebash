@@ -9,8 +9,8 @@ const OWNER_UID = '7viFKVtl5lgzguhFoZlnYYrqeDG2';
 
 const mockVerifyIdToken = jest.fn();
 
-jest.mock('firebase-admin', () => ({
-  auth: () => ({ verifyIdToken: mockVerifyIdToken }),
+jest.mock('firebase-admin/auth', () => ({
+  getAuth: () => ({ verifyIdToken: mockVerifyIdToken }),
 }));
 
 jest.mock('../middleware/capabilities', () => ({

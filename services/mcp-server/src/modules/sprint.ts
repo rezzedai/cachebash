@@ -5,19 +5,19 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 import { syncSprintCreated, syncSprintCompleted, syncStoryUpdated } from "./github-sync.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { generateSpanId } from "../utils/trace.js";
 import { CONSTANTS } from "../config/constants.js";
+import { Timestamp } from "firebase-admin/firestore";
 
 // W2e: sprints, sprint-stories, and the escalation-failure fallback task are all
 // open work with no natural expiry of their own — same "everything else -> sentinel"
 // branch expiresAtBackfillClassifier.ts uses for these exact types. Shared so the
 // four write sites below can't drift from each other or from the classifier.
-const NEVER_EXPIRES = admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel));
+const NEVER_EXPIRES = Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel));
 
 const StorySchema = z.object({
   id: z.string(),

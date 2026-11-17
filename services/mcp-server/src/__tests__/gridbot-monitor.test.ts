@@ -3,7 +3,7 @@
  */
 
 import { runHealthCheck, HealthCheckResult } from "../modules/gridbot-monitor";
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 // Mock Firebase
 jest.mock("../firebase/client", () => ({
@@ -34,11 +34,11 @@ mockCollection.count = jest.fn(() => ({
 
 describe("Health Monitor", () => {
   const testUserId = "test-user-123";
-  const now = admin.firestore.Timestamp.now();
-  const oneHourAgo = admin.firestore.Timestamp.fromDate(
+  const now = Timestamp.now();
+  const oneHourAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 60 * 60 * 1000)
   );
-  const thirtyMinAgo = admin.firestore.Timestamp.fromDate(
+  const thirtyMinAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 30 * 60 * 1000)
   );
 

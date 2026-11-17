@@ -8,11 +8,11 @@
  * - Mean time to claim calculation
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Claim Contention Telemetry Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -31,7 +31,7 @@ describe("Claim Contention Telemetry Integration", () => {
       const sessionId = "basher-session-001";
 
       // Simulate what claimTaskHandler does on successful claim
-      const ttl = admin.firestore.Timestamp.fromMillis(
+      const ttl = Timestamp.fromMillis(
         Date.now() + 7 * 24 * 60 * 60 * 1000,
       );
 
@@ -39,7 +39,7 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId,
         sessionId,
         outcome: "claimed",
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ttl,
       });
 
@@ -57,7 +57,7 @@ describe("Claim Contention Telemetry Integration", () => {
       const taskId = "task-claim-002";
       const sessionId = "alan-session-002";
 
-      const ttl = admin.firestore.Timestamp.fromMillis(
+      const ttl = Timestamp.fromMillis(
         Date.now() + 7 * 24 * 60 * 60 * 1000,
       );
 
@@ -65,7 +65,7 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId,
         sessionId,
         outcome: "contention",
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         ttl,
       });
 
@@ -86,40 +86,40 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId: "task-a",
         sessionId: "session-1",
         outcome: "claimed",
-        timestamp: admin.firestore.Timestamp.fromDate(now),
-        ttl: admin.firestore.Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(now),
+        ttl: Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
         taskId: "task-b",
         sessionId: "session-2",
         outcome: "claimed",
-        timestamp: admin.firestore.Timestamp.fromDate(now),
-        ttl: admin.firestore.Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(now),
+        ttl: Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
         taskId: "task-c",
         sessionId: "session-3",
         outcome: "claimed",
-        timestamp: admin.firestore.Timestamp.fromDate(now),
-        ttl: admin.firestore.Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(now),
+        ttl: Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
         taskId: "task-a",
         sessionId: "session-4",
         outcome: "contention",
-        timestamp: admin.firestore.Timestamp.fromDate(now),
-        ttl: admin.firestore.Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(now),
+        ttl: Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
         taskId: "task-b",
         sessionId: "session-5",
         outcome: "contention",
-        timestamp: admin.firestore.Timestamp.fromDate(now),
-        ttl: admin.firestore.Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(now),
+        ttl: Timestamp.fromMillis(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Query all claim events for today
@@ -127,7 +127,7 @@ describe("Claim Contention Telemetry Integration", () => {
       today.setHours(0, 0, 0, 0);
 
       const snapshot = await collection
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .get();
 
       let claimsWon = 0;
@@ -156,8 +156,8 @@ describe("Claim Contention Telemetry Integration", () => {
         status: "active",
         source: "orchestrator",
         target: "basher",
-        createdAt: admin.firestore.Timestamp.fromDate(taskCreatedAt),
-        startedAt: admin.firestore.Timestamp.fromDate(claimTimestamp),
+        createdAt: Timestamp.fromDate(taskCreatedAt),
+        startedAt: Timestamp.fromDate(claimTimestamp),
       });
 
       // Create the claim event
@@ -165,8 +165,8 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId,
         sessionId: "basher-session",
         outcome: "claimed",
-        timestamp: admin.firestore.Timestamp.fromDate(claimTimestamp),
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(claimTimestamp),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Simulate the metrics calculation
@@ -174,7 +174,7 @@ describe("Claim Contention Telemetry Integration", () => {
       today.setHours(0, 0, 0, 0);
 
       const claimSnap = await db.collection(`tenants/${userId}/claim_events`)
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .get();
 
       // Get the claimed task IDs
@@ -214,8 +214,8 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId: "old-task",
         sessionId: "old-session",
         outcome: "claimed",
-        timestamp: admin.firestore.Timestamp.fromDate(lastMonth),
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(lastMonth),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Add an event from today
@@ -223,8 +223,8 @@ describe("Claim Contention Telemetry Integration", () => {
         taskId: "new-task",
         sessionId: "new-session",
         outcome: "contention",
-        timestamp: admin.firestore.Timestamp.fromDate(new Date()),
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        timestamp: Timestamp.fromDate(new Date()),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Query for "today" — should only get today's event
@@ -232,7 +232,7 @@ describe("Claim Contention Telemetry Integration", () => {
       today.setHours(0, 0, 0, 0);
 
       const snapshot = await collection
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .get();
 
       expect(snapshot.size).toBe(1);

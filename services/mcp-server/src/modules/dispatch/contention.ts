@@ -4,10 +4,10 @@
  */
 
 import { getFirestore } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../../auth/authValidator.js";
 import { z } from "zod";
 import { type ToolResult, jsonResult } from "./shared.js";
+import { Timestamp, Query } from "firebase-admin/firestore";
 
 const GetContentionMetricsSchema = z.object({
   period: z.enum(["today", "this_week", "this_month", "all"]).default("this_month"),
@@ -46,9 +46,9 @@ export async function getContentionMetricsHandler(auth: AuthContext, rawArgs: un
 
   const start = claimPeriodStart(args.period);
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/claim_events`);
+  let query: Query = db.collection(`tenants/${auth.userId}/claim_events`);
   if (start) {
-    query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start));
+    query = query.where("timestamp", ">=", Timestamp.fromDate(start));
   }
 
   const snapshot = await query.get();

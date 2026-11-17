@@ -1,4 +1,4 @@
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 export type FeedbackType = "bug" | "feature_request" | "general";
 export type FeedbackStatus = "submitted" | "issue_created" | "failed";
@@ -16,5 +16,5 @@ export interface FeedbackSubmission {
   githubIssueUrl: string | null;
   githubIssueNumber: number | null;
   status: FeedbackStatus;
-  createdAt: admin.firestore.Timestamp;
+  createdAt: Timestamp;
 }

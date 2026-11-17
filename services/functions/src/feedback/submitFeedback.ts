@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import { createGithubIssue, githubPat } from "./githubIssueCreator";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 export const submitFeedback = functions
   .runWith({ secrets: [githubPat] })
@@ -49,7 +49,7 @@ export const submitFeedback = functions
     }
 
     // Rate limit: max 5 submissions per user per hour
-    const oneHourAgo = admin.firestore.Timestamp.fromMillis(
+    const oneHourAgo = Timestamp.fromMillis(
       Date.now() - 60 * 60 * 1000
     );
     const recentSubmissions = await db
@@ -83,7 +83,7 @@ export const submitFeedback = functions
       githubIssueUrl: null,
       githubIssueNumber: null,
       status: "submitted",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
 
     const feedbackRef = await db

@@ -4,7 +4,7 @@
 
 import { getOperationalMetricsHandler, getCostForecastHandler, getSlaComplianceHandler, getProgramHealthHandler } from "../modules/metrics.js";
 import type { AuthContext } from "../auth/authValidator.js";
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 // Mock Firestore with chainable query methods
 const mockDocs: any[] = [];
@@ -50,8 +50,8 @@ describe("Telemetry Suite", () => {
   describe("Enhanced Operational Metrics", () => {
     it("calculates success rate by program from completed tasks", async () => {
       // Seed tasks: 2 succeeded, 1 failed for program A; 3 succeeded for program B
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(now.toMillis() - 3600000);
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromMillis(now.toMillis() - 3600000);
 
       mockDocs.push(
         // Events (for existing metrics)
@@ -117,8 +117,8 @@ describe("Telemetry Suite", () => {
     });
 
     it("calculates error breakdown by class", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(now.toMillis() - 3600000);
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromMillis(now.toMillis() - 3600000);
 
       mockDocs.push(
         { data: () => ({
@@ -167,12 +167,12 @@ describe("Telemetry Suite", () => {
     });
 
     it("calculates latency percentiles from task durations", async () => {
-      const now = admin.firestore.Timestamp.now();
+      const now = Timestamp.now();
 
       // Create tasks with varying durations: 10s, 30s, 60s, 90s, 120s
       const durations = [10, 30, 60, 90, 120];
       for (const durationSeconds of durations) {
-        const startTime = admin.firestore.Timestamp.fromMillis(now.toMillis() - durationSeconds * 1000);
+        const startTime = Timestamp.fromMillis(now.toMillis() - durationSeconds * 1000);
         mockDocs.push({
           data: () => ({
             status: "done",
@@ -196,8 +196,8 @@ describe("Telemetry Suite", () => {
     });
 
     it("calculates intervention rate", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(now.toMillis() - 3600000);
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromMillis(now.toMillis() - 3600000);
 
       mockDocs.push(
         // Task with retry
@@ -243,8 +243,8 @@ describe("Telemetry Suite", () => {
     it("calculates daily burn rate and projects monthly cost", async () => {
       const now = new Date();
       const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-      const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
-      const threeDaysAgoTimestamp = admin.firestore.Timestamp.fromDate(threeDaysAgo);
+      const nowTimestamp = Timestamp.fromDate(now);
+      const threeDaysAgoTimestamp = Timestamp.fromDate(threeDaysAgo);
 
       // Seed 3 tasks over 3 days with $0.30 total cost
       mockDocs.push(
@@ -284,7 +284,7 @@ describe("Telemetry Suite", () => {
     });
 
     it("identifies top 3 spending programs", async () => {
-      const now = admin.firestore.Timestamp.now();
+      const now = Timestamp.now();
 
       mockDocs.push(
         { data: () => ({ status: "done", cost_usd: 1.50, target: "program-a", completedAt: now }) },
@@ -309,10 +309,10 @@ describe("Telemetry Suite", () => {
   describe("SLA Compliance", () => {
     it("tracks SLA compliance for different action/priority combinations", async () => {
       const now = new Date();
-      const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
+      const nowTimestamp = Timestamp.fromDate(now);
 
       // interrupt-high: 5 min SLA — within SLA
-      const t1Created = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 4 * 60 * 1000));
+      const t1Created = Timestamp.fromDate(new Date(now.getTime() - 4 * 60 * 1000));
       mockDocs.push({
         data: () => ({
           status: "done",
@@ -324,7 +324,7 @@ describe("Telemetry Suite", () => {
       });
 
       // interrupt-high: 5 min SLA — breached
-      const t2Created = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 10 * 60 * 1000));
+      const t2Created = Timestamp.fromDate(new Date(now.getTime() - 10 * 60 * 1000));
       mockDocs.push({
         data: () => ({
           status: "done",
@@ -337,7 +337,7 @@ describe("Telemetry Suite", () => {
       });
 
       // queue-normal: 60 min SLA — within SLA
-      const t3Created = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 50 * 60 * 1000));
+      const t3Created = Timestamp.fromDate(new Date(now.getTime() - 50 * 60 * 1000));
       mockDocs.push({
         data: () => ({
           status: "done",
@@ -362,10 +362,10 @@ describe("Telemetry Suite", () => {
 
     it("uses default SLA when action/priority not found", async () => {
       const now = new Date();
-      const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
+      const nowTimestamp = Timestamp.fromDate(now);
 
       // Unknown action/priority — defaults to 60 min
-      const t1Created = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 70 * 60 * 1000));
+      const t1Created = Timestamp.fromDate(new Date(now.getTime() - 70 * 60 * 1000));
       mockDocs.push({
         data: () => ({
           status: "done",
@@ -387,8 +387,8 @@ describe("Telemetry Suite", () => {
   describe("Program Health", () => {
     it("calculates health score from multiple components", async () => {
       const now = new Date();
-      const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
-      const fiveMinAgo = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 5 * 60 * 1000));
+      const nowTimestamp = Timestamp.fromDate(now);
+      const fiveMinAgo = Timestamp.fromDate(new Date(now.getTime() - 5 * 60 * 1000));
 
       // Seed tasks for program-a: high success, within SLA, low cost
       mockDocs.push(
@@ -439,8 +439,8 @@ describe("Telemetry Suite", () => {
 
     it("generates appropriate recommendations based on health signals", async () => {
       const now = new Date();
-      const nowTimestamp = admin.firestore.Timestamp.fromDate(now);
-      const oneHourAgo = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 60 * 60 * 1000));
+      const nowTimestamp = Timestamp.fromDate(now);
+      const oneHourAgo = Timestamp.fromDate(new Date(now.getTime() - 60 * 60 * 1000));
 
       // Seed tasks with high TRANSIENT error rate
       mockDocs.push(
@@ -478,8 +478,8 @@ describe("Telemetry Suite", () => {
     });
 
     it("returns all programs when programId not specified", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oneHourAgo = admin.firestore.Timestamp.fromMillis(now.toMillis() - 3600000);
+      const now = Timestamp.now();
+      const oneHourAgo = Timestamp.fromMillis(now.toMillis() - 3600000);
 
       mockDocs.push(
         { data: () => ({

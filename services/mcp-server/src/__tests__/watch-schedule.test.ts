@@ -7,10 +7,10 @@
 
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 
-import * as admin from "firebase-admin";
 import { executeSchedulesForUser } from "../modules/schedule-executor.js";
 import { createScheduleHandler } from "../modules/schedule.js";
 import { sendAlertHandler } from "../modules/signal.js";
+import { Timestamp } from "firebase-admin/firestore";
 
 // ── Minimal in-memory Firestore ─────────────────────────────────────────────
 type Row = Record<string, any>;
@@ -80,7 +80,7 @@ mockDb.collection = (path: string) => {
 
 jest.mock("../firebase/client.js", () => ({
   getFirestore: jest.fn(() => mockDb),
-  serverTimestamp: jest.fn(() => admin.firestore.Timestamp.fromMillis(Date.now())),
+  serverTimestamp: jest.fn(() => Timestamp.fromMillis(Date.now())),
 }));
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ const TASKS = `tenants/${U}/tasks`;
 const RELAY = `tenants/${U}/relay`;
 const WATCHED = "watched-sched";
 const MSG = "PRE-OPEN READINESS is still unclaimed at 13:15Z.";
-const ago = (h: number) => admin.firestore.Timestamp.fromMillis(Date.now() - h * 3600 * 1000);
+const ago = (h: number) => Timestamp.fromMillis(Date.now() - h * 3600 * 1000);
 
 function seedWatch() {
   col(SCHED).set("w1", {

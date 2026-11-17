@@ -8,9 +8,9 @@ import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
 import { initializeFirebase } from "../../firebase/client";
 import { createKeyHandler, revokeKeyHandler, rotateKeyHandler, listKeysHandler } from "../../modules/keys";
 import type { AuthContext } from "../../auth/authValidator";
-import * as admin from "firebase-admin";
+import { Firestore } from "firebase-admin/firestore";
 
-let db: admin.firestore.Firestore;
+let db: Firestore;
 let testUser: Awaited<ReturnType<typeof seedTestUser>>;
 let auth: AuthContext;
 

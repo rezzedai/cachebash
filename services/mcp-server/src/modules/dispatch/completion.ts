@@ -15,6 +15,7 @@ import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
 import { type ToolResult, jsonResult, buildTransition, appendTransition, describeTaskCompletionError } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 // R1.2/R1.3 (dispatch-defects-1-and-2): "PARTIAL" is a completed_status value
 // distinct from SUCCESS/CANCELLED — meaningful work shipped but the task's
@@ -181,12 +182,12 @@ const QUARANTINE_FAILURE_THRESHOLD = 3;
 const QUARANTINE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 async function handleAutoQuarantine(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   programId: string
 ): Promise<void> {
   const programRef = db.doc(`tenants/${userId}/programs/${programId}`);
-  const oneHourAgo = admin.firestore.Timestamp.fromMillis(Date.now() - QUARANTINE_WINDOW_MS);
+  const oneHourAgo = Timestamp.fromMillis(Date.now() - QUARANTINE_WINDOW_MS);
 
   try {
     const shouldQuarantine = await db.runTransaction(async (tx) => {
@@ -199,7 +200,7 @@ async function handleAutoQuarantine(
       }
 
       // Increment failure count
-      const lastFailureAt = data.lastFailureAt as admin.firestore.Timestamp | undefined;
+      const lastFailureAt = data.lastFailureAt as Timestamp | undefined;
       const currentCount = (data.failureCount as number) || 0;
 
       // Reset count if last failure was more than 1 hour ago
@@ -211,7 +212,7 @@ async function handleAutoQuarantine(
         programRef,
         {
           failureCount: newCount,
-          lastFailureAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastFailureAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
@@ -233,7 +234,7 @@ async function handleAutoQuarantine(
           programRef,
           {
             quarantined: true,
-            quarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+            quarantinedAt: FieldValue.serverTimestamp(),
             quarantineReason: `Automatic: ${QUARANTINE_FAILURE_THRESHOLD}+ failures in rolling window`,
             quarantinedBy: "system",
           },
@@ -261,7 +262,7 @@ async function handleAutoQuarantine(
 const SPAWN_COOLDOWN_MS = CONSTANTS.cooldowns.spawnCooldownMs;
 
 async function handleSelfRecycle(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   programId: string
 ): Promise<void> {
@@ -291,7 +292,7 @@ async function handleSelfRecycle(
     }
 
     const sessionId = `${programId}.recycle-${Date.now()}`;
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     tx.set(db.doc(`tenants/${userId}/sessions/${sessionId}`), {
       name: `${programId} - Self-Recycle`,
@@ -326,7 +327,7 @@ async function handleSelfRecycle(
 
 // Wave 16: Update program stats with task-type success rates
 async function updateProgramStats(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   programId: string,
   taskData: { taskType: string; success: boolean; durationMs?: number; tags?: string[] }
@@ -369,7 +370,7 @@ async function updateProgramStats(
         {
           taskTypeSuccessRates: taskTypeStats,
           tagSuccessRates: tagStats,
-          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+          lastUpdated: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
@@ -382,7 +383,7 @@ async function updateProgramStats(
 
 // W1.3.6: Budget threshold alerting helper
 async function checkBudgetThresholdsAndAlert(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   programId: string
 ): Promise<void> {
@@ -423,7 +424,7 @@ async function checkBudgetThresholdsAndAlert(
           usagePercent: Math.round(usagePercent * 100) / 100,
           currentSpend: currentMonthSpend,
           budget: monthlyBudgetUsd,
-          triggeredAt: admin.firestore.FieldValue.serverTimestamp(),
+          triggeredAt: FieldValue.serverTimestamp(),
           programId,
         });
 
@@ -507,7 +508,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       taskId: args.taskId,
       programId: auth.programId,
       missingFields,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     }).catch((err) => console.error("[Telemetry] Failed to log gap:", err));
   }
 
@@ -571,7 +572,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       const updateFields: Record<string, unknown> = {
         status: lifecycleTarget,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         lastHeartbeat: null,
         completed_status: args.completed_status,
         stateTransitions: updatedTransitions,
@@ -662,7 +663,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
                 sessionId: null,
                 status: "pending",
                 ttl: CONSTANTS.ttl.budgetAlertSeconds,
-                expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.budgetAlertSeconds * 1000),
+                expiresAt: Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.budgetAlertSeconds * 1000),
                 alertType: "BUDGET_EXCEEDED",
                 context: { dreamId, consumed: budgetCheck.consumed, cap: budgetCheck.cap },
                 createdAt: serverTimestamp(),
@@ -744,7 +745,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
           tokens_in: args.tokens_in || 0,
           tokens_out: args.tokens_out || 0,
           cost_usd: args.cost_usd || 0,
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
           programId: auth.programId,
           taskType: taskData.source || "unknown",
           completed_status: args.completed_status,
@@ -800,7 +801,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
           taskType: taskDoc.data()?.type as string || "task",
           success: args.completed_status === "SUCCESS",
           durationMs: taskDoc.data()?.startedAt
-            ? Date.now() - (taskDoc.data()?.startedAt as admin.firestore.Timestamp).toMillis()
+            ? Date.now() - (taskDoc.data()?.startedAt as Timestamp).toMillis()
             : undefined,
           tags: taskDoc.data()?.tags as string[] | undefined,
         });
@@ -844,7 +845,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
       taskIds: args.taskIds,
       programId: auth.programId,
       missingFields,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     }).catch((err: unknown) => console.error("[Telemetry] Failed to log gap:", err));
   }
 
@@ -882,7 +883,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
 
         const updateFields: Record<string, unknown> = {
           status: args.completed_status === "FAILED" ? "failed" : "done",
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
           lastHeartbeat: null,
           completed_status: args.completed_status,
           stateTransitions: updatedTransitions,
@@ -949,7 +950,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
           tokens_in: 0,
           tokens_out: 0,
           cost_usd: 0,
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
           programId: auth.programId,
           taskType: taskData.source || "unknown",
           completed_status: args.completed_status,
@@ -1054,7 +1055,7 @@ export async function recordTaskTelemetryHandler(auth: AuthContext, rawArgs: unk
       }
 
       updates.telemetry_source = args.telemetry_source;
-      updates.telemetryRecordedAt = admin.firestore.FieldValue.serverTimestamp();
+      updates.telemetryRecordedAt = FieldValue.serverTimestamp();
       tx.update(ref, updates);
 
       return {

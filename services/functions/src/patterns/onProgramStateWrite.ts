@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import { emitEvent } from "../util/emitEvent";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
 /**
  * Promotion confidence threshold.
@@ -139,7 +139,7 @@ export const onProgramStateWrite = functions.firestore
   .document("tenants/{userId}/sessions/_meta/program_state/{programId}")
   .onWrite(async (change, context) => {
     const { userId, programId } = context.params;
-    const db = admin.firestore();
+    const db = getFirestore();
 
     // No document after write (deletion) — skip.
     if (!change.after.exists) {
@@ -212,7 +212,7 @@ export const onProgramStateWrite = functions.firestore
           action: "queue",
           priority: "low",
           status: "created",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
           // WP-1: target is a programId, not "user" — actionable by default.
           requires_action: true,
         });

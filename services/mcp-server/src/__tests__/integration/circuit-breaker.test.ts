@@ -11,7 +11,6 @@
  *   allows reads.
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
 
 // Point the module under test at the emulator-backed Firestore instance
@@ -19,14 +18,14 @@ import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
 // initializeFirebase() against real GCP credentials).
 jest.mock("../../firebase/client.js", () => ({
   getFirestore: () => getTestFirestoreLazy(),
-  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
 
 // signal.ts's sendAlertHandler does its own Firestore writes (relay + tasks
 // collections) via the mocked client above, which is fine to let run for
 // real against the emulator — no need to stub it for this test.
 
-function getTestFirestoreLazy(): admin.firestore.Firestore {
+function getTestFirestoreLazy(): Firestore {
   return getTestFirestore();
 }
 
@@ -35,9 +34,10 @@ import {
   resetCircuitBreakerState,
 } from "../../middleware/circuitBreaker";
 import type { AuthContext } from "../../auth/authValidator";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 describe("WS-3 Circuit Breaker Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {

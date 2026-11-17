@@ -7,9 +7,9 @@
 
 import type http from "http";
 import * as crypto from "crypto";
-import admin from "firebase-admin";
 import { getFirestore } from "../firebase/client.js";
 import { Timestamp } from "firebase-admin/firestore";
+import { getAuth, DecodedIdToken } from "firebase-admin/auth";
 
 /**
  * Owner-only principal allowlist (SARK gate, task s0QMEUOc).
@@ -76,9 +76,9 @@ export async function handleOAuthCallback(req: http.IncomingMessage, res: http.S
   }
 
   // Verify Firebase ID token
-  let decoded: admin.auth.DecodedIdToken;
+  let decoded: DecodedIdToken;
   try {
-    decoded = await admin.auth().verifyIdToken(idToken);
+    decoded = await getAuth().verifyIdToken(idToken);
   } catch (error) {
     return sendHtml(res, 401, errorPage("Authentication failed. Please try again."));
   }

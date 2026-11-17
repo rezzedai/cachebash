@@ -8,11 +8,11 @@
  * - Sprint completion
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Sprint Execution Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -34,7 +34,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/test",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           {
             id: "story-1",
@@ -86,7 +86,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/multi-wave",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: stories.map((s) => ({
           ...s,
           status: "queued",
@@ -119,7 +119,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/test",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           {
             id: storyId,
@@ -144,7 +144,7 @@ describe("Sprint Execution Integration", () => {
             status: "active",
             wave: 0,
             complexity: "normal",
-            startedAt: admin.firestore.Timestamp.now(),
+            startedAt: Timestamp.now(),
             currentAction: "Running tests",
             progress: 50,
           },
@@ -168,7 +168,7 @@ describe("Sprint Execution Integration", () => {
             wave: 0,
             complexity: "normal",
             startedAt: story.startedAt,
-            completedAt: admin.firestore.Timestamp.now(),
+            completedAt: Timestamp.now(),
             progress: 100,
           },
         ],
@@ -192,7 +192,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/test",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           {
             id: storyId,
@@ -200,7 +200,7 @@ describe("Sprint Execution Integration", () => {
             status: "active",
             wave: 0,
             complexity: "normal",
-            startedAt: admin.firestore.Timestamp.now(),
+            startedAt: Timestamp.now(),
           },
         ],
       });
@@ -212,7 +212,7 @@ describe("Sprint Execution Integration", () => {
       // Mark as failed
       await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         "stories.0.status": "failed",
-        "stories.0.failedAt": admin.firestore.FieldValue.serverTimestamp(),
+        "stories.0.failedAt": FieldValue.serverTimestamp(),
         "stories.0.error": "Build failed",
         "stories.0.retryCount": 1,
       });
@@ -235,7 +235,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/test",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           {
             id: "story-skip",
@@ -267,7 +267,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/waves",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           { id: "s1", title: "Wave 0 Story 1", status: "complete", wave: 0, complexity: "normal" },
           { id: "s2", title: "Wave 0 Story 2", status: "complete", wave: 0, complexity: "normal" },
@@ -302,7 +302,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/concurrent",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         config: {
           maxConcurrent: 3,
         },
@@ -332,7 +332,7 @@ describe("Sprint Execution Integration", () => {
         branch: "feature/complete",
         status: "active",
         currentWave: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         stories: [
           { id: "s1", title: "Story 1", status: "complete", wave: 0, complexity: "normal" },
           { id: "s2", title: "Story 2", status: "complete", wave: 0, complexity: "normal" },
@@ -355,7 +355,7 @@ describe("Sprint Execution Integration", () => {
       // Complete sprint
       await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         status: "complete",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         summary,
       });
 
@@ -372,7 +372,7 @@ describe("Sprint Execution Integration", () => {
 
     it("should calculate sprint duration", async () => {
       const sprintId = "sprint-009";
-      const createdAt = admin.firestore.Timestamp.now();
+      const createdAt = Timestamp.now();
 
       await db.collection(`tenants/${userId}/tasks`).doc(sprintId).set({
         type: "sprint",
@@ -393,7 +393,7 @@ describe("Sprint Execution Integration", () => {
       // Simulate some time passing
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const completedAt = admin.firestore.Timestamp.now();
+      const completedAt = Timestamp.now();
       await db.collection(`tenants/${userId}/tasks`).doc(sprintId).update({
         status: "complete",
         completedAt,

@@ -8,6 +8,7 @@ import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { isAdmin, hasCapability } from "../middleware/gate.js";
+import { Timestamp, Query } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -72,9 +73,9 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
   const start = periodStart(args.period);
 
   // Query relay messages
-  let relayQuery: admin.firestore.Query = db.collection(`tenants/${auth.userId}/relay`);
+  let relayQuery: Query = db.collection(`tenants/${auth.userId}/relay`);
   if (start) {
-    relayQuery = relayQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    relayQuery = relayQuery.where("createdAt", ">=", Timestamp.fromDate(start));
   }
   const relaySnap = await relayQuery.get();
 
@@ -140,11 +141,11 @@ export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown)
   const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
 
   // Build query: status == "done", optionally filtered by completedAt and source
-  let query: admin.firestore.Query = tasksRef.where("status", "==", "done");
+  let query: Query = tasksRef.where("status", "==", "done");
 
   const start = periodStart(args.period);
   if (start) {
-    query = query.where("completedAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    query = query.where("completedAt", ">=", Timestamp.fromDate(start));
   }
 
   if (args.programFilter) {
@@ -223,9 +224,9 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
   const db = getFirestore();
   const start = periodStart(args.period);
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/events`);
+  let query: Query = db.collection(`tenants/${auth.userId}/events`);
   if (start) {
-    query = query.where("timestamp", ">=", admin.firestore.Timestamp.fromDate(start));
+    query = query.where("timestamp", ">=", Timestamp.fromDate(start));
   }
   const snapshot = await query.get();
 
@@ -418,9 +419,9 @@ export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: u
     .sort((a, b) => b.created - a.created);
 
   // STORY 1 ENHANCEMENTS: Query completed tasks for deep analysis
-  let tasksQuery: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
+  let tasksQuery: Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
   if (start) {
-    tasksQuery = tasksQuery.where("completedAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    tasksQuery = tasksQuery.where("completedAt", ">=", Timestamp.fromDate(start));
   }
   const tasksSnapshot = await tasksQuery.get();
 
@@ -628,12 +629,12 @@ export async function getCostForecastHandler(auth: AuthContext, rawArgs: unknown
   const start = periodStart(args.period);
 
   // Query completed tasks with cost data
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`)
+  let query: Query = db.collection(`tenants/${auth.userId}/tasks`)
     .where("status", "==", "done")
     .where("cost_usd", ">", 0);
 
   if (start) {
-    query = query.where("completedAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    query = query.where("completedAt", ">=", Timestamp.fromDate(start));
   }
 
   const snapshot = await query.get();
@@ -729,9 +730,9 @@ export async function getSlaComplianceHandler(auth: AuthContext, rawArgs: unknow
   const start = periodStart(args.period);
 
   // Query completed tasks
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
+  let query: Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
   if (start) {
-    query = query.where("completedAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    query = query.where("completedAt", ">=", Timestamp.fromDate(start));
   }
 
   const snapshot = await query.get();
@@ -847,9 +848,9 @@ export async function getProgramHealthHandler(auth: AuthContext, rawArgs: unknow
   const start = periodStart(args.period);
 
   // Query completed tasks
-  let tasksQuery: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
+  let tasksQuery: Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
   if (start) {
-    tasksQuery = tasksQuery.where("completedAt", ">=", admin.firestore.Timestamp.fromDate(start));
+    tasksQuery = tasksQuery.where("completedAt", ">=", Timestamp.fromDate(start));
   }
   if (args.programId) {
     tasksQuery = tasksQuery.where("target", "==", args.programId);
