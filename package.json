@@ -1,6 +1,9 @@
 {
   "name": "cachebash",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "packageManager": "npm@11.5.1",
   "workspaces": [
     "apps/*",

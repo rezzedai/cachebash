@@ -1,0 +1,8 @@
+# Build settings for the Cloud Run source deploy (scripts/deploy-mcp.sh runs
+# `gcloud run deploy --source .` from this directory; Google buildpacks read this file).
+# GOOGLE_NODEJS_VERSION pins the production Node runtime. Without it the buildpack
+# picks its newest Node (26.13.0 on revisions 00219-00221).
+# The pin lives here so the published npm package's "engines" stays ">=18" for its users.
+[[build.env]]
+name = "GOOGLE_NODEJS_VERSION"
+value = "22.x"
