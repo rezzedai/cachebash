@@ -1,6 +1,6 @@
 # CacheBash Deployment Guide
 
-Step-by-step guide to deploying CacheBash to Google Cloud Platform and Firebase.
+Step-by-step guide to deploying CacheBash to Google Cloud Platform and Firebase. The MCP server is the required part. The mobile app is optional: it is one of several ways people answer agents.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ Step-by-step guide to deploying CacheBash to Google Cloud Platform and Firebase.
 3. **gcloud CLI** installed and authenticated
 4. **Firebase CLI** installed (`npm install -g firebase-tools`)
 5. **Node.js 18+** and npm
-6. **Flutter SDK** (for mobile app deployment)
+6. **Expo and EAS CLI** (optional, for mobile app builds)
 
 ## Project Setup
 
@@ -58,84 +58,14 @@ firebase init
 gcloud firestore databases create --region=us-central1
 ```
 
-### 2. Deploy Security Rules
+### 2. Deploy Security Rules and Indexes
 
-Create `firestore.rules`:
+The rules and composite indexes live in the repo: `infra/firestore.rules` and `infra/firestore.indexes.json`. Tenant data sits under `tenants/{userId}/`. API key hashes sit in `keyIndex/`. Signed-in users can read their own tenant's data. Client writes are limited, for example creating a task from the mobile app or answering a question. Client writes to messages and to `keyIndex/` are denied, and so is any path the rules do not list. The server writes through the Admin SDK, which the rules do not restrict.
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Global collections (API keys, program state)
-    match /apiKeys/{keyHash} {
-      allow read: if request.auth != null;
-      allow write: if false; // MCP server only
-    }
+Deploy them from the repo root. The root `firebase.json` points at both files:
 
-    match /programState/{programId} {
-      allow read: if request.auth != null;
-      allow write: if false; // MCP server only
-    }
-
-    // Per-user collections
-    match /users/{userId}/{collection}/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Nested collections (sprint stories)
-    match /users/{userId}/tasks/{taskId}/stories/{storyId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-Deploy rules:
 ```bash
-firebase deploy --only firestore:rules
-```
-
-### 3. Create Indexes
-
-Firestore requires composite indexes for complex queries. Create `firestore.indexes.json`:
-
-```json
-{
-  "indexes": [
-    {
-      "collectionGroup": "tasks",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "target", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "priority", "order": "DESCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "relay",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "target", "order": "ASCENDING" },
-        { "fieldPath": "read", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "sessions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "state", "order": "ASCENDING" },
-        { "fieldPath": "lastHeartbeat", "order": "DESCENDING" }
-      ]
-    }
-  ]
-}
-```
-
-Deploy indexes:
-```bash
-firebase deploy --only firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 ## MCP Server Deployment
@@ -167,13 +97,9 @@ from `services/mcp-server`. Cloud Run builds with buildpacks from that directory
 from the repo root, the same command would build the root `Dockerfile` and Cloud Run
 would refuse it. `DEPLOY_DRY_RUN=1` prints the directory and command without deploying.
 
-> **Do NOT pass `--set-env-vars` to a code deploy.** It does not merge --- it
-> REPLACES the service's entire environment map with exactly what you list. The
-> serving revision currently carries four variables (`GITHUB_FEEDBACK_PAT`,
-> `GOOGLE_CLOUD_PROJECT`, `FIREBASE_PROJECT_ID`, `AUTH_MODE`), so the two-variable
-> command this file used to prescribe would have silently dropped
-> `GITHUB_FEEDBACK_PAT` and `AUTH_MODE` --- changing how the fleet's own auth
-> service authenticates, with no error at deploy time.
+> **Do not pass `--set-env-vars` to a code deploy.** It replaces the service's
+> whole environment map. Set the variables and secrets your deployment needs
+> through Terraform and Secret Manager.
 
 The scaling/IAM/env envelope (`--min-instances`, `--max-instances`, `--concurrency`,
 `--cpu`, `--memory`, `--timeout`, `--allow-unauthenticated`, and the env map) is owned
@@ -209,7 +135,7 @@ https://api.cachebash.dev
 # Health check
 curl https://api.cachebash.dev/v1/health
 
-# Expected: {"status":"healthy","timestamp":"2026-02-20T..."}
+# Expected: {"status":"ok","version":"2.0.0",...,"timestamp":"..."}
 ```
 
 ## Firebase Authentication Setup
@@ -249,7 +175,7 @@ Once deployed, create API keys for your programs using the MCP server's `create_
 **Via curl:**
 ```bash
 # First, create a bootstrap key manually in Firestore Console
-# Collection: apiKeys
+# Collection: keyIndex
 # Document ID: <sha256 hash of your bootstrap key>
 # Fields: { userId: "YOUR_UID", programId: "iso", active: true, createdAt: <timestamp> }
 
@@ -262,7 +188,7 @@ curl -X POST https://api.cachebash.dev/v1/keys \
     "label": "BASHER production key"
   }'
 
-# Response: { "success": true, "data": { "key": "cb_live_...", "keyHash": "..." } }
+# Response: { "success": true, "data": { "key": "cb_<64 hex characters>", "keyHash": "..." } }
 # SAVE THE KEY — it's shown only once!
 ```
 
@@ -276,7 +202,7 @@ Add API key to `.mcp.json` or `~/.claude.json`:
     "cachebash": {
       "url": "https://api.cachebash.dev/v1/mcp",
       "headers": {
-        "Authorization": "Bearer cb_live_..."
+        "Authorization": "Bearer cb_..."
       }
     }
   }
@@ -312,39 +238,26 @@ Cloud Scheduler jobs are created automatically by Firebase. Verify schedules:
 gcloud scheduler jobs list --location us-central1
 ```
 
-Expected jobs:
-- `cleanupExpiredSessions` — Daily at 2am UTC
-- `cleanupOrphanedTasks` — Daily at 3am UTC
-- `cleanupExpiredRelay` — Hourly
-- `cleanupLedger` — Weekly on Sunday at 4am UTC
+Expected schedules (from `services/functions/src/cleanup/`):
+- `cleanupExpiredSessions`, `cleanupOrphanedTasks`: every 5 minutes
+- `cleanupExpiredRelay`, `processDeadLetters`, `reapExpiredByTTL`: every 15 minutes
+- `cleanupLedger`, `cleanupAudit`, `decayProgramState`: every 24 hours
 
-## Mobile App Deployment
+## Mobile App Deployment (optional)
 
-### 1. Configure Firebase
-
-Create `app/lib/firebase_options.dart`:
+The mobile app is a React Native and Expo project in `apps/mobile/`. Build profiles are in `apps/mobile/eas.json`. Google and GitHub sign-in client IDs are set in `.env` (see `.env.example`, "Mobile App (Expo)").
 
 ```bash
-cd app
-firebase apps:create ios com.rezzed.cachebash
-firebase apps:create android com.rezzed.cachebash
+npm install -g eas-cli   # eas.json requires EAS CLI 15 or later
+cd apps/mobile
+npm install
 
-# Generate config
-flutterfire configure
-```
+# Internal test build
+eas build --profile preview --platform all
 
-### 2. Build and Deploy
-
-**iOS (TestFlight):**
-```bash
-flutter build ios --release
-# Upload to App Store Connect via Xcode
-```
-
-**Android (Play Store):**
-```bash
-flutter build appbundle --release
-# Upload to Google Play Console
+# Store build and submit
+eas build --profile production --platform ios
+eas submit --profile production --platform ios
 ```
 
 ## Verification
@@ -352,8 +265,8 @@ flutter build appbundle --release
 ### 1. Test MCP Connection
 
 ```bash
-# Using claude-code CLI
-claude-code test-mcp cachebash get_tasks
+# Using the CacheBash CLI
+npx @rezzed.ai/cachebash ping
 ```
 
 ### 2. Test REST API
@@ -391,6 +304,8 @@ gcloud run services describe cachebash-mcp --region us-central1
 | `GOOGLE_CLOUD_PROJECT` | Yes | GCP project ID | — |
 | `FIREBASE_PROJECT_ID` | Yes | Firebase project ID (usually same as GCP) | — |
 | `PORT` | No | HTTP server port | 3001 |
+| `CACHEBASH_PROFILE` | No | `full` serves every tool domain. `lite` serves the smaller tenant tool set | `full` |
+| `AUTH_MODE` | No | `key_identity` makes the API key alone decide the caller's identity | `key_identity` |
 
 ## Troubleshooting
 
@@ -400,7 +315,7 @@ gcloud run services describe cachebash-mcp --region us-central1
 
 **Fix:**
 1. Verify service is deployed: `gcloud run services list`
-2. Check API key is valid: `gcloud firestore export --collection-ids=apiKeys`
+2. Check API key is valid: `gcloud firestore export --collection-ids=keyIndex`
 3. Review logs: `gcloud run services logs read cachebash-mcp --limit 100`
 
 ### Rate Limit Errors
@@ -410,7 +325,7 @@ gcloud run services describe cachebash-mcp --region us-central1
 **Fix:**
 1. Check rate limit status in logs
 2. Wait for window to reset (max 60 seconds)
-3. Consider increasing limits in `middleware/rateLimiter.ts` for your deployment
+3. Consider increasing limits in `config/rateLimits.ts` for your deployment
 
 ### Firestore Permission Denied
 
@@ -466,7 +381,6 @@ gcloud run services update-traffic cachebash-mcp \
 - [ ] Cloud Run service account has minimal permissions
 - [ ] Rate limiting enabled and tested
 - [ ] Audit logging enabled (`modules/audit.ts`)
-- [ ] DNS rebinding protection active (`security/dns-rebinding.ts`)
-- [ ] E2E encryption verified for questions
+- [ ] Question encryption verified (server-side AES-256, key derived from the caller's API key)
 
 Built by [Rezzed.ai](https://rezzed.ai)

@@ -1,6 +1,6 @@
 # CacheBash Quick Start
 
-CacheBash is an MCP server that gives AI coding agents persistent memory, task management, and inter-agent messaging — backed by Firestore. Connect it to Claude Code, Cursor, VS Code Copilot, or any MCP-compatible client.
+CacheBash is the coordination layer for a fleet of AI agents. It gives each agent its own key, a shared task queue, messaging, memory, and a way to ask a person a question. Data is stored in Firestore. Connect it to Claude Code, Cursor, VS Code Copilot, or any MCP-compatible client.
 
 ## 1. Get your API key
 
@@ -50,7 +50,7 @@ A successful response (even empty) confirms the connection. You can also run:
 Create a task:
 
 ```
-> create a cachebash task titled "Hello from Vu" with target "vu" and instructions "Test task to verify CacheBash connectivity"
+> create a cachebash task titled "Hello from CacheBash" with target "builder" and instructions "Test task to verify CacheBash connectivity"
 ```
 
 Then retrieve it:
@@ -88,14 +88,15 @@ Then retrieve it:
 
 ## 6. Rate limits
 
-- **Reads:** 120/min per API key
-- **Writes:** 60/min per API key
-- Sliding window. Exceeding limits returns `429 Too Many Requests`.
+- **Per key:** 60 requests per minute plus a burst of 10, unless your key has a higher tier.
+- **Per tenant:** 1,200 requests per minute across all keys.
+- **Writes:** each tenant also has a write ceiling per key and per tenant. An operator can pause all writes.
+- Limits use a 60-second sliding window. A refused call returns a retry time.
+
+Details: [architecture.md](architecture.md#safety-rails).
 
 ## 7. Known limitations (Private Beta)
 
-- **Single tenant:** All beta users share the same Firestore tenant (the owner's). Your data is scoped by your API key's programId.
-- **No CLI installer yet:** Config is manual (`.mcp.json` + env var). The `npx cachebash init` flow requires browser OAuth which isn't set up for beta testers.
 - **MCP-only:** The REST API works but the primary interface is MCP via your coding agent.
 - **No web dashboard:** Session and task visibility is through MCP tools only (mobile app is internal).
 - **Key rotation:** Contact an admin if you need your key rotated. Self-service rotation requires the CLI.
