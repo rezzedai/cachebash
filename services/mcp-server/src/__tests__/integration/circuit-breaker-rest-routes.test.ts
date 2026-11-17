@@ -19,7 +19,6 @@
 
 import * as crypto from "crypto";
 import * as http from "http";
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
 
 // github-sync (pulled in via transport/rest -> tools) imports ESM-only
@@ -31,10 +30,10 @@ jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
 // instead of the production firebase/client.ts singleton.
 jest.mock("../../firebase/client.js", () => ({
   getFirestore: () => getTestFirestoreLazy(),
-  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
 
-function getTestFirestoreLazy(): admin.firestore.Firestore {
+function getTestFirestoreLazy(): Firestore {
   return getTestFirestore();
 }
 
@@ -49,9 +48,10 @@ jest.mock("../../modules/signal.js", () => ({
 
 import { resetCircuitBreakerState } from "../../middleware/circuitBreaker";
 import { createRestRouter } from "../../transport/rest";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 describe("WS-3 REST route enforcement — POST /v1/gsp/proposals/:id/resolve", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
   let apiKey: string;
   let server: http.Server;

@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import { logSuccess } from "../util/structuredLog";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 export const createUserKey = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -45,7 +45,7 @@ export const createUserKey = functions.https.onCall(async (data, context) => {
       "sprint.read",
       "metrics.read", "fleet.read",
     ],
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     active: true,
   });
 
@@ -96,7 +96,7 @@ export const revokeUserKey = functions.https.onCall(async (data, context) => {
 
   await db.collection("keyIndex").doc(data.keyHash).update({
     active: false,
-    revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+    revokedAt: FieldValue.serverTimestamp(),
   });
 
   logSuccess({
@@ -175,7 +175,7 @@ export const rotateApiKey = functions.https.onCall(async (data, context) => {
     // Grace-expire old key (stays valid for 30s, then authValidator rejects)
     tx.update(oldKeyRef, {
       rotatedTo: newKeyHash,
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 30_000),
+      expiresAt: Timestamp.fromMillis(Date.now() + 30_000),
     });
 
     // Create new key with same capabilities/programId
@@ -185,7 +185,7 @@ export const rotateApiKey = functions.https.onCall(async (data, context) => {
       label,
       capabilities,
       active: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       rotatedFrom: oldKeyHash,
     });
   });

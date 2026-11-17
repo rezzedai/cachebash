@@ -1,8 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { getMessaging, Notification, BatchResponse } from "firebase-admin/messaging";
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 /**
  * Triggered when a task is updated.
@@ -78,7 +79,7 @@ async function handleDreamTransition(
         return;
     }
 
-    const notification: admin.messaging.Notification = { title, body };
+    const notification: Notification = { title, body };
 
     const response = await messaging.sendEachForMulticast({
       tokens,
@@ -164,7 +165,7 @@ async function handleSprintStoryCascade(
     const update: Record<string, unknown> = {
       "sprint.status": sprintStatus.substring(0, 200),
       "sprint.progress": sprintProgress,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     // If all stories complete, mark sprint as completing
@@ -188,7 +189,7 @@ async function cleanupInvalidTokens(
   userId: string,
   devicesSnapshot: FirebaseFirestore.QuerySnapshot,
   tokens: string[],
-  response: admin.messaging.BatchResponse
+  response: BatchResponse
 ): Promise<void> {
   const invalidCodes = [
     "messaging/invalid-registration-token",

@@ -8,11 +8,11 @@
  * - TTL field is set to 7 days from creation
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Rate Limit Events Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -28,12 +28,12 @@ describe("Rate Limit Events Integration", () => {
   describe("Log Rate Limit Event", () => {
     it("should create a rate limit event document with correct schema", async () => {
       const now = new Date();
-      const ttl = admin.firestore.Timestamp.fromMillis(
+      const ttl = Timestamp.fromMillis(
         now.getTime() + 7 * 24 * 60 * 60 * 1000,
       );
 
       const ref = await db.collection(`tenants/${userId}/rate_limit_events`).add({
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         sessionId: "basher-session-001",
         programId: "basher",
         modelTier: "opus",
@@ -64,14 +64,14 @@ describe("Rate Limit Events Integration", () => {
 
     it("should create cascaded rate limit event", async () => {
       const ref = await db.collection(`tenants/${userId}/rate_limit_events`).add({
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
         sessionId: "alan-session-002",
         programId: "alan",
         modelTier: "sonnet",
         endpoint: "/v1/chat",
         backoffMs: 10000,
         cascaded: true,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       const doc = await ref.get();
@@ -88,25 +88,25 @@ describe("Rate Limit Events Integration", () => {
       const collection = db.collection(`tenants/${userId}/rate_limit_events`);
 
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 2000)),
+        timestamp: Timestamp.fromDate(new Date(Date.now() - 2000)),
         sessionId: "session-a",
         programId: "basher",
         modelTier: "opus",
         endpoint: "/v1/messages",
         backoffMs: 3000,
         cascaded: false,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(new Date(Date.now() - 1000)),
+        timestamp: Timestamp.fromDate(new Date(Date.now() - 1000)),
         sessionId: "session-b",
         programId: "alan",
         modelTier: "sonnet",
         endpoint: "/v1/chat",
         backoffMs: 5000,
         cascaded: true,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Query all events for today
@@ -114,7 +114,7 @@ describe("Rate Limit Events Integration", () => {
       today.setHours(0, 0, 0, 0);
 
       const snapshot = await collection
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .orderBy("timestamp", "desc")
         .get();
 
@@ -130,32 +130,32 @@ describe("Rate Limit Events Integration", () => {
       const collection = db.collection(`tenants/${userId}/rate_limit_events`);
 
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+        timestamp: Timestamp.fromDate(new Date()),
         sessionId: "target-session",
         programId: "basher",
         modelTier: "opus",
         endpoint: "/v1/messages",
         backoffMs: 3000,
         cascaded: false,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+        timestamp: Timestamp.fromDate(new Date()),
         sessionId: "other-session",
         programId: "alan",
         modelTier: "sonnet",
         endpoint: "/v1/chat",
         backoffMs: 5000,
         cascaded: false,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const snapshot = await collection
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .where("sessionId", "==", "target-session")
         .orderBy("timestamp", "desc")
         .get();
@@ -170,26 +170,26 @@ describe("Rate Limit Events Integration", () => {
       // Add an event from 2 weeks ago
       const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(twoWeeksAgo),
+        timestamp: Timestamp.fromDate(twoWeeksAgo),
         sessionId: "old-session",
         programId: "basher",
         modelTier: "opus",
         endpoint: "/v1/messages",
         backoffMs: 1000,
         cascaded: false,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Add an event from today
       await collection.add({
-        timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+        timestamp: Timestamp.fromDate(new Date()),
         sessionId: "new-session",
         programId: "basher",
         modelTier: "opus",
         endpoint: "/v1/messages",
         backoffMs: 2000,
         cascaded: false,
-        ttl: admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        ttl: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Query for "today" — should only get the recent event
@@ -197,7 +197,7 @@ describe("Rate Limit Events Integration", () => {
       today.setHours(0, 0, 0, 0);
 
       const snapshot = await collection
-        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(today))
+        .where("timestamp", ">=", Timestamp.fromDate(today))
         .orderBy("timestamp", "desc")
         .get();
 

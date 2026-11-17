@@ -8,8 +8,9 @@ import { initializeFirebase } from "../../firebase/client";
 import * as gsp from "../../modules/gsp";
 import type { AuthContext } from "../../auth/authValidator";
 import type * as admin from "firebase-admin";
+import { Firestore } from "firebase-admin/firestore";
 
-let db: admin.firestore.Firestore;
+let db: Firestore;
 let testUser: Awaited<ReturnType<typeof seedTestUser>>;
 let auth: AuthContext;
 

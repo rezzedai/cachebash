@@ -22,7 +22,7 @@ import { dispatchHandler } from "../modules/dispatch/dispatchHandler.js";
 import { isProgramQuarantined } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { CONSTANTS } from "../config/constants.js";
-import * as admin from "firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 jest.setTimeout(20_000);
 
@@ -169,7 +169,7 @@ const mockFirestore = {
 
 jest.mock("../firebase/client.js", () => ({
   getFirestore: jest.fn(() => mockFirestore),
-  serverTimestamp: jest.fn(() => admin.firestore.Timestamp.now()),
+  serverTimestamp: jest.fn(() => Timestamp.now()),
 }));
 
 // Reset mock data before each test
@@ -228,7 +228,7 @@ describe("Auto-Quarantine", () => {
     // First quarantine
     mockData["tenants/test-user/programs/builder-test"] = {
       quarantined: true,
-      quarantinedAt: admin.firestore.Timestamp.now(),
+      quarantinedAt: Timestamp.now(),
       quarantineReason: "Test",
       failureCount: 5,
     };
@@ -346,7 +346,7 @@ describe("Task Replay", () => {
       action: "queue",
       status: "created",
       ttl: 0,
-      expiresAt: admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
+      expiresAt: Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
     };
 
     const result = await replayTaskHandler(mockAuth, {
@@ -495,14 +495,14 @@ describe("Policy Modes", () => {
       message_type: "STATUS",
       source: "builder-test",
       target: "iso",
-      createdAt: admin.firestore.Timestamp.now(),
+      createdAt: Timestamp.now(),
     };
     mockData["tenants/test-user/relay/ack-valid"] = {
       reply_to: directiveId,
       message_type: "ACK",
       source: "builder-test",
       target: "iso",
-      createdAt: admin.firestore.Timestamp.now(),
+      createdAt: Timestamp.now(),
     };
 
     const data = JSON.parse((await pending).content[0].text);
@@ -533,7 +533,7 @@ describe("Policy Modes", () => {
       message_type: "ACK",
       source: "foreign-program",
       target: "iso",
-      createdAt: admin.firestore.Timestamp.now(),
+      createdAt: Timestamp.now(),
     };
 
     const data = JSON.parse((await pending).content[0].text);
@@ -590,7 +590,7 @@ describe("Policy Modes", () => {
       ...mockData[`tenants/test-user/tasks/${first.taskId}`],
       status: "active",
       claimedBy: "builder-test",
-      claimedAt: admin.firestore.Timestamp.now(),
+      claimedAt: Timestamp.now(),
     };
 
     const resumed = JSON.parse((await dispatchHandler(mockAuth, {
@@ -727,7 +727,7 @@ describe("Policy Modes", () => {
         ...mockData[taskPath],
         status: "active",
         claimedBy: "builder-test",
-        claimedAt: admin.firestore.Timestamp.now(),
+        claimedAt: Timestamp.now(),
       };
       return {
         outcome: "success",

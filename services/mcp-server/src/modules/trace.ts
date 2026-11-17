@@ -9,6 +9,7 @@ import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { isAdmin } from "../middleware/gate.js";
 import { z } from "zod";
+import { Timestamp, Query } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -203,7 +204,7 @@ export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): P
 
   const args = QueryTracesSchema.parse(rawArgs || {});
   const db = getFirestore();
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/ledger`).where("type", "==", "trace");
+  let query: Query = db.collection(`tenants/${auth.userId}/ledger`).where("type", "==", "trace");
 
   if (args.sprintId) {
     query = query.where("context.sprintId", "==", args.sprintId);
@@ -221,10 +222,10 @@ export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): P
   query = query.orderBy("createdAt", "desc");
 
   if (args.since) {
-    query = query.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(new Date(args.since)));
+    query = query.where("createdAt", ">=", Timestamp.fromDate(new Date(args.since)));
   }
   if (args.until) {
-    query = query.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(new Date(args.until)));
+    query = query.where("createdAt", "<=", Timestamp.fromDate(new Date(args.until)));
   }
 
   query = query.limit(args.limit);

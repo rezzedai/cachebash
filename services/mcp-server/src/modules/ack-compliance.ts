@@ -6,9 +6,9 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+import { Timestamp, Query } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -101,11 +101,11 @@ export async function getAckComplianceHandler(auth: AuthContext, rawArgs: unknow
   const args = GetAckComplianceSchema.parse(rawArgs || {});
   const db = getFirestore();
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/directive_audit`);
+  let query: Query = db.collection(`tenants/${auth.userId}/directive_audit`);
 
   if (args.period !== "all") {
     const start = periodStart(args.period);
-    const startTimestamp = admin.firestore.Timestamp.fromDate(start);
+    const startTimestamp = Timestamp.fromDate(start);
     query = query.where("createdAt", ">=", startTimestamp);
   }
 

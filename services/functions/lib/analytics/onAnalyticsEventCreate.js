@@ -35,9 +35,9 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onAnalyticsEventCreate = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
 const helpers_1 = require("./helpers");
-const db = admin.firestore();
+const firestore_1 = require("firebase-admin/firestore");
+const db = (0, firestore_1.getFirestore)();
 /**
  * Triggered when a new analytics event is created.
  * Aggregates counters into daily, weekly, and monthly rollups
@@ -72,7 +72,7 @@ exports.onAnalyticsEventCreate = functions.firestore
         date = new Date();
     }
     const keys = (0, helpers_1.buildAggregateKeys)(date);
-    const increment = admin.firestore.FieldValue.increment(1);
+    const increment = firestore_1.FieldValue.increment(1);
     const aggregatesRef = db.collection(`tenants/${userId}/analytics_aggregates`);
     // Build the update payload — same shape for all three periods
     const update = {

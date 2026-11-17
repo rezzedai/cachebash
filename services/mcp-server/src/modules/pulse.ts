@@ -4,7 +4,6 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { isAdmin, hasCapability } from "../middleware/gate.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
@@ -13,6 +12,7 @@ import { PROGRAM_REGISTRY } from "../config/programs.js";
 import { isProgramRegistered } from "./programRegistry.js";
 import { emitAnalyticsEvent } from "./analytics.js";
 import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 /** Maximum context history entries per session (rolling window) */
 const MAX_CONTEXT_HISTORY = 1000;
@@ -556,7 +556,7 @@ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown)
 
   // === Full mode: add contextHealth + taskContention + rateLimits ===
 
-  const oneHourAgo = admin.firestore.Timestamp.fromMillis(now - 60 * 60 * 1000);
+  const oneHourAgo = Timestamp.fromMillis(now - 60 * 60 * 1000);
 
   // Parallel telemetry queries for full mode
   const [claimEventsSnap, rateLimitEventsSnap] = await Promise.all([
@@ -904,7 +904,7 @@ export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): 
         programRef,
         {
           paused: true,
-          pausedAt: admin.firestore.FieldValue.serverTimestamp(),
+          pausedAt: FieldValue.serverTimestamp(),
           pauseReason: args.reason,
           pausedBy: auth.programId,
         },
@@ -918,7 +918,7 @@ export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): 
       program_id: args.programId,
       paused_by: auth.programId,
       reason: args.reason,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     emitAnalyticsEvent(auth.userId, {
@@ -968,11 +968,11 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
 
       tx.update(programRef, {
         paused: false,
-        resumedAt: admin.firestore.FieldValue.serverTimestamp(),
+        resumedAt: FieldValue.serverTimestamp(),
         resumedBy: auth.programId,
-        pauseReason: admin.firestore.FieldValue.delete(),
-        pausedAt: admin.firestore.FieldValue.delete(),
-        pausedBy: admin.firestore.FieldValue.delete(),
+        pauseReason: FieldValue.delete(),
+        pausedAt: FieldValue.delete(),
+        pausedBy: FieldValue.delete(),
       });
     });
 
@@ -981,7 +981,7 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
       event_type: "PROGRAM_RESUMED",
       program_id: args.programId,
       resumed_by: auth.programId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     emitAnalyticsEvent(auth.userId, {

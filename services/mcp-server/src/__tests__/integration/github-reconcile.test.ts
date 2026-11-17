@@ -10,11 +10,11 @@
  * Note: Cannot test actual GitHub API calls, only Firestore operations.
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser, seedTestData } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("GitHub Reconciliation Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -37,7 +37,7 @@ describe("GitHub Reconciliation Integration", () => {
             taskId: "task-123",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             payload: {
               title: "Test Issue",
               body: "Test body",
@@ -51,7 +51,7 @@ describe("GitHub Reconciliation Integration", () => {
             taskId: "task-456",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
             payload: {
               itemId: "item-123",
               fieldId: "status",
@@ -81,7 +81,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -90,7 +90,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "update_project_item",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -99,7 +99,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
       ];
@@ -122,7 +122,7 @@ describe("GitHub Reconciliation Integration", () => {
         operation: "create_issue",
         status: "pending",
         retryCount: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         payload: { title: "Test" },
       });
 
@@ -132,8 +132,8 @@ describe("GitHub Reconciliation Integration", () => {
 
       // Simulate retry
       await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
-        retryCount: admin.firestore.FieldValue.increment(1),
-        lastRetryAt: admin.firestore.FieldValue.serverTimestamp(),
+        retryCount: FieldValue.increment(1),
+        lastRetryAt: FieldValue.serverTimestamp(),
         lastError: "GitHub API timeout",
       });
 
@@ -153,7 +153,7 @@ describe("GitHub Reconciliation Integration", () => {
         operation: "update_project_item",
         status: "pending",
         retryCount: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Ensure document exists before updating
@@ -163,14 +163,14 @@ describe("GitHub Reconciliation Integration", () => {
       // Simulate multiple retries with exponential backoff
       for (let i = 1; i <= 3; i++) {
         const delayMs = baseDelayMs * Math.pow(2, i - 1);
-        const nextRetryAt = admin.firestore.Timestamp.fromDate(
+        const nextRetryAt = Timestamp.fromDate(
           new Date(Date.now() + delayMs)
         );
 
         await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
           retryCount: i,
           nextRetryAt,
-          lastRetryAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastRetryAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -182,11 +182,11 @@ describe("GitHub Reconciliation Integration", () => {
     });
 
     it("should identify items ready for retry", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const pastTime = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const pastTime = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 5 * 60 * 1000) // 5 min ago
       );
-      const futureTime = admin.firestore.Timestamp.fromDate(
+      const futureTime = Timestamp.fromDate(
         new Date(now.toDate().getTime() + 5 * 60 * 1000) // 5 min from now
       );
 
@@ -198,7 +198,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             retryCount: 1,
             nextRetryAt: pastTime,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -208,7 +208,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             retryCount: 1,
             nextRetryAt: pastTime,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -218,7 +218,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             retryCount: 1,
             nextRetryAt: futureTime,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
       ];
@@ -245,7 +245,7 @@ describe("GitHub Reconciliation Integration", () => {
         operation: "create_issue",
         status: "pending",
         retryCount: MAX_RETRY_COUNT,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         payload: { title: "Failing sync" },
       });
 
@@ -259,7 +259,7 @@ describe("GitHub Reconciliation Integration", () => {
       // Mark as abandoned
       await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
         status: "abandoned",
-        abandonedAt: admin.firestore.FieldValue.serverTimestamp(),
+        abandonedAt: FieldValue.serverTimestamp(),
         abandonReason: `Max retries (${MAX_RETRY_COUNT}) exceeded`,
       });
 
@@ -279,8 +279,8 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "abandoned",
             retryCount: 5,
-            abandonedAt: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            abandonedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -289,8 +289,8 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "update_project_item",
             status: "abandoned",
             retryCount: 5,
-            abandonedAt: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            abandonedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -299,7 +299,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "pending",
             retryCount: 2,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
       ];
@@ -323,7 +323,7 @@ describe("GitHub Reconciliation Integration", () => {
         operation: "create_issue",
         status: "pending",
         retryCount: 0,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         payload: { title: "Success case" },
       });
 
@@ -334,7 +334,7 @@ describe("GitHub Reconciliation Integration", () => {
       // Mark as completed
       await db.collection(`tenants/${userId}/sync_queue`).doc(syncId).update({
         status: "completed",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         githubResponse: {
           issueNumber: 123,
           url: "https://github.com/example-org/example-repo/issues/123",
@@ -358,7 +358,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -367,7 +367,7 @@ describe("GitHub Reconciliation Integration", () => {
             operation: "create_issue",
             status: "pending",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
       ];
@@ -386,7 +386,7 @@ describe("GitHub Reconciliation Integration", () => {
         const ref = db.collection(`tenants/${userId}/sync_queue`).doc(item.id);
         batch.update(ref, {
           status: "completed",
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
         });
       }
       await batch.commit();
@@ -410,7 +410,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             priority: "high",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -420,7 +420,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             priority: "normal",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
         {
@@ -430,7 +430,7 @@ describe("GitHub Reconciliation Integration", () => {
             status: "pending",
             priority: "low",
             retryCount: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           },
         },
       ];
@@ -449,8 +449,8 @@ describe("GitHub Reconciliation Integration", () => {
     });
 
     it("should clean up old completed items", async () => {
-      const now = admin.firestore.Timestamp.now();
-      const oldTime = admin.firestore.Timestamp.fromDate(
+      const now = Timestamp.now();
+      const oldTime = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 31 * 24 * 60 * 60 * 1000) // 31 days ago
       );
 
@@ -478,7 +478,7 @@ describe("GitHub Reconciliation Integration", () => {
       await seedTestData(userId, "sync_queue", queueItems);
 
       // Query old completed items for cleanup
-      const thirtyDaysAgo = admin.firestore.Timestamp.fromDate(
+      const thirtyDaysAgo = Timestamp.fromDate(
         new Date(now.toDate().getTime() - 30 * 24 * 60 * 60 * 1000)
       );
 

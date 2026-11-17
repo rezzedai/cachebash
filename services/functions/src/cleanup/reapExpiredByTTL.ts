@@ -44,7 +44,7 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, Firestore, Query, QueryDocumentSnapshot, DocumentData, WriteBatch, getFirestore } from "firebase-admin/firestore";
 
 export const MAX_PAGE_SIZE = 400; // Firestore batch write cap is 500 — stay under it with margin.
 export const MAX_PAGES_PER_COLLECTION = 5; // Backlog-drain-time/burst-tolerance sizing — see throughput note above.
@@ -64,22 +64,22 @@ export interface ReapResult {
  * cross-run cursor state to lose or corrupt.
  */
 export async function reapPaginated(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   collectionGroup: string,
-  now: admin.firestore.Timestamp,
+  now: Timestamp,
   extraWhere: (
-    q: admin.firestore.Query<admin.firestore.DocumentData>
-  ) => admin.firestore.Query<admin.firestore.DocumentData>,
+    q: Query<DocumentData>
+  ) => Query<DocumentData>,
   applyToBatch: (
-    batch: admin.firestore.WriteBatch,
-    doc: admin.firestore.QueryDocumentSnapshot<admin.firestore.DocumentData>
+    batch: WriteBatch,
+    doc: QueryDocumentSnapshot<DocumentData>
   ) => void,
   label: string
 ): Promise<{ reaped: number; pages: number }> {
   let reaped = 0;
   let pages = 0;
   let cursor:
-    | admin.firestore.QueryDocumentSnapshot<admin.firestore.DocumentData>
+    | QueryDocumentSnapshot<DocumentData>
     | undefined;
 
   while (pages < MAX_PAGES_PER_COLLECTION) {
@@ -124,8 +124,8 @@ export async function reapPaginated(
 }
 
 export async function reapTasks(
-  db: admin.firestore.Firestore,
-  now: admin.firestore.Timestamp
+  db: Firestore,
+  now: Timestamp
 ): Promise<ReapResult> {
   try {
     // P1 fix: no status filter here. `status != "done"` was correct under
@@ -154,8 +154,8 @@ export async function reapTasks(
 }
 
 export async function reapProposals(
-  db: admin.firestore.Firestore,
-  now: admin.firestore.Timestamp
+  db: Firestore,
+  now: Timestamp
 ): Promise<ReapResult> {
   try {
     const { reaped, pages } = await reapPaginated(
@@ -167,7 +167,7 @@ export async function reapProposals(
         const data = doc.data();
         batch.update(doc.ref, {
           status: "expired",
-          resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+          resolvedAt: FieldValue.serverTimestamp(),
           version: (data.version || 1) + 1,
         });
       },
@@ -187,8 +187,8 @@ export const reapExpiredByTTL = functions
   .runWith({ timeoutSeconds: 300 })
   .pubsub.schedule("every 15 minutes")
   .onRun(async () => {
-    const db = admin.firestore();
-    const now = admin.firestore.Timestamp.now();
+    const db = getFirestore();
+    const now = Timestamp.now();
 
     functions.logger.info(
       `[reapExpiredByTTL] Reaping expired tasks and proposals (expiresAt < ${now.toDate().toISOString()})`

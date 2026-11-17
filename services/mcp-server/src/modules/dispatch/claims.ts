@@ -4,7 +4,6 @@
  */
 
 import { getFirestore, serverTimestamp } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../../auth/authValidator.js";
 import { transition } from "../../lifecycle/engine.js";
 import { z } from "zod";
@@ -13,6 +12,7 @@ import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { type ToolResult, jsonResult, decryptTaskFields, buildTransition, appendTransition } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 const ClaimTaskSchema = z.object({
   taskId: z.string(),
@@ -38,13 +38,13 @@ const BatchClaimTasksSchema = z.object({
  * Called on every claim attempt (success or contention).
  */
 function emitClaimEvent(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   taskId: string,
   sessionId: string,
   outcome: "claimed" | "contention",
 ): void {
-  const ttl = admin.firestore.Timestamp.fromMillis(
+  const ttl = Timestamp.fromMillis(
     Date.now() + CONSTANTS.ttl.claimEventDays * 24 * 60 * 60 * 1000,
   );
   db.collection(`tenants/${userId}/claim_events`).add({
@@ -92,15 +92,15 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 
       tx.update(taskRef, {
         status: "active",
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
         sessionId: args.sessionId || null,
         // Owner identity — sessionId is free-form ("iso.task-x"), so authz and
         // sweepers key on claimedBy. Never written before this fix: every
         // normally-claimed task read back claimedBy: null.
         claimedBy: auth.programId,
-        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
-        attempt_count: admin.firestore.FieldValue.increment(1),
+        claimedAt: FieldValue.serverTimestamp(),
+        lastHeartbeat: FieldValue.serverTimestamp(),
+        attempt_count: FieldValue.increment(1),
         stateTransitions: updatedTransitions,
       });
 
@@ -212,7 +212,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
         startedAt: null,
         lastHeartbeat: null,
         unclaimCount: newUnclaimCount,
-        lastUnclaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastUnclaimedAt: FieldValue.serverTimestamp(),
         lastUnclaimReason: args.reason || "manual",
         stateTransitions: updatedTransitions,
       };
@@ -307,12 +307,12 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
 
         const claimUpdate: Record<string, unknown> = {
           status: "active",
-          startedAt: admin.firestore.FieldValue.serverTimestamp(),
+          startedAt: FieldValue.serverTimestamp(),
           sessionId: args.sessionId || null,
           claimedBy: auth.programId,
-          claimedAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastHeartbeat: admin.firestore.FieldValue.serverTimestamp(),
-          attempt_count: admin.firestore.FieldValue.increment(1),
+          claimedAt: FieldValue.serverTimestamp(),
+          lastHeartbeat: FieldValue.serverTimestamp(),
+          attempt_count: FieldValue.increment(1),
           stateTransitions: updatedTransitions,
         };
         // Agent Trace L2: propagate trace context on batch claim

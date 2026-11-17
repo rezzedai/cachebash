@@ -12,9 +12,9 @@
  */
 
 import { getFirestore } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { SPAWNABLE_PROGRAMS, type ProgramLaunchConfig } from "../../config/launch.js";
 import { emitEvent } from "../events.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 const WAKE_HOST_URL = process.env.WAKE_HOST_URL || "http://localhost:7777";
 
@@ -136,10 +136,10 @@ async function recordSpawn(userId: string, target: string, taskId?: string): Pro
   const ref = db.doc(`tenants/${userId}/wake_debounce/${target}`);
   await ref.set({
     programId: target,
-    spawnedAt: admin.firestore.FieldValue.serverTimestamp(),
+    spawnedAt: FieldValue.serverTimestamp(),
     taskId: taskId || null,
     // Auto-expire after 5 minutes (cleanup)
-    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 5 * 60 * 1000),
+    expiresAt: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000),
   });
 }
 

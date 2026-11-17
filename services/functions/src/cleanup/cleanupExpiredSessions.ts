@@ -5,15 +5,15 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 const SESSION_TIMEOUT_MS = 65 * 60 * 1000; // 65 min
 
 export const cleanupExpiredSessions = functions.pubsub
   .schedule("every 5 minutes")
   .onRun(async () => {
-    const db = admin.firestore();
-    const staleThreshold = admin.firestore.Timestamp.fromMillis(
+    const db = getFirestore();
+    const staleThreshold = Timestamp.fromMillis(
       Date.now() - SESSION_TIMEOUT_MS
     );
 
@@ -72,10 +72,10 @@ export const cleanupExpiredSessions = functions.pubsub
         batch.update(doc.ref, {
           status: "archived",
           archived: true,
-          archivedAt: admin.firestore.FieldValue.serverTimestamp(),
-          endedAt: admin.firestore.FieldValue.serverTimestamp(),
+          archivedAt: FieldValue.serverTimestamp(),
+          endedAt: FieldValue.serverTimestamp(),
           reapReason: isZombie ? "zombie_done_unarchived" : "heartbeat_timeout",
-          lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+          lastUpdate: FieldValue.serverTimestamp(),
         });
 
         // Emit relay message to ISO (only for heartbeat timeouts, not zombie cleanup)
@@ -92,7 +92,7 @@ export const cleanupExpiredSessions = functions.pubsub
             read: false,
             ttl: 86400,
             expiresAt: new Date(now + 86400000),
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
           });
         }
 

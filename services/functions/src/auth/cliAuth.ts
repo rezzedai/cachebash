@@ -10,11 +10,12 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import { randomBytes, createHash } from "crypto";
 import { logSuccess, logError } from "../util/structuredLog";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
-const db = admin.firestore();
+const db = getFirestore();
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // CORS: only allow the Firebase Hosting origin (where cli-auth.html is served)
@@ -65,7 +66,7 @@ export const cliAuthApprove = functions.https.onRequest(async (req, res) => {
     }
 
     // Verify the Firebase ID token
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    const decoded = await getAuth().verifyIdToken(idToken);
     const userId = decoded.uid;
 
     const sessionRef = db.collection("cli_sessions").doc(sessionToken);
@@ -95,7 +96,7 @@ export const cliAuthApprove = functions.https.onRequest(async (req, res) => {
       // Generate API key
       const rawKey = `cb_live_${randomBytes(24).toString("hex")}`;
       const keyHash = createHash("sha256").update(rawKey).digest("hex");
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      const now = FieldValue.serverTimestamp();
 
       // Write API key to keyIndex
       tx.set(db.collection("keyIndex").doc(keyHash), {

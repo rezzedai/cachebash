@@ -11,7 +11,6 @@
  */
 
 import { getFirestore, serverTimestamp } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../../auth/authValidator.js";
 import { transition } from "../../lifecycle/engine.js";
 import { z } from "zod";
@@ -21,6 +20,7 @@ import { isProgramRegistered } from "../programRegistry.js";
 import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 import { CONSTANTS } from "../../config/constants.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 // ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         error_code: null,
         error_class: null,
         retryCount: newRetryCount,
-        lastRetriedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastRetriedAt: FieldValue.serverTimestamp(),
         retryReason: args.reason || "manual_retry",
         stateTransitions: updatedTransitions,
       };
@@ -219,9 +219,9 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         status: "done",
         completed_status: "CANCELLED",
         result: args.reason,
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         abortedBy: auth.programId,
-        abortedAt: admin.firestore.FieldValue.serverTimestamp(),
+        abortedAt: FieldValue.serverTimestamp(),
         stateTransitions: updatedTransitions,
       });
 
@@ -300,7 +300,7 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const updateFields: Record<string, unknown> = {
         target: args.newTarget,
         reassignedBy: auth.programId,
-        reassignedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reassignedAt: FieldValue.serverTimestamp(),
         reassignReason: args.reason,
         previousTarget: data.target,
       };
@@ -417,7 +417,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const updateFields: Record<string, unknown> = {
         priority: args.newPriority || "high",
         escalatedBy: auth.programId,
-        escalatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        escalatedAt: FieldValue.serverTimestamp(),
         escalationReason: args.reason,
         previousPriority: data.priority,
         previousTarget: currentTarget,
@@ -519,7 +519,7 @@ export async function quarantineProgramHandler(auth: AuthContext, rawArgs: unkno
       // Create or update program doc with quarantine fields
       const updateFields: Record<string, unknown> = {
         quarantined: true,
-        quarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        quarantinedAt: FieldValue.serverTimestamp(),
         quarantineReason: args.reason,
         quarantinedBy: auth.programId,
       };
@@ -586,13 +586,13 @@ export async function unquarantineProgramHandler(auth: AuthContext, rawArgs: unk
 
       tx.update(programRef, {
         quarantined: false,
-        unquarantinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        unquarantinedAt: FieldValue.serverTimestamp(),
         unquarantinedBy: auth.programId,
         failureCount: 0,
         lastFailureAt: null,
-        quarantineReason: admin.firestore.FieldValue.delete(),
-        quarantinedAt: admin.firestore.FieldValue.delete(),
-        quarantinedBy: admin.firestore.FieldValue.delete(),
+        quarantineReason: FieldValue.delete(),
+        quarantinedAt: FieldValue.delete(),
+        quarantinedBy: FieldValue.delete(),
       });
 
       return { success: true };
@@ -670,8 +670,8 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
           : 0;
     const expiresAt =
       effectiveTtl === 0
-        ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
-        : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+        ? Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+        : Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
 
     // Clone task with modifications
     const newTaskData: Record<string, unknown> = {
@@ -687,7 +687,7 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
       status: "created",
       projectId: originalData.projectId || null,
       boardItemId: null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       encrypted: false,
       archived: false,
       ttl: effectiveTtl,
@@ -784,7 +784,7 @@ export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): P
       tx.update(taskRef, {
         status: "done",
         awaitingApproval: false,
-        approvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        approvedAt: FieldValue.serverTimestamp(),
         approvedBy: auth.programId,
         stateTransitions: updatedTransitions,
       });

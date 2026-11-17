@@ -40,12 +40,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cleanupOrphanedTasks = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 const ORPHAN_THRESHOLD_MS = 30 * 60 * 1000;
 exports.cleanupOrphanedTasks = functions.pubsub
     .schedule("every 5 minutes")
     .onRun(async () => {
-    const db = admin.firestore();
+    const db = (0, firestore_1.getFirestore)();
     const staleThreshold = Date.now() - ORPHAN_THRESHOLD_MS;
     functions.logger.info(`[cleanupOrphanedTasks] Looking for active tasks with lastHeartbeat < ${new Date(staleThreshold).toISOString()}`);
     try {
@@ -68,7 +68,7 @@ exports.cleanupOrphanedTasks = functions.pubsub
                 sessionId: null,
                 startedAt: null,
                 lastHeartbeat: null,
-                revertedAt: admin.firestore.FieldValue.serverTimestamp(),
+                revertedAt: firestore_1.FieldValue.serverTimestamp(),
                 revertReason: "heartbeat_timeout",
             });
             revertedIds.push(doc.id);

@@ -6,24 +6,26 @@
  */
 
 import * as admin from "firebase-admin";
+import { getApps } from "firebase-admin/app";
 import * as crypto from "crypto";
+import { FieldValue, Firestore, getFirestore } from "firebase-admin/firestore";
 
 const EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "localhost:8080";
 const PROJECT_ID = "cachebash-app";
 
-let firestoreInstance: admin.firestore.Firestore | null = null;
+let firestoreInstance: Firestore | null = null;
 
 /**
  * Get a Firestore instance pointed at the emulator
  */
-export function getTestFirestore(): admin.firestore.Firestore {
+export function getTestFirestore(): Firestore {
   if (!firestoreInstance) {
     // Initialize Firebase Admin with emulator settings
-    if (admin.apps.length === 0) {
+    if (getApps().length === 0) {
       admin.initializeApp({ projectId: PROJECT_ID });
     }
 
-    firestoreInstance = admin.firestore();
+    firestoreInstance = getFirestore();
 
     // Set emulator host
     if (process.env.FIRESTORE_EMULATOR_HOST) {
@@ -75,7 +77,7 @@ export async function seedTestUser(userId: string): Promise<{
   // Create user document
   await db.collection("users").doc(userId).set({
     email: `${userId}@test.local`,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 
   // Create API key document
@@ -84,7 +86,7 @@ export async function seedTestUser(userId: string): Promise<{
     label: "Test Key",
     keyHash: apiKeyHash,
     encryptionKey: encryptionKey.toString("base64"),
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     revoked: false,
   });
 
