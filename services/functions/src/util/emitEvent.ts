@@ -1,4 +1,4 @@
-import * as admin from "firebase-admin";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 /**
  * Cloud-Functions-side telemetry emitter.
@@ -25,7 +25,7 @@ export interface FunctionEventData {
  * Fire-and-forget: returns immediately; logs but never rethrows on failure.
  */
 export function emitEvent(
-  db: admin.firestore.Firestore,
+  db: Firestore,
   userId: string,
   data: FunctionEventData
 ): void {
@@ -37,7 +37,7 @@ export function emitEvent(
     db.collection(`tenants/${userId}/events`)
       .add({
         ...cleaned,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: FieldValue.serverTimestamp(),
       })
       .catch((err) => {
         console.error("[Events] Failed to write event:", err);

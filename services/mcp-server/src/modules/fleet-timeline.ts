@@ -7,9 +7,9 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -67,7 +67,7 @@ function resolutionMs(resolution: string): number {
  * Fleet snapshot document schema (as stored in Firestore).
  */
 interface FleetSnapshot {
-  timestamp: admin.firestore.Timestamp;
+  timestamp: Timestamp;
   activeSessions: {
     total: number;
     byTier: Record<string, number>;
@@ -76,7 +76,7 @@ interface FleetSnapshot {
   tasksInFlight: number;
   messagesPending: number;
   heartbeatHealth: number;
-  ttl?: admin.firestore.Timestamp;
+  ttl?: Timestamp;
 }
 
 /**
@@ -159,7 +159,7 @@ export async function getFleetTimelineHandler(auth: AuthContext, rawArgs: unknow
   const db = getFirestore();
 
   const start = periodStart(args.period);
-  const startTimestamp = admin.firestore.Timestamp.fromDate(start);
+  const startTimestamp = Timestamp.fromDate(start);
 
   const snapshot = await db
     .collection(`tenants/${auth.userId}/fleet_snapshots`)
@@ -181,7 +181,7 @@ export async function getFleetTimelineHandler(auth: AuthContext, rawArgs: unknow
   // Parse raw snapshots
   const rawSnapshots = snapshot.docs.map((doc) => {
     const data = doc.data() as FleetSnapshot;
-    const ts = data.timestamp as admin.firestore.Timestamp;
+    const ts = data.timestamp as Timestamp;
     return {
       timestamp: ts.toDate(),
       data,
@@ -237,7 +237,7 @@ export async function writeFleetSnapshotHandler(auth: AuthContext, rawArgs: unkn
   const db = getFirestore();
 
   const snapshot = {
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: FieldValue.serverTimestamp(),
     activeSessions: {
       total: args.activeSessions.total,
       byTier: args.activeSessions.byTier || {},
@@ -246,7 +246,7 @@ export async function writeFleetSnapshotHandler(auth: AuthContext, rawArgs: unkn
     tasksInFlight: args.tasksInFlight,
     messagesPending: args.messagesPending,
     heartbeatHealth: args.heartbeatHealth,
-    ttl: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7-day TTL
+    ttl: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 7-day TTL
   };
 
   await db.collection(`tenants/${auth.userId}/fleet_snapshots`).add(snapshot);

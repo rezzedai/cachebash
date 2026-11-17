@@ -7,10 +7,11 @@
  * Usage: npx tsx services/mcp-server/scripts/register-core-programs.ts
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 interface ProgramEntry {
   programId: string;
@@ -61,7 +62,7 @@ async function registerCorePrograms() {
       groups: prog.groups,
       tags: prog.tags,
       active: true,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
       updatedBy: "iso",
     };
 
@@ -74,7 +75,7 @@ async function registerCorePrograms() {
       // Create with createdAt
       await ref.set({
         ...doc,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         createdBy: "iso",
       });
       console.log(`  CREATED: ${prog.programId} (${prog.displayName}) — ${prog.role}`);

@@ -4,8 +4,8 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -47,7 +47,7 @@ export async function budgetSummaryHandler(auth: AuthContext, _rawArgs: unknown)
   const db = getFirestore();
   const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
 
-  const monthStart = admin.firestore.Timestamp.fromDate(startOfMonth());
+  const monthStart = Timestamp.fromDate(startOfMonth());
 
   // Fetch dreams from this month (covers day + week + month)
   const dreamsSnap = await tasksRef
@@ -163,6 +163,6 @@ export async function updateDreamConsumption(userId: string, dreamId: string, co
   const dreamRef = db.doc(`tenants/${userId}/tasks/${dreamId}`);
   
   await dreamRef.update({
-    "dream.budget_consumed_usd": admin.firestore.FieldValue.increment(costDelta),
+    "dream.budget_consumed_usd": FieldValue.increment(costDelta),
   });
 }

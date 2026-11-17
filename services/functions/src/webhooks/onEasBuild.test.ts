@@ -11,7 +11,7 @@ jest.mock("firebase-functions/params", () => ({
   defineSecret: () => ({ value: () => "test-secret" }),
 }));
 
-jest.mock("firebase-admin", () => {
+jest.mock("firebase-admin/firestore", () => {
   const db = {
     collection: (path: string) => ({
       limit: () => ({ get: async () => ({ empty: false, docs: [{ id: "tenant1" }] }) }),
@@ -21,11 +21,11 @@ jest.mock("firebase-admin", () => {
       },
     }),
   };
-  const firestore = Object.assign(() => db, {
+  return {
+    getFirestore: () => db,
     FieldValue: { serverTimestamp: () => "SERVER_TS" },
     Timestamp: { fromMillis: (n: number) => ({ millis: n }) },
-  });
-  return { firestore };
+  };
 });
 
 import { onEasBuild } from "./onEasBuild";

@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import { buildAggregateKeys } from "./helpers";
+import { FieldValue, SetOptions, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 /**
  * Triggered when a new analytics event is created.
@@ -41,11 +41,11 @@ export const onAnalyticsEventCreate = functions.firestore
     }
 
     const keys = buildAggregateKeys(date);
-    const increment = admin.firestore.FieldValue.increment(1);
+    const increment = FieldValue.increment(1);
     const aggregatesRef = db.collection(`tenants/${userId}/analytics_aggregates`);
 
     // Build the update payload — same shape for all three periods
-    const update: Record<string, admin.firestore.FieldValue> = {
+    const update: Record<string, FieldValue> = {
       totalEvents: increment,
       [`byType.${eventType}`]: increment,
     };
@@ -54,7 +54,7 @@ export const onAnalyticsEventCreate = functions.firestore
       update[`byProgram.${programId}`] = increment;
     }
 
-    const options: admin.firestore.SetOptions = { merge: true };
+    const options: SetOptions = { merge: true };
 
     try {
       await Promise.all([

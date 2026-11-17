@@ -6,9 +6,9 @@
  * Warning events emitted for telemetry (no relay STATUS — see ADR adr-comms-pattern).
  */
 
-import * as admin from "firebase-admin";
 import { getFirestore } from "../firebase/client.js";
 import { emitEvent } from "./events.js";
+import { Timestamp, Firestore } from "firebase-admin/firestore";
 
 export interface HealthIndicator {
   name: string;
@@ -26,14 +26,14 @@ export interface HealthCheckResult {
 
 export async function runHealthCheck(
   userId: string,
-  db?: admin.firestore.Firestore
+  db?: Firestore
 ): Promise<HealthCheckResult> {
     const firestore = db || getFirestore();
-  const now = admin.firestore.Timestamp.now();
-  const oneHourAgo = admin.firestore.Timestamp.fromDate(
+  const now = Timestamp.now();
+  const oneHourAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 60 * 60 * 1000)
   );
-  const thirtyMinAgo = admin.firestore.Timestamp.fromDate(
+  const thirtyMinAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 30 * 60 * 1000)
   );
 
@@ -79,7 +79,7 @@ export async function runHealthCheck(
   // the query matched every task that ever stayed in `created` (4,137 rows,
   // re-read every 5 minutes), and a task stale for a day is not news this
   // check can act on.
-  const oneDayAgo = admin.firestore.Timestamp.fromDate(
+  const oneDayAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 24 * 60 * 60 * 1000)
   );
   const staleCount = (await firestore
@@ -167,7 +167,7 @@ export async function runHealthCheck(
 
   // 8. Stuck session count (heartbeat recent but no output for 10+ min)
   const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
-  const tenMinAgo = admin.firestore.Timestamp.fromDate(
+  const tenMinAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - STUCK_THRESHOLD_MS)
   );
 
@@ -238,7 +238,7 @@ export async function runHealthCheck(
         target: "admin",
         status: "pending",
         type: "alert",
-        expiresAt: admin.firestore.Timestamp.fromDate(
+        expiresAt: Timestamp.fromDate(
           new Date(now.toDate().getTime() + 3600 * 1000)
         ),
         createdAt: now,

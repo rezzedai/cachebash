@@ -13,9 +13,9 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import { defineSecret } from "firebase-functions/params";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 const easWebhookSecret = defineSecret("EAS_WEBHOOK_SECRET");
 
@@ -86,7 +86,7 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
   console.log(`[EAS Webhook] Build #${buildNum} ${platform} — ${payload.status}`);
 
   // Find the tenant (single-tenant: use first user)
-  const usersSnap = await admin.firestore().collection("tenants").limit(1).get();
+  const usersSnap = await getFirestore().collection("tenants").limit(1).get();
   if (usersSnap.empty) {
     console.error("[EAS Webhook] No tenant found");
     res.status(200).json({ received: true });
@@ -99,7 +99,7 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
     const errorMsg = payload.error?.message || "Unknown error";
 
     // Create high-priority task for ISO
-    await admin.firestore().collection(`${basePath}/tasks`).add({
+    await getFirestore().collection(`${basePath}/tasks`).add({
       schemaVersion: "2.2",
       type: "task",
       title: `EAS Build #${buildNum} FAILED (${platform}): ${errorMsg}`,
@@ -112,13 +112,13 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
       status: "created",
       // actionable work for iso: get_tasks filters on requires_action == true (WP-1/WP-2)
       requires_action: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       encrypted: false,
       archived: false,
     });
 
     // Send alert to the owner's device
-    await admin.firestore().collection(`${basePath}/relay`).add({
+    await getFirestore().collection(`${basePath}/relay`).add({
       schemaVersion: "2.2",
       source: "system",
       target: "user",
@@ -128,13 +128,13 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
       action: "interrupt",
       status: "pending",
       ttl: 86400,
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
+      expiresAt: Timestamp.fromMillis(Date.now() + 86400 * 1000),
       alertType: "error",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   } else if (payload.status === "finished") {
     // Send success alert
-    await admin.firestore().collection(`${basePath}/relay`).add({
+    await getFirestore().collection(`${basePath}/relay`).add({
       schemaVersion: "2.2",
       source: "system",
       target: "user",
@@ -144,9 +144,9 @@ export const onEasBuild = functions.runWith({ secrets: [easWebhookSecret] }).htt
       action: "queue",
       status: "pending",
       ttl: 86400,
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 86400 * 1000),
+      expiresAt: Timestamp.fromMillis(Date.now() + 86400 * 1000),
       alertType: "success",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   } else if (payload.status === "canceled") {
     // Log only — no alert for cancellations

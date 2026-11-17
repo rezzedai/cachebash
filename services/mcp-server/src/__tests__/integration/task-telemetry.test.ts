@@ -13,13 +13,13 @@ jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
 
 import * as http from "http";
 import * as crypto from "crypto";
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser, seedTestData } from "./setup";
 import { initializeFirebase } from "../../firebase/client";
 import { claimTaskHandler } from "../../modules/dispatch/claims";
 import { completeTaskHandler, recordTaskTelemetryHandler } from "../../modules/dispatch/completion";
 import { createRestRouter } from "../../transport/rest";
 import type { AuthContext } from "../../auth/authValidator";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 function makeAuth(userId: string, programId: string): AuthContext {
   return {
@@ -37,7 +37,7 @@ function parse(result: { content: Array<{ text: string }> }) {
 }
 
 describe("B4 Task Telemetry Capture", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -50,7 +50,7 @@ describe("B4 Task Telemetry Capture", () => {
     const u = await seedTestUser("test-user-b4");
     userId = u.userId;
     await seedTestData(userId, "tasks", [
-      { id: "t-b4", data: { type: "task", title: "synthetic B4 proof task", status: "created", source: "iso", target: "basher", priority: "normal", action: "queue", createdAt: admin.firestore.FieldValue.serverTimestamp() } },
+      { id: "t-b4", data: { type: "task", title: "synthetic B4 proof task", status: "created", source: "iso", target: "basher", priority: "normal", action: "queue", createdAt: FieldValue.serverTimestamp() } },
     ]);
     const basher = makeAuth(userId, "basher");
     parse(await claimTaskHandler(basher, { taskId: "t-b4", sessionId: "basher" }) as never);
@@ -107,7 +107,7 @@ describe("B4 Task Telemetry Capture", () => {
     expect(other.success).toBe(false);
 
     await seedTestData(userId, "tasks", [
-      { id: "t-open", data: { type: "task", title: "open", status: "created", source: "iso", target: "basher", createdAt: admin.firestore.FieldValue.serverTimestamp() } },
+      { id: "t-open", data: { type: "task", title: "open", status: "created", source: "iso", target: "basher", createdAt: FieldValue.serverTimestamp() } },
     ]);
     const open = parse(await recordTaskTelemetryHandler(makeAuth(userId, "basher"), { taskId: "t-open", tokens_in: 1 }) as never);
     expect(open.success).toBe(false);

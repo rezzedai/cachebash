@@ -14,7 +14,8 @@
  * Idempotent: safe to run multiple times. Checks for existing docs before writing.
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { DocumentData, FieldValue, getFirestore } from "firebase-admin/firestore";
 
 // --- Config ---
 const args = process.argv.slice(2);
@@ -31,8 +32,8 @@ if (!TARGET_USER_ID) {
 
 // --- Init Firebase ---
 const projectId = process.env.FIREBASE_PROJECT_ID || "cachebash-app";
-admin.initializeApp({ projectId });
-const db = admin.firestore();
+initializeApp({ projectId });
+const db = getFirestore();
 
 interface MigrationStats {
   collection: string;
@@ -49,7 +50,7 @@ const BATCH_SIZE = 400; // Firestore limit is 500, leave headroom
 async function migrateCollection(
   sourcePath: string,
   targetPath: string,
-  transform: (data: admin.firestore.DocumentData, docId: string) => admin.firestore.DocumentData,
+  transform: (data: DocumentData, docId: string) => DocumentData,
   label: string
 ): Promise<void> {
   const stat: MigrationStats = { collection: label, read: 0, written: 0, skipped: 0, errors: 0 };
@@ -131,7 +132,7 @@ async function main(): Promise<void> {
       (data) => ({
         ...data,
         status: "dead_lettered",
-        deadLetteredAt: data.deadLetteredAt || data.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        deadLetteredAt: data.deadLetteredAt || data.createdAt || FieldValue.serverTimestamp(),
       }),
       "dead_letters → relay"
     );

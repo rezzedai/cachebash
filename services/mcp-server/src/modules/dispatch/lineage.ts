@@ -5,8 +5,8 @@
 import { getFirestore } from "../../firebase/client.js";
 import { AuthContext } from "../../auth/authValidator.js";
 import { z } from "zod";
-import * as admin from "firebase-admin";
 import { type ToolResult, jsonResult } from "./shared.js";
+import { Query, Timestamp } from "firebase-admin/firestore";
 
 const GetTaskLineageSchema = z.object({
   taskId: z.string(),
@@ -157,7 +157,7 @@ export async function exportTasksHandler(auth: AuthContext, rawArgs: unknown): P
   const args = ExportTasksSchema.parse(rawArgs);
   const db = getFirestore();
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`);
+  let query: Query = db.collection(`tenants/${auth.userId}/tasks`);
 
   // Filter by status if provided
   if (args.status) {
@@ -170,7 +170,6 @@ export async function exportTasksHandler(auth: AuthContext, rawArgs: unknown): P
     if (isNaN(sinceDate.getTime())) {
       return jsonResult({ success: false, error: "Invalid 'since' date format. Use ISO 8601." });
     }
-    const { Timestamp } = admin.firestore;
     query = query.where("createdAt", ">=", Timestamp.fromDate(sinceDate));
   }
 

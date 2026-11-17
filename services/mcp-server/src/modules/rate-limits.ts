@@ -7,9 +7,9 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+import { Timestamp, Query } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -36,8 +36,8 @@ const GetRateLimitEventsSchema = z.object({
 
 const TTL_DAYS = 7;
 
-function computeTtl(): admin.firestore.Timestamp {
-  return admin.firestore.Timestamp.fromMillis(Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000);
+function computeTtl(): Timestamp {
+  return Timestamp.fromMillis(Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000);
 }
 
 function periodStart(period: string): Date {
@@ -96,9 +96,9 @@ export async function getRateLimitEventsHandler(auth: AuthContext, rawArgs: unkn
   const db = getFirestore();
 
   const start = periodStart(args.period);
-  const startTimestamp = admin.firestore.Timestamp.fromDate(start);
+  const startTimestamp = Timestamp.fromDate(start);
 
-  let query: admin.firestore.Query = db
+  let query: Query = db
     .collection(`tenants/${auth.userId}/rate_limit_events`)
     .where("timestamp", ">=", startTimestamp);
 

@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 /**
  * Grid programs that must extract patterns before derez.
@@ -165,7 +165,7 @@ async function blockDerez(
     action: "interrupt",
     priority: "high",
     status: "created",
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     // WP-1: target is a programId, not "user" — actionable by default.
     requires_action: true,
   };
@@ -187,7 +187,7 @@ async function blockDerez(
 function getTimestampMillis(timestamp: unknown): number {
   if (timestamp && typeof timestamp === "object" && "toMillis" in timestamp) {
     // Firestore Timestamp
-    return (timestamp as admin.firestore.Timestamp).toMillis();
+    return (timestamp as Timestamp).toMillis();
   }
   if (typeof timestamp === "string") {
     // ISO 8601 string

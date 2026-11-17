@@ -4,9 +4,9 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+import { FieldValue, Query } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -49,7 +49,7 @@ export async function getUsageHandler(auth: AuthContext, rawArgs: unknown): Prom
       break;
   }
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/usage_aggregates`)
+  let query: Query = db.collection(`tenants/${auth.userId}/usage_aggregates`)
     .where("periodType", "==", periodType);
 
   if (periodKey) {
@@ -171,7 +171,7 @@ export async function setBudgetHandler(auth: AuthContext, rawArgs: unknown): Pro
   const db = getFirestore();
 
   const updateFields: Record<string, unknown> = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   if (args.monthlyBudgetUsd !== undefined) {

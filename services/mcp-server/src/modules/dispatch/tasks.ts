@@ -4,7 +4,6 @@
  */
 
 import { getFirestore, serverTimestamp } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { verifySource } from "../../middleware/gate.js";
 import { AuthContext } from "../../auth/authValidator.js";
 import { z } from "zod";
@@ -17,6 +16,7 @@ import { generateSpanId } from "../../utils/trace.js";
 import { notifyDispatcher } from "../../webhooks/dispatcher-notify.js";
 import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
+import { FieldValue, Timestamp, Query, QueryDocumentSnapshot, DocumentData, DocumentReference } from "firebase-admin/firestore";
 
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
@@ -135,7 +135,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const args = GetTasksSchema.parse(rawArgs);
   const db = getFirestore();
 
-  let query: admin.firestore.Query = db.collection(`tenants/${auth.userId}/tasks`);
+  let query: Query = db.collection(`tenants/${auth.userId}/tasks`);
 
   if (args.status !== "all") {
     query = query.where("status", "==", args.status);
@@ -192,7 +192,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
 
   // R3.1/R3.2: resume exactly after the last raw candidate the previous page
   // examined (whether it matched or not).
-  let cursorQuery: admin.firestore.Query = orderedQuery;
+  let cursorQuery: Query = orderedQuery;
   if (args.cursor) {
     const cursorDoc = await db.doc(`tenants/${auth.userId}/tasks/${args.cursor}`).get();
     if (!cursorDoc.exists) {
@@ -201,7 +201,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     cursorQuery = orderedQuery.startAfter(cursorDoc);
   }
 
-  function passesPostCapFilters(data: admin.firestore.DocumentData): boolean {
+  function passesPostCapFilters(data: DocumentData): boolean {
     // Filter by requires_action: null = no filter, true/false = exact match
     if (args.requires_action !== null) {
       const reqAction = data.requires_action ?? true; // default true for legacy tasks
@@ -222,8 +222,8 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   // `limit` matching rows are collected or the stream is genuinely
   // exhausted. R3.3/R3.4: "no work" (hasTasks:false) is reachable only
   // through that exhaustion — never inferred from a single short page.
-  const matchedDocs: admin.firestore.QueryDocumentSnapshot[] = [];
-  let lastRawDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+  const matchedDocs: QueryDocumentSnapshot[] = [];
+  let lastRawDoc: QueryDocumentSnapshot | null = null;
   let hasMore = false;
   let degraded = false;
   let degradedReason: string | null = null;
@@ -292,7 +292,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const nextCursor = hasMore && lastRawDoc ? lastRawDoc.id : null;
 
   // Track informational tasks for auto-archive (fire-and-forget)
-  const autoArchiveRefs: admin.firestore.DocumentReference[] = [];
+  const autoArchiveRefs: DocumentReference[] = [];
 
   const tasks = matchedDocs
     .map((doc) => {
@@ -343,7 +343,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     const db2 = getFirestore();
     const batch = db2.batch();
     for (const ref of autoArchiveRefs) {
-      batch.update(ref, { auto_archived: true, auto_archived_at: admin.firestore.FieldValue.serverTimestamp() });
+      batch.update(ref, { auto_archived: true, auto_archived_at: FieldValue.serverTimestamp() });
     }
     batch.commit().catch((err: unknown) => console.error("[AutoArchive] Failed:", err));
   }
@@ -432,8 +432,8 @@ export async function createTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     args.ttl !== undefined ? args.ttl : args.type === "task" ? CONSTANTS.ttl.defaultTaskSeconds : 0;
   const expiresAt =
     effectiveTtl === 0
-      ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
-      : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+      ? Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+      : Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
 
   const taskData: Record<string, unknown> = {
     schemaVersion: '2.2' as const,

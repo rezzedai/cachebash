@@ -35,9 +35,10 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onTaskUpdate = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const admin = __importStar(require("firebase-admin"));
-const db = admin.firestore();
-const messaging = admin.messaging();
+const firestore_1 = require("firebase-admin/firestore");
+const messaging_1 = require("firebase-admin/messaging");
+const db = (0, firestore_1.getFirestore)();
+const messaging = (0, messaging_1.getMessaging)();
 /**
  * Triggered when a task is updated.
  * Handles:
@@ -177,7 +178,7 @@ async function handleSprintStoryCascade(userId, storyId, storyData) {
         const update = {
             "sprint.status": sprintStatus.substring(0, 200),
             "sprint.progress": sprintProgress,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
         };
         // If all stories complete, mark sprint as completing
         if (completedStories.length === stories.length) {

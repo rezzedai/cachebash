@@ -10,7 +10,8 @@
  * the breaker's signal alerts. Any active org NOT in OVERRIDES gets
  * DEFAULT_CEILINGS.
  */
-import * as admin from "firebase-admin";
+import { getApps, initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { DEFAULT_CEILINGS } from "../src/middleware/circuitBreaker.js";
 
 // Per-tenant overrides keyed by Firestore userId (auth.userId at runtime).
@@ -22,8 +23,8 @@ const OVERRIDES: Record<string, { perKeyLimit: number; orgLimit: number; windowM
 };
 
 async function main() {
-  if (!admin.apps.length) admin.initializeApp();
-  const db = admin.firestore();
+  if (!getApps().length) initializeApp();
+  const db = getFirestore();
 
   // Ground-truth the active orgs from keyIndex (do not hardcode the list).
   const keys = await db.collection("keyIndex").get();
@@ -42,7 +43,7 @@ async function main() {
     };
     const ref = db.doc(`tenants/${org}/_meta/ceilings`);
     // merge:true — never clobber a paused flag or other future fields.
-    await ref.set({ ...cfg, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set({ ...cfg, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     const after = (await ref.get()).data()!;
     const tag = OVERRIDES[org] ? "OVERRIDE" : "default ";
     console.error(`  ${org}  [${tag}] perKey=${after.perKeyLimit} org=${after.orgLimit} win=${after.windowMs} paused=${after.paused === true}`);

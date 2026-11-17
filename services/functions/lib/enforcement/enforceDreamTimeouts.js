@@ -40,11 +40,11 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.enforceDreamTimeouts = void 0;
 const functions = __importStar(require("firebase-functions"));
-const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-admin/firestore");
 exports.enforceDreamTimeouts = functions.pubsub
     .schedule("every 5 minutes")
     .onRun(async () => {
-    const db = admin.firestore();
+    const db = (0, firestore_1.getFirestore)();
     const now = Date.now();
     functions.logger.info("[enforceDreamTimeouts] Checking active dreams for timeout violations");
     try {
@@ -75,7 +75,7 @@ exports.enforceDreamTimeouts = functions.pubsub
                     await doc.ref.update({
                         status: "failed",
                         "dream.outcome": `Timeout: ${elapsedHours}h elapsed, ${timeoutHours}h limit`,
-                        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        completedAt: firestore_1.FieldValue.serverTimestamp(),
                     });
                     timedOut++;
                 }

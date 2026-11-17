@@ -4,10 +4,10 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { transition } from "../lifecycle/engine.js";
 import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -76,7 +76,7 @@ export async function dreamActivateHandler(auth: AuthContext, rawArgs: unknown):
 
       const updateFields: Record<string, unknown> = {
         status: "active",
-        startedAt: admin.firestore.FieldValue.serverTimestamp(),
+        startedAt: FieldValue.serverTimestamp(),
       };
 
       // Initialize budget_consumed_usd if not set

@@ -4,12 +4,12 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 // @ts-ignore — @octokit/rest v22 is ESM-only; TS1479 in Node 18 CI, resolves fine in Node 24+ (and ts-jest, where @ts-expect-error is unused)
 import { Octokit } from "@octokit/rest";
 import * as crypto from "crypto";
+import { Timestamp } from "firebase-admin/firestore";
 
 const SubmitFeedbackSchema = z.object({
   type: z.enum(["bug", "feature_request", "general"]).default("general"),
@@ -102,7 +102,7 @@ export async function submitFeedbackHandler(
   const db = getFirestore();
 
   // Rate limit: max 5 submissions per user per hour
-  const oneHourAgo = admin.firestore.Timestamp.fromMillis(
+  const oneHourAgo = Timestamp.fromMillis(
     Date.now() - 60 * 60 * 1000
   );
   const recentSubmissions = await db

@@ -1,7 +1,7 @@
-import admin from "firebase-admin";
 import * as crypto from "crypto";
 import { OWNER_PROGRAM_ID } from "../config/owner.js";
 import type { AuthContext } from "./authValidator.js";
+import { getAuth } from "firebase-admin/auth";
 
 // Grid Portal principal map: Firebase email → { programId, userId, rateLimitTier }
 // These principals have named identities in the Grid and need elevated capabilities
@@ -23,7 +23,7 @@ export async function validateFirebaseToken(
   idToken: string
 ): Promise<AuthContext | null> {
   try {
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    const decoded = await getAuth().verifyIdToken(idToken);
 
     const encryptionKey = crypto.pbkdf2Sync(
       decoded.uid,

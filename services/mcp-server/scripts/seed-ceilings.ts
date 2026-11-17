@@ -34,7 +34,8 @@
  * override JSON — the kill switch is a separate, deliberate action.
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { DEFAULT_CEILINGS } from "../src/middleware/circuitBreaker.js";
 
 function parseArgs(): { org: string; overrides: Record<string, unknown> } {
@@ -63,8 +64,8 @@ function parseArgs(): { org: string; overrides: Record<string, unknown> } {
 async function main() {
   const { org, overrides } = parseArgs();
 
-  admin.initializeApp();
-  const db = admin.firestore();
+  initializeApp();
+  const db = getFirestore();
 
   const ref = db.doc(`tenants/${org}/_meta/ceilings`);
   const existing = await ref.get();

@@ -14,7 +14,6 @@
  */
 
 import { getFirestore, serverTimestamp } from "../../firebase/client.js";
-import * as admin from "firebase-admin";
 import { verifySource } from "../../middleware/gate.js";
 import { AuthContext } from "../../auth/authValidator.js";
 import { z } from "zod";
@@ -34,6 +33,7 @@ import type { TargetState, WakeResult, SpawnSpec, DispatchResponse } from "../..
 import { checkGovernanceRules } from "./governance.js";
 import { isProgramPaused, isProgramQuarantined } from "../pulse.js";
 import { evaluatePolicies } from "../policy.js";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 /** Default uptake polling interval */
 const UPTAKE_POLL_INTERVAL_MS = 5_000;
@@ -221,8 +221,8 @@ async function sendTaskAndDirective(
   const effectiveTtl = args.ttl !== undefined ? args.ttl : defaultTtlSeconds;
   const expiresAt =
     effectiveTtl === 0
-      ? admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
-      : admin.firestore.Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
+      ? Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel))
+      : Timestamp.fromMillis(Date.now() + effectiveTtl * 1000);
 
   const taskData: Record<string, unknown> = {
     schemaVersion: "2.2",
@@ -281,7 +281,7 @@ async function sendTaskAndDirective(
     // its inbox on day 2 saw the task with no directive to explain it.
     ttl: effectiveTtl,
     expiresAt,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     threadId: args.threadId || null,
     traceId,
     spanId: generateSpanId(),
@@ -310,7 +310,7 @@ async function sendTaskAndDirective(
     wakeAttempted,
     wakeResult: wakeAttempted ? wakeResult : null,
     claimSlaSeconds: args.uptakeTimeoutSeconds,
-    claimDeadlineAt: admin.firestore.Timestamp.fromMillis(Date.now() + args.uptakeTimeoutSeconds * 1000),
+    claimDeadlineAt: Timestamp.fromMillis(Date.now() + args.uptakeTimeoutSeconds * 1000),
     waitForUptake: args.waitForUptake,
     retryCount: 0,
     maxRetries: 1,
@@ -403,8 +403,8 @@ async function sendTaskAndDirective(
 
   annotateDispatchObligation(auth.userId, txResult.obligationId, {
     deliveryState: "notified",
-    notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    notifiedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
 
   db.doc(`tenants/${auth.userId}/tasks/${txResult.taskId}`).update({
@@ -576,7 +576,7 @@ async function updateDispatchObligation(
   const db = getFirestore();
   await db.doc(`tenants/${userId}/dispatch_obligations/${obligationId}`).set({
     ...patch,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 }
 
@@ -611,16 +611,16 @@ async function markUptakeClaimed(
     tx.set(obligationRef, {
       deliveryState: "claimed",
       claimedBy: uptake.claimedBy || taskData.claimedBy || null,
-      claimedAt: taskData.claimedAt || taskData.startedAt || admin.firestore.FieldValue.serverTimestamp(),
+      claimedAt: taskData.claimedAt || taskData.startedAt || FieldValue.serverTimestamp(),
       ackId: uptake.ackId || null,
-      ackAt: uptake.ackId ? admin.firestore.FieldValue.serverTimestamp() : null,
+      ackAt: uptake.ackId ? FieldValue.serverTimestamp() : null,
       uptakeVia: uptake.via || "claim",
       telemetry: {
         ...(obligationData.telemetry || {}),
         timeToClaimMs: uptake.via === "claim" ? Math.max(0, claimedAtMs - createdAtMs) : null,
         timeToAckMs: uptake.via === "ack" ? Math.max(0, ackAtMs - createdAtMs) : null,
       },
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
     if (taskDoc.exists) {
@@ -639,7 +639,7 @@ async function markUptakeEscalated(
   reason: string,
 ): Promise<void> {
   const db = getFirestore();
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   await db.runTransaction(async (tx) => {
     const taskRef = db.doc(`tenants/${userId}/tasks/${taskId}`);
     const obligationRef = db.doc(`tenants/${userId}/dispatch_obligations/${obligationId}`);
@@ -702,7 +702,7 @@ function callerBoundaryPendingResponse(params: {
 }): ToolResult {
   annotateDispatchObligation(params.auth.userId, params.obligationId, {
     pendingReason: "caller_boundary_deadline",
-    callerBoundaryDeadlineAt: admin.firestore.FieldValue.serverTimestamp(),
+    callerBoundaryDeadlineAt: FieldValue.serverTimestamp(),
     wakeAttempted: params.wakeAttempted || undefined,
     wakeResult: params.wakeResult || undefined,
   });
@@ -971,7 +971,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   const preflightAnnotation = await awaitWithinBudget(
     updateDispatchObligation(auth.userId, obligationId, {
       targetState: flight.targetState,
-      preflightAt: admin.firestore.FieldValue.serverTimestamp(),
+      preflightAt: FieldValue.serverTimestamp(),
     }),
     responseDeadlineMs - Date.now(),
     () => console.warn(`[Dispatch] phase=preflight_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
@@ -1043,7 +1043,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
       wake = wakeResponse;
       logDispatchPhase(auth.userId, verifiedSource, args.target, taskId, obligationId, "wake_done", Date.now() - dispatchStartedAtMs, Date.now() - wakeStartedAtMs);
     } catch (error) {
-      const wakeFailedAt = admin.firestore.FieldValue.serverTimestamp();
+      const wakeFailedAt = FieldValue.serverTimestamp();
       const runtimeFailureAnnotation = await awaitWithinBudget(
         markRuntimeFailure(auth.userId, taskId, obligationId, "wake_failed", error),
         responseDeadlineMs - Date.now(),
@@ -1171,7 +1171,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
         targetState: currentTargetState,
         wakeAttempted,
         wakeResult: wakeResultStr,
-        wakeAttemptedAt: admin.firestore.FieldValue.serverTimestamp(),
+        wakeAttemptedAt: FieldValue.serverTimestamp(),
       }),
       responseDeadlineMs - Date.now(),
       () => console.warn(`[Dispatch] phase=wake_annotation_timeout task=${taskId} obligation=${obligationId} elapsedMs=${Date.now() - dispatchStartedAtMs}`),
@@ -1272,7 +1272,7 @@ export async function dispatchHandler(auth: AuthContext, rawArgs: unknown): Prom
   if (!uptakeConfirmed && args.waitForUptake && uptakeTimedOutBy === "caller_boundary") {
     annotateDispatchObligation(auth.userId, obligationId, {
       pendingReason: "caller_boundary_deadline",
-      callerBoundaryDeadlineAt: admin.firestore.FieldValue.serverTimestamp(),
+      callerBoundaryDeadlineAt: FieldValue.serverTimestamp(),
     });
   }
 

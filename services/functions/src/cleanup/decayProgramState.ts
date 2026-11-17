@@ -24,9 +24,9 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import { emitEvent } from "../util/emitEvent";
 import { isPromotable, LearnedPattern } from "../patterns/onProgramStateWrite";
+import { getFirestore } from "firebase-admin/firestore";
 
 // OPP-3: PROPOSE-ONLY first deploy. Set to true to enable destructive mutation
 // (staling, eviction, context clear, baseline reset). Keep false until the
@@ -60,7 +60,7 @@ interface DecayResult {
 export const decayProgramState = functions.pubsub
   .schedule("every 24 hours")
   .onRun(async () => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const now = Date.now();
 
     functions.logger.info(

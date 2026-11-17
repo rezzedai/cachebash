@@ -1,16 +1,17 @@
-import * as admin from "firebase-admin";
+import { initializeApp, type App } from "firebase-admin/app";
 import * as crypto from "crypto";
 import { assertEmulatorOnly } from "./guard";
+import { Firestore, getFirestore } from "firebase-admin/firestore";
 
-let app: admin.app.App | null = null;
+let app: App | null = null;
 
 /** Firestore pointed at the emulator. assertEmulatorOnly runs first, every time. */
-export function emulatorDb(): admin.firestore.Firestore {
+export function emulatorDb(): Firestore {
   const target = assertEmulatorOnly();
   if (!app) {
-    app = admin.initializeApp({ projectId: target.projectId }, `probes-${process.pid}`);
+    app = initializeApp({ projectId: target.projectId }, `probes-${process.pid}`);
   }
-  return app.firestore();
+  return getFirestore(app);
 }
 
 export const sha256 = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");

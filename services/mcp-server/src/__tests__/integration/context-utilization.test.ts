@@ -9,14 +9,14 @@
  * - Query aggregates across active sessions
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Firestore } from "firebase-admin/firestore";
 
 /** Approximate context window size — must match the constant in pulse.ts */
 const CONTEXT_WINDOW_BYTES = 200_000;
 
 describe("Context Utilization Recording Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
 
   beforeAll(() => {
@@ -40,8 +40,8 @@ describe("Context Utilization Recording Integration", () => {
         status: "active",
         currentAction: "Testing context",
         archived: false,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Simulate update_session with contextBytes (mirroring pulse.ts logic)
@@ -92,7 +92,7 @@ describe("Context Utilization Recording Integration", () => {
         programId: "basher",
         status: "active",
         archived: false,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
         contextHistory: [],
       });
 
@@ -140,7 +140,7 @@ describe("Context Utilization Recording Integration", () => {
         programId: "basher",
         status: "active",
         archived: false,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
         contextHistory: trimmed,
       });
 
@@ -178,7 +178,7 @@ describe("Context Utilization Recording Integration", () => {
         archived: false,
         contextBytes: 100000,
         contextHistory: entries,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       // Simulate the query
@@ -200,7 +200,7 @@ describe("Context Utilization Recording Integration", () => {
         contextHistory: [
           { timestamp: new Date().toISOString(), contextBytes: 80000, contextPercent: 40 },
         ],
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       await db.doc(`tenants/${userId}/sessions/session-agg-2`).set({
@@ -212,7 +212,7 @@ describe("Context Utilization Recording Integration", () => {
         contextHistory: [
           { timestamp: new Date().toISOString(), contextBytes: 150000, contextPercent: 75 },
         ],
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       // Also create an archived session that should be excluded
@@ -225,7 +225,7 @@ describe("Context Utilization Recording Integration", () => {
         contextHistory: [
           { timestamp: new Date().toISOString(), contextBytes: 50000, contextPercent: 25 },
         ],
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       // Query active (non-archived) sessions
@@ -277,7 +277,7 @@ describe("Context Utilization Recording Integration", () => {
         archived: false,
         contextBytes: 90000,
         contextHistory: entries,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       // Simulate period filtering (today only)
@@ -313,7 +313,7 @@ describe("Context Utilization Recording Integration", () => {
         status: "active",
         archived: false,
         contextBytes: 85000, // legacy raw bytes, no contextUsedPct
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
       // Valid pct record
       await db.doc(`tenants/${userId}/sessions/pct-valid`).set({
@@ -321,7 +321,7 @@ describe("Context Utilization Recording Integration", () => {
         status: "active",
         archived: false,
         contextBytes: 30, // 30% remaining -> 70% used
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
       // Canonical contextUsedPct present, contextBytes also raw-byte (canonical wins)
       await db.doc(`tenants/${userId}/sessions/canonical-wins`).set({
@@ -330,7 +330,7 @@ describe("Context Utilization Recording Integration", () => {
         archived: false,
         contextBytes: 90000,
         contextUsedPct: 80,
-        lastUpdate: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdate: FieldValue.serverTimestamp(),
       });
 
       const legacy = (await db.doc(`tenants/${userId}/sessions/legacy-bytes-single`).get()).data()!;

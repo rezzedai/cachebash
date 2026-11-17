@@ -12,7 +12,7 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 export const DEAD_LETTER_RETENTION_MS = 7 * DEFAULT_TTL_MS;
@@ -66,7 +66,7 @@ export const cleanupExpiredRelay = functions.pubsub
   .schedule("every 15 minutes")
   .onRun(async () => {
     try {
-      const result = await cleanupRelayByRetention(admin.firestore());
+      const result = await cleanupRelayByRetention(getFirestore());
       functions.logger.info(`[cleanupExpiredRelay] Deleted ${result.deleted} relay messages past retention`);
       return result;
     } catch (error) {

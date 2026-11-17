@@ -2,6 +2,10 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   roots: ["<rootDir>/src"],
+  transform: {
+    "^.+\\.[tj]sx?$": ["ts-jest", { tsconfig: { allowJs: true, esModuleInterop: true, module: "commonjs", moduleResolution: "node", target: "ES2022", skipLibCheck: true } }],
+  },
+  transformIgnorePatterns: ["node_modules/(?!(@octokit|jose)/)"],
   testMatch: ["**/__tests__/integration/**/*.test.ts"],
   moduleFileExtensions: ["ts", "js", "json"],
   moduleNameMapper: {

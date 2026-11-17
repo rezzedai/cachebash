@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
@@ -205,9 +205,9 @@ export const onSlackBridge = functions
       await db.doc(`tenants/${userId}/relay/${relayId}`).update({
         status: success ? "delivered" : "dead_lettered",
         ...(success
-          ? { deliveredAt: admin.firestore.FieldValue.serverTimestamp() }
+          ? { deliveredAt: FieldValue.serverTimestamp() }
           : {
-              deadLetteredAt: admin.firestore.FieldValue.serverTimestamp(),
+              deadLetteredAt: FieldValue.serverTimestamp(),
               dead_letter_reason: "SLACK_DELIVERY_FAILED",
             }),
       });

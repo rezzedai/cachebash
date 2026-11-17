@@ -9,11 +9,11 @@
  * - Budget tracking
  */
 
-import * as admin from "firebase-admin";
 import { getTestFirestore, clearFirestoreData, seedTestUser } from "./setup";
+import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
 describe("Task Lifecycle Integration", () => {
-  let db: admin.firestore.Firestore;
+  let db: Firestore;
   let userId: string;
   let apiKeyHash: string;
 
@@ -40,7 +40,7 @@ describe("Task Lifecycle Integration", () => {
         source: "orchestrator",
         target: "builder",
         status: "created",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       };
 
       await db.collection(`tenants/${userId}/tasks`).doc(taskId).set(taskData);
@@ -69,7 +69,7 @@ describe("Task Lifecycle Integration", () => {
         status: "created",
         projectId: "test-project",
         threadId: "thread-123",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       };
 
       await db.collection(`tenants/${userId}/tasks`).doc(taskId).set(taskData);
@@ -93,7 +93,7 @@ describe("Task Lifecycle Integration", () => {
         status: "created",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Ensure document exists before updating
@@ -103,7 +103,7 @@ describe("Task Lifecycle Integration", () => {
       // Claim task
       await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "active",
-        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        claimedAt: FieldValue.serverTimestamp(),
         sessionId: "session-123",
       });
 
@@ -125,7 +125,7 @@ describe("Task Lifecycle Integration", () => {
         status: "created",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
 
       // Simulate two concurrent claim attempts
@@ -139,7 +139,7 @@ describe("Task Lifecycle Integration", () => {
         t.update(taskRef, {
           status: "active",
           sessionId: "session-A",
-          claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+          claimedAt: FieldValue.serverTimestamp(),
         });
       });
 
@@ -151,7 +151,7 @@ describe("Task Lifecycle Integration", () => {
         t.update(taskRef, {
           status: "active",
           sessionId: "session-B",
-          claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+          claimedAt: FieldValue.serverTimestamp(),
         });
       });
 
@@ -176,8 +176,8 @@ describe("Task Lifecycle Integration", () => {
         status: "active",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        claimedAt: FieldValue.serverTimestamp(),
         sessionId: "session-123",
       });
 
@@ -188,7 +188,7 @@ describe("Task Lifecycle Integration", () => {
       // Complete task
       await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "done",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         completed_status: "SUCCESS",
         tokens_in: 1000,
         tokens_out: 500,
@@ -218,8 +218,8 @@ describe("Task Lifecycle Integration", () => {
         status: "active",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        claimedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        claimedAt: FieldValue.serverTimestamp(),
       });
 
       // Ensure document exists before updating
@@ -228,7 +228,7 @@ describe("Task Lifecycle Integration", () => {
 
       await db.collection(`tenants/${userId}/tasks`).doc(taskId).update({
         status: "failed",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        completedAt: FieldValue.serverTimestamp(),
         completed_status: "FAILED",
         error_code: "TIMEOUT",
         error_class: "TRANSIENT",
@@ -247,7 +247,7 @@ describe("Task Lifecycle Integration", () => {
   describe("TTL Expiry", () => {
     it("should mark task as expired when expiresAt is in the past", async () => {
       const taskId = "task-007";
-      const pastTimestamp = admin.firestore.Timestamp.fromDate(
+      const pastTimestamp = Timestamp.fromDate(
         new Date(Date.now() - 60 * 60 * 1000) // 1 hour ago
       );
 
@@ -257,7 +257,7 @@ describe("Task Lifecycle Integration", () => {
         status: "created",
         source: "orchestrator",
         target: "builder",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         expiresAt: pastTimestamp,
       });
 
@@ -265,8 +265,8 @@ describe("Task Lifecycle Integration", () => {
       const data = taskDoc.data();
 
       expect(data?.expiresAt).toBeDefined();
-      const now = admin.firestore.Timestamp.now();
-      expect((data?.expiresAt as admin.firestore.Timestamp).toMillis()).toBeLessThan(
+      const now = Timestamp.now();
+      expect((data?.expiresAt as Timestamp).toMillis()).toBeLessThan(
         now.toMillis()
       );
     });
@@ -287,8 +287,8 @@ describe("Task Lifecycle Integration", () => {
           status: "done",
           source: "orchestrator",
           target: "builder",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          completedAt: FieldValue.serverTimestamp(),
           completed_status: "SUCCESS",
           cost_usd: task.cost,
         });

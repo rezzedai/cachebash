@@ -5,14 +5,14 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 
 const RETENTION_DAYS = 30;
 
 export const cleanupLedger = functions.pubsub
   .schedule("every 24 hours")
   .onRun(async () => {
-    const db = admin.firestore();
+    const db = getFirestore();
     const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
 
     functions.logger.info(

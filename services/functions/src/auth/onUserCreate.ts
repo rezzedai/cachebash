@@ -1,9 +1,9 @@
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import { logSuccess, logError } from "../util/structuredLog";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 function hashEmail(email: string): string {
   return crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
@@ -30,12 +30,12 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       photoURL: photoURL || null,
       provider,
       plan: "free",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // 3. Create config/preferences doc
     await db.doc(`tenants/${uid}/config/preferences`).set({
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       tourCompleted: false,
       plan: "free",
       notificationsEnabled: true,
@@ -54,7 +54,7 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
         "sprint.read",
         "metrics.read", "fleet.read",
       ],
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       active: true,
     });
 
@@ -63,7 +63,7 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       key: Buffer.from(rawKey).toString("base64"),
       keyHash,
       retrieved: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // 6. Create billing config (free tier default)
@@ -75,7 +75,7 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
         concurrentSessions: 1,
       },
       softWarnOnly: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // 7. W1.3.1: Create usage-based billing config
@@ -83,15 +83,15 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       monthlyBudgetUsd: null, // unlimited by default
       tokenBudgetMonthly: null, // unlimited by default
       alertThresholds: [], // no alerts by default
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // 8. Track 2 Gate 1: Set telemetry compliance to strict for new tenants
     await db.doc(`tenants/${uid}/_meta/compliance`).set({
       telemetryMode: "strict",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     });
 
     // 9. Track 2 Gate 1: Seed canonical_accounts for multi-provider account linking
@@ -106,8 +106,8 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
           canonicalUid: uid,
           alternateUids: [],
           provider,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       } else {
         // Email already has a canonical account — link this UID as alternate
@@ -115,8 +115,8 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
         const existingAlts = (canonicalData.alternateUids as string[]) || [];
         if (canonicalData.canonicalUid !== uid && !existingAlts.includes(uid)) {
           await canonicalRef.update({
-            alternateUids: admin.firestore.FieldValue.arrayUnion(uid),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            alternateUids: FieldValue.arrayUnion(uid),
+            updatedAt: FieldValue.serverTimestamp(),
           });
         }
       }
@@ -125,7 +125,7 @@ export const onUserCreate = functions.auth.user().onCreate(async (user) => {
       await db.doc(`authorizedEmails/${email}`).set({
         dataUid: uid,
         provider,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     }
 

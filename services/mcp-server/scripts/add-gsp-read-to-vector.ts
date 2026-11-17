@@ -7,10 +7,11 @@
  * Usage: npx tsx services/mcp-server/scripts/add-gsp-read-to-vector.ts
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 async function addGspReadToVector() {
   console.log("Finding VECTOR's API key...\n");

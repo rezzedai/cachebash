@@ -46,7 +46,8 @@
  * ~/.config/grid/keys/<programId> (chmod 600) then `grid-launch`.
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import * as crypto from "crypto";
 
 // Default = coordinator/orchestrator scope (matches command-center / scalar):
@@ -105,8 +106,8 @@ function parseInput(): ProgramSpec[] {
   return list as ProgramSpec[];
 }
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 async function resolveTenantUserId(): Promise<string> {
   // Single-tenant assumption: copy the tenant uid from an existing active key
@@ -147,7 +148,7 @@ async function provisionOne(spec: ProgramSpec, userId: string): Promise<string |
         programId,
         label: `${programId} launcher key — provisioned ${new Date().toISOString().slice(0, 10)} (provision-program.ts)`,
         capabilities: caps,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
         active: true,
       });
       console.error(`  key: ✅ minted ${programId}  hash=${keyHash.slice(0, 12)}…  caps=${caps.length}`);
@@ -164,7 +165,7 @@ async function provisionOne(spec: ProgramSpec, userId: string): Promise<string |
     groups: spec.groups ?? [],
     tags: spec.tags ?? [],
     active: true,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     updatedBy: "provision-program",
   };
   if (spec.color) doc.color = spec.color;
@@ -174,7 +175,7 @@ async function provisionOne(spec: ProgramSpec, userId: string): Promise<string |
   } else {
     await ref.set({
       ...doc,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       createdBy: "provision-program",
     });
     console.error(`  registry: CREATED ${programId} (${doc.displayName}) — ${doc.role}`);

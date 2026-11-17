@@ -5,11 +5,11 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { encryptQuestionData, decrypt, isEncrypted } from "../encryption/crypto.js";
 import { CONSTANTS } from "../config/constants.js";
 import { z } from "zod";
+import { Timestamp } from "firebase-admin/firestore";
 
 const AskQuestionSchema = z.object({
   question: z.string().max(2000),
@@ -99,7 +99,7 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
     // population PLAN-W1 backfills and PLAN-W4's reaper must never mistake for
     // "already expired".
     ttl: 0,
-    expiresAt: admin.firestore.Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
+    expiresAt: Timestamp.fromDate(new Date(CONSTANTS.ttl.neverExpiresSentinel)),
     // WP-1: target:"user" tasks are mobile-app visibility artifacts, not work a
     // program's get_tasks() boot poll should ever claim — false keeps this out
     // of the WP-2 requires_action==true default query, matching relay.ts's
@@ -205,7 +205,7 @@ export async function writeAlertDocs(
 ): Promise<string> {
   const preview = input.message.length > 50 ? input.message.substring(0, 47) + "..." : input.message;
   const TTL_SECONDS = 3600; // 1 hour for alerts
-  const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
+  const expiresAt = Timestamp.fromMillis(Date.now() + TTL_SECONDS * 1000);
 
   // Alerts go to relay with short TTL
   const alertData: Record<string, unknown> = {

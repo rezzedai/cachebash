@@ -8,9 +8,9 @@
  */
 
 import * as functions from "firebase-functions/v1";
-import * as admin from "firebase-admin";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
-const db = admin.firestore();
+const db = getFirestore();
 
 interface UsageLedgerEntry {
   taskId: string;
@@ -19,7 +19,7 @@ interface UsageLedgerEntry {
   tokens_in: number;
   tokens_out: number;
   cost_usd: number;
-  completedAt: admin.firestore.Timestamp;
+  completedAt: Timestamp;
   programId: string;
   taskType: string;
   completed_status: string;
@@ -62,13 +62,13 @@ export const aggregateUsage = functions.pubsub
         // Get last aggregation timestamp for this user
         const metaDoc = await db.doc(`tenants/${userId}/usage_metadata/last_aggregation`).get();
         const lastAggregation = metaDoc.exists
-          ? (metaDoc.data()?.timestamp as admin.firestore.Timestamp)?.toDate() || new Date(0)
+          ? (metaDoc.data()?.timestamp as Timestamp)?.toDate() || new Date(0)
           : new Date(0);
 
         // Query usage_ledger entries since last aggregation
         const ledgerSnapshot = await db
           .collection(`tenants/${userId}/usage_ledger`)
-          .where("completedAt", ">", admin.firestore.Timestamp.fromDate(lastAggregation))
+          .where("completedAt", ">", Timestamp.fromDate(lastAggregation))
           .orderBy("completedAt", "asc")
           .limit(5000) // Process in batches
           .get();
@@ -158,7 +158,7 @@ export const aggregateUsage = functions.pubsub
 
           batch.set(aggRef, {
             ...agg,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+            lastUpdated: FieldValue.serverTimestamp(),
           }, { merge: true });
 
           batchCount++;
@@ -177,8 +177,8 @@ export const aggregateUsage = functions.pubsub
 
         // Update last aggregation timestamp
         await db.doc(`tenants/${userId}/usage_metadata/last_aggregation`).set({
-          timestamp: admin.firestore.Timestamp.fromDate(latestTimestamp),
-          lastRun: admin.firestore.FieldValue.serverTimestamp(),
+          timestamp: Timestamp.fromDate(latestTimestamp),
+          lastRun: FieldValue.serverTimestamp(),
           entriesProcessed: ledgerSnapshot.size,
         });
 
