@@ -90,7 +90,7 @@ updates:
 - package-ecosystem: terraform
   directories:
   - /infra/terraform/envs/cachebash-app
-  - /infra/terraform/envs/cerebro-grid
+  - /infra/terraform/envs/tenant-grid
   - /infra/terraform/modules/cloud-run-service
   - /infra/terraform/modules/cloud-scheduler-job
   schedule:

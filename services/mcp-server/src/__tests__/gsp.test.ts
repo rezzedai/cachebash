@@ -931,7 +931,7 @@ describe("gspProposeHandler", () => {
     const data = parse(result);
 
     expect(data.success).toBe(true);
-    expect(data.reviewers).toContain("flynn");
+    expect(data.reviewers).toContain("owner");
     expect(data.expiresAt).toBeDefined();
 
     // Verify expiry is ~30 days from now
@@ -1160,7 +1160,7 @@ describe("gspResolveHandler", () => {
       proposedValue: "new",
       proposedBy: "basher",
       status: "pending",
-      reviewers: ["flynn"],
+      reviewers: ["owner"],
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       version: 1,
       ...overrides,
@@ -1182,8 +1182,8 @@ describe("gspResolveHandler", () => {
   // #36
   it("approves proposal and applies state atomically", async () => {
     seedPendingProposal();
-    const flynnAuth: AuthContext = { ...mockAuth, programId: "iso" as any };
-    // Actually the reviewer is "flynn", but flynn isn't a ValidProgramId in the type system.
+    const ownerAuth: AuthContext = { ...mockAuth, programId: "iso" as any };
+    // Actually the reviewer is "owner", but owner isn't a ValidProgramId in the type system.
     // The module checks proposal.reviewers.includes(auth.programId), so we need to match.
     // Override reviewers to include our programId for this test.
     seedPendingProposal({ reviewers: ["vector"] });
@@ -1251,7 +1251,7 @@ describe("gspResolveHandler", () => {
 
   // #40
   it("rejects resolve by non-reviewer", async () => {
-    seedPendingProposal({ reviewers: ["flynn"] });
+    seedPendingProposal({ reviewers: ["owner"] });
 
     const result = await gspResolveHandler(mockAuth, {
       proposalId,

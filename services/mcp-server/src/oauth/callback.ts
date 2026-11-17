@@ -12,7 +12,7 @@ import { getFirestore } from "../firebase/client.js";
 import { Timestamp } from "firebase-admin/firestore";
 
 /**
- * Flynn-only principal allowlist (SARK gate, task s0QMEUOc).
+ * Owner-only principal allowlist (SARK gate, task s0QMEUOc).
  * verifyIdToken proves the token is signed by Firebase for cachebash-app
  * (aud/iss bound) — but says nothing about WHO signed in. Without this gate
  * any Google/GitHub account could complete consent and claim SCALAR's
@@ -100,7 +100,7 @@ export async function handleOAuthCallback(req: http.IncomingMessage, res: http.S
     return sendHtml(res, 400, errorPage("Authorization request has expired"));
   }
 
-  // Flynn-only allowlist: deny non-allowlisted principals BEFORE any
+  // Owner-only allowlist: deny non-allowlisted principals BEFORE any
   // authorization code exists. The pending auth is consumed (deleted) and the
   // client gets a standard access_denied redirect — redirectUri was validated
   // against the registered client at /authorize, so this redirect is safe.

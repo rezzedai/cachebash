@@ -263,7 +263,7 @@ export const definitions = [
   },
   {
     name: "dispatch_escalate_task",
-    description: "Escalate a task's priority and/or route it up the chain. Default chain: builder → iso → vector → Flynn.",
+    description: "Escalate a task's priority and/or route it up the chain. Default chain: builder → iso → vector → owner.",
     inputSchema: {
       type: "object" as const,
       properties: {

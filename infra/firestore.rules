@@ -173,7 +173,7 @@ service cloud.firestore {
       // Allow auto-linking: user can create their own link if their email is in
       // authorizedEmails AND is verified. The email_verified gate blocks the
       // PR #339-class vector: a non-Google provider letting an attacker register
-      // Flynn's email unverified, auto-link, and read the entire tenant.
+      // The owner's email unverified, auto-link, and read the entire tenant.
       allow create: if isAuth() && request.auth.uid == linkId &&
         request.auth.token.email_verified == true &&
         exists(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email)) &&

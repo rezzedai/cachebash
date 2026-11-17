@@ -1,7 +1,11 @@
 variable "project_id" {
-  description = "GCP project ID for cerebro-grid"
+  description = "GCP project ID for the tenant grid (set in terraform.tfvars, outside this repo)"
   type        = string
-  default     = "cerebro-grid"
+}
+
+variable "tenant_id" {
+  description = "Tenant ID passed to the lite service as CACHEBASH_TENANT_ID (set in terraform.tfvars)"
+  type        = string
 }
 
 variable "region" {
@@ -11,7 +15,7 @@ variable "region" {
 }
 
 variable "lite_domain" {
-  description = "Public domain name for the cachebash-lite LB endpoint (e.g. lite.cerebro.cachebash.dev)"
+  description = "Public domain name for the cachebash-lite LB endpoint (e.g. lite.tenant.example.com)"
   type        = string
 }
 

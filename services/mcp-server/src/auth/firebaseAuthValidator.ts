@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import * as crypto from "crypto";
+import { OWNER_PROGRAM_ID } from "../config/owner.js";
 import type { AuthContext } from "./authValidator.js";
 
 // Grid Portal principal map: Firebase email → { programId, userId, rateLimitTier }
@@ -7,7 +8,7 @@ import type { AuthContext } from "./authValidator.js";
 // (gsp.read + gsp.write) so they can ratify constitutional proposals.
 const PORTAL_PRINCIPALS: Record<string, { programId: string; userId: string; rateLimitTier: string }> = {
   "christian@rezzed.ai": {
-    programId: "flynn",
+    programId: OWNER_PROGRAM_ID,
     userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
     rateLimitTier: "paid",
   },

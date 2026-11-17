@@ -5,7 +5,7 @@
 
 import { validateFirebaseToken } from '../auth/firebaseAuthValidator';
 
-const FLYNN_UID = '7viFKVtl5lgzguhFoZlnYYrqeDG2';
+const OWNER_UID = '7viFKVtl5lgzguhFoZlnYYrqeDG2';
 
 const mockVerifyIdToken = jest.fn();
 
@@ -19,7 +19,7 @@ jest.mock('../middleware/capabilities', () => ({
 
 function makeToken(overrides: Record<string, unknown> = {}) {
   return {
-    uid: FLYNN_UID,
+    uid: OWNER_UID,
     email: 'christian@rezzed.ai',
     email_verified: true,
     ...overrides,
@@ -29,15 +29,15 @@ function makeToken(overrides: Record<string, unknown> = {}) {
 describe('validateFirebaseToken', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('elevates to flynn when email + UID + email_verified all match', async () => {
+  it('elevates to owner when email + UID + email_verified all match', async () => {
     mockVerifyIdToken.mockResolvedValue(makeToken());
     const ctx = await validateFirebaseToken('eyJ.fake.token');
-    expect(ctx?.programId).toBe('flynn');
-    expect(ctx?.userId).toBe(FLYNN_UID);
+    expect(ctx?.programId).toBe('owner');
+    expect(ctx?.userId).toBe(OWNER_UID);
   });
 
   it('falls through to mobile when email matches but UID is different', async () => {
-    mockVerifyIdToken.mockResolvedValue(makeToken({ uid: 'attacker-uid-not-flynn' }));
+    mockVerifyIdToken.mockResolvedValue(makeToken({ uid: 'attacker-uid-not-owner' }));
     const ctx = await validateFirebaseToken('eyJ.fake.token');
     expect(ctx?.programId).toBe('mobile');
   });

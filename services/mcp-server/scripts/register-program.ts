@@ -6,7 +6,7 @@
  * programId, and there is deliberately NO MCP create path (program creation is
  * a DB-layer bootstrap, same design stance as key minting in
  * mint-command-center-key.ts). So the first registration of a new identity —
- * e.g. a VECTOR sub-instance like vector_systems_research / vector_cerebro that
+ * e.g. a VECTOR sub-instance like vector_systems_research / vector_tenant_a that
  * already has a minted key + live session but no registry entry — must be
  * written at the Firestore layer by a principal with datastore write.
  *
@@ -48,7 +48,7 @@ function parseInput(): ProgramEntry[] {
   if (!raw) {
     console.error(
       "ERROR: pass a program JSON object or array as argv[2].\n" +
-        "Example: register-program.ts '{\"programId\":\"vector_cerebro\",\"role\":\"orchestrator\"}'",
+        "Example: register-program.ts '{\"programId\":\"vector_tenant_a\",\"role\":\"orchestrator\"}'",
     );
     process.exit(1);
   }

@@ -94,7 +94,7 @@ Then retrieve it:
 
 ## 7. Known limitations (Private Beta)
 
-- **Single tenant:** All beta users share the same Firestore tenant (Flynn's). Your data is scoped by your API key's programId.
+- **Single tenant:** All beta users share the same Firestore tenant (the owner's). Your data is scoped by your API key's programId.
 - **No CLI installer yet:** Config is manual (`.mcp.json` + env var). The `npx cachebash init` flow requires browser OAuth which isn't set up for beta testers.
 - **MCP-only:** The REST API works but the primary interface is MCP via your coding agent.
 - **No web dashboard:** Session and task visibility is through MCP tools only (mobile app is internal).
