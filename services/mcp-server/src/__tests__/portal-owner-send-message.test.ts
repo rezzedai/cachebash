@@ -157,8 +157,8 @@ function ownerAuth(): AuthContext {
     userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
     apiKeyHash: "firebase:7viFKVtl5lgzguhFoZlnYYrqeDG2",
     encryptionKey: Buffer.from("abc"),
-    programId: "operator" as any,
-    keyProgramId: "operator" as any,
+    programId: "owner" as any,
+    keyProgramId: "owner" as any,
     capabilities: ["*"],
     rateLimitTier: "paid",
   };
@@ -181,8 +181,8 @@ function apiKeyAuth(): AuthContext {
     userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
     apiKeyHash: "cb_abc123",
     encryptionKey: Buffer.from("abc"),
-    programId: "operator" as any,
-    keyProgramId: "operator" as any,
+    programId: "owner" as any,
+    keyProgramId: "owner" as any,
     capabilities: ["*"],
     rateLimitTier: "paid",
   };
@@ -199,7 +199,7 @@ describe("portal owner send-message — handler level", () => {
     verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.programId);
   });
 
-  it("writes relay doc with source=operator when owner sends a message", async () => {
+  it("writes relay doc with source=owner when owner sends a message", async () => {
     const auth = ownerAuth();
     const result = await sendMessageHandler(auth, {
       source: auth.programId,
@@ -212,7 +212,7 @@ describe("portal owner send-message — handler level", () => {
     const text = result?.content?.[0]?.text;
     const parsed = JSON.parse(text);
     expect(parsed.success).toBe(true);
-    expect(capturedRelayDoc.source).toBe("operator");
+    expect(capturedRelayDoc.source).toBe("owner");
     expect(capturedRelayDoc.target).toBe("iso");
     expect(capturedRelayDoc.status).toBe("pending");
   });
@@ -327,10 +327,10 @@ describe("POST /v1/relay/messages — route-level guards (HTTP)", () => {
   });
 
   it("(d) owner with keyProgramId derives source correctly — F2 keyProgramId takes precedence", async () => {
-    // ownerAuth has keyProgramId="operator"; relay doc should be attributed to "operator"
+    // ownerAuth has keyProgramId="owner"; relay doc should be attributed to "owner"
     const result = await makeRequest(ownerAuth());
     expect(result.status).toBe(201);
-    expect(capturedRelayDoc.source).toBe("operator");
+    expect(capturedRelayDoc.source).toBe("owner");
   });
 
   // WS-3 SARK 2-KILL fix: this route used to call sendMessageHandler directly,

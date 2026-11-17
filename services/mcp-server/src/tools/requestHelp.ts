@@ -1,6 +1,6 @@
 /**
  * Request Help Tool Registry — LITE profile only.
- * Exposes `request_help` so tenant tenants can ask the home grid for support.
+ * Exposes `request_help` so tenants can ask the home grid for support.
  * Must NOT appear on the full/home-grid profile (gated in index.ts via IS_LITE).
  */
 import { AuthContext } from "../auth/authValidator.js";

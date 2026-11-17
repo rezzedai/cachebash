@@ -26,7 +26,7 @@ describe("Constitutional Rules — Seed Data", () => {
 
   it("includes all 5 expected rule keys", () => {
     const keys = CONSTITUTIONAL_RULES.map((r) => r.key);
-    expect(keys).toContain("operator-gate");
+    expect(keys).toContain("owner-gate");
     expect(keys).toContain("no-destructive-git");
     expect(keys).toContain("pr-based-changes");
     expect(keys).toContain("budget-caps");

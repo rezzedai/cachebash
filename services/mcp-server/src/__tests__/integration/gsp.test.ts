@@ -160,15 +160,15 @@ describe("Propose → Resolve(approve) → Verify state", () => {
     const proposalId = proposeData.proposalId;
 
     // Step 4: Resolve with approval
-    // Constitutional proposals are reviewed by "operator". For integration test,
+    // Constitutional proposals are reviewed by "owner". For integration test,
     // we read the actual proposal to get reviewers, then auth as reviewer.
     const proposalDoc = await db
       .doc(`tenants/${testUser.userId}/gsp_proposals/${proposalId}`)
       .get();
     const proposalData = proposalDoc.data()!;
-    const reviewer = proposalData.reviewers[0]; // "operator"
+    const reviewer = proposalData.reviewers[0]; // "owner"
 
-    // Auth as reviewer (operator is not a standard program, but we can set it directly)
+    // Auth as reviewer (owner is not a standard program, but we can set it directly)
     const reviewerAuth: AuthContext = { ...auth, programId: reviewer as any };
 
     const resolveResult = await gsp.gspResolveHandler(reviewerAuth, {

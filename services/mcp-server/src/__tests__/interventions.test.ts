@@ -472,7 +472,7 @@ maybeDescribe("Escalate Task", () => {
     expect(taskDoc.data()?.target).toBe("vector");
   });
 
-  it("should escalate vector task and require Operator", async () => {
+  it("should escalate vector task and require owner", async () => {
     const createResult = await createTaskHandler(mockAuth, {
       title: "Vector task needing escalation",
       target: "vector",
@@ -482,12 +482,12 @@ maybeDescribe("Escalate Task", () => {
 
     const escalateResult = await escalateTaskHandler(mockAuth, {
       taskId,
-      reason: "Needs Operator approval",
+      reason: "Needs owner approval",
     });
 
     const escalateData = JSON.parse(escalateResult.content[0].text);
     expect(escalateData.success).toBe(true);
-    expect(escalateData.requiresOperator).toBe(true);
+    expect(escalateData.requiresOwner).toBe(true);
     expect(escalateData.escalatedTo).toBeNull();
   });
 

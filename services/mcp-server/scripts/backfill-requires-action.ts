@@ -44,7 +44,7 @@
  *     inside the running service, under its own Cloud Run runtime service
  *     account, not a script run by hand. This script is built to the WP-1
  *     spec's literal --dry-run/--apply CLI shape; if/when a real production
- *     apply is ever authorized, confirm with ISO/Operator which execution path
+ *     apply is ever authorized, confirm with ISO/owner which execution path
  *     and credential should be used before running it anywhere near prod.)
  *
  * Usage:

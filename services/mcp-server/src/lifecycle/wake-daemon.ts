@@ -252,7 +252,7 @@ export async function pollAndWake(userId: string): Promise<WakeResult> {
         consecutive_failures: failCount,
       });
 
-      // GAP-001b: Alert Operator after threshold
+      // GAP-001b: Alert the owner after threshold
       if (failCount >= PROGRAM_SPAWN_FAILURE_THRESHOLD) {
         const alertMessage = `Wake daemon: ${programId} failed to spawn ${failCount} consecutive times. ${pending.tasks} tasks and ${pending.messages} messages waiting. Auto-spawn may be broken for this program.`;
         const TTL_SECONDS = 3600;
