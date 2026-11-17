@@ -22,7 +22,8 @@
  * (chmod 600) on the machine running the command-center session.
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import * as crypto from "crypto";
 
 const PROGRAM = "command-center";
@@ -40,8 +41,8 @@ const CAPS = [
   "state.read", "state.write",
 ];
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 async function main() {
   // Tenant uid is shared across the fleet; copy it from an existing key so the
@@ -66,7 +67,7 @@ async function main() {
     programId: PROGRAM,
     label: `COMMAND-CENTER CLI keyfile — minted ${new Date().toISOString().slice(0, 10)} (identity-incident remediation; coordinator scope, no keys/admin)`,
     capabilities: CAPS,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
     active: true,
   });
 

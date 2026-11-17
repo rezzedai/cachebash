@@ -55,7 +55,8 @@
  *   npx tsx services/mcp-server/scripts/backfill-requires-action.ts --tenant <tenantId> --apply
  */
 
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { runRequiresActionBackfill } from "../src/modules/dispatch/requiresActionBackfill.js";
 
 function parseArgs(argv: string[]): { apply: boolean; limit?: number; tenant?: string } {
@@ -83,7 +84,7 @@ function parseArgs(argv: string[]): { apply: boolean; limit?: number; tenant?: s
   return { apply, limit, tenant };
 }
 
-async function resolveTenantId(db: admin.firestore.Firestore): Promise<string> {
+async function resolveTenantId(db: Firestore): Promise<string> {
   // Single-tenant Grid assumption, same resolution strategy as
   // scripts/register-program.ts: read any key's userId out of keyIndex.
   const keySnap = await db.collection("keyIndex").limit(1).get();
@@ -106,8 +107,8 @@ async function main(): Promise<void> {
     );
   }
 
-  admin.initializeApp();
-  const db = admin.firestore();
+  initializeApp();
+  const db = getFirestore();
   const tenantId = tenant || (await resolveTenantId(db));
 
   console.log(`[backfill-requires-action] mode=${apply ? "APPLY" : "DRY-RUN"} tenant=${tenantId} limit=${limit ?? "none"}`);
