@@ -1,3 +1,4 @@
+# NOT the production build: scripts/deploy-mcp.sh deploys from services/mcp-server with Google buildpacks, which never read this file. Production Node is pinned in services/mcp-server/project.toml.
 # ============================================
 # CacheBash MCP Server - Dockerfile
 # ============================================
