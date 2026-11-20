@@ -31,6 +31,7 @@ import type { AuthContext } from "../../auth/authValidator.js";
 import { classifyForBackfill, type ClassifiableTaskData } from "./expiresAtBackfillClassifier.js";
 
 import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
+import { credentialPrincipal } from "../../auth/ownerAuthz.js";
 const PAGE_SIZE = 1000;
 // Firestore's 500-writes-per-batch cap; PR #397 is the precedent -- one
 // unbounded batch failed wholesale and deleted nothing. Not caller-tunable.
@@ -41,7 +42,7 @@ const BATCH_WRITE_MAX = 400;
 // gsp.ts's gspSeedHandler -- a bulk write across the whole tenant's tasks
 // collection is not something an ordinary tenant role should be able to
 // trigger, even though it is additive-only.
-const AUTHORIZED_PROGRAMS = ["basher", "iso", "vector"];
+const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; the "*" capability still passes until PR-N
 
 const BackfillSchema = z.object({
   execute: z.boolean().default(false),
@@ -60,12 +61,13 @@ function jsonResult(data: unknown): ToolResult {
 
 export async function backfillTaskExpiresAtHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const hasWildcard = auth.capabilities.includes("*");
-  if (!AUTHORIZED_PROGRAMS.includes(auth.programId) && !hasWildcard) {
-    logDenial({ principal: denialPrincipal(auth), tool: "dispatch_backfill_task_expires_at", subject: null, code: "NOT_GRANTED" });
+  const principal = credentialPrincipal(auth);
+  if (!AUTHORIZED_PROGRAMS.includes(principal) && !hasWildcard) {
+    logDenial({ principal, tool: "dispatch_backfill_task_expires_at", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",
-      message: `dispatch_backfill_task_expires_at requires a fleet-internal role. Current programId: ${auth.programId}`,
+      message: `dispatch_backfill_task_expires_at requires a fleet-internal role (iso). credentialPrincipal: "${principal}"`,
     });
   }
 

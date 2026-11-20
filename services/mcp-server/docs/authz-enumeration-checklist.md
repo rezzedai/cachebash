@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 35 AST baseline rows.
+114 site records, 111 handler entries, 33 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -1187,8 +1187,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:89` [mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
 | NL-RELAY-GETMSG `modules/relay.ts:84` [mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
 | NL-ACCOUNT-MERGE `modules/account-merge.ts:26` [legacy] (handler) | admin_merge_accounts | members seen: none |
-| NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:44` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
-| NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:99` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
+| NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:45` [iso] (handler) | dispatch_backfill_task_expires_at | members seen: none |
+| NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:100` [iso] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1215` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
 | NL-REST-RELAY-MOBILE `transport/rest.ts:476` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 30 | 119 |
+| S1 | 28 | 115 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1239,13 +1239,11 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 136 |
 | S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 108 |
 | S1 | modules/account-merge.ts | mergeAccountsHandler | `auth.programId` | 1 | 26 |
-| S1 | modules/dispatch/backfillExpiresAt.ts | backfillTaskExpiresAtHandler | `auth.programId` | 2 | 63 |
 | S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 5 | 90 |
 | S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 3 | 198 |
 | S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 297 |
 | S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 9 | 511 |
 | S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 6 | 845 |
-| S1 | modules/dispatch/reapExpiredTasks.ts | reapExpiredTasksHandler | `auth.programId` | 2 | 221 |
 | S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1218 |
 | S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1379 |
 | S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1502 |
