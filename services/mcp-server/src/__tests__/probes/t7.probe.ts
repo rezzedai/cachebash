@@ -66,6 +66,7 @@ describe("T7 dispatch pause", () => {
       create: await callTool(w, c, "dispatch_create_task", create("t7-denied")),
       alias: await callTool(w, c, "create_task", create("t7-denied-alias")),
       claim: await callTool(w, c, "dispatch_claim_task", { taskId: "does-not-matter" }),
+      dream: await callTool(w, c, "dream_activate", { dreamId: "does-not-matter" }), // the breaker runs before the handler
     }));
     for (const r of Object.values(denied)) {
       expect(r.isError).toBe(true);

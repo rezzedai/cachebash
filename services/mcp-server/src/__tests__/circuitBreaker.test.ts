@@ -300,7 +300,8 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     "dispatch_quarantine_program", "dispatch_unquarantine_program",
   ];
   // VECTOR: sprint tools that create task documents are denied too.
-  const EXTRA_DENIED = ["sprint_create_sprint", "sprint_add_story_to_sprint"];
+  // VECTOR (PR-G review): dream_activate starts autonomous work the way claim_task does.
+  const EXTRA_DENIED = ["sprint_create_sprint", "sprint_add_story_to_sprint", "dream_activate"];
   const DISPATCH_FAMILY = [...DISPATCH_DENIED, ...EXTRA_DENIED, "create_task", "claim_task", "dispatch"]; // + legacy aliases
   // Boot path and everything else: not dispatch family, so allowed under dispatchPaused.
   const BOOT_AND_OTHER = [
@@ -319,10 +320,10 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     expect([...DISPATCH_PAUSE_EXTRA_DENIED].sort()).toEqual([...EXTRA_DENIED].sort());
     expect(DISPATCH_DENIED).toHaveLength(8);
     expect(DISPATCH_EXEMPT).toHaveLength(8);
-    // the denied set is exactly 10: the 8 dispatch tools plus the 2 sprint tools
+    // the denied set is exactly 11: the 8 dispatch tools, the 2 sprint tools and dream_activate
     const denied = Object.keys(TOOL_CAPABILITIES).filter((t) => isDispatchFamilyMutation(t)).sort();
     expect(denied).toEqual([...DISPATCH_DENIED, ...EXTRA_DENIED].sort());
-    expect(denied).toHaveLength(10);
+    expect(denied).toHaveLength(11);
   });
 
   it("classifies denied, exempt and other tools", () => {

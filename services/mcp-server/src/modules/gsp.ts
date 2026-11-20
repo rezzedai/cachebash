@@ -565,6 +565,12 @@ interface BootstrapPayload {
     strategicDirection: Array<{ key: string; value: unknown; description?: string }>;
   };
   memory: {
+    /** RD-5 PR-I: always present. "loaded" = self-read, document found; "empty" = self-read,
+     * no document; "omitted" = cross-program read, memory withheld; "error" = the self-read
+     * threw (see `error` and `context.loadError`). */
+    status: "loaded" | "empty" | "omitted" | "error";
+    /** RD-5 PR-I: the failure message. Present iff `status` is "error". */
+    error?: string;
     /** R5: explicit, positive statement that memory was withheld — never a
      * silently-empty section that could equally mean "no memory exists".
      * Present (true) only on a cross-program (fleet.observe) read; absent/false
@@ -710,6 +716,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         strategicDirection: [],
       },
       memory: {
+        status: "empty",
         learnedPatterns: [],
         contextSummary: {
           lastTask: null,
@@ -995,6 +1002,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
       // program_state doc. Explicit, positive statement of the omission and
       // why, so a caller can distinguish "withheld" from "this program has no
       // memory yet" (payload.memory otherwise defaults to the same empty shape).
+      payload.memory.status = "omitted";
       payload.memory.omitted = true;
       payload.memory.omittedReason =
         `cross-program read: "${authz.principal}" read this via the fleet.observe capability, `
@@ -1013,6 +1021,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         .get();
 
       if (stateDoc.exists) {
+        payload.memory.status = "loaded";
         const stateData = stateDoc.data()!;
 
         // Learned patterns - apply depth-based limits
@@ -1050,7 +1059,18 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         }
       }
     } catch (err) {
-      console.warn("[GSP Bootstrap] Failed to load memory state:", err);
+      // RD-5 PR-I: a failed self-read is visible. Every fleet boot protocol treats
+      // payload.context.loadError as a warning, so the failure reaches the booting program
+      // instead of reading as "this program has nothing stored yet".
+      const msg = `memory: ${err instanceof Error ? err.message : String(err)}`;
+      console.error("[GSP Bootstrap] Failed to load memory state:", err);
+      payload.memory = {
+        status: "error",
+        error: msg,
+        learnedPatterns: [],
+        contextSummary: { lastTask: null, activeWorkItems: [], handoffNotes: "", openQuestions: [] },
+      };
+      payload.context.loadError = payload.context.loadError ? `${payload.context.loadError}; ${msg}` : msg;
     }
 
     // 6. Context — Pending tasks and unread messages.
@@ -1088,7 +1108,10 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
         .slice(0, contextLimit);
     } catch (err) {
       console.warn("[GSP Bootstrap] Failed to load pending tasks:", err);
-      payload.context.loadError = `pendingTasks: ${err instanceof Error ? err.message : String(err)}`;
+      const msg = `pendingTasks: ${err instanceof Error ? err.message : String(err)}`;
+      payload.context.loadError = payload.context.loadError
+        ? `${payload.context.loadError}; ${msg}`
+        : msg;
     }
 
     // Unread messages — relay has NO (target, status, ...) composite index;

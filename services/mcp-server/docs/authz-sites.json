@@ -412,7 +412,7 @@
     {
       "id": "NL-GSP-SEED-AUTH",
       "file": "modules/gsp.ts",
-      "line": 1189,
+      "line": 1212,
       "name": "gsp_seed authorizedPrograms",
       "members": [
         "vector",
@@ -423,7 +423,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1189"
+        "modules/gsp.ts:1212"
       ],
       "guards": [
         "gsp_seed"
@@ -488,7 +488,7 @@
     {
       "id": "NL-GSP-REVIEWERS",
       "file": "modules/gsp.ts",
-      "line": 609,
+      "line": 615,
       "name": "proposal reviewer map",
       "members": [
         "iso",
@@ -496,8 +496,8 @@
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/gsp.ts:609",
-        "modules/gsp.ts:1382"
+        "modules/gsp.ts:615",
+        "modules/gsp.ts:1405"
       ],
       "guards": [
         "gsp_propose"
@@ -1271,7 +1271,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:750"
+        "modules/gsp.ts:757"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1298,7 +1298,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1201"
+        "modules/gsp.ts:1224"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1325,8 +1325,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1312",
-        "modules/gsp.ts:1350"
+        "modules/gsp.ts:1335",
+        "modules/gsp.ts:1373"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1381,8 +1381,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1590",
-        "modules/gsp.ts:1664"
+        "modules/gsp.ts:1613",
+        "modules/gsp.ts:1687"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1408,7 +1408,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1791"
+        "modules/gsp.ts:1814"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -3348,7 +3348,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:641-654); memory omitted cross-program (:679)",
+      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:647-660); memory omitted cross-program (:679)",
       "disposition": "FOREIGN-READ",
       "disposition_by": "C-4",
       "status": "pending",
@@ -5567,14 +5567,14 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1895-1901)",
+      "binding_today": "none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924)",
       "disposition": "ESCALATE",
       "disposition_by": "C-4",
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "gsp.ts:1897-1901 reads all programs' learnedPatterns when scope is not \"gsp\". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.",
+      "evidence": "gsp.ts:1920-1924 reads all programs' learnedPatterns when scope is not \"gsp\". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.",
       "recommendation": "Restrict the scan to the caller's own program_state document (C-4: memory self-only)."
     }
   ],
