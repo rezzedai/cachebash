@@ -6,6 +6,7 @@ import { CASES, nextN, Ctx } from "./harness/cases";
 import { knownOpen } from "./harness/registry";
 import * as fs from "fs";
 import { marker } from "./harness/data";
+import { denialNames, sees } from "./harness/judge";
 import type { World, WorldCredential } from "./harness/world";
 
 /**
@@ -141,5 +142,50 @@ describe("L fleet paths", () => {
     const r = await callTool(w, w.creds.scoped, "state_get_program_state", { programId: "alpha" });
     expect(r.json?.success).not.toBe(false);
     expect(denialLines(w, from)).toEqual([]);
+  });
+
+  // L-D1: fleet.observe reads a foreign program's sessions; a key without it is refused.
+  probe("L.observer_reads_foreign_sessions", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.observer, "pulse_list_sessions", { programId: "alpha", includeArchived: true, limit: 50 });
+    expect(sees(r, marker("A", "alpha"))).toBe(true);
+  });
+  test("L.observer_reads_foreign_sessions control: scoped is refused the same read", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "pulse_list_sessions", { programId: "beta", includeArchived: true, limit: 50 });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
+
+  // L-D1 option 1: no programId means the principal's own sessions unless privileged.
+  probe("L.list_sessions_default_self", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "pulse_list_sessions", { includeArchived: true, limit: 50 });
+    expect(sees(r, marker("A", "alpha"))).toBe(true);
+    expect(r.text).not.toContain(marker("A", "beta"));
+  });
+  test("L.list_sessions_default_self control: a minted dispatcher sees both programs", async () => {
+    const w = world();
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-default", ["*"]);
+    const r = await callTool(w, dispatcher, "pulse_list_sessions", { includeArchived: true, limit: 50 });
+    expect(r.text).toContain(marker("A", "alpha"));
+    expect(r.text).toContain(marker("A", "beta"));
+  });
+
+  // 20.1 item 2 (H4): an empty or missing principal is never privileged. A key document with no programId must not write a session it does not own.
+  probe("L.empty_principal_not_privileged", async () => {
+    const w = world();
+    const sessionId = await freshSession(w, "beta");
+    const empty = await mint(w, "", "probe-l-empty-principal", ["*"]);
+    const r = await callTool(w, empty, "pulse_update_session", { sessionId, status: "l-empty-principal", lastHeartbeat: true });
+    expect(r.json?.success).not.toBe(true);
+    const list = await callTool(w, empty, "pulse_list_sessions", { programId: "beta", includeArchived: true, limit: 50 });
+    expect(list.text).not.toContain(marker("A", "beta"));
+  });
+  test("L.empty_principal_not_privileged control: a minted dispatcher updates the same session", async () => {
+    const w = world();
+    const sessionId = await freshSession(w, "beta");
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-empty-ctl", ["*"]);
+    const r = await callTool(w, dispatcher, "pulse_update_session", { sessionId, status: "l-empty-ctl", lastHeartbeat: true });
+    expect(r.json?.success).toBe(true);
   });
 });

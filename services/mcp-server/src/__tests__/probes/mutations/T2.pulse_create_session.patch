@@ -1,0 +1,19 @@
+# mutation for probe T2.pulse_create_session: the prefix and program checks no longer run, so a key creates a session under another program's id
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -115,12 +115,12 @@
+   // RD-5 PR-L rows 1 and 2: a supplied session id must carry the principal's own prefix; the program defaults to the principal.
+   const principal = credentialPrincipal(auth);
+   const privileged = inList(PULSE_PRIV, principal);
+-  if (args.sessionId && !privileged && sessionOwnerProgramId(sessionId) !== principal) {
++  if (false) {
+     logDenial({ principal, tool: "pulse_create_session", subject: sessionOwnerProgramId(sessionId), code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create session "${sessionId}"`, sessionId });
+   }
+   const targetProgram = args.programId ?? (args.sessionId ? sessionId.split(".")[0] : principal);
+-  if (targetProgram !== principal && !privileged) {
++  if (false) {
+     logDenial({ principal, tool: "pulse_create_session", subject: targetProgram, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create a session for "${targetProgram}"`, sessionId });
+   }

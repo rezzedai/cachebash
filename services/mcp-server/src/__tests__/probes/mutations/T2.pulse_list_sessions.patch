@@ -1,0 +1,13 @@
+# mutation for probe T2.pulse_list_sessions: the foreign-subject check no longer runs, so a key lists another program's sessions
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -746,7 +746,7 @@
+   const listPrincipal = credentialPrincipal(auth);
+   let listProgram = args.programId;
+   if (listProgram !== undefined) {
+-    if (!authorizePulse(auth, listProgram, "read").allowed) {
++    if (Date.now() < 0) {
+       logDenial({ principal: listPrincipal, tool: "pulse_list_sessions", subject: listProgram, code: "FOREIGN_SUBJECT" });
+       return jsonResult({ success: false, error: `Access denied: "${listPrincipal}" cannot read sessions for "${listProgram}"` });
+     }

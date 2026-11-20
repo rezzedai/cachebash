@@ -5,7 +5,8 @@
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
-import { isAdmin, hasCapability } from "../middleware/gate.js";
+import { hasCapability } from "../middleware/gate.js";
+import { credentialPrincipal, hasFleetAdminCapability, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
 import { PROGRAM_REGISTRY } from "../config/programs.js";
@@ -52,6 +53,8 @@ const ListSessionsSchema = z.object({
   includeArchived: z.boolean().default(false),
 });
 
+class AuthzDenied extends Error {}
+
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
@@ -80,11 +83,47 @@ function sessionOwnerProgramId(sessionId: string): string {
   return sessionId.split(".")[0].split("-")[0];
 }
 
+/** Principals that create, update and read any program's sessions (amendment 3 PULSE-PRIV). An empty principal is never one. */
+const PULSE_PRIV = ["mobile", "dispatcher"] as const;
+/** Session owners that get no program-registry mirror (plan 20 L-D11: `legacy` is an ordinary program). */
+const PULSE_REGISTRY_SKIP = ["mobile"] as const;
+const inList = (list: readonly string[], name: string): boolean => name !== "" && list.includes(name);
+
+/**
+ * Bound to credentialPrincipal(auth) (RD-5 PR-L). Session writes: the principal's own subject, or PULSE_PRIV.
+ * Session reads add the literal fleet.observe capability on the foreign branch only.
+ */
+function authorizePulse(auth: AuthContext, subject: string, kind: "write" | "read"): { allowed: boolean; principal: string } {
+  const principal = credentialPrincipal(auth);
+  if (subject === principal || inList(PULSE_PRIV, principal)) return { allowed: true, principal };
+  return { allowed: kind === "read" && hasFleetObserveCapability(auth), principal };
+}
+
+/** Program control (pause, quarantine): the principal itself, or the literal fleet.admin capability. */
+function authorizePulseControl(auth: AuthContext, subject: string): { allowed: boolean; principal: string; self: boolean } {
+  const principal = credentialPrincipal(auth);
+  const self = subject === principal;
+  return { allowed: self || hasFleetAdminCapability(auth), principal, self };
+}
+
 export async function createSessionHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateSessionSchema.parse(rawArgs);
   const db = getFirestore();
 
   const sessionId = args.sessionId || `session_${Date.now()}`;
+
+  // RD-5 PR-L rows 1 and 2: a supplied session id must carry the principal's own prefix; the program defaults to the principal.
+  const principal = credentialPrincipal(auth);
+  const privileged = inList(PULSE_PRIV, principal);
+  if (args.sessionId && !privileged && sessionOwnerProgramId(sessionId) !== principal) {
+    logDenial({ principal, tool: "pulse_create_session", subject: sessionOwnerProgramId(sessionId), code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create session "${sessionId}"`, sessionId });
+  }
+  const targetProgram = args.programId ?? (args.sessionId ? sessionId.split(".")[0] : principal);
+  if (targetProgram !== principal && !privileged) {
+    logDenial({ principal, tool: "pulse_create_session", subject: targetProgram, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create a session for "${targetProgram}"`, sessionId });
+  }
 
   // W1.2.1: Session ID format validation
   const complianceConfig = getComplianceConfig(auth.userId);
@@ -113,7 +152,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     console.warn(`[W1.2.1] Legacy session ID format used: ${sessionId}. Consider using: {program}[-{env}].{task}`);
   }
 
-  const programId = args.programId || sessionId.split(".")[0];
+  const programId = targetProgram;
   const now = serverTimestamp();
   const lifecycleStatus = stateToLifecycle(args.state || "working");
 
@@ -142,7 +181,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
   });
 
   // Piggyback program registry write
-  if (programId && programId !== "legacy" && programId !== "mobile") {
+  if (programId && !inList(PULSE_REGISTRY_SKIP, programId)) {
     const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
     const programData: Record<string, unknown> = {
       programId,
@@ -207,10 +246,8 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   // Reject cross-session writes to prevent a confused-deputy attack where any
   // key with pulse.write could set handoffRequired on a sibling's session.
   // Admin keys (legacy/mobile/dispatcher) retain full access for supervision.
-  const callerProgramId = auth.programId;
-  const isPrivileged = !callerProgramId || callerProgramId === "legacy"
-    || callerProgramId === "mobile" || callerProgramId === "dispatcher";
-  if (!isPrivileged) {
+  const callerProgramId = credentialPrincipal(auth);
+  if (!inList(PULSE_PRIV, callerProgramId)) {
     const sessionPrefix = sessionOwnerProgramId(sessionId);
     if (sessionPrefix !== callerProgramId) {
       logDenial({ principal: denialPrincipal(auth), tool: "pulse_update_session", subject: sessionPrefix, code: "FOREIGN_SUBJECT" });
@@ -267,9 +304,9 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
     if (sessionDoc.exists) {
       const sessionData = sessionDoc.data()!;
       const sessionCreatedAt = sessionData.createdAt?.toDate?.()?.getTime();
-      const programId = auth.programId;
+      const programId = callerProgramId;
 
-      if (sessionCreatedAt && programId && programId !== "legacy" && programId !== "mobile") {
+      if (sessionCreatedAt && programId && !inList(PULSE_REGISTRY_SKIP, programId)) {
         // Check if program_state.learnedPatterns was updated since session start
         const programStateRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${programId}`);
         const programStateDoc = await programStateRef.get();
@@ -374,8 +411,8 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   // stale while the dispatcher's doc silently acquired other programs'
   // session ids. A genuine self-update is unaffected: caller and session
   // owner coincide.
-  const programId = sessionOwnerProgramId(sessionId) || auth.programId;
-  if (programId && programId !== "legacy" && programId !== "mobile") {
+  const programId = sessionOwnerProgramId(sessionId) || callerProgramId;
+  if (programId && !inList(PULSE_REGISTRY_SKIP, programId)) {
     const meta = PROGRAM_REGISTRY[programId as keyof typeof PROGRAM_REGISTRY];
     const programData: Record<string, unknown> = {
       programId,
@@ -405,7 +442,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   // Analytics: session_lifecycle update
   emitAnalyticsEvent(auth.userId, {
     eventType: "session_lifecycle",
-    programId: auth.programId,
+    programId: callerProgramId,
     sessionId,
     toolName: "update_session",
     success: true,
@@ -437,12 +474,12 @@ const GetFleetHealthSchema = z.object({
 });
 
 export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Capability gate: fleet.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "fleet.read")) {
+  // Capability gate: fleet.read (the name-list admin path is gone, RD-5 PR-L)
+  if (!hasCapability(auth, "fleet.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "pulse_get_fleet_health", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
-      error: "get_fleet_health requires fleet.read capability.",
+      error: `get_fleet_health requires fleet.read capability (caller "${denialPrincipal(auth)}").`,
     });
   }
 
@@ -705,6 +742,18 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
 
   let query: FirebaseFirestore.Query = db.collection(`tenants/${auth.userId}/sessions`);
 
+  // RD-5 PR-L row 4 (L-D1): a named program needs self, PULSE_PRIV or fleet.observe; no program means the principal's own sessions.
+  const listPrincipal = credentialPrincipal(auth);
+  let listProgram = args.programId;
+  if (listProgram !== undefined) {
+    if (!authorizePulse(auth, listProgram, "read").allowed) {
+      logDenial({ principal: listPrincipal, tool: "pulse_list_sessions", subject: listProgram, code: "FOREIGN_SUBJECT" });
+      return jsonResult({ success: false, error: `Access denied: "${listPrincipal}" cannot read sessions for "${listProgram}"` });
+    }
+  } else if (!inList(PULSE_PRIV, listPrincipal) && !hasFleetObserveCapability(auth)) {
+    listProgram = listPrincipal;
+  }
+
   if (args.state && args.state !== "all") {
     const lifecycle = stateToLifecycle(args.state);
     query = query.where("status", "==", lifecycle);
@@ -712,8 +761,8 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown): 
   if (!args.includeArchived) {
     query = query.where("archived", "==", false);
   }
-  if (args.programId) {
-    query = query.where("programId", "==", args.programId);
+  if (listProgram) {
+    query = query.where("programId", "==", listProgram);
   }
 
   query = query.orderBy("lastUpdate", "desc").limit(args.limit);
@@ -790,7 +839,15 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
 
   const start = contextPeriodStart(args.period);
 
+  // RD-5 PR-L row 5: the subject is the session's owner, decided before the read; the aggregate keeps the principal's own sessions unless privileged.
+  const ctxPrincipal = credentialPrincipal(auth);
+  const ctxSeesAll = inList(PULSE_PRIV, ctxPrincipal) || hasFleetObserveCapability(auth);
   if (args.sessionId) {
+    const owner = sessionOwnerProgramId(args.sessionId);
+    if (!authorizePulse(auth, owner, "read").allowed) {
+      logDenial({ principal: ctxPrincipal, tool: "pulse_get_context_utilization", subject: owner, code: "FOREIGN_SUBJECT" });
+      return jsonResult({ success: false, error: `Access denied: "${ctxPrincipal}" cannot read context for session "${args.sessionId}"` });
+    }
     // Return specific session's contextHistory
     const sessionDoc = await db.doc(`tenants/${auth.userId}/sessions/${args.sessionId}`).get();
 
@@ -836,6 +893,7 @@ export async function getContextUtilizationHandler(auth: AuthContext, rawArgs: u
 
   for (const doc of sessionsSnap.docs) {
     const data = doc.data();
+    if (!ctxSeesAll && data.programId !== ctxPrincipal) continue;
     const fullHistory: Array<Record<string, unknown>> = (data.contextHistory as Array<Record<string, unknown>>) || [];
 
     // Filter by period
@@ -889,6 +947,13 @@ export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): 
   const args = PauseProgramSchema.parse(rawArgs);
   const db = getFirestore();
 
+  // RD-5 PR-L row 7 (L-D3): the principal pauses itself; a foreign program needs the literal fleet.admin capability.
+  const pz = authorizePulseControl(auth, args.programId);
+  if (!pz.allowed) {
+    logDenial({ principal: pz.principal, tool: "pulse_pause_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `Access denied: "${pz.principal}" cannot pause "${args.programId}"` });
+  }
+
   // Validate program exists
   const programExists = await isProgramRegistered(auth.userId, args.programId);
   if (!programExists) {
@@ -908,7 +973,7 @@ export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): 
           paused: true,
           pausedAt: FieldValue.serverTimestamp(),
           pauseReason: args.reason,
-          pausedBy: auth.programId,
+          pausedBy: pz.principal,
         },
         { merge: true }
       );
@@ -918,14 +983,14 @@ export async function pauseProgramHandler(auth: AuthContext, rawArgs: unknown): 
     await db.collection(`tenants/${auth.userId}/telemetry`).add({
       event_type: "PROGRAM_PAUSED",
       program_id: args.programId,
-      paused_by: auth.programId,
+      paused_by: pz.principal,
       reason: args.reason,
       timestamp: FieldValue.serverTimestamp(),
     });
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "program_control",
-      programId: auth.programId,
+      programId: pz.principal,
       toolName: "pause_program",
       success: true,
     });
@@ -952,6 +1017,13 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
   const args = ResumeProgramSchema.parse(rawArgs);
   const db = getFirestore();
 
+  // RD-5 PR-L row 8 (L-D3): fleet.admin resumes any program; the principal resumes itself only when it paused itself (checked in the transaction).
+  const rz = authorizePulseControl(auth, args.programId);
+  if (!rz.allowed) {
+    logDenial({ principal: rz.principal, tool: "pulse_resume_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `Access denied: "${rz.principal}" cannot resume "${args.programId}"` });
+  }
+
   // Validate program exists
   const programExists = await isProgramRegistered(auth.userId, args.programId);
   if (!programExists) {
@@ -967,11 +1039,14 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
       if (!doc.exists || !doc.data()?.paused) {
         throw new Error(`Program "${args.programId}" is not paused.`);
       }
+      if (!hasFleetAdminCapability(auth) && doc.data()?.pausedBy !== rz.principal) {
+        throw new AuthzDenied(`Access denied: "${rz.principal}" cannot resume "${args.programId}" (paused by "${doc.data()?.pausedBy}")`);
+      }
 
       tx.update(programRef, {
         paused: false,
         resumedAt: FieldValue.serverTimestamp(),
-        resumedBy: auth.programId,
+        resumedBy: rz.principal,
         pauseReason: FieldValue.delete(),
         pausedAt: FieldValue.delete(),
         pausedBy: FieldValue.delete(),
@@ -982,13 +1057,13 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
     await db.collection(`tenants/${auth.userId}/telemetry`).add({
       event_type: "PROGRAM_RESUMED",
       program_id: args.programId,
-      resumed_by: auth.programId,
+      resumed_by: rz.principal,
       timestamp: FieldValue.serverTimestamp(),
     });
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "program_control",
-      programId: auth.programId,
+      programId: rz.principal,
       toolName: "resume_program",
       success: true,
     });
@@ -1000,6 +1075,10 @@ export async function resumeProgramHandler(auth: AuthContext, rawArgs: unknown):
       message: `Program "${args.programId}" resumed. Task intake re-enabled.`,
     });
   } catch (error) {
+    if (error instanceof AuthzDenied) {
+      logDenial({ principal: rz.principal, tool: "pulse_resume_program", subject: args.programId, code: "NOT_OWNER" });
+      return jsonResult({ success: false, error: error.message });
+    }
     return jsonResult({
       success: false,
       error: `Failed to resume program: ${error instanceof Error ? error.message : String(error)}`,

@@ -1,24 +1,4 @@
 {
-  "T2.pulse_create_session": {
-    "closes_in": "PR-L",
-    "hole": "creates a session under any program's id (recon row 11)"
-  },
-  "T2.pulse_list_sessions": {
-    "closes_in": "PR-L",
-    "hole": "lists any program's sessions (row 13)"
-  },
-  "T2.pulse_get_context_utilization": {
-    "closes_in": "PR-L",
-    "hole": "reads any session's context history (row 14)"
-  },
-  "T2.pulse_pause_program": {
-    "closes_in": "PR-L",
-    "hole": "pauses any program (row 15)"
-  },
-  "T2.pulse_resume_program": {
-    "closes_in": "PR-L",
-    "hole": "resumes any program (row 16)"
-  },
   "T2.dispatch_reassign_task": {
     "closes_in": "PR-L",
     "hole": "moves a task to any program (row 30)"

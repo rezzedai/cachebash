@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 47 AST baseline rows.
+114 site records, 111 handler entries, 44 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 284 |
-| (a) lines | 268 |
+| (a) occurrences | 295 |
+| (a) lines | 278 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -247,60 +247,60 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `pulse.createSessionHandler:args.sessionId`
 
-- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 87 at base, 1 occurrence(s).
+- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 113 at base, 3 occurrence(s).
 - Tool: pulse_create_session; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: pulse.ts:87 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:134), so it overwrites any program's existing session document.
+- Evidence: pulse.ts:113 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:173), so it overwrites any program's existing session document.
 - Recommendation: Require the session id prefix to equal the principal, as update_session does (SELF-ONLY).
 
 ### `pulse.createSessionHandler:args.programId`
 
-- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.programId`, line 116 at base, 1 occurrence(s).
+- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.programId`, line 122 at base, 1 occurrence(s).
 - Tool: pulse_create_session; transports mcp, rest; effect write; decided by C-5; closes in PR-L.
-- Binding today: none; skipped for legacy and mobile at pulse.ts:145.
+- Binding today: none; skipped for legacy and mobile at pulse.ts:184.
 - Name lists: NL-PULSE-REGISTRY-SKIP.
-- Evidence: pulse.ts:116 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.
+- Evidence: pulse.ts:155 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.
 - Recommendation: programId derives from the principal (SELF-ONLY).
 
 ### `pulse.updateSessionHandler:args.sessionId`
 
-- Where: `modules/pulse.ts`, handler `updateSessionHandler`, expression `args.sessionId`, line 177 at base, 1 occurrence(s).
+- Where: `modules/pulse.ts`, handler `updateSessionHandler`, expression `args.sessionId`, line 216 at base, 1 occurrence(s).
 - Tool: pulse_update_session; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-L.
-- Binding today: session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:206-220); denial names auth.programId.
+- Binding today: session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:245-257); denial names auth.programId.
 - Name lists: NL-PULSE-PRIV.
 - Evidence: SARK C2 gate. auth.programId is the mutable field while the override path exists, and three names skip the gate.
 - Recommendation: SELF-ONLY on credentialPrincipal; dispatcher use needs the C-5 table.
 
 ### `pulse.listSessionsHandler:args.programId`
 
-- Where: `modules/pulse.ts`, handler `listSessionsHandler`, expression `args.programId`, line 715 at base, 2 occurrence(s).
+- Where: `modules/pulse.ts`, handler `listSessionsHandler`, expression `args.programId`, line 747 at base, 1 occurrence(s).
 - Tool: pulse_list_sessions; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
 - Binding today: none in handler; REST route adds requireAdmin (rest.ts:516).
-- Evidence: pulse.ts:715 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.
+- Evidence: pulse.ts:764 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `pulse.getContextUtilizationHandler:args.sessionId`
 
-- Where: `modules/pulse.ts`, handler `getContextUtilizationHandler`, expression `args.sessionId`, line 793 at base, 3 occurrence(s).
+- Where: `modules/pulse.ts`, handler `getContextUtilizationHandler`, expression `args.sessionId`, line 845 at base, 5 occurrence(s).
 - Tool: pulse_get_context_utilization; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: pulse.ts:793 reads any session's contextHistory by id; absent returns all active sessions.
+- Evidence: pulse.ts:845 reads any session's contextHistory by id; absent returns all active sessions.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `pulse.pauseProgramHandler:args.programId`
 
-- Where: `modules/pulse.ts`, handler `pauseProgramHandler`, expression `args.programId`, line 893 at base, 6 occurrence(s).
+- Where: `modules/pulse.ts`, handler `pauseProgramHandler`, expression `args.programId`, line 951 at base, 9 occurrence(s).
 - Tool: pulse_pause_program; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none in handler; tool capability pulse.write.
-- Evidence: pulse.ts:893-898 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.
+- Evidence: pulse.ts:958-963 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.
 - Recommendation: FOREIGN-WRITE on literal fleet.admin.
 
 ### `pulse.resumeProgramHandler:args.programId`
 
-- Where: `modules/pulse.ts`, handler `resumeProgramHandler`, expression `args.programId`, line 956 at base, 7 occurrence(s).
+- Where: `modules/pulse.ts`, handler `resumeProgramHandler`, expression `args.programId`, line 1021 at base, 12 occurrence(s).
 - Tool: pulse_resume_program; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none in handler; tool capability pulse.write.
-- Evidence: pulse.ts:956-961, same shape as pause.
+- Evidence: pulse.ts:1028-1033, same shape as pause.
 - Recommendation: FOREIGN-WRITE on literal fleet.admin.
 
 ### `rate-limits.getRateLimitEventsHandler:args.sessionId`
@@ -783,7 +783,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
 | index.main:params.callerSource | none | none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document. |
-| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:164. So the label is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
 | analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:164), so the value is caller-controlled and must not be read as identity. |
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:535, :543 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
 | rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:78) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
@@ -929,13 +929,13 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | programState.deleteMemoryHandler:args.programId | a | 9 | 727 | SELF-ONLY | C-4 | PR-J | false |
 | programState.reinforceMemoryHandler:args.programId | a | 9 | 786 | SELF-ONLY | C-4 | PR-J | false |
 | programState.getContextHistoryHandler:args.programId | a | 8 | 848 | SELF-ONLY | C-4 | PR-J | false |
-| pulse.createSessionHandler:args.sessionId | a | 1 | 87 | ESCALATE | ISO | PR-L | false |
-| pulse.createSessionHandler:args.programId | a | 1 | 116 | ESCALATE | C-5 | PR-L | false |
-| pulse.updateSessionHandler:args.sessionId | a | 1 | 177 | ESCALATE | C-5 | PR-L | false |
-| pulse.listSessionsHandler:args.programId | a | 2 | 715 | ESCALATE | ISO | PR-L | false |
-| pulse.getContextUtilizationHandler:args.sessionId | a | 3 | 793 | ESCALATE | ISO | PR-L | false |
-| pulse.pauseProgramHandler:args.programId | a | 6 | 893 | ESCALATE | ISO | PR-L | false |
-| pulse.resumeProgramHandler:args.programId | a | 7 | 956 | ESCALATE | ISO | PR-L | false |
+| pulse.createSessionHandler:args.sessionId | a | 3 | 113 | ESCALATE | ISO | PR-L | false |
+| pulse.createSessionHandler:args.programId | a | 1 | 122 | ESCALATE | C-5 | PR-L | false |
+| pulse.updateSessionHandler:args.sessionId | a | 1 | 216 | ESCALATE | C-5 | PR-L | false |
+| pulse.listSessionsHandler:args.programId | a | 1 | 747 | ESCALATE | ISO | PR-L | false |
+| pulse.getContextUtilizationHandler:args.sessionId | a | 5 | 845 | ESCALATE | ISO | PR-L | false |
+| pulse.pauseProgramHandler:args.programId | a | 9 | 951 | ESCALATE | ISO | PR-L | false |
+| pulse.resumeProgramHandler:args.programId | a | 12 | 1021 | ESCALATE | ISO | PR-L | false |
 | rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 76 | ATTRIBUTION | ISO | n/a | false |
 | rate-limits.getRateLimitEventsHandler:args.sessionId | a | 2 | 105 | ESCALATE | ISO | PR-L | false |
 | relay.sendMessageHandler:args.target | a | 15 | 140 | ADDRESSED | ISO | PR-K | false |
@@ -1183,8 +1183,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
 | NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:137` [mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
 | NL-REGISTRY-ADMIN `modules/programRegistry.ts:400` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
-| NL-PULSE-PRIV `modules/pulse.ts:211` [legacy, mobile, dispatcher] (handler) | pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
-| NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:145` [legacy, mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
+| NL-PULSE-PRIV `modules/pulse.ts:87` [mobile, dispatcher] (handler) | pulse_create_session, pulse_update_session, pulse_list_sessions, pulse_get_context_utilization | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
+| NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:89` [mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
 | NL-RELAY-GETMSG `modules/relay.ts:84` [mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
 | NL-ACCOUNT-MERGE `modules/account-merge.ts:26` [legacy] (handler) | admin_merge_accounts | members seen: none |
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:44` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
@@ -1207,8 +1207,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 - NL-ESCALATION-CHAIN: Picks the default escalation recipient. It gates nothing.
 - NL-GETTASKS-DEFAULT: mobile and dispatcher read every task with no target and any named target (K-D4). legacy was dropped in PR-K.
 - NL-REGISTRY-ADMIN: These names may edit any program entry.
-- NL-PULSE-PRIV: These names may write any session.
-- NL-PULSE-REGISTRY-SKIP: Skips the program-registry write for these names. It gates nothing.
+- NL-PULSE-PRIV: These principals create, update and read any program's session. legacy was dropped in PR-L; an empty principal is never a member.
+- NL-PULSE-REGISTRY-SKIP: Skips the program-registry write for session owners in this list. It gates nothing. legacy was dropped in PR-L (L-D11).
 - NL-RELAY-GETMSG: mobile and dispatcher read the requested target. legacy was dropped in PR-K.
 - NL-ACCOUNT-MERGE: Only this name may merge accounts.
 - NL-BACKFILL-AUTH: Also passes on "*".
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 42 | 158 |
+| S1 | 39 | 148 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1261,9 +1261,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1664 |
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 400 |
-| S1 | modules/pulse.ts | updateSessionHandler | `auth.programId` | 4 | 210 |
-| S1 | modules/pulse.ts | pauseProgramHandler | `auth.programId` | 3 | 911 |
-| S1 | modules/pulse.ts | resumeProgramHandler | `auth.programId` | 3 | 974 |
 | S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
 | S1 | modules/schedule.ts | createScheduleHandler | `auth.programId` | 1 | 141 |

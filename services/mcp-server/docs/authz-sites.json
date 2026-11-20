@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 284,
-    "a_lines": 268,
+    "a_occurrences": 295,
+    "a_lines": 278,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -236,43 +236,44 @@
     {
       "id": "NL-PULSE-PRIV",
       "file": "modules/pulse.ts",
-      "line": 211,
-      "name": "update_session privileged names",
+      "line": 87,
+      "name": "PULSE_PRIV session privilege",
       "members": [
-        "legacy",
         "mobile",
         "dispatcher"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/pulse.ts:212"
+        "modules/pulse.ts:250"
       ],
       "guards": [
-        "pulse_update_session"
+        "pulse_create_session",
+        "pulse_update_session",
+        "pulse_list_sessions",
+        "pulse_get_context_utilization"
       ],
-      "note": "These names may write any session.",
+      "note": "These principals create, update and read any program's session. legacy was dropped in PR-L; an empty principal is never a member.",
       "usage_30d": "members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2"
     },
     {
       "id": "NL-PULSE-REGISTRY-SKIP",
       "file": "modules/pulse.ts",
-      "line": 145,
-      "name": "session registry piggyback skip",
+      "line": 89,
+      "name": "PULSE_REGISTRY_SKIP session registry piggyback skip",
       "members": [
-        "legacy",
         "mobile"
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/pulse.ts:145",
-        "modules/pulse.ts:272",
-        "modules/pulse.ts:378"
+        "modules/pulse.ts:184",
+        "modules/pulse.ts:309",
+        "modules/pulse.ts:415"
       ],
       "guards": [
         "pulse_create_session",
         "pulse_update_session"
       ],
-      "note": "Skips the program-registry write for these names. It gates nothing.",
+      "note": "Skips the program-registry write for session owners in this list. It gates nothing. legacy was dropped in PR-L (L-D11).",
       "usage_30d": "members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2"
     },
     {
@@ -2795,7 +2796,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:164. So the label is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -3663,8 +3664,8 @@
       "handler": "createSessionHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 1,
-      "line_at_base": 87,
+      "occurrences": 3,
+      "line_at_base": 113,
       "tool": "pulse_create_session",
       "transports": [
         "mcp",
@@ -3678,7 +3679,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:87 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:134), so it overwrites any program's existing session document.",
+      "evidence": "pulse.ts:113 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:173), so it overwrites any program's existing session document.",
       "recommendation": "Require the session id prefix to equal the principal, as update_session does (SELF-ONLY)."
     },
     {
@@ -3688,14 +3689,14 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 116,
+      "line_at_base": 122,
       "tool": "pulse_create_session",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; skipped for legacy and mobile at pulse.ts:145",
+      "binding_today": "none; skipped for legacy and mobile at pulse.ts:184",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3704,7 +3705,7 @@
       "name_lists": [
         "NL-PULSE-REGISTRY-SKIP"
       ],
-      "evidence": "pulse.ts:116 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.",
+      "evidence": "pulse.ts:155 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.",
       "recommendation": "programId derives from the principal (SELF-ONLY)."
     },
     {
@@ -3714,7 +3715,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 177,
+      "line_at_base": 216,
       "tool": "pulse_update_session",
       "transports": [
         "mcp",
@@ -3722,7 +3723,7 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:206-220); denial names auth.programId",
+      "binding_today": "session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:245-257); denial names auth.programId",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3740,8 +3741,8 @@
       "handler": "listSessionsHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 715,
+      "occurrences": 1,
+      "line_at_base": 747,
       "tool": "pulse_list_sessions",
       "transports": [
         "mcp",
@@ -3755,7 +3756,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:715 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.",
+      "evidence": "pulse.ts:764 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -3764,8 +3765,8 @@
       "handler": "getContextUtilizationHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 3,
-      "line_at_base": 793,
+      "occurrences": 5,
+      "line_at_base": 845,
       "tool": "pulse_get_context_utilization",
       "transports": [
         "mcp",
@@ -3779,7 +3780,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:793 reads any session's contextHistory by id; absent returns all active sessions.",
+      "evidence": "pulse.ts:845 reads any session's contextHistory by id; absent returns all active sessions.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -3788,8 +3789,8 @@
       "handler": "pauseProgramHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 6,
-      "line_at_base": 893,
+      "occurrences": 9,
+      "line_at_base": 951,
       "tool": "pulse_pause_program",
       "transports": [
         "mcp"
@@ -3802,7 +3803,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:893-898 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.",
+      "evidence": "pulse.ts:958-963 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.",
       "recommendation": "FOREIGN-WRITE on literal fleet.admin."
     },
     {
@@ -3811,8 +3812,8 @@
       "handler": "resumeProgramHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 7,
-      "line_at_base": 956,
+      "occurrences": 12,
+      "line_at_base": 1021,
       "tool": "pulse_resume_program",
       "transports": [
         "mcp"
@@ -3825,7 +3826,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:956-961, same shape as pause.",
+      "evidence": "pulse.ts:1028-1033, same shape as pause.",
       "recommendation": "FOREIGN-WRITE on literal fleet.admin."
     },
     {
@@ -5727,33 +5728,6 @@
       "expr": "auth.programId",
       "occurrences": 3,
       "line_at_base": 400,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/pulse.ts",
-      "handler": "updateSessionHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 210,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/pulse.ts",
-      "handler": "pauseProgramHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 911,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/pulse.ts",
-      "handler": "resumeProgramHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 974,
       "status": "pending"
     },
     {

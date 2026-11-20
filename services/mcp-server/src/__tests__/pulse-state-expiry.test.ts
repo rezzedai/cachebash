@@ -47,7 +47,7 @@ jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
 import { listSessionsHandler, getFleetHealthHandler } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
 
-const AUTH = { userId: "u1", programId: "basher", capabilities: ["*"] } as unknown as AuthContext;
+const AUTH = { userId: "u1", programId: "basher", keyProgramId: "basher", capabilities: ["*"] } as unknown as AuthContext;
 
 const ts = (ageSeconds: number) => {
   const d = new Date(Date.now() - ageSeconds * 1000);

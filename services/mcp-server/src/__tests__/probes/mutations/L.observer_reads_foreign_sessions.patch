@@ -1,0 +1,13 @@
+# mutation for probe L.observer_reads_foreign_sessions: fleet.observe no longer widens the foreign session read
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -96,7 +96,7 @@
+ function authorizePulse(auth: AuthContext, subject: string, kind: "write" | "read"): { allowed: boolean; principal: string } {
+   const principal = credentialPrincipal(auth);
+   if (subject === principal || inList(PULSE_PRIV, principal)) return { allowed: true, principal };
+-  return { allowed: kind === "read" && hasFleetObserveCapability(auth), principal };
++  return { allowed: false, principal };
+ }
+ 
+ /** Program control (pause, quarantine): the principal itself, or the literal fleet.admin capability. */

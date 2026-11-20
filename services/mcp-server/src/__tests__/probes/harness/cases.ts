@@ -28,7 +28,7 @@ export interface Case {
 }
 
 export const seederCall = (c: Ctx, tool: string, args: Record<string, unknown> = {}) =>
-  callTool(c.w, tool.startsWith("state_") || tool.startsWith("pulse_") ? c.w.stateSeeders.A : c.w.seeders.A, tool, args);
+  callTool(c.w, tool.startsWith("state_") || (tool.startsWith("pulse_") && !/_(pause|resume)_/.test(tool)) ? c.w.stateSeeders.A : c.w.seeders.A, tool, args);
 const mk = (c: Ctx) => marker("A", c.subject);
 let counter = 0;
 export const nextN = (): string => `${Date.now().toString(36)}${(counter++).toString(36)}`;
@@ -110,7 +110,11 @@ export const CASES: Case[] = [
   },
   {
     id: "pulse_resume_program", tool: "pulse_resume_program",
-    prepare: async (c) => { await seederCall(c, "pulse_pause_program", { programId: c.subject, reason: "probe-setup" }); },
+    // PR-L L-D3: self-resume needs pausedBy === the caller, so alpha is paused by alpha; beta is paused by the fleet.admin seeder
+    prepare: async (c) => {
+      if (c.subject === "alpha") await callTool(c.w, c.w.creds.scoped, "pulse_pause_program", { programId: "alpha", reason: "probe-setup" });
+      else await seederCall(c, "pulse_pause_program", { programId: c.subject, reason: "probe-setup" });
+    },
     args: (c) => ({ programId: c.subject }),
     reached: async (c) => (await programDoc(c)).paused === false,
   },
