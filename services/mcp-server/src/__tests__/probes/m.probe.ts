@@ -269,3 +269,100 @@ describe("M D-1 denial metric", () => {
     expect(denialLines(w, from)).toEqual([]);
   });
 });
+
+/** A REST answer that refuses the call: HTTP 4xx, or an inner success:false, with the principal named in quotes. */
+const restDenied = (r: { httpStatus: number; text: string; json: any }, principal: string): boolean => {
+  const refused = r.httpStatus >= 400 || r.json?.data?.success === false;
+  const text = [r.json?.data?.error, r.json?.error?.message, r.json?.error].filter((v) => typeof v === "string").join(" ") || r.text;
+  return refused && text.includes(`"${principal}"`);
+};
+const sendTo = async (w: World, target: string, tag: string): Promise<string> => {
+  if (target === "all") { // a send to "all" is fanned out per program; the shared broadcast doc is written as the K probe writes it
+    const ref = emulatorDb().collection(`tenants/${w.tenants.A}/relay`).doc();
+    await ref.set({ source: "legacy", target: "all", message: `m-${tag}-${nextN()}`, message_type: "STATUS", priority: "normal", action: "queue", status: "pending", createdAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 3600_000) });
+    return ref.id;
+  }
+  const sent = await callTool(w, w.seeders.A, "relay_send_message", { message: `m-${tag}-${nextN()}`, source: "legacy", target, message_type: "DIRECTIVE" });
+  if (!sent.json?.messageId) throw new Error(`send failed: ${sent.text.slice(0, 200)}`);
+  return sent.json.messageId as string;
+};
+const relayDoc = async (w: World, id: string) => (await emulatorDb().doc(`tenants/${w.tenants.A}/relay/${id}`).get()).data() ?? {};
+
+describe("M relay routes (rows 1 and 2)", () => {
+  // row 1: with no sessionId the route read the whole tenant; it now reads the principal's own inbox
+  probe("M.unread_default_self", async () => {
+    const w = world();
+    const beta = await sendTo(w, "beta", "unread-beta");
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/messages/unread");
+    expect(r.httpStatus).toBe(200);
+    expect(r.text).not.toContain(beta);
+  });
+  test("M.unread_default_self control: alpha sees its own pending message", async () => {
+    const w = world();
+    const own = await sendTo(w, "alpha", "unread-alpha");
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/messages/unread");
+    expect(r.json?.data?.messages?.map((m: any) => m.id)).toContain(own);
+  });
+
+  probe("M.unread_foreign_denied", async () => {
+    const w = world();
+    const beta = await sendTo(w, "beta", "unread-foreign");
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/messages/unread?sessionId=beta");
+    expect(restDenied(r, "alpha")).toBe(true);
+    expect(r.text).not.toContain(beta);
+  });
+  test("M.unread_foreign_denied control: the dispatcher reads beta's inbox", async () => {
+    const w = world();
+    const beta = await sendTo(w, "beta", "unread-foreign-ctl");
+    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-unread", ["*"]);
+    const r = await rest(w, dispatcher, "GET", "/v1/messages/unread?sessionId=beta");
+    expect(r.json?.data?.messages?.map((m: any) => m.id)).toContain(beta);
+  });
+
+  // row 2 (M-D1)
+  probe("M.mark_read_foreign_denied", async () => {
+    const w = world();
+    const id = await sendTo(w, "beta", "mr-foreign");
+    const r = await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds: [id] });
+    expect(restDenied(r, "alpha")).toBe(true);
+    expect((await relayDoc(w, id)).status).toBe("pending");
+  });
+  test("M.mark_read_foreign_denied control: beta marks its own message", async () => {
+    const w = world();
+    const id = await sendTo(w, "beta", "mr-own");
+    const beta = await mint(w, "beta", "probe-m-beta-markread", ["*"]);
+    const r = await rest(w, beta, "POST", "/v1/messages/mark_read", { messageIds: [id] });
+    expect(r.httpStatus).toBe(200);
+    expect((await relayDoc(w, id)).status).toBe("read");
+  });
+
+  probe("M.mark_read_broadcast_unchanged", async () => {
+    const w = world();
+    const id = await sendTo(w, "all", "mr-broadcast");
+    const before = await relayDoc(w, id);
+    const r = await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds: [id] });
+    expect(r.httpStatus).toBe(200);
+    const after = await relayDoc(w, id);
+    expect(after.status).toBe(before.status);
+    expect(after.deliveryAttempts).toEqual(before.deliveryAttempts);
+    expect(after.readAt).toBeUndefined();
+  });
+  test("M.mark_read_broadcast_unchanged control: alpha marks its own direct message", async () => {
+    const w = world();
+    const id = await sendTo(w, "alpha", "mr-direct");
+    const r = await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds: [id] });
+    expect(r.httpStatus).toBe(200);
+    expect((await relayDoc(w, id)).status).toBe("read");
+  });
+
+  // 21.1 nit: a missing id is counted as notFound, is not a denial and writes no denial line
+  test("M.mark_read missing id is notFound, not a denial", async () => {
+    const w = world();
+    const from = logSize(w);
+    const r = await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds: [`missing-${nextN()}`] });
+    expect(r.httpStatus).toBe(200);
+    expect(r.json?.data?.notFound).toBe(1);
+    await new Promise((res) => setTimeout(res, 300));
+    expect(denialLines(w, from)).toEqual([]);
+  });
+});

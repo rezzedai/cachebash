@@ -1,12 +1,4 @@
 {
-  "T2.rest_messages_unread": {
-    "closes_in": "PR-M",
-    "hole": "GET /v1/messages/unread?sessionId=<other> reads any program's pending messages (row 52)"
-  },
-  "T2.rest_messages_mark_read": {
-    "closes_in": "PR-M",
-    "hole": "POST /v1/messages/mark_read marks any message read, no ownership check (row 53)"
-  },
   "W.01": {
     "closes_in": "PR-N",
     "hole": "a bare [\"*\"] credential passes: index.ts:193 per-tool gate, /v1/mcp"

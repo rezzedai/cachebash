@@ -420,14 +420,15 @@ const routes: Route[] = [
   // Relay
   route("GET", "/v1/messages/unread", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const db = getFirestore();
-    const relayRef = db.collection(`tenants/${auth.userId}/relay`);
-    let q: Query = relayRef.where("status", "==", "pending");
-    if (query.sessionId) {
-      q = q.where("target", "==", query.sessionId);
-    }
-    const snap = await q.orderBy("createdAt", "desc").limit(50).get();
-    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // RD-5 PR-M row 1: the inbox read is get_messages (authorizeRelayRead decides). The subject defaults to the principal, never to
+    // the whole tenant. markAsRead:false keeps this a peek. 21.1 C2: the route still answers { messages, count }, newest first, at most 50.
+    const data = await callTool(auth, req, "get_messages", { sessionId: (query.sessionId as string) || credentialPrincipal(auth), markAsRead: false }) as {
+      success?: boolean; interrupts?: Array<{ createdAt?: string | null }>;
+    };
+    if (data.success === false) return restResponse(res, true, data);
+    const messages = [...(data.interrupts ?? [])]
+      .sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? ""))
+      .slice(0, 50);
     restResponse(res, true, { messages, count: messages.length });
   }),
   route("POST", "/v1/messages/mark_read", async (auth, req, res) => {
@@ -437,16 +438,12 @@ const routes: Route[] = [
     if (!Array.isArray(messageIds) || messageIds.length === 0) {
       return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must be a non-empty array" }, 400);
     }
-    const db = getFirestore();
-    const batch = db.batch();
-    for (const id of messageIds.slice(0, 100)) {
-      batch.update(db.doc(`tenants/${auth.userId}/relay/${id}`), {
-        status: "read",
-        readAt: FieldValue.serverTimestamp(),
-      });
+    const { markReadHandler } = await import("../modules/relay.js");
+    const out = await markReadHandler(auth, messageIds.filter((id) => typeof id === "string" && id !== ""));
+    if (out.denied.length > 0 && out.updated === 0) {
+      return restResponse(res, false, { code: "FORBIDDEN", message: out.denied[0].error, denied: out.denied }, 403);
     }
-    await batch.commit();
-    restResponse(res, true, { updated: Math.min(messageIds.length, 100) });
+    restResponse(res, true, out);
   }),
   route("GET", "/v1/messages", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
