@@ -56,6 +56,7 @@ function auth(userId = "u1"): AuthContext {
     apiKeyHash: "k1",
     encryptionKey: Buffer.from("abc"),
     programId: "test-program" as any,
+    keyProgramId: "test-program" as any,
     capabilities: ["*"],
     rateLimitTier: "internal",
   };

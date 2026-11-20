@@ -97,7 +97,7 @@ export async function createIsoServer(): Promise<{
     // reached mutating tools (relay_send_message, dispatch_create_task, etc.)
     // regardless of what the key was scoped to. Mirrors the gate in index.ts's
     // main /v1/mcp CallToolRequestSchema handler. Always uses authContext.capabilities
-    // from the validated key — never anything derived from X-Program-Id.
+    // from the validated key only.
     const { checkToolCapability } = await import("../middleware/capabilities.js");
     const capCheck = checkToolCapability(name, authContext.capabilities);
     if (!capCheck.allowed) {

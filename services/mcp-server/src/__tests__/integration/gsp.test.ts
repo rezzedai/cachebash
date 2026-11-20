@@ -52,6 +52,7 @@ beforeEach(async () => {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
     programId: "vector" as any,
+    keyProgramId: "vector" as any,
     encryptionKey: testUser.encryptionKey,
     capabilities: ["*", "fleet.observe"],
     rateLimitTier: "internal",

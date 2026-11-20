@@ -3,7 +3,7 @@
  *
  * Covers:
  *  - AuthContext.seatId is populated ONLY from the validated keyIndex doc,
- *    never from a request header/programIdOverride.
+ *    never from a request header.
  *  - incrementSeatUsage isolates counters per seat (seat A calls never bump seat B).
  *  - No seat counter write when seatId is absent.
  *  - Revoking one seat's key leaves peer seats' keys and counters unaffected.
@@ -42,17 +42,8 @@ function keyDocFor(overrides: Record<string, any>) {
 }
 
 describe("WS-2: AuthContext.seatId population", () => {
-  let originalAuthMode: string | undefined;
-
   beforeEach(() => {
-    originalAuthMode = process.env.AUTH_MODE;
-    process.env.AUTH_MODE = "key_identity";
     jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    if (originalAuthMode === undefined) delete process.env.AUTH_MODE;
-    else process.env.AUTH_MODE = originalAuthMode;
   });
 
   it("populates seatId from the key doc's seatId field", async () => {
@@ -85,24 +76,6 @@ describe("WS-2: AuthContext.seatId population", () => {
 
     const result = await validateApiKey(apiKey);
     expect(result?.seatId).toBeUndefined();
-  });
-
-  it("never derives seatId from a programIdOverride/header — only the key doc's own field", async () => {
-    const apiKey = "cb_seat_b_key";
-    const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
-    const keyDocRef = keyDocFor({ seatId: "seat-B", tier: "wingman" });
-
-    mockGetFirestore.mockReturnValue({
-      doc: jest.fn((path: string) => {
-        if (path === `keyIndex/${keyHash}`) return keyDocRef;
-        throw new Error(`Unexpected doc path: ${path}`);
-      }),
-    } as any);
-
-    // key_identity mode ignores the override entirely for programId/capabilities,
-    // and seatId must likewise come only from the doc — not from this header value.
-    const result = await validateApiKey(apiKey, "seat-injected-via-header");
-    expect(result?.seatId).toBe("seat-B");
   });
 
   it("revoking one seat's key leaves a peer seat's key unaffected", async () => {

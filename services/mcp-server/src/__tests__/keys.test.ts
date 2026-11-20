@@ -133,13 +133,13 @@ const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "existing-key-hash-abc",
   programId: "orchestrator",
+  keyProgramId: "orchestrator",
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*"],
   rateLimitTier: "internal",
 };
 
-// BUG-009: a key-admin caller (credential-bound principal, not an X-Program-Id
-// override) — the only kind that may see or revoke other programs' keys.
+// BUG-009: a key-admin caller (credential-bound principal) — the only kind that may see or revoke other programs' keys.
 const adminAuth: AuthContext = {
   ...mockAuth,
   programId: "vector" as any,
@@ -420,14 +420,13 @@ describe("Keys Module Unit Tests", () => {
       expect(mockKeyDocs["victim"].revokedAt).toBeUndefined();
     });
 
-    it("BUG-009: an X-Program-Id override does NOT authorize a foreign revoke", async () => {
+    it("BUG-009: a divergent auth.programId does NOT authorize a foreign revoke", async () => {
       mockKeyDocs["victim2"] = {
         userId: "test-user-123", programId: "vector", label: "Victim",
         active: true, createdAt: { toDate: () => new Date() },
       };
 
-      // Credential is radia; the header claims vector. BUG-006 lets programId and
-      // capabilities be forged — keyProgramId cannot be.
+      // Credential is radia; auth.programId reads vector. The principal is keyProgramId.
       const forged: AuthContext = {
         ...mockAuth,
         programId: "vector" as any,

@@ -169,11 +169,10 @@ would refuse it. `DEPLOY_DRY_RUN=1` prints the directory and command without dep
 
 > **Do NOT pass `--set-env-vars` to a code deploy.** It does not merge --- it
 > REPLACES the service's entire environment map with exactly what you list. The
-> serving revision currently carries four variables (`GITHUB_FEEDBACK_PAT`,
-> `GOOGLE_CLOUD_PROJECT`, `FIREBASE_PROJECT_ID`, `AUTH_MODE`), so the two-variable
+> serving revision carries `GITHUB_FEEDBACK_PAT`, `GOOGLE_CLOUD_PROJECT` and
+> `FIREBASE_PROJECT_ID` (plus any variable Terraform owns), so the two-variable
 > command this file used to prescribe would have silently dropped
-> `GITHUB_FEEDBACK_PAT` and `AUTH_MODE` --- changing how the fleet's own auth
-> service authenticates, with no error at deploy time.
+> `GITHUB_FEEDBACK_PAT`, with no error at deploy time.
 
 The scaling/IAM/env envelope (`--min-instances`, `--max-instances`, `--concurrency`,
 `--cpu`, `--memory`, `--timeout`, `--allow-unauthenticated`, and the env map) is owned

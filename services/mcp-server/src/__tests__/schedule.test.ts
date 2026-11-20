@@ -133,6 +133,7 @@ const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "test-key-hash",
   programId: "vector" as any,
+  keyProgramId: "vector" as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*"],
   rateLimitTier: "internal",

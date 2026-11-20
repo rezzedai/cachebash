@@ -95,11 +95,9 @@ export function disallowedMintCapabilities(
  * proven with. Gating on it would authorize the very caller it must stop. A
  * capability check here must be LITERAL, exactly as KEY_PROVISION_CAPABILITY is.
  *
- * WHY THE PRINCIPAL IS `keyProgramId`: `auth.programId` is overridable by the
- * X-Program-Id header (BUG-006), which also RECOMPUTES `auth.capabilities` from
- * the target role. Both are attacker-controlled. `keyProgramId` is bound to the
- * authenticating credential and is never overridable — the same field
- * verifySource already relies on for Identity Sovereignty inv.6.
+ * WHY THE PRINCIPAL IS `keyProgramId`: it is bound to the authenticating
+ * credential, the same field verifySource relies on for Identity Sovereignty
+ * inv.6. Identity comes only from the credential.
  */
 export const KEYS_ADMIN_CAPABILITY = "keys.admin";
 
@@ -114,11 +112,14 @@ export const KEYS_ADMIN_CAPABILITY = "keys.admin";
 export const KEY_ADMIN_PRINCIPALS: readonly string[] = ["vector", "sark"];
 
 /**
- * The identity of the AUTHENTICATING credential. Never `auth.programId` alone —
- * that is the X-Program-Id override surface (BUG-006).
+ * The identity of the AUTHENTICATING credential: `auth.keyProgramId`. Throws when
+ * it is empty, so a missing identity never reads as a principal.
  */
 export function credentialPrincipal(auth: AuthContext): string {
-  return (auth.keyProgramId ?? auth.programId) as string;
+  if (!auth.keyProgramId) {
+    throw new Error("AuthContext.keyProgramId is empty: the credential carries no program identity");
+  }
+  return auth.keyProgramId as string;
 }
 
 /**

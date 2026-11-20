@@ -197,6 +197,7 @@ describe("Wave 11: Task Lineage + State Transitions", () => {
         apiKeyHash: "hash",
         encryptionKey: Buffer.from("key"),
         programId: "basher" as any,
+        keyProgramId: "basher" as any,
         capabilities: ["dispatch.read"],
         rateLimitTier: "standard",
       };
@@ -243,6 +244,7 @@ describe("Wave 11: Task Lineage + State Transitions", () => {
         apiKeyHash: "hash",
         encryptionKey: Buffer.from("key"),
         programId: "basher" as any,
+        keyProgramId: "basher" as any,
         capabilities: ["dispatch.read"],
         rateLimitTier: "standard",
       };
@@ -286,6 +288,7 @@ describe("Wave 11: Task Lineage + State Transitions", () => {
         apiKeyHash: "hash",
         encryptionKey: Buffer.from("key"),
         programId: "basher" as any,
+        keyProgramId: "basher" as any,
         capabilities: ["dispatch.read"],
         rateLimitTier: "standard",
       };
@@ -320,6 +323,7 @@ describe("Wave 11: Task Lineage + State Transitions", () => {
         apiKeyHash: "hash",
         encryptionKey: Buffer.from("key"),
         programId: "basher" as any,
+        keyProgramId: "basher" as any,
         capabilities: ["dispatch.read"],
         rateLimitTier: "standard",
       };
@@ -388,6 +392,7 @@ describe("Wave 11: Task Lineage + State Transitions", () => {
         apiKeyHash: "hash",
         encryptionKey: Buffer.from("key"),
         programId: "basher" as any,
+        keyProgramId: "basher" as any,
         capabilities: ["dispatch.read"],
         rateLimitTier: "standard",
       };

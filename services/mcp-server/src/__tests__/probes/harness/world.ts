@@ -17,7 +17,6 @@ export interface World {
   baseUrl: string;
   serverPid: number;
   serverDir: string;
-  authMode: string;
   projectId: string;
   emulatorHost: string;
   tenants: { A: string; B: string };
