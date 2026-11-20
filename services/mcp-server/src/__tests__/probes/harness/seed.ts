@@ -83,6 +83,7 @@ export async function seedAll(): Promise<{
   tenants: { A: string; B: string };
   creds: Record<CredentialName, WorldCredential>;
   seeders: { A: WorldCredential; B: WorldCredential };
+  stateSeeders: { A: WorldCredential; B: WorldCredential };
 }> {
   const tenants = { A: `probe-a-${rid()}`, B: `probe-b-${rid()}` };
   await seedTenant(tenants.A);
@@ -99,5 +100,12 @@ export async function seedAll(): Promise<{
     const { key, keyHash } = await writeKey(tenantUid, "legacy", `probe-seeder-${t}`, ["*"]);
     seeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "legacy", capabilities: ["*"], key, keyHash };
   }
-  return { tenants, creds, seeders };
+  // PR-J: "legacy" is no longer a program-state principal, so state rows are seeded as `mobile` (STATE_ADMIN_PRINCIPALS, C-5 rule 1)
+  const stateSeeders = {} as { A: WorldCredential; B: WorldCredential };
+  for (const t of ["A", "B"] as const) {
+    const tenantUid = tenants[t];
+    const { key, keyHash } = await writeKey(tenantUid, "mobile", `probe-state-seeder-${t}`, ["*"]);
+    stateSeeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "mobile", capabilities: ["*"], key, keyHash };
+  }
+  return { tenants, creds, seeders, stateSeeders };
 }

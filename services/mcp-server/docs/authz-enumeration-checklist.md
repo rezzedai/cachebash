@@ -8,24 +8,24 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:163; gsp_write at modules/gsp.ts:435; gsp_diff at modules/gsp.ts:497; gsp_bootstrap at modules/gsp.ts:757; gsp_seed at modules/gsp.ts:1224; gsp_propose at modules/gsp.ts:1335, modules/gsp.ts:1373; gsp_subscribe at modules/gsp.ts:229, modules/gsp.ts:259; gsp_resolve at modules/gsp.ts:1613, modules/gsp.ts:1687; gsp_search at modules/gsp.ts:1814; state_update_program_state at modules/programState.ts:526.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:164; gsp_write at modules/gsp.ts:436; gsp_diff at modules/gsp.ts:498; gsp_bootstrap at modules/gsp.ts:758; gsp_seed at modules/gsp.ts:1225; gsp_propose at modules/gsp.ts:1336, modules/gsp.ts:1374; gsp_subscribe at modules/gsp.ts:230, modules/gsp.ts:260; gsp_resolve at modules/gsp.ts:1614, modules/gsp.ts:1688; gsp_search at modules/gsp.ts:1815; state_update_program_state at modules/programState.ts:576.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 63 AST baseline rows.
+114 site records, 111 handler entries, 52 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
-| SELF-ONLY | 1 |
-| FOREIGN-READ | 1 |
+| SELF-ONLY | 9 |
+| FOREIGN-READ | 2 |
 | FOREIGN-WRITE | 1 |
 | ADDRESSED | 5 |
 | ATTRIBUTION | 9 |
 | NOT-IDENTITY | 5 |
-| ESCALATE | 92 |
+| ESCALATE | 83 |
 | **Total** | **114** |
 
-Status: pending 113, done 1.
+Status: pending 104, done 10.
 
 ## Method
 
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 271 |
-| (a) lines | 255 |
+| (a) occurrences | 270 |
+| (a) lines | 254 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -73,7 +73,7 @@ Sites are keyed by handler and expression, not by line. `line_at_base` is the fi
 | NOT-IDENTITY | regex hit that is not a caller argument, with the reason |
 | ESCALATE | disposition not readable from the code; evidence and a recommendation given, ISO and VECTOR decide |
 
-## ESCALATE (92)
+## ESCALATE (83)
 
 Each record gives the evidence and a recommendation. The builder picks nothing; ISO reviews every record and VECTOR reviews ESCALATE, ADDRESSED and ATTRIBUTION.
 
@@ -244,78 +244,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Name lists: NL-REGISTRY-ADMIN.
 - Evidence: Six hardcoded names (legacy, mobile, orchestrator, iso, vector, dispatcher) may edit any program entry (role, groups, tags). auth.programId is the mutable field while the override path exists.
 - Recommendation: SELF-ONLY; FOREIGN-WRITE only on literal fleet.admin (D-d).
-
-### `programState.getProgramStateHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `getProgramStateHandler`, expression `args.programId`, line 230 at base, 11 occurrence(s).
-- Tool: state_get_program_state; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
-- Binding today: canRead: auth.programId in STATE_READERS or STATE_WRITERS, or self.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
-- Evidence: A foreign read returns the whole state document including contextSummary and learnedPatterns (programState.ts:250). The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: FOREIGN-READ on literal fleet.observe, document minus memory fields with memory.status "omitted".
-
-### `programState.storeMemoryHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `storeMemoryHandler`, expression `args.programId`, line 322 at base, 8 occurrence(s).
-- Tool: state_store_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
-- Binding today: canWrite: auth.programId in STATE_WRITERS (legacy, mobile) or self.
-- Name lists: NL-STATE-WRITERS.
-- Evidence: Writes a pattern into the subject's state document. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY, all writers.
-
-### `programState.recallMemoryHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `recallMemoryHandler`, expression `args.programId`, line 382 at base, 9 occurrence(s).
-- Tool: state_recall_memory; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
-- Binding today: canRead.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
-- Evidence: Reads the subject's learned patterns. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
-
-### `programState.memoryHealthHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `memoryHealthHandler`, expression `args.programId`, line 454 at base, 9 occurrence(s).
-- Tool: state_memory_health; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
-- Binding today: canRead.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
-- Evidence: Reads the subject's memory health. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
-
-### `programState.updateProgramStateHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `updateProgramStateHandler`, expression `args.programId`, line 517 at base, 12 occurrence(s).
-- Tool: state_update_program_state; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
-- Binding today: canWrite.
-- Name lists: NL-STATE-WRITERS.
-- Evidence: Writes state and history for the subject. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
-
-### `programState.deleteMemoryHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `deleteMemoryHandler`, expression `args.programId`, line 670 at base, 8 occurrence(s).
-- Tool: state_delete_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
-- Binding today: canWrite.
-- Name lists: NL-STATE-WRITERS.
-- Evidence: Deletes a pattern from the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
-
-### `programState.reinforceMemoryHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `reinforceMemoryHandler`, expression `args.programId`, line 727 at base, 8 occurrence(s).
-- Tool: state_reinforce_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
-- Binding today: canWrite.
-- Name lists: NL-STATE-WRITERS.
-- Evidence: Mutates a pattern in the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
-
-### `programState.getContextHistoryHandler:args.programId`
-
-- Where: `modules/programState.ts`, handler `getContextHistoryHandler`, expression `args.programId`, line 787 at base, 7 occurrence(s).
-- Tool: state_get_context_history; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
-- Binding today: canRead.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
-- Evidence: Reads the subject's context history. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
-- Recommendation: C-4: SELF-ONLY.
 
 ### `pulse.createSessionHandler:args.sessionId`
 
@@ -533,7 +461,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 786 at base, 1 occurrence(s).
 - Tool: state_get_program_state; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_get_program_state; the gate is in the handler.
 - Recommendation: Disposition follows the state_get_program_state record.
 
@@ -542,7 +469,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 791 at base, 1 occurrence(s).
 - Tool: state_update_program_state; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_update_program_state; the gate is in the handler.
 - Recommendation: Disposition follows the state_update_program_state record.
 
@@ -551,7 +477,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 796 at base, 1 occurrence(s).
 - Tool: state_get_context_history; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_get_context_history; the gate is in the handler.
 - Recommendation: Disposition follows the state_get_context_history record.
 
@@ -560,7 +485,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 803 at base, 1 occurrence(s).
 - Tool: state_store_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_store_memory; the gate is in the handler.
 - Recommendation: Disposition follows the state_store_memory record.
 
@@ -569,7 +493,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 808 at base, 1 occurrence(s).
 - Tool: state_recall_memory; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_recall_memory; the gate is in the handler.
 - Recommendation: Disposition follows the state_recall_memory record.
 
@@ -578,7 +501,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 812 at base, 1 occurrence(s).
 - Tool: state_delete_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_delete_memory; the gate is in the handler.
 - Recommendation: Disposition follows the state_delete_memory record.
 
@@ -587,7 +509,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 817 at base, 1 occurrence(s).
 - Tool: state_reinforce_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.
 - Recommendation: Disposition follows the state_reinforce_memory record.
 
@@ -596,7 +517,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 821 at base, 1 occurrence(s).
 - Tool: state_memory_health; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
-- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
 - Evidence: The path segment becomes args.programId for state_memory_health; the gate is in the handler.
 - Recommendation: Disposition follows the state_memory_health record.
 
@@ -844,14 +764,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Evidence: getResponseHandler returns the answer to any question id; no asker comparison.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
 
-### `gsp.gspSearchHandler:program_state-scan`
-
-- Where: `modules/gsp.ts`, handler `gspSearchHandler`, expression `db.collection('tenants/${userId}/sessions/_meta/program_state').get()`, line 1897 at base, 1 occurrence(s).
-- Tool: gsp_search; transports mcp, rest; effect read; decided by C-4; closes in PR-J.
-- Binding today: none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924).
-- Evidence: gsp.ts:1920-1924 reads all programs' learnedPatterns when scope is not "gsp". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.
-- Recommendation: Restrict the scan to the caller's own program_state document (C-4: memory self-only).
-
 ## ADDRESSED (5)
 
 Each label claims no gate is needed, so ISO reviews each one individually.
@@ -890,17 +802,26 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:274-280), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
 | callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
 
-## SELF-ONLY (1)
+## SELF-ONLY (9)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
+| programState.storeMemoryHandler:args.programId | state_store_memory | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_store_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.recallMemoryHandler:args.programId | state_recall_memory | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_recall_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.memoryHealthHandler:args.programId | state_memory_health | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_memory_health is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.updateProgramStateHandler:args.programId | state_update_program_state | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_update_program_state is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.deleteMemoryHandler:args.programId | state_delete_memory | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_delete_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.reinforceMemoryHandler:args.programId | state_reinforce_memory | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_reinforce_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
+| programState.getContextHistoryHandler:args.programId | state_get_context_history | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_get_context_history is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
 | relay.getSentMessagesHandler:args.target | relay_get_sent_messages | narrows a result already bound by source (relay.ts:626-627) | The filter intersects with source, which the args.source record owns. The target argument cannot widen the result. |
+| gsp.gspSearchHandler:program_state-scan | gsp_search | credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS ["mobile"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J). | PR-J: the memory scan no longer lists the whole program_state collection. A foreign program's learnedPatterns are never returned through gsp_search. |
 
-## FOREIGN-READ (1)
+## FOREIGN-READ (2)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
 | gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:647-660); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
+| programState.getProgramStateHandler:args.programId | state_get_program_state | authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self and mobile read the full document; a foreign read needs literal fleet.observe and gets the document minus learnedPatterns and contextSummary with memory.status "omitted" (PR-J). | PR-J: the name lists STATE_READERS and STATE_WRITERS are deleted. A foreign fleet.observe read returns no memory and never writes (decay write-back runs only for self and mobile). Self and mobile reads return memory.status "loaded" or "empty". |
 
 ## FOREIGN-WRITE (1)
 
@@ -960,7 +881,7 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 
 | Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| gsp.gspSearchHandler:program_state-scan | 1897 | ESCALATE | none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924) |
+| gsp.gspSearchHandler:program_state-scan | 1897 | SELF-ONLY | credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS ["mobile"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J). |
 
 The AST rules also found a tenant-uid comparison outside the tool registry: `oauth/serviceAccounts.ts:100` (revokeServiceAccount). It is a baseline row, not a site record.
 
@@ -999,15 +920,15 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.listProgramsHandler:p.programId | b | 1 | 374 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.updateProgramHandler:args.programId | a | 6 | 391 | ESCALATE | C-5 | PR-L | false |
-| programState.getProgramStateHandler:args.programId | a | 11 | 230 | ESCALATE | C-5 | PR-J | false |
-| programState.storeMemoryHandler:args.programId | a | 8 | 322 | ESCALATE | C-5 | PR-J | false |
-| programState.recallMemoryHandler:args.programId | a | 9 | 382 | ESCALATE | C-5 | PR-J | false |
-| programState.memoryHealthHandler:args.programId | a | 9 | 454 | ESCALATE | C-5 | PR-J | false |
-| programState.updateProgramStateHandler:args.programId | a | 12 | 517 | ESCALATE | C-5 | PR-J | false |
+| programState.getProgramStateHandler:args.programId | a | 10 | 230 | FOREIGN-READ | C-4 | PR-J | false |
+| programState.storeMemoryHandler:args.programId | a | 8 | 322 | SELF-ONLY | C-4 | PR-J | false |
+| programState.recallMemoryHandler:args.programId | a | 9 | 382 | SELF-ONLY | C-4 | PR-J | false |
+| programState.memoryHealthHandler:args.programId | a | 9 | 454 | SELF-ONLY | C-4 | PR-J | false |
+| programState.updateProgramStateHandler:args.programId | a | 12 | 517 | SELF-ONLY | C-4 | PR-J | false |
 | programState.updateProgramStateHandler:args.sessionId | a | 2 | 530 | ATTRIBUTION | ISO | n/a | false |
-| programState.deleteMemoryHandler:args.programId | a | 8 | 670 | ESCALATE | C-5 | PR-J | false |
-| programState.reinforceMemoryHandler:args.programId | a | 8 | 727 | ESCALATE | C-5 | PR-J | false |
-| programState.getContextHistoryHandler:args.programId | a | 7 | 787 | ESCALATE | C-5 | PR-J | false |
+| programState.deleteMemoryHandler:args.programId | a | 8 | 670 | SELF-ONLY | C-4 | PR-J | false |
+| programState.reinforceMemoryHandler:args.programId | a | 8 | 727 | SELF-ONLY | C-4 | PR-J | false |
+| programState.getContextHistoryHandler:args.programId | a | 7 | 787 | SELF-ONLY | C-4 | PR-J | false |
 | pulse.createSessionHandler:args.sessionId | a | 1 | 86 | ESCALATE | ISO | PR-L | false |
 | pulse.createSessionHandler:args.programId | a | 1 | 115 | ESCALATE | C-5 | PR-L | false |
 | pulse.updateSessionHandler:args.sessionId | a | 1 | 176 | ESCALATE | C-5 | PR-L | false |
@@ -1081,7 +1002,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | sprint.completeSprintHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | sprint.getSprintHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | signal.getResponseHandler:args.questionId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
-| gsp.gspSearchHandler:program_state-scan | none | 1 | 1897 | ESCALATE | C-4 | PR-J | false |
+| gsp.gspSearchHandler:program_state-scan | none | 1 | 1897 | SELF-ONLY | C-4 | PR-J | false |
 
 ## Handler entries (R6)
 
@@ -1149,14 +1070,14 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | policy_get | getPolicy | mcp | read | 1 | 0 | false |
 | policy_list | listPolicies | mcp | read | 1 | 0 | false |
 | policy_check | policyCheck | mcp | read | 1 | 0 | false |
-| state_get_program_state | getProgramStateHandler | mcp rest | read | 2 | 2 | false |
-| state_update_program_state | updateProgramStateHandler | mcp rest | write | 3 | 1 | false |
-| state_get_context_history | getContextHistoryHandler | mcp rest | read | 2 | 2 | false |
-| state_store_memory | storeMemoryHandler | mcp rest | write | 2 | 1 | false |
-| state_recall_memory | recallMemoryHandler | mcp rest | read | 2 | 2 | false |
-| state_memory_health | memoryHealthHandler | mcp rest | read | 2 | 2 | false |
-| state_delete_memory | deleteMemoryHandler | mcp rest | write | 2 | 1 | false |
-| state_reinforce_memory | reinforceMemoryHandler | mcp rest | write | 2 | 1 | false |
+| state_get_program_state | getProgramStateHandler | mcp rest | read | 2 | 0 | false |
+| state_update_program_state | updateProgramStateHandler | mcp rest | write | 3 | 0 | false |
+| state_get_context_history | getContextHistoryHandler | mcp rest | read | 2 | 0 | false |
+| state_store_memory | storeMemoryHandler | mcp rest | write | 2 | 0 | false |
+| state_recall_memory | recallMemoryHandler | mcp rest | read | 2 | 0 | false |
+| state_memory_health | memoryHealthHandler | mcp rest | read | 2 | 0 | false |
+| state_delete_memory | deleteMemoryHandler | mcp rest | write | 2 | 0 | false |
+| state_reinforce_memory | reinforceMemoryHandler | mcp rest | write | 2 | 0 | false |
 | programs_list_programs | listProgramsHandler | mcp | read | 1 | 0 | false |
 | programs_update_program | updateProgramHandler | mcp | write | 1 | 1 | false |
 | pulse_create_session | createSessionHandler | mcp rest | write | 2 | 1 | false |
@@ -1232,16 +1153,16 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 
 | Tool | Tenant segment built at | Note |
 |---|---|---|
-| gsp_read | modules/gsp.ts:163 | ruled by ISO, upheld by VECTOR |
-| gsp_write | modules/gsp.ts:435 | ruled by ISO, upheld by VECTOR |
-| gsp_diff | modules/gsp.ts:497 | ruled by ISO, upheld by VECTOR |
-| gsp_bootstrap | modules/gsp.ts:757 | ruled by ISO, upheld by VECTOR |
-| gsp_seed | modules/gsp.ts:1224 | ruled by ISO, upheld by VECTOR |
-| gsp_propose | modules/gsp.ts:1335; modules/gsp.ts:1373 | ruled by ISO, upheld by VECTOR |
-| gsp_subscribe | modules/gsp.ts:229; modules/gsp.ts:259 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
-| gsp_resolve | modules/gsp.ts:1613; modules/gsp.ts:1687 | ruled by ISO, upheld by VECTOR |
-| gsp_search | modules/gsp.ts:1814 | ruled by ISO, upheld by VECTOR |
-| state_update_program_state | modules/programState.ts:526 | ruled by ISO, upheld by VECTOR |
+| gsp_read | modules/gsp.ts:164 | ruled by ISO, upheld by VECTOR |
+| gsp_write | modules/gsp.ts:436 | ruled by ISO, upheld by VECTOR |
+| gsp_diff | modules/gsp.ts:498 | ruled by ISO, upheld by VECTOR |
+| gsp_bootstrap | modules/gsp.ts:758 | ruled by ISO, upheld by VECTOR |
+| gsp_seed | modules/gsp.ts:1225 | ruled by ISO, upheld by VECTOR |
+| gsp_propose | modules/gsp.ts:1336; modules/gsp.ts:1374 | ruled by ISO, upheld by VECTOR |
+| gsp_subscribe | modules/gsp.ts:230; modules/gsp.ts:260 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
+| gsp_resolve | modules/gsp.ts:1614; modules/gsp.ts:1688 | ruled by ISO, upheld by VECTOR |
+| gsp_search | modules/gsp.ts:1815 | ruled by ISO, upheld by VECTOR |
+| state_update_program_state | modules/programState.ts:576 | ruled by ISO, upheld by VECTOR |
 
 The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).
 
@@ -1255,8 +1176,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
 |---|---|---|
-| NL-STATE-READERS `config/access-tiers.ts:9` [orchestrator, vector, iso, auditor, dispatcher] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history | members seen: vector 18, iso 76; non-members: basher 178, vector_datatrue 4, tensor 2 |
-| NL-STATE-WRITERS `config/access-tiers.ts:12` [legacy, mobile] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history, state_store_memory, state_update_program_state, state_delete_memory, state_reinforce_memory | members seen: none; non-members: iso 930, basher 312, vector 306, vector_datatrue 78, tensor 2 |
 | NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
 | NL-ADMIN-PROGRAMS `middleware/gate.ts:131` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
 | NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:163` [legacy, mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
@@ -1270,18 +1189,16 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | members seen: none |
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
-| NL-GSP-SEED-AUTH `modules/gsp.ts:1212` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
+| NL-GSP-SEED-AUTH `modules/gsp.ts:1213` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
 | NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
-| NL-GSP-REVIEWERS `modules/gsp.ts:615` [iso, vector] (routing) | gsp_propose | members seen: none |
+| NL-GSP-REVIEWERS `modules/gsp.ts:616` [iso, vector] (routing) | gsp_propose | members seen: none |
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | not measured (no tool_call rows exist for this path) |
 
 ### Name list notes
 
-- NL-STATE-READERS: canRead; a member reads any program's state.
-- NL-STATE-WRITERS: canRead and canWrite; a member reads and writes any program's state.
 - NL-ADMIN-READERS: requireAdmin also passes any key holding "*".
 - NL-ADMIN-PROGRAMS: isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).
 - NL-VERIFYSOURCE-ADMIN: These credentials may claim any source.
@@ -1307,9 +1224,9 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 57 | 220 |
+| S1 | 47 | 198 |
 | S2 | 1 | 1 |
-| S3 | 5 | 5 |
+| S3 | 4 | 4 |
 
 The test fails on a violation with no row and on a row that no longer matches. The baseline only shrinks.
 
@@ -1344,16 +1261,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1636 |
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 92 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 399 |
-| S1 | modules/programState.ts | canRead | `auth.programId` | 3 | 119 |
-| S1 | modules/programState.ts | canWrite | `auth.programId` | 2 | 130 |
-| S1 | modules/programState.ts | getProgramStateHandler | `auth.programId` | 4 | 235 |
-| S1 | modules/programState.ts | storeMemoryHandler | `auth.programId` | 2 | 327 |
-| S1 | modules/programState.ts | recallMemoryHandler | `auth.programId` | 1 | 387 |
-| S1 | modules/programState.ts | memoryHealthHandler | `auth.programId` | 1 | 459 |
-| S1 | modules/programState.ts | updateProgramStateHandler | `auth.programId` | 4 | 522 |
-| S1 | modules/programState.ts | deleteMemoryHandler | `auth.programId` | 2 | 675 |
-| S1 | modules/programState.ts | reinforceMemoryHandler | `auth.programId` | 2 | 732 |
-| S1 | modules/programState.ts | getContextHistoryHandler | `auth.programId` | 1 | 792 |
 | S1 | modules/pulse.ts | updateSessionHandler | `auth.programId` | 4 | 209 |
 | S1 | modules/pulse.ts | pauseProgramHandler | `auth.programId` | 3 | 909 |
 | S1 | modules/pulse.ts | resumeProgramHandler | `auth.programId` | 3 | 972 |
@@ -1374,7 +1281,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 950 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 400 |
-| S3 | modules/programState.ts | getProgramStateHandler | `args.programId` | 1 | 239 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 757 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 763 |
 | S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 186 |

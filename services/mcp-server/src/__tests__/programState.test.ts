@@ -117,11 +117,6 @@ jest.mock("../modules/events", () => ({
   }),
 }));
 
-jest.mock("../config/access-tiers", () => ({
-  STATE_READERS: ["orchestrator", "vector", "iso", "auditor", "dispatcher"],
-  STATE_WRITERS: ["legacy", "mobile"],
-}));
-
 const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "test-key-hash",
@@ -522,7 +517,7 @@ describe("Program State — H3 Unit Tests", () => {
     });
 
     it("denies cross-program read for unauthorized programs", async () => {
-      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId };
+      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId, keyProgramId: "sark" as ValidProgramId };
 
       const result = await getProgramStateHandler(unauthorizedAuth, { programId: "basher" });
       const data = JSON.parse(result.content[0].text);
@@ -531,8 +526,8 @@ describe("Program State — H3 Unit Tests", () => {
       expect(data.error).toContain("Access denied");
     });
 
-    it("allows cross-program read for STATE_READERS", async () => {
-      const vectorAuth = { ...mockAuth, programId: "vector" as ValidProgramId };
+    it("allows cross-program read with literal fleet.observe (memory omitted)", async () => {
+      const vectorAuth = { ...mockAuth, programId: "vector" as ValidProgramId, keyProgramId: "vector" as ValidProgramId, capabilities: ["fleet.observe"] };
 
       const stateDoc = {
         programId: "basher",
@@ -805,7 +800,7 @@ describe("Program State — H3 Unit Tests", () => {
     });
 
     it("denies write for unauthorized program", async () => {
-      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId };
+      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId, keyProgramId: "sark" as ValidProgramId };
 
       const result = await updateProgramStateHandler(unauthorizedAuth, { programId: "basher" });
       const data = JSON.parse(result.content[0].text);
@@ -814,8 +809,8 @@ describe("Program State — H3 Unit Tests", () => {
       expect(data.error).toContain("Access denied");
     });
 
-    it("allows admin (legacy) to write any program", async () => {
-      const legacyAuth = { ...mockAuth, programId: "legacy" as ValidProgramId };
+    it("denies the legacy principal (no longer a state admin)", async () => {
+      const legacyAuth = { ...mockAuth, programId: "legacy" as ValidProgramId, keyProgramId: "legacy" as ValidProgramId };
 
       const result = await updateProgramStateHandler(legacyAuth, {
         programId: "basher",
@@ -826,7 +821,8 @@ describe("Program State — H3 Unit Tests", () => {
 
       const data = JSON.parse(result.content[0].text);
 
-      expect(data.success).toBe(true);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('"legacy"');
     });
   });
 
@@ -1003,7 +999,7 @@ describe("Program State — H3 Unit Tests", () => {
     });
 
     it("denies write for unauthorized program", async () => {
-      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId };
+      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId, keyProgramId: "sark" as ValidProgramId };
 
       const result = await storeMemoryHandler(unauthorizedAuth, {
         programId: "basher",
@@ -2222,13 +2218,99 @@ describe("Program State — H3 Unit Tests", () => {
     });
 
     it("denies unauthorized access", async () => {
-      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId };
+      const unauthorizedAuth = { ...mockAuth, programId: "sark" as ValidProgramId, keyProgramId: "sark" as ValidProgramId };
 
       const result = await getContextHistoryHandler(unauthorizedAuth, { programId: "basher" });
       const data = JSON.parse(result.content[0].text);
 
       expect(data.success).toBe(false);
       expect(data.error).toContain("Access denied");
+    });
+  });
+  describe("RD-5 PR-J principal-bound access", () => {
+    const PATH = "tenants/test-user-123/sessions/_meta/program_state/basher";
+    const old = new Date(Date.now() - 90 * 86400000).toISOString();
+    const seed = () =>
+      mockStateDocs.set(PATH, {
+        programId: "basher", version: 1, lastUpdatedBy: "basher", lastUpdatedAt: new Date().toISOString(), sessionId: "s",
+        contextSummary: { lastTask: null, activeWorkItems: [], handoffNotes: "SECRET-NOTES", openQuestions: [] },
+        learnedPatterns: [{ id: "p1", domain: "d", pattern: "SECRET-PATTERN", confidence: 0.5, evidence: "e", discoveredAt: old, lastReinforced: old, promotedToStore: false, stale: false }],
+        config: { preferredOutputFormat: null, toolPreferences: {}, knownQuirks: [], customSettings: {} },
+        baselines: { avgTaskDurationMinutes: null, commonFailureModes: [], sessionsCompleted: 0, lastSessionDurationMinutes: null },
+        decay: { contextSummaryTTLDays: 7, learnedPatternMaxAge: 30, maxUnpromotedPatterns: 50, lastDecayRun: old, decayLog: [] },
+      });
+    const as = (principal: string, capabilities: string[]) =>
+      ({ ...mockAuth, programId: principal, keyProgramId: principal, capabilities }) as unknown as AuthContext;
+    const call = async (h: any, a: AuthContext, args: any) => JSON.parse((await h(a, args)).content[0].text);
+
+    it("foreign fleet.observe read omits memory, reports status omitted, never writes", async () => {
+      seed();
+      mockEmitEventCalls.length = 0;
+            const d = await call(getProgramStateHandler, as("vector", ["fleet.observe"]), { programId: "basher" });
+      expect(d.success).toBe(true);
+      expect(d.state.learnedPatterns).toBeUndefined();
+      expect(d.state.contextSummary).toBeUndefined();
+      expect(d.memory.status).toBe("omitted");
+      expect(d.memory.omittedReason).toContain('"vector"');
+      expect(d.memory.omittedReason).toContain("fleet.observe");
+      expect(JSON.stringify(d)).not.toContain("SECRET");
+      expect(mockEmitEventCalls.some((c: any) => c.event.event_type === "STATE_DECAY")).toBe(false);
+    });
+
+    it("foreign read of a missing doc returns defaults with the same omission", async () => {
+      mockStateDocs.clear();
+      const d = await call(getProgramStateHandler, as("vector", ["fleet.observe"]), { programId: "basher" });
+      expect(d.exists).toBe(false);
+      expect(d.state.learnedPatterns).toBeUndefined();
+      expect(d.memory.status).toBe("omitted");
+    });
+
+    it("wildcard without fleet.observe is denied and the denial names the principal", async () => {
+      seed();
+      const d = await call(getProgramStateHandler, as("vector", ["*"]), { programId: "basher" });
+      expect(d.success).toBe(false);
+      expect(d.error).toBe('Access denied: "vector" cannot read state for "basher"');
+    });
+
+    it("self read applies decay and reports memory loaded; missing doc reports empty", async () => {
+      seed();
+      const d = await call(getProgramStateHandler, as("basher", []), { programId: "basher" });
+      expect(d.memory.status).toBe("loaded");
+      expect(d.state.learnedPatterns[0].stale).toBe(true);
+      expect(mockStateDocs.get(PATH).learnedPatterns[0].stale).toBe(true);
+      mockStateDocs.clear();
+      const e = await call(getProgramStateHandler, as("basher", []), { programId: "basher" });
+      expect(e.memory.status).toBe("empty");
+    });
+
+    it("mobile keeps full read (with decay write-back) and write on any program", async () => {
+      seed();
+      const m = as("mobile", []);
+      const d = await call(getProgramStateHandler, m, { programId: "basher" });
+      expect(d.memory.status).toBe("loaded");
+      expect(JSON.stringify(d.state)).toContain("SECRET-NOTES");
+      const w = await call(updateProgramStateHandler, m, { programId: "basher", contextSummary: { handoffNotes: "x" } });
+      expect(w.success).toBe(true);
+      expect(mockStateDocs.get(PATH).lastUpdatedBy).toBe("basher"); // mobile writes on behalf of the target
+    });
+
+    it("lastUpdatedBy is the credential principal for everyone but mobile (no legacy branch)", async () => {
+      mockStateDocs.clear();
+      await call(updateProgramStateHandler, as("basher", []), { programId: "basher", contextSummary: { handoffNotes: "x" } });
+      expect(mockStateDocs.get(PATH).lastUpdatedBy).toBe("basher");
+    });
+
+    it("memory tools and writers deny a foreign fleet.observe holder", async () => {
+      seed();
+      const obs = as("vector", ["fleet.observe", "*"]);
+      for (const [h, verb] of [
+        [recallMemoryHandler, "read memory"], [memoryHealthHandler, "read memory health"], [getContextHistoryHandler, "read context history"],
+        [updateProgramStateHandler, "write state"], [storeMemoryHandler, "write memory"], [deleteMemoryHandler, "write memory"], [reinforceMemoryHandler, "write memory"],
+      ] as const) {
+        const d = await call(h, obs, { programId: "basher", patternId: "p1", pattern: { id: "p9", domain: "d", pattern: "p", confidence: 0.5, evidence: "e", discoveredAt: old, lastReinforced: old } });
+        expect(d.success).toBe(false);
+        expect(d.error).toBe(`Access denied: "vector" cannot ${verb} for "basher"`);
+      }
     });
   });
 });

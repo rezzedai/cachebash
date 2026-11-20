@@ -1,12 +1,22 @@
-# mutation for probe T2.state_get_program_state: the canRead check in this handler no longer runs, so another program's state is readable
+# mutation for probe T2.state_get_program_state: the access check in this handler no longer runs and the foreign document is served whole, so another program's state is readable
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
-index 68cbd9a..32ee08b 100644
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -232,5 +232,5 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
+@@ -258,7 +258,7 @@
+   // Bound to credentialPrincipal(auth). A foreign read needs the literal fleet.observe
+   // capability and gets the document without memory (RD-5 C-4, PDR 4.3).
+   const authz = authorizeStateRead(auth, args.programId, true);
+-  if (!authz.allowed) {
++  if (false) {
+     return jsonResult({ success: false, error: `Access denied: "${authz.principal}" cannot read state for "${args.programId}"` });
    }
  
--  if (!canRead(auth, args.programId)) {
-+  if (false) {
-     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read state for "${args.programId}"` });
+@@ -273,7 +273,7 @@
+     });
    }
+ 
+-  const omitted = !authz.full;
++  const omitted = false;
+   const omittedMemory = {
+     status: "omitted",
+     omitted: true,

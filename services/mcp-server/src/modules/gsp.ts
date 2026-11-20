@@ -17,6 +17,7 @@ import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { verifySource } from "../middleware/gate.js";
 import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { isStateAdminPrincipal } from "./programState.js";
 import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
 import { OWNER_PROGRAM_ID } from "../config/owner.js";
@@ -1916,11 +1917,17 @@ export async function gspSearchHandler(
     // ── Memory search (when scope includes memory) ────────────────────────
     if (args.scope !== "gsp") {
       try {
-        // Query all program states for learned patterns
-        const programsSnap = await db.collection(`tenants/${userId}/sessions/_meta/program_state`).get();
+        // Learned patterns are private memory (RD-5 C-4, PDR 4.3): the caller's own
+        // doc only, matched on credentialPrincipal. STATE_ADMIN_PRINCIPALS ("mobile",
+        // C-5 rule 1) keeps every doc. fleet.observe never widens this.
+        const memPrincipal = credentialPrincipal(auth);
+        const memCollection = db.collection(`tenants/${userId}/sessions/_meta/program_state`);
+        const memDocs = isStateAdminPrincipal(memPrincipal)
+          ? (await memCollection.get()).docs
+          : [await memCollection.doc(memPrincipal).get()].filter((d) => d.exists);
 
-        for (const progDoc of programsSnap.docs) {
-          const progData = progDoc.data();
+        for (const progDoc of memDocs) {
+          const progData = progDoc.data() ?? {};
           const patterns: any[] = Array.isArray(progData.learnedPatterns) ? progData.learnedPatterns : [];
 
           for (const p of patterns) {

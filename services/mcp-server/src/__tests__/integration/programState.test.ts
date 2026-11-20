@@ -25,8 +25,6 @@ let auth: AuthContext;
 
 // Mock access-tiers for integration tests
 jest.mock("../../config/access-tiers", () => ({
-  STATE_READERS: ["orchestrator", "vector", "iso", "auditor", "dispatcher"],
-  STATE_WRITERS: ["legacy", "mobile"],
   ADMIN_READERS: ["admin", "legacy", "mobile", "orchestrator", "vector", "iso"],
 }));
 

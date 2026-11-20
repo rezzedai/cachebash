@@ -1,0 +1,13 @@
+# mutation for probe J.foreign_state_omits_memory: a foreign fleet.observe read is served the whole document, memory included
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -273,7 +273,7 @@
+     });
+   }
+ 
+-  const omitted = !authz.full;
++  const omitted = false;
+   const omittedMemory = {
+     status: "omitted",
+     omitted: true,
