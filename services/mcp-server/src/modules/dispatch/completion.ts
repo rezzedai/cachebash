@@ -18,6 +18,7 @@ import { CONSTANTS } from "../../config/constants.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
 // R1.2/R1.3 (dispatch-defects-1-and-2): "PARTIAL" is a completed_status value
 // distinct from SUCCESS/CANCELLED — meaningful work shipped but the task's
 // full scope did not. successorTaskId is required whenever completed_status
@@ -535,7 +536,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       // Authorization (K-D1): the owner, or the iso and dispatcher keys.
       const principal = credentialPrincipal(auth);
       if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
-        console.warn(`[complete_task] AUTHZ_DENY credentialPrincipal=${principal} taskId=${args.taskId} claimedBy=${data.claimedBy}`);
+        logDenial({ principal: denialPrincipal(auth), tool: "dispatch_complete_task", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
         throw new Error(`Unauthorized: only the claiming owner, ISO, or admin can complete this task (caller "${principal}").`);
       }
 
@@ -865,7 +866,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         // Authorization (K-D1): mirrors completeTaskHandler.
         const principal = credentialPrincipal(auth);
         if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
-          console.warn(`[batch_complete_tasks] AUTHZ_DENY credentialPrincipal=${principal} taskId=${taskId} claimedBy=${data.claimedBy}`);
+          logDenial({ principal: denialPrincipal(auth), tool: "dispatch_batch_complete_tasks", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
           throw new Error(`Unauthorized: only the claiming owner, ISO, or admin can complete this task (caller "${principal}").`);
         }
 
@@ -1023,6 +1024,7 @@ export async function recordTaskTelemetryHandler(auth: AuthContext, rawArgs: unk
 
       const { isAdmin } = await import("../../middleware/gate.js");
       if (!isAdmin(auth) && data.claimedBy !== auth.programId) {
+        logDenial({ principal: denialPrincipal(auth), tool: "dispatch_record_task_telemetry", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
         return { success: false as const, error: "Only the completing program or admin can record telemetry" };
       }
 

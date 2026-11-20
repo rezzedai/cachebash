@@ -2,12 +2,12 @@
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -431,7 +431,7 @@
+@@ -435,7 +435,7 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown):
    }
  
    const rAuthz = authorizeStateRead(auth, args.programId, false);
 -  if (!rAuthz.allowed) {
 +  if (false) {
+     logDenial({ principal: denialPrincipal(auth), tool: "state_recall_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
      return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory for "${args.programId}"` });
    }
- 

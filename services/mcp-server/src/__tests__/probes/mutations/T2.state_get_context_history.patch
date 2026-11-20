@@ -2,12 +2,12 @@
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -841,7 +841,7 @@
+@@ -850,7 +850,7 @@ export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unkno
    }
  
    const rAuthz = authorizeStateRead(auth, args.programId, false);
 -  if (!rAuthz.allowed) {
 +  if (false) {
+     logDenial({ principal: denialPrincipal(auth), tool: "state_get_context_history", subject: args.programId, code: "FOREIGN_SUBJECT" });
      return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read context history for "${args.programId}"` });
    }
- 

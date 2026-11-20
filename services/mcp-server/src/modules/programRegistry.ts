@@ -4,6 +4,7 @@ import { REGISTERED_PROGRAMS, SPECIAL_PROGRAMS, PROGRAM_GROUPS, PROGRAM_REGISTRY
 import type { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 // === ProgramDoc Interface ===
 export interface ProgramDoc {
   programId: string;
@@ -399,6 +400,7 @@ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown):
   const isAdmin = ["legacy", "mobile", "orchestrator", "iso", "vector", "dispatcher"].includes(auth.programId);
   const isSelf = auth.programId === args.programId;
   if (!isAdmin && !isSelf) {
+    logDenial({ principal: denialPrincipal(auth), tool: "programs_update_program", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: "Access denied: can only update your own program entry" });
   }
 

@@ -13,6 +13,7 @@ import { emitEvent } from "../modules/events.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 export interface AuditEntry {
   timestamp: string;
   correlationId: string;
@@ -174,6 +175,7 @@ export function verifySource(
       `[SECURITY] BUG-005 identity mismatch: credential="${principal}" ` +
       `claimed_source="${claimedSource}" endpoint="${endpoint}". Rejecting.`
     );
+    logDenial({ principal: denialPrincipal(auth), tool: "verifySource", subject: claimedSource, code: "SOURCE_MISMATCH" });
     throw new Error(
       `Source mismatch: key belongs to "${principal}", claimed "${claimedSource}". ` +
       `Each program must use its own API key.`

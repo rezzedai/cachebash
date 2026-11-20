@@ -22,6 +22,7 @@ import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
 import { OWNER_PROGRAM_ID } from "../config/owner.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 // ── Schema version for all GSP entries ──────────────────────────────────────
 const GSP_SCHEMA_VERSION = 1;
 
@@ -668,6 +669,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
   const authz = authorizeGspBootstrapRead(auth, args.agentId);
   if (!authz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "gsp_bootstrap", subject: args.agentId, code: "FOREIGN_SUBJECT" });
     return jsonResult({
       success: false,
       error: "FORBIDDEN",
@@ -1214,6 +1216,7 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   const hasWildcard = auth.capabilities.includes("*");
 
   if (!authorizedPrograms.includes(auth.programId) && !hasWildcard) {
+    logDenial({ principal: denialPrincipal(auth), tool: "gsp_seed", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",
@@ -1645,6 +1648,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         version: proposal.version + 1,
       });
 
+      logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
       return jsonResult({
         success: false,
         error: "PROPOSAL_EXPIRED",
@@ -1668,6 +1672,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
     } else {
       // approved or rejected - only reviewers can resolve
       if (!proposal.reviewers.includes(auth.programId)) {
+        logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: null, code: "NOT_GRANTED" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",

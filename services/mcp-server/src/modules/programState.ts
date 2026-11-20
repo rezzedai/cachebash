@@ -11,6 +11,7 @@ import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAut
 import { z } from "zod";
 import type { ProgramState } from "../types/programState.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 const GetProgramStateSchema = z.object({
   programId: z.string().max(100),
 });
@@ -266,6 +267,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   // capability and gets the document without memory (RD-5 C-4, PDR 4.3).
   const authz = authorizeStateRead(auth, args.programId, true);
   if (!authz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_get_program_state", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${authz.principal}" cannot read state for "${args.programId}"` });
   }
 
@@ -372,6 +374,7 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
 
   const wAuthz = authorizeStateWrite(auth, args.programId);
   if (!wAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_store_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
@@ -433,6 +436,7 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): 
 
   const rAuthz = authorizeStateRead(auth, args.programId, false);
   if (!rAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_recall_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory for "${args.programId}"` });
   }
 
@@ -506,6 +510,7 @@ export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown): 
 
   const rAuthz = authorizeStateRead(auth, args.programId, false);
   if (!rAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_memory_health", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory health for "${args.programId}"` });
   }
 
@@ -570,6 +575,7 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
 
   const wAuthz = authorizeStateWrite(auth, args.programId);
   if (!wAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_update_program_state", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write state for "${args.programId}"` });
   }
 
@@ -724,6 +730,7 @@ export async function deleteMemoryHandler(auth: AuthContext, rawArgs: unknown): 
 
   const wAuthz = authorizeStateWrite(auth, args.programId);
   if (!wAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_delete_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
@@ -782,6 +789,7 @@ export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown
 
   const wAuthz = authorizeStateWrite(auth, args.programId);
   if (!wAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_reinforce_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
@@ -843,6 +851,7 @@ export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unkno
 
   const rAuthz = authorizeStateRead(auth, args.programId, false);
   if (!rAuthz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "state_get_context_history", subject: args.programId, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read context history for "${args.programId}"` });
   }
 

@@ -11,6 +11,7 @@ import { isAdmin } from "../middleware/gate.js";
 import { z } from "zod";
 import { Timestamp, Query } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
@@ -91,6 +92,7 @@ const QueryTraceSchema = z.object({
 export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
   if (!isAdmin(auth)) {
+    logDenial({ principal: denialPrincipal(auth), tool: "trace_query_trace", subject: null, code: "NOT_GRANTED" });
     return jsonResult({ success: false, error: "query_trace is only accessible by admin." });
   }
 
@@ -196,6 +198,7 @@ const QueryTracesSchema = z.object({
 export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Admin only gate
   if (!isAdmin(auth)) {
+    logDenial({ principal: denialPrincipal(auth), tool: "trace_query_traces", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "query_traces is only accessible by admin.",

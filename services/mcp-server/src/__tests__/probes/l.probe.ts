@@ -2,7 +2,9 @@ import { world } from "./harness/load";
 import { callTool } from "./harness/client";
 import { probe } from "./harness/registry";
 import { writeKey } from "./harness/seed";
-import { nextN } from "./harness/cases";
+import { CASES, nextN, Ctx } from "./harness/cases";
+import { knownOpen } from "./harness/registry";
+import * as fs from "fs";
 import { marker } from "./harness/data";
 import type { World, WorldCredential } from "./harness/world";
 
@@ -25,6 +27,14 @@ async function freshSession(w: World, program: string): Promise<string> {
   if (r.json?.success !== true) throw new Error(`session setup failed: ${r.text.slice(0, 300)}`);
   return sessionId;
 }
+
+/** The `authz_denial` lines the server wrote after byte offset `from`. */
+const denialLines = (w: World, from: number): any[] =>
+  fs.readFileSync(w.serverLog).subarray(from).toString("utf8").split("\n")
+    .filter((l) => l.includes('"event":"authz_denial"'))
+    .map((l) => { try { return JSON.parse(l.slice(l.indexOf("{"))); } catch { return null; } })
+    .filter(Boolean);
+const logSize = (w: World): number => fs.statSync(w.serverLog).size;
 
 describe("L fleet paths", () => {
   // grid dispatcher/src/spawner.ts:670 create_session `<prog>-g<n>`
@@ -108,5 +118,34 @@ describe("L fleet paths", () => {
     const sessionId = await freshSession(w, "beta");
     const r = await callTool(w, alpha, "pulse_update_session", { sessionId, status: "l-ctl", lastHeartbeat: true });
     expect(r.json?.success).toBe(false);
+  });
+
+  // D (VECTOR peOCDVcF): every refusal writes one authz_denial line, so the server log can count them.
+  probe("L.denials_are_logged", async () => {
+    const w = world();
+    const open = knownOpen();
+    const bad: string[] = [];
+    let checked = 0;
+    for (const k of CASES) {
+      if (`T2.${k.id}` in open) continue;
+      const c: Ctx = { w, subject: "beta", n: nextN() };
+      await k.prepare?.(c);
+      const from = logSize(w);
+      await callTool(w, w.creds[k.cred ?? "scoped"], k.tool, k.args(c));
+      checked++;
+      const lines = denialLines(w, from);
+      const mine = lines.filter((d) => d.principal === "alpha" && d.tool === k.tool && d.subject === "beta" && typeof d.code === "string");
+      if (mine.length < 1) bad.push(`${k.id}: ${lines.length} authz_denial lines, none naming alpha, ${k.tool}, beta`);
+    }
+    expect(checked).toBeGreaterThan(5);
+    expect(bad).toEqual([]);
+  });
+
+  test("L.denials_are_logged control: an own-subject call writes no denial line", async () => {
+    const w = world();
+    const from = logSize(w);
+    const r = await callTool(w, w.creds.scoped, "state_get_program_state", { programId: "alpha" });
+    expect(r.json?.success).not.toBe(false);
+    expect(denialLines(w, from)).toEqual([]);
   });
 });

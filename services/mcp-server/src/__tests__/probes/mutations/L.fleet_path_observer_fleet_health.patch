@@ -2,12 +2,12 @@
 diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
 --- a/src/modules/pulse.ts
 +++ b/src/modules/pulse.ts
-@@ -437,7 +437,7 @@ const GetFleetHealthSchema = z.object({
+@@ -438,7 +438,7 @@ const GetFleetHealthSchema = z.object({
  
  export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
    // Capability gate: fleet.read OR admin
 -  if (!isAdmin(auth) && !hasCapability(auth, "fleet.read")) {
 +  if (!auth.capabilities.includes("fleet.admin")) {
+     logDenial({ principal: denialPrincipal(auth), tool: "pulse_get_fleet_health", subject: null, code: "MISSING_CAPABILITY" });
      return jsonResult({
        success: false,
-       error: "get_fleet_health requires fleet.read capability.",

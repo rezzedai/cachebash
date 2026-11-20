@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 271,
-    "a_lines": 255,
+    "a_occurrences": 284,
+    "a_lines": 268,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -78,7 +78,7 @@
       ],
       "layer": "rest",
       "guard_sites": [
-        "transport/rest.ts:133"
+        "transport/rest.ts:134"
       ],
       "guards": [
         "route GET /v1/tasks/stats",
@@ -92,7 +92,7 @@
     {
       "id": "NL-ADMIN-PROGRAMS",
       "file": "middleware/gate.ts",
-      "line": 132,
+      "line": 133,
       "name": "ADMIN_PROGRAMS (isAdmin)",
       "members": [
         "legacy",
@@ -103,7 +103,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:134"
+        "middleware/gate.ts:135"
       ],
       "guards": [
         "audit_get_audit",
@@ -127,14 +127,14 @@
     {
       "id": "NL-VERIFYSOURCE-ADMIN",
       "file": "middleware/gate.ts",
-      "line": 147,
+      "line": 148,
       "name": "SOURCE_ANY_PRINCIPALS source-pinning exemption",
       "members": [
         "mobile"
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:162"
+        "middleware/gate.ts:163"
       ],
       "guards": [
         "relay_send_message",
@@ -157,9 +157,9 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/claims.ts:184",
-        "modules/dispatch/completion.ts:537",
-        "modules/dispatch/completion.ts:867"
+        "modules/dispatch/claims.ts:185",
+        "modules/dispatch/completion.ts:538",
+        "modules/dispatch/completion.ts:868"
       ],
       "guards": [
         "dispatch_unclaim_task",
@@ -194,7 +194,7 @@
     {
       "id": "NL-GETTASKS-DEFAULT",
       "file": "modules/dispatch/tasks.ts",
-      "line": 136,
+      "line": 137,
       "name": "TASKS_ALL_PRINCIPALS get_tasks default scope and named-target read",
       "members": [
         "mobile",
@@ -202,7 +202,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/tasks.ts:144"
+        "modules/dispatch/tasks.ts:145"
       ],
       "guards": [
         "dispatch_get_tasks"
@@ -213,7 +213,7 @@
     {
       "id": "NL-REGISTRY-ADMIN",
       "file": "modules/programRegistry.ts",
-      "line": 399,
+      "line": 400,
       "name": "update_program inline admin list",
       "members": [
         "legacy",
@@ -225,7 +225,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/programRegistry.ts:399"
+        "modules/programRegistry.ts:400"
       ],
       "guards": [
         "programs_update_program"
@@ -236,7 +236,7 @@
     {
       "id": "NL-PULSE-PRIV",
       "file": "modules/pulse.ts",
-      "line": 210,
+      "line": 211,
       "name": "update_session privileged names",
       "members": [
         "legacy",
@@ -245,7 +245,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/pulse.ts:211"
+        "modules/pulse.ts:212"
       ],
       "guards": [
         "pulse_update_session"
@@ -256,7 +256,7 @@
     {
       "id": "NL-PULSE-REGISTRY-SKIP",
       "file": "modules/pulse.ts",
-      "line": 144,
+      "line": 145,
       "name": "session registry piggyback skip",
       "members": [
         "legacy",
@@ -264,9 +264,9 @@
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/pulse.ts:144",
-        "modules/pulse.ts:271",
-        "modules/pulse.ts:377"
+        "modules/pulse.ts:145",
+        "modules/pulse.ts:272",
+        "modules/pulse.ts:378"
       ],
       "guards": [
         "pulse_create_session",
@@ -278,7 +278,7 @@
     {
       "id": "NL-RELAY-GETMSG",
       "file": "modules/relay.ts",
-      "line": 83,
+      "line": 84,
       "name": "RELAY_READ_ALL_PRINCIPALS get_messages requested-target read",
       "members": [
         "mobile",
@@ -286,7 +286,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:466"
+        "modules/relay.ts:467"
       ],
       "guards": [
         "relay_get_messages"
@@ -297,14 +297,14 @@
     {
       "id": "NL-ACCOUNT-MERGE",
       "file": "modules/account-merge.ts",
-      "line": 25,
+      "line": 26,
       "name": "merge_accounts owner gate",
       "members": [
         "legacy"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/account-merge.ts:25"
+        "modules/account-merge.ts:26"
       ],
       "guards": [
         "admin_merge_accounts"
@@ -315,7 +315,7 @@
     {
       "id": "NL-BACKFILL-AUTH",
       "file": "modules/dispatch/backfillExpiresAt.ts",
-      "line": 43,
+      "line": 44,
       "name": "AUTHORIZED_PROGRAMS (backfill)",
       "members": [
         "basher",
@@ -324,7 +324,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/backfillExpiresAt.ts:43"
+        "modules/dispatch/backfillExpiresAt.ts:44"
       ],
       "guards": [
         "dispatch_backfill_task_expires_at"
@@ -335,7 +335,7 @@
     {
       "id": "NL-REAP-AUTH",
       "file": "modules/dispatch/reapExpiredTasks.ts",
-      "line": 98,
+      "line": 99,
       "name": "AUTHORIZED_PROGRAMS (reap)",
       "members": [
         "basher",
@@ -344,7 +344,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/reapExpiredTasks.ts:98"
+        "modules/dispatch/reapExpiredTasks.ts:99"
       ],
       "guards": [
         "dispatch_reap_expired_tasks"
@@ -355,7 +355,7 @@
     {
       "id": "NL-GSP-SEED-AUTH",
       "file": "modules/gsp.ts",
-      "line": 1213,
+      "line": 1215,
       "name": "gsp_seed authorizedPrograms",
       "members": [
         "vector",
@@ -366,7 +366,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1213"
+        "modules/gsp.ts:1215"
       ],
       "guards": [
         "gsp_seed"
@@ -377,14 +377,14 @@
     {
       "id": "NL-REST-RELAY-MOBILE",
       "file": "transport/rest.ts",
-      "line": 472,
+      "line": 476,
       "name": "POST /v1/relay/messages mobile branch",
       "members": [
         "mobile"
       ],
       "layer": "rest",
       "guard_sites": [
-        "transport/rest.ts:472"
+        "transport/rest.ts:476"
       ],
       "guards": [
         "route POST /v1/relay/messages"
@@ -431,7 +431,7 @@
     {
       "id": "NL-GSP-REVIEWERS",
       "file": "modules/gsp.ts",
-      "line": 616,
+      "line": 617,
       "name": "proposal reviewer map",
       "members": [
         "iso",
@@ -439,8 +439,8 @@
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/gsp.ts:616",
-        "modules/gsp.ts:1406"
+        "modules/gsp.ts:617",
+        "modules/gsp.ts:1409"
       ],
       "guards": [
         "gsp_propose"
@@ -505,7 +505,7 @@
     {
       "id": "NL-RELAY-ADMIN",
       "file": "modules/relay.ts",
-      "line": 85,
+      "line": 86,
       "name": "RELAY_ADMIN_PRINCIPALS sent-message and history reads",
       "members": [
         "mobile",
@@ -513,8 +513,8 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:652",
-        "modules/relay.ts:795"
+        "modules/relay.ts:654",
+        "modules/relay.ts:799"
       ],
       "guards": [
         "relay_get_sent_messages",
@@ -1155,7 +1155,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:164"
+        "modules/gsp.ts:165"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1181,7 +1181,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:436"
+        "modules/gsp.ts:437"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1210,7 +1210,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:498"
+        "modules/gsp.ts:499"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1235,7 +1235,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:758"
+        "modules/gsp.ts:760"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1262,7 +1262,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1225"
+        "modules/gsp.ts:1228"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1289,8 +1289,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1336",
-        "modules/gsp.ts:1374"
+        "modules/gsp.ts:1339",
+        "modules/gsp.ts:1377"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1317,15 +1317,15 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:230",
-        "modules/gsp.ts:260"
+        "modules/gsp.ts:231",
+        "modules/gsp.ts:261"
       ],
       "bundle_ruling": {
         "by": "ISO",
         "date": "2026-11-20",
         "message": "HpgeGWU8",
         "upheld_by": "VECTOR kCAh8BiR",
-        "note": "Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it."
+        "note": "Added by the builder beyond the ISO list: VECTOR cited gsp.ts:230 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it."
       },
       "site_ids": [],
       "name_lists": []
@@ -1345,8 +1345,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1614",
-        "modules/gsp.ts:1688"
+        "modules/gsp.ts:1617",
+        "modules/gsp.ts:1693"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1372,7 +1372,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1815"
+        "modules/gsp.ts:1820"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1789,7 +1789,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/programState.ts:577"
+        "modules/programState.ts:583"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -2715,20 +2715,20 @@
       "expr": "params.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 629,
+      "line_at_base": 631,
       "tool": null,
       "transports": [
         "internal"
       ],
       "effect": "write",
-      "binding_today": "OIDC service-account token (index.ts:502-510); no program principal; wakes params.target for activeUserIds[0]",
+      "binding_today": "OIDC service-account token (index.ts:504-512); no program principal; wakes params.target for activeUserIds[0]",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "ISO-assign",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "POST /v1/internal/wake-target reads params.target (index.ts:613, :628) and calls wakeTarget with userId = activeUserIds[0]; the caller is a service account, not a program credential.",
+      "evidence": "POST /v1/internal/wake-target reads params.target (index.ts:615, :630) and calls wakeTarget with userId = activeUserIds[0]; the caller is a service account, not a program credential.",
       "recommendation": "ADDRESSED (target names who to wake; the response carries an outcome only). ISO to confirm the service-account path needs no principal."
     },
     {
@@ -2738,7 +2738,7 @@
       "expr": "params.callerSource",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 646,
+      "line_at_base": 648,
       "tool": null,
       "transports": [
         "internal"
@@ -2795,7 +2795,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:135, :343). 5 pass a caller-controlled value: verifiedSource at relay.ts:331, relay.ts:432, dispatch/tasks.ts:508 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:163), and args.programId at pulse.ts:163. So the label is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:164. So the label is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -2816,7 +2816,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:164), so the value is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -2826,7 +2826,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 44,
+      "line_at_base": 46,
       "tool": "audit_get_audit",
       "transports": [
         "mcp",
@@ -2834,7 +2834,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:25",
+      "binding_today": "isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:26",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -2843,7 +2843,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "Gate at audit.ts:25 passes for the five isAdmin names or any key with audit.read or \"*\". Once past the gate, args.programId filters any program's ledger rows.",
+      "evidence": "Gate at audit.ts:26 passes for the five isAdmin names or any key with audit.read or \"*\". Once past the gate, args.programId filters any program's ledger rows.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N."
     },
     {
@@ -2899,7 +2899,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 5,
-      "line_at_base": 95,
+      "line_at_base": 96,
       "tool": "dispatch_claim_task",
       "transports": [
         "mcp",
@@ -2914,7 +2914,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "args.sessionId is stored on the claim (claims.ts:96 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
+      "evidence": "args.sessionId is stored on the claim (claims.ts:97 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:76 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
       "recommendation": "Remove sessionId from every authorization comparison; claimedBy is the owner. Label sessionId ATTRIBUTION after that."
     },
     {
@@ -2924,7 +2924,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 301,
+      "line_at_base": 303,
       "tool": "dispatch_batch_claim_tasks",
       "transports": [
         "mcp",
@@ -2938,7 +2938,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "args.sessionId is stored on the claim (claims.ts:311 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
+      "evidence": "args.sessionId is stored on the claim (claims.ts:313 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:76 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
       "recommendation": "Same as dispatch_claim_task."
     },
     {
@@ -3181,8 +3181,8 @@
       "handler": "getTasksHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 5,
-      "line_at_base": 167,
+      "occurrences": 6,
+      "line_at_base": 168,
       "tool": "dispatch_get_tasks",
       "transports": [
         "mcp",
@@ -3199,7 +3199,7 @@
       "name_lists": [
         "NL-GETTASKS-DEFAULT"
       ],
-      "evidence": "tasks.ts:154 filters by any target without comparison. tasks.ts:157-158 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.",
+      "evidence": "tasks.ts:155 filters by any target without comparison. tasks.ts:158-159 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.",
       "recommendation": "FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. Order matters: the flip lands only after iso and the dispatcher hold literal fleet.observe. Today only vector and sark hold it (ownerAuthz.ts:149-152), so an earlier flip denies the dispatcher poll and iso. The dispatcher's use also needs the C-5 ruling."
     },
     {
@@ -3209,7 +3209,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 426,
+      "line_at_base": 428,
       "tool": "dispatch_create_task",
       "transports": [
         "mcp",
@@ -3226,7 +3226,7 @@
       "name_lists": [
         "NL-VERIFYSOURCE-ADMIN"
       ],
-      "evidence": "tasks.ts:408 calls verifySource.",
+      "evidence": "tasks.ts:410 calls verifySource.",
       "recommendation": "ATTRIBUTION or ADDRESSED sender binding after C-5."
     },
     {
@@ -3236,7 +3236,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 10,
-      "line_at_base": 429,
+      "line_at_base": 431,
       "tool": "dispatch_create_task",
       "transports": [
         "mcp",
@@ -3244,7 +3244,7 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "target must be a registered program, group or @role (tasks.ts:411-416)",
+      "binding_today": "target must be a registered program, group or @role (tasks.ts:413-418)",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
       "status": "done",
@@ -3260,7 +3260,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 433,
+      "line_at_base": 434,
       "tool": "gsp_write",
       "transports": [
         "mcp",
@@ -3276,7 +3276,7 @@
       "name_lists": [
         "NL-VERIFYSOURCE-ADMIN"
       ],
-      "evidence": "gsp.ts:432 calls verifySource and stores the result as updatedBy. Which program may write which namespace is not checked anywhere in gspWriteHandler.",
+      "evidence": "gsp.ts:433 calls verifySource and stores the result as updatedBy. Which program may write which namespace is not checked anywhere in gspWriteHandler.",
       "recommendation": "ATTRIBUTION for source after C-5. Namespace write authority is a separate question for ISO (ruling HpgeGWU8)."
     },
     {
@@ -3285,14 +3285,14 @@
       "handler": "gspBootstrapHandler",
       "expr": "args.agentId",
       "regex": "a",
-      "occurrences": 11,
-      "line_at_base": 669,
+      "occurrences": 12,
+      "line_at_base": 670,
       "tool": "gsp_bootstrap",
       "transports": [
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:647-660); memory omitted cross-program (:679)",
+      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:648-661); memory omitted cross-program (:679)",
       "disposition": "FOREIGN-READ",
       "disposition_by": "C-4",
       "status": "pending",
@@ -3308,21 +3308,21 @@
       "expr": "programId",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 56,
+      "line_at_base": 58,
       "tool": "keys_create_key",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "literal keys.provision via isKeyProvisioner (keys.ts:36; KEY_PROVISION_CAPABILITY, ownerAuthz.ts:51-53); a \"*\" key fails the literal includes and cannot mint",
+      "binding_today": "literal keys.provision via isKeyProvisioner (keys.ts:37; KEY_PROVISION_CAPABILITY, ownerAuthz.ts:51-53); a \"*\" key fails the literal includes and cannot mint",
       "disposition": "FOREIGN-WRITE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "The real gate is the literal keys.provision capability (keys.ts:36, ownerAuthz.ts:51-53), not a name list and not fleet.admin. The handler mints a key for any programId. FOREIGN-WRITE in the vocabulary names fleet.admin as its widening capability, so this record is FOREIGN-WRITE with a different literal capability; the PR that closes it decides whether keys.provision is renamed or kept. createKey defaults capabilities to [\"*\"] at keys.ts:64 (amendment 2)."
+      "evidence": "The real gate is the literal keys.provision capability (keys.ts:37, ownerAuthz.ts:51-53), not a name list and not fleet.admin. The handler mints a key for any programId. FOREIGN-WRITE in the vocabulary names fleet.admin as its widening capability, so this record is FOREIGN-WRITE with a different literal capability; the PR that closes it decides whether keys.provision is renamed or kept. createKey defaults capabilities to [\"*\"] at keys.ts:66 (amendment 2)."
     },
     {
       "id": "keys.revokeKeyHandler:keyHash",
@@ -3331,7 +3331,7 @@
       "expr": "keyHash",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 150,
+      "line_at_base": 153,
       "tool": "keys_revoke_key",
       "transports": [
         "mcp",
@@ -3355,13 +3355,13 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 855,
+      "line_at_base": 862,
       "tool": "metrics_get_program_health",
       "transports": [
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:842",
+      "binding_today": "isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:848",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3370,7 +3370,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "After the gate, args.programId filters completed tasks by target (metrics.ts:855-857).",
+      "evidence": "After the gate, args.programId filters completed tasks by target (metrics.ts:862-864).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -3402,7 +3402,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 374,
+      "line_at_base": 375,
       "tool": "programs_list_programs",
       "transports": [
         "mcp"
@@ -3415,7 +3415,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "programRegistry.ts:374 is a map callback variable over registry rows."
+      "evidence": "programRegistry.ts:375 is a map callback variable over registry rows."
     },
     {
       "id": "programRegistry.updateProgramHandler:args.programId",
@@ -3423,14 +3423,14 @@
       "handler": "updateProgramHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 6,
-      "line_at_base": 391,
+      "occurrences": 7,
+      "line_at_base": 392,
       "tool": "programs_update_program",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "inline name list on auth.programId, or self (programRegistry.ts:399-403)",
+      "binding_today": "inline name list on auth.programId, or self (programRegistry.ts:400-405)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3448,15 +3448,15 @@
       "handler": "getProgramStateHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 10,
-      "line_at_base": 261,
+      "occurrences": 11,
+      "line_at_base": 262,
       "tool": "state_get_program_state",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self and mobile read the full document; a foreign read needs literal fleet.observe and gets the document minus learnedPatterns and contextSummary with memory.status \"omitted\" (PR-J).",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self and mobile read the full document; a foreign read needs literal fleet.observe and gets the document minus learnedPatterns and contextSummary with memory.status \"omitted\" (PR-J).",
       "disposition": "FOREIGN-READ",
       "disposition_by": "C-4",
       "status": "done",
@@ -3472,15 +3472,15 @@
       "handler": "storeMemoryHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 8,
-      "line_at_base": 369,
+      "occurrences": 9,
+      "line_at_base": 371,
       "tool": "state_store_memory",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3496,15 +3496,15 @@
       "handler": "recallMemoryHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 9,
-      "line_at_base": 430,
+      "occurrences": 10,
+      "line_at_base": 433,
       "tool": "state_recall_memory",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3520,15 +3520,15 @@
       "handler": "memoryHealthHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 9,
-      "line_at_base": 503,
+      "occurrences": 10,
+      "line_at_base": 507,
       "tool": "state_memory_health",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3544,15 +3544,15 @@
       "handler": "updateProgramStateHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 12,
-      "line_at_base": 567,
+      "occurrences": 13,
+      "line_at_base": 572,
       "tool": "state_update_program_state",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3569,14 +3569,14 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 581,
+      "line_at_base": 587,
       "tool": "state_update_program_state",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; stored at programState.ts:530, :538",
+      "binding_today": "none; stored at programState.ts:535, :543",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
@@ -3591,15 +3591,15 @@
       "handler": "deleteMemoryHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 8,
-      "line_at_base": 721,
+      "occurrences": 9,
+      "line_at_base": 727,
       "tool": "state_delete_memory",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3615,15 +3615,15 @@
       "handler": "reinforceMemoryHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 8,
-      "line_at_base": 779,
+      "occurrences": 9,
+      "line_at_base": 786,
       "tool": "state_reinforce_memory",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3639,15 +3639,15 @@
       "handler": "getContextHistoryHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 7,
-      "line_at_base": 840,
+      "occurrences": 8,
+      "line_at_base": 848,
       "tool": "state_get_context_history",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
       "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
       "status": "done",
@@ -3664,7 +3664,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 86,
+      "line_at_base": 87,
       "tool": "pulse_create_session",
       "transports": [
         "mcp",
@@ -3678,7 +3678,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:133), so it overwrites any program's existing session document.",
+      "evidence": "pulse.ts:87 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:134), so it overwrites any program's existing session document.",
       "recommendation": "Require the session id prefix to equal the principal, as update_session does (SELF-ONLY)."
     },
     {
@@ -3688,14 +3688,14 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 115,
+      "line_at_base": 116,
       "tool": "pulse_create_session",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; skipped for legacy and mobile at pulse.ts:144",
+      "binding_today": "none; skipped for legacy and mobile at pulse.ts:145",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3704,7 +3704,7 @@
       "name_lists": [
         "NL-PULSE-REGISTRY-SKIP"
       ],
-      "evidence": "pulse.ts:115 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.",
+      "evidence": "pulse.ts:116 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.",
       "recommendation": "programId derives from the principal (SELF-ONLY)."
     },
     {
@@ -3714,7 +3714,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 176,
+      "line_at_base": 177,
       "tool": "pulse_update_session",
       "transports": [
         "mcp",
@@ -3722,7 +3722,7 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:205-219); denial names auth.programId",
+      "binding_today": "session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:206-220); denial names auth.programId",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3741,21 +3741,21 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 713,
+      "line_at_base": 715,
       "tool": "pulse_list_sessions",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:512)",
+      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:516)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:713 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.",
+      "evidence": "pulse.ts:715 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -3765,7 +3765,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 791,
+      "line_at_base": 793,
       "tool": "pulse_get_context_utilization",
       "transports": [
         "mcp",
@@ -3779,7 +3779,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:791 reads any session's contextHistory by id; absent returns all active sessions.",
+      "evidence": "pulse.ts:793 reads any session's contextHistory by id; absent returns all active sessions.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -3789,7 +3789,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 6,
-      "line_at_base": 891,
+      "line_at_base": 893,
       "tool": "pulse_pause_program",
       "transports": [
         "mcp"
@@ -3802,7 +3802,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:891-896 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.",
+      "evidence": "pulse.ts:893-898 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.",
       "recommendation": "FOREIGN-WRITE on literal fleet.admin."
     },
     {
@@ -3812,7 +3812,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 7,
-      "line_at_base": 954,
+      "line_at_base": 956,
       "tool": "pulse_resume_program",
       "transports": [
         "mcp"
@@ -3825,7 +3825,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:954-959, same shape as pause.",
+      "evidence": "pulse.ts:956-961, same shape as pause.",
       "recommendation": "FOREIGN-WRITE on literal fleet.admin."
     },
     {
@@ -3882,7 +3882,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 15,
-      "line_at_base": 139,
+      "line_at_base": 140,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3890,14 +3890,14 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "none by design; target resolved to program or group, unknown targets rejected (relay.ts:172-190)",
+      "binding_today": "none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191)",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
       "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "The argument names the recipient. The sender is bound by verifySource at relay.ts:140."
+      "evidence": "The argument names the recipient. The sender is bound by verifySource at relay.ts:141."
     },
     {
       "id": "relay.sendMessageHandler:args.source",
@@ -3906,7 +3906,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 141,
+      "line_at_base": 142,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3923,7 +3923,7 @@
       "name_lists": [
         "NL-VERIFYSOURCE-ADMIN"
       ],
-      "evidence": "relay.ts:140 verifySource, :304 reuse.",
+      "evidence": "relay.ts:141 verifySource, :304 reuse.",
       "recommendation": "ATTRIBUTION or ADDRESSED sender binding after C-5."
     },
     {
@@ -3933,7 +3933,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 240,
+      "line_at_base": 241,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3941,14 +3941,14 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "none; stored on the relay document (relay.ts:233)",
+      "binding_today": "none; stored on the relay document (relay.ts:234)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:233 stores sessionId on the message. relay.ts:368 passes it to logDirective. It selects no existing document."
+      "evidence": "relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document."
     },
     {
       "id": "relay.getMessagesHandler:args.sessionId",
@@ -3957,7 +3957,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 480,
+      "line_at_base": 481,
       "tool": "relay_get_messages",
       "transports": [
         "mcp",
@@ -3974,8 +3974,8 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "args.sessionId is the fallback requestedTarget (relay.ts:474). Reads and, by default, marks messages delivered.",
-      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:477): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows."
+      "evidence": "args.sessionId is the fallback requestedTarget (relay.ts:475). Reads and, by default, marks messages delivered.",
+      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:478): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows."
     },
     {
       "id": "relay.getMessagesHandler:args.target",
@@ -3984,7 +3984,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 480,
+      "line_at_base": 481,
       "tool": "relay_get_messages",
       "transports": [
         "mcp",
@@ -4001,8 +4001,8 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "relay.ts:474, same filter. For the three named credentials the filter honours the requested target.",
-      "recommendation": "Same as the args.sessionId record, including the dispatcher exemption (relay.ts:477, C-5 rule 1)."
+      "evidence": "relay.ts:475, same filter. For the three named credentials the filter honours the requested target.",
+      "recommendation": "Same as the args.sessionId record, including the dispatcher exemption (relay.ts:478, C-5 rule 1)."
     },
     {
       "id": "relay.getSentMessagesHandler:args.source",
@@ -4011,7 +4011,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 651,
+      "line_at_base": 653,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -4029,7 +4029,7 @@
         "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "isAdmin is the five-name list in gate.ts:131.",
+      "evidence": "isAdmin is the five-name list in gate.ts:132.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4039,7 +4039,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 666,
+      "line_at_base": 669,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -4047,7 +4047,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "narrows a result already bound by source (relay.ts:626-627)",
+      "binding_today": "narrows a result already bound by source (relay.ts:628-629)",
       "disposition": "SELF-ONLY",
       "disposition_by": "ISO",
       "status": "pending",
@@ -4062,8 +4062,8 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.source",
       "regex": "a",
-      "occurrences": 7,
-      "line_at_base": 783,
+      "occurrences": 8,
+      "line_at_base": 787,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4090,8 +4090,8 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 8,
-      "line_at_base": 783,
+      "occurrences": 9,
+      "line_at_base": 787,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4109,7 +4109,7 @@
         "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "relay.ts:757-763 same scoping.",
+      "evidence": "relay.ts:761-767 same scoping.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4119,7 +4119,7 @@
       "expr": "parsed.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 1012,
+      "line_at_base": 1018,
       "tool": "relay_send_directive",
       "transports": [
         "mcp"
@@ -4132,7 +4132,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:971-976 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
+      "evidence": "relay.ts:977-982 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
     },
     {
       "id": "schedule.createScheduleHandler:args.target",
@@ -4320,7 +4320,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "sprint.ts:183 stores args.sessionId on a task with status \"active\". completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.",
+      "evidence": "sprint.ts:183 stores args.sessionId on a task with status \"active\". completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.",
       "recommendation": "Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can substitute."
     },
     {
@@ -4330,7 +4330,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 215,
+      "line_at_base": 218,
       "tool": "trace_query_traces",
       "transports": [
         "mcp",
@@ -4338,7 +4338,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) name list (trace.ts:198)",
+      "binding_today": "isAdmin(auth) name list (trace.ts:200)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4347,7 +4347,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "After the isAdmin gate, args.programId filters ledger traces (trace.ts:215-216).",
+      "evidence": "After the isAdmin gate, args.programId filters ledger traces (trace.ts:218-219).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4363,14 +4363,14 @@
         "internal"
       ],
       "effect": "write",
-      "binding_today": "none in function; callers: relay.ts:302, dispatch, index.ts:623",
+      "binding_today": "none in function; callers: relay.ts:303, dispatch, index.ts:625",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "ISO-assign",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "wakeTarget takes a tenant userId, a target and a callerSource label and has no principal parameter. Callers pass a validated target (ADDRESSED) or a service-account request (index.ts:611).",
+      "evidence": "wakeTarget takes a tenant userId, a target and a callerSource label and has no principal parameter. Callers pass a validated target (ADDRESSED) or a service-account request (index.ts:613).",
       "recommendation": "ADDRESSED for target, ATTRIBUTION for callerSource; the open item is the internal route's lack of a principal (see the index.ts record)."
     },
     {
@@ -4423,13 +4423,13 @@
       "expr": "query.target",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 323,
+      "line_at_base": 327,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:132-137, :319)",
+      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:133-139, :323)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4438,7 +4438,7 @@
       "name_lists": [
         "NL-ADMIN-READERS"
       ],
-      "evidence": "Counts any target's tasks by querying Firestore directly (rest.ts:321-336); no MCP handler, so no capability gate, breaker or audit.",
+      "evidence": "Counts any target's tasks by querying Firestore directly (rest.ts:325-340); no MCP handler, so no capability gate, breaker or audit.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5)."
     },
     {
@@ -4448,7 +4448,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 422,
+      "line_at_base": 426,
       "tool": null,
       "transports": [
         "rest"
@@ -4461,7 +4461,7 @@
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:419-425 queries relay documents directly. With query.sessionId it filters target equal to that value; without it, returns every pending message in the tenant (limit 50). No principal check.",
+      "evidence": "rest.ts:423-429 queries relay documents directly. With query.sessionId it filters target equal to that value; without it, returns every pending message in the tenant (limit 50). No principal check.",
       "recommendation": "SELF-ONLY; the widest unauthenticated-by-principal read in the table."
     },
     {
@@ -4471,7 +4471,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 449,
+      "line_at_base": 453,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4486,7 +4486,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:449 passes sessionId (default \"rest\") into the handler, which applies relay.ts:472-480.",
+      "evidence": "rest.ts:453 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4496,7 +4496,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 786,
+      "line_at_base": 790,
       "tool": "state_get_program_state",
       "transports": [
         "rest"
@@ -4519,7 +4519,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 791,
+      "line_at_base": 795,
       "tool": "state_update_program_state",
       "transports": [
         "rest"
@@ -4542,7 +4542,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 796,
+      "line_at_base": 800,
       "tool": "state_get_context_history",
       "transports": [
         "rest"
@@ -4565,7 +4565,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 803,
+      "line_at_base": 807,
       "tool": "state_store_memory",
       "transports": [
         "rest"
@@ -4588,7 +4588,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 808,
+      "line_at_base": 812,
       "tool": "state_recall_memory",
       "transports": [
         "rest"
@@ -4611,7 +4611,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 812,
+      "line_at_base": 816,
       "tool": "state_delete_memory",
       "transports": [
         "rest"
@@ -4634,7 +4634,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 817,
+      "line_at_base": 821,
       "tool": "state_reinforce_memory",
       "transports": [
         "rest"
@@ -4657,7 +4657,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 821,
+      "line_at_base": 825,
       "tool": "state_memory_health",
       "transports": [
         "rest"
@@ -4680,7 +4680,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 855,
+      "line_at_base": 859,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4695,7 +4695,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:855 passes sessionId (default \"peek\").",
+      "evidence": "rest.ts:859 passes sessionId (default \"peek\").",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4705,20 +4705,20 @@
       "expr": "body.programId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 939,
+      "line_at_base": 944,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "capabilities.includes(\"*\") (rest.ts:937)",
+      "binding_today": "capabilities.includes(\"*\") (rest.ts:942)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:939 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
+      "evidence": "rest.ts:944 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
     },
     {
       "id": "rest.route GET /v1/tasks/stats:getFirestore()",
@@ -4729,13 +4729,13 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 321,
+      "line_at_base": 325,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:132-137, :319)",
+      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:133-139, :323)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4756,7 +4756,7 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 419,
+      "line_at_base": 423,
       "tool": null,
       "transports": [
         "rest"
@@ -4781,13 +4781,13 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 436,
+      "line_at_base": 440,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:429-441)",
+      "binding_today": "enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:433-445)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -4806,13 +4806,13 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 533,
+      "line_at_base": 537,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin (rest.ts:531)",
+      "binding_today": "requireAdmin (rest.ts:535)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4833,13 +4833,13 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 603,
+      "line_at_base": 607,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin (rest.ts:602)",
+      "binding_today": "requireAdmin (rest.ts:606)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4860,7 +4860,7 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 749,
+      "line_at_base": 753,
       "tool": null,
       "transports": [
         "rest"
@@ -4873,7 +4873,7 @@
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Lists GSP proposals for the tenant straight from Firestore; filter by status only. The tenant segment is auth.userId (rest.ts:750).",
+      "evidence": "Lists GSP proposals for the tenant straight from Firestore; filter by status only. The tenant segment is auth.userId (rest.ts:754).",
       "recommendation": "Disposition follows the gsp_resolve and gsp_propose records; route through callTool."
     },
     {
@@ -4885,7 +4885,7 @@
       "class": "rest-direct-handler",
       "anchor": "budgetSummaryHandler(",
       "occurrences": 1,
-      "line_at_base": 666,
+      "line_at_base": 670,
       "tool": null,
       "transports": [
         "rest"
@@ -4898,7 +4898,7 @@
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Calls budgetSummaryHandler directly (rest.ts:665-667); no capability gate, breaker, rate limit or audit.",
+      "evidence": "Calls budgetSummaryHandler directly (rest.ts:669-671); no capability gate, breaker, rate limit or audit.",
       "recommendation": "Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler."
     },
     {
@@ -4910,7 +4910,7 @@
       "class": "rest-direct-handler",
       "anchor": "dreamPeekHandler(",
       "occurrences": 1,
-      "line_at_base": 707,
+      "line_at_base": 711,
       "tool": null,
       "transports": [
         "rest"
@@ -4935,7 +4935,7 @@
       "class": "rest-direct-handler",
       "anchor": "gspListNamespacesHandler(",
       "occurrences": 1,
-      "line_at_base": 729,
+      "line_at_base": 733,
       "tool": null,
       "transports": [
         "rest"
@@ -4960,7 +4960,7 @@
       "class": "rest-direct-handler",
       "anchor": "dreamPeekHandler(",
       "occurrences": 1,
-      "line_at_base": 859,
+      "line_at_base": 863,
       "tool": null,
       "transports": [
         "rest"
@@ -4985,7 +4985,7 @@
       "class": "rest-direct-handler",
       "anchor": "enrollHandler(",
       "occurrences": 1,
-      "line_at_base": 975,
+      "line_at_base": 980,
       "tool": null,
       "transports": [
         "rest"
@@ -4998,7 +4998,7 @@
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:975 hands /enroll to enrollHandler before authentication and without callTool. The handler exchanges a one-time token for a cb_ key: tenant from the enrollment document, program fixed to ENROLLMENT_PROGRAM_ID, no request argument selects either. Not in the recon (amendment 2).",
+      "evidence": "rest.ts:980 hands /enroll to enrollHandler before authentication and without callTool. The handler exchanges a one-time token for a cb_ key: tenant from the enrollment document, program fixed to ENROLLMENT_PROGRAM_ID, no request argument selects either. Not in the recon (amendment 2).",
       "recommendation": "NOT-IDENTITY for the arguments (the principal is created, not read). ISO to confirm the unauthenticated route is intended."
     },
     {
@@ -5099,7 +5099,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "getTaskByIdHandler (tasks.ts:565) returns any task document in the tenant by id.",
+      "evidence": "getTaskByIdHandler (tasks.ts:567) returns any task document in the tenant by id.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
     },
     {
@@ -5467,7 +5467,7 @@
       "class": "gsp-memory-scan",
       "anchor": "sessions/_meta/program_state",
       "occurrences": 1,
-      "line_at_base": 1897,
+      "line_at_base": 1902,
       "tool": "gsp_search",
       "transports": [
         "mcp",
@@ -5492,7 +5492,7 @@
       "handler": "main",
       "expr": "auth.programId",
       "occurrences": 17,
-      "line_at_base": 181,
+      "line_at_base": 182,
       "status": "pending"
     },
     {
@@ -5501,7 +5501,7 @@
       "handler": "createIsoServer",
       "expr": "authContext.programId",
       "occurrences": 12,
-      "line_at_base": 104,
+      "line_at_base": 105,
       "status": "pending"
     },
     {
@@ -5510,7 +5510,7 @@
       "handler": "isAdmin",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 135,
+      "line_at_base": 136,
       "status": "pending"
     },
     {
@@ -5528,7 +5528,7 @@
       "handler": "mergeAccountsHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 25,
+      "line_at_base": 26,
       "status": "pending"
     },
     {
@@ -5537,7 +5537,7 @@
       "handler": "backfillTaskExpiresAtHandler",
       "expr": "auth.programId",
       "occurrences": 2,
-      "line_at_base": 62,
+      "line_at_base": 63,
       "status": "pending"
     },
     {
@@ -5546,7 +5546,7 @@
       "handler": "claimTaskHandler",
       "expr": "auth.programId",
       "occurrences": 5,
-      "line_at_base": 89,
+      "line_at_base": 90,
       "status": "pending"
     },
     {
@@ -5555,7 +5555,7 @@
       "handler": "unclaimTaskHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 196,
+      "line_at_base": 198,
       "status": "pending"
     },
     {
@@ -5564,7 +5564,7 @@
       "handler": "batchClaimTasksHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 295,
+      "line_at_base": 297,
       "status": "pending"
     },
     {
@@ -5573,7 +5573,7 @@
       "handler": "completeTaskHandler",
       "expr": "auth.programId",
       "occurrences": 9,
-      "line_at_base": 510,
+      "line_at_base": 511,
       "status": "pending"
     },
     {
@@ -5582,7 +5582,7 @@
       "handler": "batchCompleteTasksHandler",
       "expr": "auth.programId",
       "occurrences": 6,
-      "line_at_base": 844,
+      "line_at_base": 845,
       "status": "pending"
     },
     {
@@ -5591,7 +5591,7 @@
       "handler": "recordTaskTelemetryHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 1025,
+      "line_at_base": 1026,
       "status": "pending"
     },
     {
@@ -5672,7 +5672,7 @@
       "handler": "reapExpiredTasksHandler",
       "expr": "auth.programId",
       "occurrences": 2,
-      "line_at_base": 220,
+      "line_at_base": 221,
       "status": "pending"
     },
     {
@@ -5681,7 +5681,7 @@
       "handler": "gspSeedHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 1216,
+      "line_at_base": 1218,
       "status": "pending"
     },
     {
@@ -5690,7 +5690,7 @@
       "handler": "gspProposeHandler",
       "expr": "auth.programId",
       "occurrences": 7,
-      "line_at_base": 1376,
+      "line_at_base": 1379,
       "status": "pending"
     },
     {
@@ -5699,7 +5699,7 @@
       "handler": "gspSubscribeHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 1499,
+      "line_at_base": 1502,
       "status": "pending"
     },
     {
@@ -5708,7 +5708,7 @@
       "handler": "gspResolveHandler",
       "expr": "auth.programId",
       "occurrences": 8,
-      "line_at_base": 1660,
+      "line_at_base": 1664,
       "status": "pending"
     },
     {
@@ -5717,7 +5717,7 @@
       "handler": "createKeyHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 103,
+      "line_at_base": 106,
       "status": "pending"
     },
     {
@@ -5726,7 +5726,7 @@
       "handler": "updateProgramHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 399,
+      "line_at_base": 400,
       "status": "pending"
     },
     {
@@ -5735,7 +5735,7 @@
       "handler": "updateSessionHandler",
       "expr": "auth.programId",
       "occurrences": 4,
-      "line_at_base": 209,
+      "line_at_base": 210,
       "status": "pending"
     },
     {
@@ -5744,7 +5744,7 @@
       "handler": "pauseProgramHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 909,
+      "line_at_base": 911,
       "status": "pending"
     },
     {
@@ -5753,7 +5753,7 @@
       "handler": "resumeProgramHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 972,
+      "line_at_base": 974,
       "status": "pending"
     },
     {
@@ -5771,7 +5771,7 @@
       "handler": "sendMessageHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 118,
+      "line_at_base": 119,
       "status": "pending"
     },
     {
@@ -5825,7 +5825,7 @@
       "handler": "requireAdmin",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 133,
+      "line_at_base": 134,
       "status": "pending"
     },
     {
@@ -5834,7 +5834,7 @@
       "handler": "callTool",
       "expr": "auth.programId",
       "occurrences": 11,
-      "line_at_base": 190,
+      "line_at_base": 192,
       "status": "pending"
     },
     {
@@ -5843,7 +5843,7 @@
       "handler": "enforceBreaker",
       "expr": "auth.programId",
       "occurrences": 2,
-      "line_at_base": 310,
+      "line_at_base": 314,
       "status": "pending"
     },
     {
@@ -5852,7 +5852,7 @@
       "handler": "route POST /v1/relay/messages",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 472,
+      "line_at_base": 476,
       "status": "pending"
     },
     {
@@ -5861,7 +5861,7 @@
       "handler": "route POST /admin/reset-program-cache",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 950,
+      "line_at_base": 955,
       "status": "pending"
     },
     {
@@ -5879,7 +5879,7 @@
       "handler": "updateProgramHandler",
       "expr": "args.programId",
       "occurrences": 1,
-      "line_at_base": 400,
+      "line_at_base": 401,
       "status": "pending"
     },
     {
@@ -5888,7 +5888,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.source",
       "occurrences": 1,
-      "line_at_base": 798,
+      "line_at_base": 802,
       "status": "pending"
     },
     {
@@ -5897,7 +5897,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.target",
       "occurrences": 1,
-      "line_at_base": 804,
+      "line_at_base": 809,
       "status": "pending"
     },
     {

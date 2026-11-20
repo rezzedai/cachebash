@@ -19,6 +19,7 @@ import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { FieldValue, Timestamp, Query, QueryDocumentSnapshot, DocumentData, DocumentReference } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
 const GetTasksSchema = z.object({
   status: z.enum(["created", "active", "all"]).default("created"),
   type: z.enum(["task", "question", "dream", "sprint", "sprint-story", "all"]).default("all"),
@@ -168,6 +169,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   const sprintType = args.type === "sprint" || args.type === "sprint-story";
   if (args.target && !sprintType) {
     if (!allowed) {
+      logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: args.target ?? null, code: "FOREIGN_SUBJECT" });
       return jsonResult({
         success: false,
         error: `Access denied: "${principal}" cannot read tasks for "${args.target}"`,

@@ -9,6 +9,7 @@ import { isAdmin, hasCapability } from "../middleware/gate.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 const GetAuditSchema = z.object({
   limit: z.number().min(1).max(100).default(50),
   allowed: z.boolean().optional(),
@@ -23,6 +24,7 @@ function jsonResult(data: unknown): ToolResult {
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   if (!isAdmin(auth) && !hasCapability(auth, "audit.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "audit_get_audit", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
       error: "get_audit requires audit.read capability.",

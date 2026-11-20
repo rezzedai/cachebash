@@ -25,6 +25,7 @@ export default async function globalSetup(): Promise<void> {
   const world: World = {
     baseUrl: srv.baseUrl,
     serverPid: srv.pid,
+    serverLog: srv.logPath,
     serverDir: serverDir ?? "",
     projectId: target.projectId,
     emulatorHost: target.emulatorHost,

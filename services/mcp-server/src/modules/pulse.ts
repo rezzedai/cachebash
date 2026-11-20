@@ -14,6 +14,7 @@ import { emitAnalyticsEvent } from "./analytics.js";
 import { getComplianceConfig, validateSessionId } from "../config/compliance.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 /** Maximum context history entries per session (rolling window) */
 const MAX_CONTEXT_HISTORY = 1000;
 
@@ -212,7 +213,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
   if (!isPrivileged) {
     const sessionPrefix = sessionOwnerProgramId(sessionId);
     if (sessionPrefix !== callerProgramId) {
-      console.warn(`[C2] Cross-session write rejected: caller="${callerProgramId}" session="${sessionId}"`);
+      logDenial({ principal: denialPrincipal(auth), tool: "pulse_update_session", subject: sessionPrefix, code: "FOREIGN_SUBJECT" });
       return jsonResult({
         success: false,
         error: `Cannot update another program's session. Caller "${callerProgramId}" cannot write to session "${sessionId}".`,
@@ -438,6 +439,7 @@ const GetFleetHealthSchema = z.object({
 export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: fleet.read OR admin
   if (!isAdmin(auth) && !hasCapability(auth, "fleet.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "pulse_get_fleet_health", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
       error: "get_fleet_health requires fleet.read capability.",

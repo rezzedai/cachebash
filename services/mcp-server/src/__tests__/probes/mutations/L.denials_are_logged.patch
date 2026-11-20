@@ -1,0 +1,13 @@
+# mutation for probe L.denials_are_logged: logDenial writes nothing
+diff --git a/src/auth/denialLog.ts b/src/auth/denialLog.ts
+--- a/src/auth/denialLog.ts
++++ b/src/auth/denialLog.ts
+@@ -6,7 +6,7 @@
+ 
+ /** One line per refusal. Cloud Logging reads `severity`; a log metric counts `jsonPayload.event = "authz_denial"`. */
+ export function logDenial(d: { principal: string; tool: string; subject: string | null; code: DenialCode }): void {
+-  console.warn(JSON.stringify({ severity: "WARNING", event: "authz_denial", ...d }));
++  void d;
+ }
+ 
+ /** The principal for a denial line. Never throws: an empty credential identity logs as "(none)". */

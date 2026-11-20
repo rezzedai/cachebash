@@ -30,6 +30,7 @@ import { getFirestore } from "../../firebase/client.js";
 import type { AuthContext } from "../../auth/authValidator.js";
 import { classifyForBackfill, type ClassifiableTaskData } from "./expiresAtBackfillClassifier.js";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
 const PAGE_SIZE = 1000;
 // Firestore's 500-writes-per-batch cap; PR #397 is the precedent -- one
 // unbounded batch failed wholesale and deleted nothing. Not caller-tunable.
@@ -60,6 +61,7 @@ function jsonResult(data: unknown): ToolResult {
 export async function backfillTaskExpiresAtHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const hasWildcard = auth.capabilities.includes("*");
   if (!AUTHORIZED_PROGRAMS.includes(auth.programId) && !hasWildcard) {
+    logDenial({ principal: denialPrincipal(auth), tool: "dispatch_backfill_task_expires_at", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",

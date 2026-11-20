@@ -49,6 +49,7 @@ import { getFirestore } from "../../firebase/client.js";
 import type { AuthContext } from "../../auth/authValidator.js";
 import { emitEvent } from "../events.js";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
 // R1.4 (dispatch-defects-1-and-2, ISO-ruled additive-only): a task deleted by
 // the reaper while it never reached a resolved outcome lapsed with its
 // requirements unmet -- today that is silent, the doc simply stops existing.
@@ -218,6 +219,7 @@ async function reapByIds(
 export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const hasWildcard = auth.capabilities.includes("*");
   if (!AUTHORIZED_PROGRAMS.includes(auth.programId) && !hasWildcard) {
+    logDenial({ principal: denialPrincipal(auth), tool: "dispatch_reap_expired_tasks", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",
