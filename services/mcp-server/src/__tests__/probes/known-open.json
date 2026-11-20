@@ -57,7 +57,7 @@
   },
   "W.15": {
     "closes_in": "PR-N",
-    "hole": "a bare [\"*\"] credential passes: transport/rest.ts:131 requireAdmin"
+    "hole": "a bare [\"*\"] credential passes: transport/rest.ts enforceBreaker(get_tasks) on /v1/tasks/stats"
   },
   "W.17": {
     "closes_in": "PR-N",

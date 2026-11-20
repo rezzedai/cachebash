@@ -19,14 +19,11 @@ import { checkPricing } from "../middleware/pricingEnforce.js";
 import { CapabilityError } from "../middleware/capabilities.js";
 import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
 import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
-import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
 import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
-import { mayActOnSprint } from "../modules/sprint.js";
-import { authorizeTasksRead } from "../modules/dispatch/tasks.js";
 import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
@@ -128,16 +125,6 @@ function coerceQueryParams(params: Record<string, string>): Record<string, unkno
     }
   }
   return result;
-}
-
-/** Admin gate — requires wildcard capability or admin-class programId */
-function requireAdmin(auth: AuthContext, res: http.ServerResponse): boolean {
-  if (auth.capabilities.includes("*") || (ADMIN_READERS as readonly string[]).includes(auth.programId)) {
-    return true;
-  }
-  logDenial({ principal: denialPrincipal(auth), tool: "rest_admin", subject: null, code: "MISSING_CAPABILITY" });
-  restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
-  return false;
 }
 
 /** Compute period start date for time-range filters */
@@ -327,6 +314,7 @@ const routes: Route[] = [
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const principal = credentialPrincipal(auth);
     const queryTarget = query.target as string | undefined || undefined;
+    const { authorizeTasksRead } = await import("../modules/dispatch/tasks.js"); // lazy, as markReadHandler: the module graph pulls the ESM-only octokit
     const { allowed, seesAll } = authorizeTasksRead(auth, queryTarget);
     if (!allowed) {
       logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: queryTarget ?? null, code: "FOREIGN_SUBJECT" });
@@ -514,7 +502,7 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/history", async (auth, req, res) => {
-    // ADR-013: no requireAdmin pre-gate — participant scoping in
+    // ADR-013: no admin pre-gate — participant scoping in
     // queryMessageHistoryHandler is the single source of truth for both
     // transports (SARK C2). Non-admin callers get their own messages only.
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -523,7 +511,7 @@ const routes: Route[] = [
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
-    // RD-5 PR-M row 4: list_sessions decides (pulse.ts PR-L row 4); requireAdmin is gone.
+    // RD-5 PR-M row 4: list_sessions decides (pulse.ts PR-L row 4); the admin pre-gate is gone.
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "list_sessions", query);
     restResponse(res, true, data);
@@ -615,6 +603,7 @@ const routes: Route[] = [
       .limit(10)
       .get();
 
+    const { mayActOnSprint } = await import("../modules/sprint.js");
     const readable = snap.docs.filter((doc: any) => mayActOnSprint(auth, principal, doc.data(), "read"));
     const sprints = await Promise.all(readable.map(async (doc: any) => {
       const data = doc.data();
