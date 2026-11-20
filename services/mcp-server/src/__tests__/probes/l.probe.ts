@@ -564,4 +564,27 @@ describe("L fleet paths", () => {
     expect((await callTool(w, w.stateSeeders.A, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
     expect((await callTool(w, iso, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
   });
+
+  // row 35 (L-D6 option 1): policy writes need literal fleet.admin; reads stay open.
+  const policyArgs = (id: string) => ({
+    id, name: `l-${id}`, description: "l policy", tier: "operational", enforcement: "warn", severity: "P2",
+    rule: { type: "pattern", pattern: "l-never-matches-xyz" }, scope: {}, enabled: true,
+  });
+  probe("L.policy_write_needs_admin", async () => {
+    const w = world();
+    const id = `l-pol-${nextN()}`;
+    const r = await callTool(w, w.creds.scoped, "policy_create", policyArgs(id));
+    expect(denialNames(r, "alpha")).toBe(true);
+    const got = await callTool(w, w.seeders.A, "policy_get", { policyId: id });
+    expect(got.json?.found ?? got.json?.success).not.toBe(true);
+  });
+  test("L.policy_write_needs_admin control: a fleet.admin key creates and deletes, and any key reads", async () => {
+    const w = world();
+    const admin = await mint(w, "beta", "probe-l-policy-admin", ["*", "fleet.admin"]);
+    const id = `l-pol-ok-${nextN()}`;
+    const made = await callTool(w, admin, "policy_create", policyArgs(id));
+    expect(made.json?.success).toBe(true);
+    expect((await callTool(w, w.creds.scoped, "policy_get", { policyId: id })).json?.success).toBe(true);
+    expect((await callTool(w, admin, "policy_delete", { policyId: id })).json?.success).toBe(true);
+  });
 });

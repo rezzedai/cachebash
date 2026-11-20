@@ -5184,15 +5184,15 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:96-107).",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
+      "evidence": "createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:98-109).",
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.updatePolicy:args.policyId",
@@ -5209,7 +5209,7 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5217,7 +5217,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "updatePolicy edits any policy by id; no owner comparison.",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.deletePolicy:args.policyId",
@@ -5234,7 +5234,7 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5242,7 +5242,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "deletePolicy removes any policy by id; no owner comparison.",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.getPolicy:args.policyId",
@@ -5259,7 +5259,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5267,7 +5267,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "getPolicy returns any policy by id.",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "policy.listPolicies:(tenant-wide)",
@@ -5284,7 +5284,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5292,7 +5292,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "listPolicies returns every policy in the tenant; no identifier argument.",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "policy.policyCheck:(tenant-wide)",
@@ -5309,7 +5309,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:223, :302), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5317,7 +5317,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "policyCheck evaluates caller-supplied action fields against every tenant policy; no identifier selects data.",
-      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "sprint.updateStoryHandler:args.sprintId",

@@ -680,49 +680,49 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/policy.ts`, handler `createPolicy`, expression `args.id`, line n/a at base, 1 occurrence(s).
 - Tool: policy_create; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
-- Evidence: createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:96-107).
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
+- Evidence: createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:98-109).
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.updatePolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `updatePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_update; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
 - Evidence: updatePolicy edits any policy by id; no owner comparison.
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.deletePolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `deletePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
 - Evidence: deletePolicy removes any policy by id; no owner comparison.
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.getPolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `getPolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_get; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
 - Evidence: getPolicy returns any policy by id.
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `policy.listPolicies:(tenant-wide)`
 
 - Where: `modules/policy.ts`, handler `listPolicies`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
 - Tool: policy_list; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
 - Evidence: listPolicies returns every policy in the tenant; no identifier argument.
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `policy.policyCheck:(tenant-wide)`
 
 - Where: `modules/policy.ts`, handler `policyCheck`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
 - Tool: policy_check; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:223, :302), not a program.
 - Evidence: policyCheck evaluates caller-supplied action fields against every tenant policy; no identifier selects data.
-- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:223, :302), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `sprint.updateStoryHandler:args.sprintId`
 
@@ -865,12 +865,12 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | schedule.getScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 | schedule.deleteScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 | webhook.webhookDeleteHandler:args.webhookId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.createPolicy:args.id | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| policy.updatePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| policy.deletePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| policy.getPolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.createPolicy:args.id | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
+| policy.updatePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
+| policy.deletePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
+| policy.getPolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
+| policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
+| policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:223, :302), not a program |
 | sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
 | sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
 | sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
