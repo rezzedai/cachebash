@@ -94,3 +94,17 @@ export function describeTaskCompletionError(taskId: string, error: unknown): str
   }
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * K-D1 (RD-5 PR-K, plan 19.1): the one rule for task ownership. `p` is credentialPrincipal(auth).
+ * A task is owned by the program whose key claimed it (claimedBy), or, for a delegated claim, by the program
+ * named in sessionId. Only the dispatcher key writes claimedBy "dispatcher" (claims.ts writes claimedBy from the
+ * credential, never from an argument), so a caller cannot forge the second branch. A missing claimedBy owns nothing.
+ */
+export function isTaskOwner(data: { claimedBy?: unknown; sessionId?: unknown }, p: string): boolean {
+  return (data.claimedBy != null && data.claimedBy === p) ||
+    (data.claimedBy === "dispatcher" && data.sessionId === p);
+}
+
+/** Owner overrides for unclaim and complete (K-D1): the iso and dispatcher keys act on any task. */
+export const TASK_OVERRIDE_PRINCIPALS = ["iso", "dispatcher"] as const;

@@ -1,0 +1,22 @@
+# mutation for probe K.claim_session_not_ownership: a matching or missing sessionId makes a caller the owner again (the null-equals-null re-claim)
+diff --git a/src/modules/dispatch/claims.ts b/src/modules/dispatch/claims.ts
+--- a/src/modules/dispatch/claims.ts
++++ b/src/modules/dispatch/claims.ts
+@@ -74,7 +74,7 @@
+ 
+       // Idempotent re-claim: only the owner (K-D1). sessionId is attribution; a matching or missing
+       // sessionId never makes a caller the owner of another program's active task.
+-      if (data.status === "active" && isTaskOwner(data, principal)) {
++      if (data.status === "active" && (isTaskOwner(data, principal) || (data.sessionId ?? null) === (args.sessionId ?? null))) {
+         return { alreadyClaimed: true, data };
+       }
+ 
+@@ -281,7 +281,7 @@
+         const data = doc.data()!;
+ 
+         // Idempotent re-claim: owner only, same rule as single claim (K-D1)
+-        if (data.status === "active" && isTaskOwner(data, principal)) {
++        if (data.status === "active" && (isTaskOwner(data, principal) || (data.sessionId ?? null) === (args.sessionId ?? null))) {
+           return { alreadyClaimed: true, data };
+         }
+ 

@@ -49,9 +49,9 @@ jest.mock("../modules/github-sync.js", () => ({
 import { claimTaskHandler, unclaimTaskHandler } from "../modules/dispatch/claims.js";
 import type { AuthContext } from "../auth/authValidator.js";
 
-const AUTH = { userId: "u1", programId: "basher", encryptionKey: null } as unknown as AuthContext;
-const ISO_AUTH = { userId: "u1", programId: "iso", encryptionKey: null } as unknown as AuthContext;
-const OTHER_AUTH = { userId: "u1", programId: "quorra", encryptionKey: null } as unknown as AuthContext;
+const AUTH = { userId: "u1", programId: "basher", keyProgramId: "basher", encryptionKey: null } as unknown as AuthContext;
+const ISO_AUTH = { userId: "u1", programId: "iso", keyProgramId: "iso", encryptionKey: null } as unknown as AuthContext;
+const OTHER_AUTH = { userId: "u1", programId: "quorra", keyProgramId: "quorra", encryptionKey: null } as unknown as AuthContext;
 
 function taskDoc(data: Record<string, unknown>) {
   mockTx.get.mockResolvedValue({ exists: true, data: () => data });

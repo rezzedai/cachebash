@@ -12,7 +12,8 @@ import { syncTaskCompleted } from "../github-sync.js";
 import { emitEvent, computeHash } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { checkDreamBudget, updateDreamConsumption } from "../budget.js";
-import { type ToolResult, jsonResult, buildTransition, appendTransition, describeTaskCompletionError } from "./shared.js";
+import { type ToolResult, jsonResult, buildTransition, appendTransition, describeTaskCompletionError, isTaskOwner, TASK_OVERRIDE_PRINCIPALS } from "./shared.js";
+import { credentialPrincipal } from "../../auth/ownerAuthz.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
@@ -531,14 +532,11 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       const data = doc.data()!;
       const current = data.status as LifecycleStatus;
 
-      // Authorization: only the claiming owner, the claiming session, ISO/orchestrator, or admin.
-      const isClaimingOwner = data.claimedBy != null && data.claimedBy === auth.programId;
-      const isClaimingSession = (data.sessionId as string | undefined) != null && data.sessionId === auth.programId;
-      const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
-      const isAdminProgram = auth.programId === "legacy" || auth.programId === "dispatcher";
-      if (!isClaimingOwner && !isClaimingSession && !isIso && !isAdminProgram) {
-        console.warn(`[complete_task] AUTHZ_DENY programId=${auth.programId} taskId=${args.taskId} claimedBy=${data.claimedBy}`);
-        throw new Error("Unauthorized: only the claiming owner, ISO, or admin can complete this task.");
+      // Authorization (K-D1): the owner, or the iso and dispatcher keys.
+      const principal = credentialPrincipal(auth);
+      if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
+        console.warn(`[complete_task] AUTHZ_DENY credentialPrincipal=${principal} taskId=${args.taskId} claimedBy=${data.claimedBy}`);
+        throw new Error(`Unauthorized: only the claiming owner, ISO, or admin can complete this task (caller "${principal}").`);
       }
 
       // Capture task data for provenance hashing and budget tracking (before transaction completes)
@@ -864,14 +862,11 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         const current = data.status as LifecycleStatus;
         taskData = { instructions: data.instructions, source: data.source, target: data.target, dreamId: data.dreamId };
 
-        // Authorization: mirrors completeTaskHandler gate.
-        const isClaimingOwner = data.claimedBy != null && data.claimedBy === auth.programId;
-        const isClaimingSession = (data.sessionId as string | undefined) != null && data.sessionId === auth.programId;
-        const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
-        const isAdminProgram = auth.programId === "legacy" || auth.programId === "dispatcher";
-        if (!isClaimingOwner && !isClaimingSession && !isIso && !isAdminProgram) {
-          console.warn(`[batch_complete_tasks] AUTHZ_DENY programId=${auth.programId} taskId=${taskId} claimedBy=${data.claimedBy}`);
-          throw new Error("Unauthorized: only the claiming owner, ISO, or admin can complete this task.");
+        // Authorization (K-D1): mirrors completeTaskHandler.
+        const principal = credentialPrincipal(auth);
+        if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
+          console.warn(`[batch_complete_tasks] AUTHZ_DENY credentialPrincipal=${principal} taskId=${taskId} claimedBy=${data.claimedBy}`);
+          throw new Error(`Unauthorized: only the claiming owner, ISO, or admin can complete this task (caller "${principal}").`);
         }
 
         const lifecycleTarget = args.completed_status === "FAILED" ? "failed" : "done";
