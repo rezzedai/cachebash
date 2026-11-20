@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 64 AST baseline rows.
+114 site records, 111 handler entries, 63 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -25,7 +25,7 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | ESCALATE | 92 |
 | **Total** | **114** |
 
-Status: pending 114.
+Status: pending 113, done 1.
 
 ## Method
 
@@ -223,7 +223,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 139 at base, 1 occurrence(s).
 - Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-E.
-- Binding today: tenant uid equality (keys.ts:158) then principal equality or isKeyAdmin (keys.ts:167-169); isKeyAdmin admits vector, sark and keys.admin.
+- Binding today: auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers "Key not found" (PR-E). isKeyAdmin still admits the KEY_ADMIN_PRINCIPALS allowlist until PR-F..
 - Name lists: NL-KEY-ADMIN.
 - Evidence: The tenant check is satisfied by every key (one tenant). KEY_ADMIN_PRINCIPALS is a hardcoded list at ownerAuthz.ts:114. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
 - Recommendation: FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The list is deleted in PR-F.
@@ -1311,7 +1311,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | Rule | Rows | Occurrences |
 |---|---|---|
 | S1 | 57 | 220 |
-| S2 | 2 | 2 |
+| S2 | 1 | 1 |
 | S3 | 5 | 5 |
 
 The test fails on a violation with no row and on a row that no longer matches. The baseline only shrinks.
@@ -1375,7 +1375,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 310 |
 | S1 | transport/rest.ts | route POST /v1/relay/messages | `auth.programId` | 1 | 472 |
 | S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 950 |
-| S2 | modules/keys.ts | revokeKeyHandler | `auth.userId` | 1 | 158 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 400 |
 | S3 | modules/programState.ts | getProgramStateHandler | `args.programId` | 1 | 239 |

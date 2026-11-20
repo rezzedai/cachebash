@@ -66,13 +66,44 @@ describe("T6 tenant isolation", () => {
     // revoke tenant A's `alpha` key by hash: same program name, other tenant
     const target = w.creds.restricted;
     const r = await callTool(w, w.creds.tenantB, "keys_revoke_key", { keyHash: target.keyHash });
-    expect(r.json?.success).toBe(false);
+    expect(r.json).toEqual({ success: false, error: "Key not found" }); // identical to a missing key: the hash is no existence oracle
+    const missing = await callTool(w, w.creds.tenantB, "keys_revoke_key", { keyHash: "0".repeat(64) });
+    expect(missing.json).toEqual(r.json);
     expect((await emulatorDb().doc(`keyIndex/${target.keyHash}`).get()).data()?.active).toBe(true);
     // control: the same call on tenant B's own (spare) key works
     const spare = await writeKey(w.tenants.B, "alpha", "probe-b-spare", ["*"]);
     const own = await callTool(w, w.creds.tenantB, "keys_revoke_key", { keyHash: spare.keyHash });
     expect(own.json?.success).toBe(true);
     expect((await emulatorDb().doc(`keyIndex/${spare.keyHash}`).get()).data()?.active).toBe(false);
+  });
+
+  // RD-5 PR-E, amendment 4: tenant equality compares RESOLVED tenants. A key whose raw userId is an alternate uid of
+  // the caller's canonical tenant (the old dispatcher key 69cc7291 in T0NWeYZI, alternate of 7viFKVtl) is in the tenant.
+  probe("T6.alt_uid_keys", async () => {
+    const w = world();
+    const alt = `probe-alt-${w.tenants.A}`;
+    const db = emulatorDb();
+    await db.doc(`canonical_accounts/t6-alt-${w.tenants.A}`).set({ email: "t6-alt@example.invalid", canonicalUid: w.tenants.A, alternateUids: [alt] });
+    const mine = await writeKey(alt, "alpha", "probe-alt-alpha", ["*"]);
+    const theirs = await writeKey(alt, "beta", "probe-alt-beta", ["*"]);
+    // control: the same program, same tenant, sees and revokes the alternate-uid key
+    const list = await callTool(w, w.creds.scoped, "keys_list_keys", {});
+    expect(list.json?.success).toBe(true);
+    expect(list.text).toContain(mine.keyHash);
+    // deny: another program's alternate-uid key is neither listed nor revocable by a non-admin
+    expect(list.text).not.toContain(theirs.keyHash);
+    const denied = await callTool(w, w.creds.scoped, "keys_revoke_key", { keyHash: theirs.keyHash });
+    expect(denied.json?.success).toBe(false);
+    expect((await db.doc(`keyIndex/${theirs.keyHash}`).get()).data()?.active).toBe(true);
+    // deny: tenant B sees none of it, and the answer to a revoke is "Key not found"
+    const bList = await callTool(w, w.creds.tenantB, "keys_list_keys", {});
+    expect(bList.text).not.toContain(mine.keyHash);
+    const bRev = await callTool(w, w.creds.tenantB, "keys_revoke_key", { keyHash: mine.keyHash });
+    expect(bRev.json).toEqual({ success: false, error: "Key not found" });
+    // control: the same program revokes it
+    const own = await callTool(w, w.creds.scoped, "keys_revoke_key", { keyHash: mine.keyHash });
+    expect(own.json?.success).toBe(true);
+    expect((await db.doc(`keyIndex/${mine.keyHash}`).get()).data()?.active).toBe(false);
   });
 
   probe("T6.admin_merge_accounts", async () => {

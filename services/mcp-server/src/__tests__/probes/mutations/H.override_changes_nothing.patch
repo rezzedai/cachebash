@@ -1,9 +1,7 @@
 # mutation for probe H.override_changes_nothing: a program-naming header recomputes the principal and capabilities
-diff --git a/src/auth/authValidator.ts b/src/auth/authValidator.ts
-index f06330f..0d66361 100644
 --- a/src/auth/authValidator.ts
 +++ b/src/auth/authValidator.ts
-@@ -32,7 +32,7 @@ function hashApiKey(apiKey: string): string {
+@@ -32,7 +32,7 @@
    return crypto.createHash("sha256").update(apiKey).digest("hex");
  }
  
@@ -12,7 +10,7 @@ index f06330f..0d66361 100644
    const keyHash = hashApiKey(apiKey);
    const db = getFirestore();
  
-@@ -63,11 +63,11 @@ export async function validateApiKey(apiKey: string): Promise<AuthContext | null
+@@ -63,11 +63,11 @@
        console.warn("[Auth] keyIndex document has no programId; denying");
        return null;
      }
@@ -26,7 +24,7 @@ index f06330f..0d66361 100644
        ? data.capabilities
        : getDefaultCapabilities(programId);
  
-@@ -115,13 +115,13 @@ import { resolveTenant } from "./tenant-resolver.js";
+@@ -142,13 +142,13 @@
   * After auth succeeds, tenant resolution maps alternate UIDs to the
   * canonical tenant ID so all downstream Firestore ops use a single path.
   */
@@ -42,16 +40,14 @@ index f06330f..0d66361 100644
    } else if (isOAuthToken(token)) {
      auth = await validateOAuthToken(token);
    }
-diff --git a/src/index.ts b/src/index.ts
-index c805630..e02ddab 100644
 --- a/src/index.ts
 +++ b/src/index.ts
-@@ -862,7 +862,7 @@ async function main() {
+@@ -885,7 +885,7 @@
          res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
          return;
        }
--      const auth = await validateAuth(token);
-+      const auth = await validateAuth(token, req.headers[["x", "program", "id"].join("-")] as string | undefined);
+-      const authn = await authenticate(token, res);
++      const authn = { auth: await validateAuth(token, req.headers[["x", "program", "id"].join("-")] as string | undefined), denied: false };
+       if (authn.denied) return;
+       const auth = authn.auth;
        if (!auth) {
-         if (!checkAuthRateLimit(clientIp)) {
-           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });

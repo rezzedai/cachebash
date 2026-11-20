@@ -103,7 +103,34 @@ export { hashApiKey };
 
 import { validateFirebaseToken, isFirebaseToken } from "./firebaseAuthValidator.js";
 import { validateOAuthToken, isOAuthToken } from "./oauthTokenValidator.js";
-import { resolveTenant } from "./tenant-resolver.js";
+import { resolveTenant, TenantResolutionError } from "./tenant-resolver.js";
+
+export { TenantResolutionError };
+
+/** One alert per window per process: a Firestore outage must not write an alert per request. */
+export const TENANT_ALERT_INTERVAL_MS = 60_000;
+let lastTenantAlertAt = 0;
+
+/** Test-only. */
+export function resetTenantAlertThrottle(): void {
+  lastTenantAlertAt = 0;
+}
+
+async function raiseTenantResolutionAlert(auth: AuthContext, err: unknown): Promise<void> {
+  const now = Date.now();
+  if (now - lastTenantAlertAt < TENANT_ALERT_INTERVAL_MS) return;
+  lastTenantAlertAt = now;
+  try {
+    const { sendAlertHandler } = await import("../modules/signal.js");
+    await sendAlertHandler(auth, {
+      message: `Tenant resolution failed for program "${auth.keyProgramId}"; requests are denied (retryable) until canonical_accounts is readable: ${err instanceof Error ? err.message : String(err)}`,
+      alertType: "warning",
+      priority: "high",
+    });
+  } catch (alertErr) {
+    console.error("[Auth] Failed to emit tenant-resolution alert:", alertErr);
+  }
+}
 
 /**
  * Combined auth validator — detection order:
@@ -128,15 +155,25 @@ export async function validateAuth(token: string): Promise<AuthContext | null> {
 
   if (!auth) return null;
 
-  // Resolve tenant: map alternate UIDs to canonical tenant ID
+  // Resolve tenant: map alternate UIDs to canonical tenant ID. Fails closed: a failed lookup
+  // must never pass the raw uid through, because that moves the caller into a different (empty)
+  // tenant without any error. RD-5 amendment 4, ruling 2.
   try {
     const db = getFirestore();
     const resolution = await resolveTenant(auth.userId, db);
     if (!resolution.canonical) {
       auth.userId = resolution.tenantId;
     }
-  } catch {
-    // Tenant resolution failure must not block auth — pass through raw UID
+  } catch (err) {
+    console.error(JSON.stringify({
+      event: "TENANT_RESOLUTION_FAILED",
+      path: "validateAuth",
+      programId: auth.keyProgramId,
+      apiKeyHashPrefix: typeof auth.apiKeyHash === "string" ? auth.apiKeyHash.slice(0, 8) : undefined,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+    await raiseTenantResolutionAlert(auth, err);
+    throw err instanceof TenantResolutionError ? err : new TenantResolutionError(auth.userId, err);
   }
 
   return auth;
