@@ -396,3 +396,41 @@ describe("M tasks stats (row 3)", () => {
     expect(all.json?.data?.total).toBeGreaterThanOrEqual(a.json.data.total + b.json.data.total);
   });
 });
+
+const archivedSession = async (w: World, program: string): Promise<string> => {
+  const sessionId = `${program}-h${nextN()}`;
+  await emulatorDb().doc(`tenants/${w.tenants.A}/sessions/${sessionId}`).set({
+    name: `m-hist-${sessionId}`, programId: program, status: "complete", archived: true, currentAction: `m-hist-${sessionId}`,
+    createdAt: Timestamp.fromMillis(Date.now() - 600_000), lastUpdate: Timestamp.now(),
+  });
+  return sessionId;
+};
+
+describe("M sessions routes (rows 4 and 5)", () => {
+  probe("M.sessions_history_scoped", async () => {
+    const w = world();
+    const mine = await archivedSession(w, "alpha");
+    const theirs = await archivedSession(w, "beta");
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/sessions/history");
+    expect(r.httpStatus).toBe(200);
+    const ids = (r.json?.data?.sessions ?? []).map((s: any) => s.sessionId);
+    expect(ids).toContain(mine);
+    expect(ids).not.toContain(theirs);
+  });
+  test("M.sessions_history_scoped control: an observer sees both programs' archived sessions", async () => {
+    const w = world();
+    const a = await archivedSession(w, "alpha");
+    const b = await archivedSession(w, "beta");
+    const r = await rest(w, w.creds.observer, "GET", "/v1/sessions/history");
+    const ids = (r.json?.data?.sessions ?? []).map((s: any) => s.sessionId);
+    expect(ids).toEqual(expect.arrayContaining([a, b]));
+  });
+  // row 4: no requireAdmin; a plain program key lists its own sessions only
+  test("M.sessions_list_default_self: a program key lists its own sessions, not the tenant's", async () => {
+    const w = world();
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/sessions?limit=50");
+    expect(r.httpStatus).toBe(200);
+    expect(r.text).toContain(marker("A", "alpha"));
+    expect(r.text).not.toContain(marker("A", "beta"));
+  });
+});

@@ -520,7 +520,7 @@ const routes: Route[] = [
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 4: list_sessions decides (pulse.ts PR-L row 4); requireAdmin is gone.
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "list_sessions", query);
     restResponse(res, true, data);
@@ -539,38 +539,27 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sessions/history", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 5 (M-D2): list_sessions with includeArchived decides who reads which program's sessions; the route keeps
+    // its `sessions` key and its field names, and keeps only archived rows. list_sessions caps a page at 50, so this route does too.
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const db = getFirestore();
-    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
-
-    const snap = await db.collection(`tenants/${auth.userId}/sessions`)
-      .where("archived", "==", true)
-      .orderBy("lastUpdate", "desc")
-      .limit(limit)
-      .get();
-
-    const sessions = snap.docs.map((doc: any) => {
-      const data = doc.data();
-      const createdAt = data.createdAt?.toDate?.()?.getTime() || 0;
-      const lastUpdate = data.lastUpdate?.toDate?.()?.getTime() || 0;
-      const durationMs = lastUpdate && createdAt ? lastUpdate - createdAt : null;
-
-      return {
-        sessionId: doc.id,
-        name: data.name,
-        programId: data.programId,
-        status: data.currentAction || data.name,
-        state: data.status,
-        progress: data.progress,
-        projectName: data.projectName,
-        durationMs,
-        durationMinutes: durationMs ? Math.round(durationMs / 60000) : null,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
-        completedAt: data.lastUpdate?.toDate?.()?.toISOString() || null,
-      };
-    });
-
+    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 50);
+    const data = await callTool(auth, req, "list_sessions", { includeArchived: true, limit: 50 }) as {
+      success?: boolean; sessions?: Array<Record<string, unknown>>;
+    };
+    if (data.success === false) return restResponse(res, true, data);
+    const sessions = (data.sessions ?? []).filter((s) => s.archived === true).slice(0, limit).map((s) => ({
+      sessionId: s.sessionId,
+      name: s.name,
+      programId: s.programId,
+      status: s.status,
+      state: s.state,
+      progress: s.progress,
+      projectName: s.projectName,
+      durationMs: null, // list_sessions does not return createdAt; reported to ISO (PR-M surprise)
+      durationMinutes: null,
+      createdAt: null,
+      completedAt: s.lastUpdate ?? null,
+    }));
     restResponse(res, true, { sessions, count: sessions.length });
   }),
   // Signal
