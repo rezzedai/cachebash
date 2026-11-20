@@ -93,6 +93,16 @@ describe("L fleet paths", () => {
     }
   });
 
+  // orchestrator-watch.service (recognizer-vm, key c517857c): reads only fleet health with fleet.read + fleet.observe; a refusal silences the VM alarm
+  probe("L.fleet_path_orchestrator_watch_fleet_health", async () => {
+    const w = world();
+    const watch = await mint(w, "orchestrator-watch", "probe-l-orch-watch-health", ["fleet.read", "fleet.observe"]);
+    const r = await callTool(w, watch, "pulse_get_fleet_health", { detail: "summary" });
+    expect(r.isError).toBe(false);
+    expect(r.json?.success).not.toBe(false);
+    expect(Array.isArray(r.json?.programs) && r.json.programs.length > 0).toBe(true);
+  });
+
   // orchestrator-followup-enforcer.sh:180 and the refuter agents: iso and vector read the task they sent
   probe("L.fleet_path_orchestrator_reads_sent_task", async () => {
     const w = world();
@@ -121,6 +131,26 @@ describe("L fleet paths", () => {
     const alpha = await mint(w, "alpha", "probe-l-alpha-ctl", ["*"]);
     const sessionId = await freshSession(w, "beta");
     const r = await callTool(w, alpha, "pulse_update_session", { sessionId, status: "l-ctl", lastHeartbeat: true });
+    expect(r.json?.success).toBe(false);
+  });
+
+  // table A row 2: a program creating its own env-suffixed session with no programId stores programId = principal (tensor, 11-04)
+  probe("L.self_create_session_env_suffix", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate", ["*"]);
+    const id = `alpha-g${nextN()}.t1`;
+    const r = await callTool(w, alpha, "pulse_create_session", { name: `l-${id}`, sessionId: id, status: "l-self-create" });
+    expect(r.json?.success).toBe(true);
+    const list = await callTool(w, alpha, "pulse_list_sessions", { includeArchived: true, limit: 50 });
+    const row = (list.json?.sessions ?? []).find((s: any) => s.sessionId === id || s.id === id);
+    expect(row?.programId).toBe("alpha");
+  });
+
+  test("L.self_create_session_env_suffix control: alpha creating a beta-prefixed session is refused", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate-ctl", ["*"]);
+    const id = `beta-g${nextN()}`;
+    const r = await callTool(w, alpha, "pulse_create_session", { name: `l-${id}`, sessionId: id, status: "l-self-create-ctl" });
     expect(r.json?.success).toBe(false);
   });
 

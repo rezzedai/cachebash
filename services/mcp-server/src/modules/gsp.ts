@@ -1664,6 +1664,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
     if (args.decision === "withdrawn") {
       // Only the proposer can withdraw
       if (auth.programId !== proposal.proposedBy) {
+        logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",

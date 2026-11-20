@@ -14,7 +14,7 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 321,
+    "a_occurrences": 320,
     "a_lines": 296,
     "a_files": 18,
     "b_lines_beyond_a": 59,
@@ -1290,7 +1290,7 @@
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
         "modules/gsp.ts:1619",
-        "modules/gsp.ts:1695"
+        "modules/gsp.ts:1696"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1319,7 +1319,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1822"
+        "modules/gsp.ts:1823"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -3582,7 +3582,7 @@
       "handler": "createSessionHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 3,
+      "occurrences": 2,
       "line_at_base": 113,
       "tool": "pulse_create_session",
       "transports": [

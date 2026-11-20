@@ -119,7 +119,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
     logDenial({ principal, tool: "pulse_create_session", subject: sessionOwnerProgramId(sessionId), code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create session "${sessionId}"`, sessionId });
   }
-  const targetProgram = args.programId ?? (args.sessionId ? sessionId.split(".")[0] : principal);
+  const targetProgram = args.programId ?? (privileged ? sessionId.split(".")[0] : principal);
   if (targetProgram !== principal && !privileged) {
     logDenial({ principal, tool: "pulse_create_session", subject: targetProgram, code: "FOREIGN_SUBJECT" });
     return jsonResult({ success: false, error: `Access denied: "${principal}" cannot create a session for "${targetProgram}"`, sessionId });

@@ -8,7 +8,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1230; gsp_propose at modules/gsp.ts:1341, modules/gsp.ts:1379; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1619, modules/gsp.ts:1695; gsp_search at modules/gsp.ts:1822; state_update_program_state at modules/programState.ts:583.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1230; gsp_propose at modules/gsp.ts:1341, modules/gsp.ts:1379; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1619, modules/gsp.ts:1696; gsp_search at modules/gsp.ts:1823; state_update_program_state at modules/programState.ts:583.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
@@ -51,7 +51,7 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 321 |
+| (a) occurrences | 320 |
 | (a) lines | 296 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
@@ -245,7 +245,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `pulse.createSessionHandler:args.sessionId`
 
-- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 113 at base, 3 occurrence(s).
+- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 113 at base, 2 occurrence(s).
 - Tool: pulse_create_session; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
 - Binding today: none.
 - Evidence: pulse.ts:113 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:173), so it overwrites any program's existing session document.
@@ -944,7 +944,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | programState.deleteMemoryHandler:args.programId | a | 9 | 727 | SELF-ONLY | C-4 | PR-J | false |
 | programState.reinforceMemoryHandler:args.programId | a | 9 | 786 | SELF-ONLY | C-4 | PR-J | false |
 | programState.getContextHistoryHandler:args.programId | a | 8 | 848 | SELF-ONLY | C-4 | PR-J | false |
-| pulse.createSessionHandler:args.sessionId | a | 3 | 113 | ESCALATE | ISO | PR-L | false |
+| pulse.createSessionHandler:args.sessionId | a | 2 | 113 | ESCALATE | ISO | PR-L | false |
 | pulse.createSessionHandler:args.programId | a | 1 | 122 | ESCALATE | C-5 | PR-L | false |
 | pulse.updateSessionHandler:args.sessionId | a | 1 | 216 | ESCALATE | C-5 | PR-L | false |
 | pulse.listSessionsHandler:args.programId | a | 1 | 747 | ESCALATE | ISO | PR-L | false |
@@ -1177,8 +1177,8 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 | gsp_seed | modules/gsp.ts:1230 | ruled by ISO, upheld by VECTOR |
 | gsp_propose | modules/gsp.ts:1341; modules/gsp.ts:1379 | ruled by ISO, upheld by VECTOR |
 | gsp_subscribe | modules/gsp.ts:231; modules/gsp.ts:261 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:230 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
-| gsp_resolve | modules/gsp.ts:1619; modules/gsp.ts:1695 | ruled by ISO, upheld by VECTOR |
-| gsp_search | modules/gsp.ts:1822 | ruled by ISO, upheld by VECTOR |
+| gsp_resolve | modules/gsp.ts:1619; modules/gsp.ts:1696 | ruled by ISO, upheld by VECTOR |
+| gsp_search | modules/gsp.ts:1823 | ruled by ISO, upheld by VECTOR |
 | state_update_program_state | modules/programState.ts:583 | ruled by ISO, upheld by VECTOR |
 
 The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).
