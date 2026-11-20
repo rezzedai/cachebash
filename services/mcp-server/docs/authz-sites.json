@@ -2875,7 +2875,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:135, :343). 5 pass a caller-controlled value: verifiedSource at relay.ts:331, relay.ts:432, dispatch/tasks.ts:508 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:163), and args.programId at pulse.ts:163. So the label is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
