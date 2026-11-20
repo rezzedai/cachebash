@@ -1,0 +1,14 @@
+# mutation for probe T7.boot_allowed_under_pause: dispatchPaused denies every mutating tool, so gsp_bootstrap (gsp.write) is refused
+diff --git a/src/middleware/circuitBreaker.ts b/src/middleware/circuitBreaker.ts
+index bdf9919..26d90bf 100644
+--- a/src/middleware/circuitBreaker.ts
++++ b/src/middleware/circuitBreaker.ts
+@@ -109,7 +109,7 @@ export function isMutatingTool(toolName: string): boolean {
+  */
+ export function isDispatchFamilyMutation(toolName: string): boolean {
+   const canonical = resolveToolAlias(toolName);
+-  return canonical.startsWith("dispatch_") && isMutatingTool(canonical);
++  return isMutatingTool(canonical);
+ }
+ 
+ // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---

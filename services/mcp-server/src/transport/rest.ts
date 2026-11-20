@@ -1068,7 +1068,7 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
         }
         if (err instanceof BreakerError) {
           res.setHeader("Retry-After", String(Math.ceil(err.retryAfterMs / 1000)));
-          const status = err.code === "CEILING_ORG_PAUSED" || err.code === "CEILING_CONFIG_UNAVAILABLE" ? 503 : 429;
+          const status = err.code === "CEILING_ORG_PAUSED" || err.code === "DISPATCH_PAUSED" || err.code === "CEILING_CONFIG_UNAVAILABLE" ? 503 : 429;
           return restResponse(res, false, {
             code: err.code,
             message: err.message,

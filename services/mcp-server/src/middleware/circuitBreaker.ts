@@ -8,7 +8,7 @@
  * nothing here trusts an agent-submitted value.
  *
  * Ceilings are per-tenant, configurable in Firestore at
- * tenants/{org}/_meta/ceilings: { perKeyLimit, orgLimit, windowMs, paused }.
+ * tenants/{org}/_meta/ceilings: { perKeyLimit, orgLimit, windowMs, paused, dispatchPaused }.
  *
  * FAIL-CLOSED: if that config is missing, malformed, or the read throws,
  * mutations are denied. Reads never enter this breaker at all (checked via
@@ -19,6 +19,13 @@
  * Kill switch: config.paused denies every mutation for the tenant. Since
  * config is read fresh (no cross-request cache) on every mutating call,
  * flipping `paused` takes effect on the very next request.
+ *
+ * Dispatch pause (RD-5 C-3): config.dispatchPaused denies only the mutating
+ * dispatch family (see isDispatchFamilyMutation) with code DISPATCH_PAUSED.
+ * Every other tool, including gsp_bootstrap (mapped to gsp.write, so the wider
+ * `paused` switch denies it), state reads and relay messages, is unaffected, so
+ * programs still boot while dispatch is refused. Nothing under src/ writes this
+ * flag; a test enforces that.
  */
 
 import type { AuthContext } from "../auth/authValidator.js";
@@ -32,6 +39,8 @@ export interface CeilingConfig {
   orgLimit: number;
   windowMs: number;
   paused: boolean;
+  /** Denies the mutating dispatch family only. Absent or non-true means off. */
+  dispatchPaused: boolean;
 }
 
 /**
@@ -45,11 +54,13 @@ export const DEFAULT_CEILINGS: CeilingConfig = {
   orgLimit: 150,
   windowMs: 60_000,
   paused: false,
+  dispatchPaused: false,
 };
 
 export type BreakerCode =
   | "CEILING_CONFIG_UNAVAILABLE"
   | "CEILING_ORG_PAUSED"
+  | "DISPATCH_PAUSED"
   | "CEILING_KEY_EXCEEDED"
   | "CEILING_ORG_EXCEEDED";
 
@@ -86,6 +97,19 @@ export function isMutatingTool(toolName: string): boolean {
   const required = TOOL_CAPABILITIES[canonical];
   if (!required) return false;
   return required.endsWith(".write") || NON_WRITE_MUTATING_CAPABILITIES.has(required);
+}
+
+/**
+ * The dispatch family denied by `dispatchPaused`: every mutating tool whose
+ * canonical name starts with `dispatch_` (create, claim, unclaim, complete,
+ * batch claim/complete, dispatch, retry, abort, reassign, escalate, replay,
+ * approve, record telemetry, quarantine, unquarantine). Legacy aliases
+ * (create_task, claim_task, ...) resolve to canonical first. Reads such as
+ * dispatch_get_tasks stay allowed, and gsp_*, state_*, relay_* are not in it.
+ */
+export function isDispatchFamilyMutation(toolName: string): boolean {
+  const canonical = resolveToolAlias(toolName);
+  return canonical.startsWith("dispatch_") && isMutatingTool(canonical);
 }
 
 // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---
@@ -146,7 +170,7 @@ async function loadCeilingConfig(org: string): Promise<CeilingConfig | null> {
     return null;
   }
 
-  return { perKeyLimit, orgLimit, windowMs, paused: data.paused === true };
+  return { perKeyLimit, orgLimit, windowMs, paused: data.paused === true, dispatchPaused: data.dispatchPaused === true };
 }
 
 function emitBreakerAlert(auth: AuthContext, tool: string, code: BreakerCode, message: string): void {
@@ -189,6 +213,12 @@ export async function checkCircuitBreaker(auth: AuthContext, toolName: string): 
     const message = `Tenant "${org}" is paused; all mutations fail closed until unpaused.`;
     emitBreakerAlert(auth, toolName, "CEILING_ORG_PAUSED", message);
     return { allowed: false, code: "CEILING_ORG_PAUSED", message, retryAfterMs: config.windowMs };
+  }
+
+  if (config.dispatchPaused && isDispatchFamilyMutation(toolName)) {
+    const message = `Dispatch is paused for tenant "${org}"; "${toolName}" is refused until dispatchPaused is cleared. Boot, state reads and messages still work.`;
+    emitBreakerAlert(auth, toolName, "DISPATCH_PAUSED", message);
+    return { allowed: false, code: "DISPATCH_PAUSED", message, retryAfterMs: config.windowMs };
   }
 
   const keyCacheKey = `key:${auth.apiKeyHash}`;

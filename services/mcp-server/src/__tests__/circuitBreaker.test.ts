@@ -10,6 +10,7 @@ import type { AuthContext } from "../auth/authValidator";
 import {
   checkCircuitBreaker,
   isMutatingTool,
+  isDispatchFamilyMutation,
   pruneWindow,
   countInWindow,
   resetCircuitBreakerState,
@@ -279,5 +280,80 @@ describe("tenant isolation", () => {
     const orgTwoResult = await checkCircuitBreaker(orgTwoAuth, "dispatch_create_task");
     expect(orgTwoResult.allowed).toBe(false);
     if (!orgTwoResult.allowed) expect(orgTwoResult.code).toBe("CEILING_CONFIG_UNAVAILABLE");
+  });
+});
+
+describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
+  const DISPATCH_FAMILY = [
+    "dispatch_create_task", "dispatch_claim_task", "dispatch_unclaim_task", "dispatch_complete_task",
+    "dispatch_record_task_telemetry", "dispatch_batch_claim_tasks", "dispatch_batch_complete_tasks",
+    "dispatch_dispatch", "dispatch_retry_task", "dispatch_abort_task", "dispatch_reassign_task",
+    "dispatch_escalate_task", "dispatch_replay_task", "dispatch_approve_task",
+    "dispatch_quarantine_program", "dispatch_unquarantine_program",
+    // legacy aliases resolve to the same family
+    "create_task", "claim_task", "complete_task", "dispatch",
+  ];
+  // Boot path and everything else: not dispatch family, so allowed under dispatchPaused.
+  const BOOT_AND_OTHER = [
+    "gsp_bootstrap", "gsp_read", "gsp_write",
+    "state_get_program_state", "state_update_program_state", "state_store_memory",
+    "relay_get_messages", "relay_send_message", "pulse_create_session", "pulse_update_session",
+    "dispatch_get_tasks", "dispatch_get_task_by_id", "get_tasks",
+  ];
+
+  it("exposes the dispatch family as the mutating dispatch_* tools", () => {
+    for (const t of DISPATCH_FAMILY) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: true });
+    for (const t of BOOT_AND_OTHER) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: false });
+  });
+
+  it.each(DISPATCH_FAMILY)("denies %s with DISPATCH_PAUSED", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    const r = await checkCircuitBreaker(auth(), tool);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) {
+      expect(r.code).toBe("DISPATCH_PAUSED");
+      expect(r.message).toContain("Dispatch is paused");
+      expect(r.message).toContain(tool);
+    }
+  });
+
+  it.each(BOOT_AND_OTHER)("boot under dispatchPaused: %s stays allowed", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    const r = await checkCircuitBreaker(auth(), tool);
+    expect(r).toEqual({ allowed: true });
+  });
+
+  it("control: the same dispatch call is allowed when dispatchPaused is false or absent", async () => {
+    setCeilings("org-1", { dispatchPaused: false });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { perKeyLimit: 30, orgLimit: 150, windowMs: 60_000, paused: false });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+  });
+
+  it("only a literal true pauses (truthy strings do not)", async () => {
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { ...DEFAULT_CEILINGS, dispatchPaused: "true" });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+  });
+
+  it("tenant paused is unchanged: still denies every mutation, boot included, with CEILING_ORG_PAUSED", async () => {
+    setCeilings("org-1", { paused: true });
+    for (const tool of ["gsp_bootstrap", "dispatch_create_task", "relay_send_message"]) {
+      const r = await checkCircuitBreaker(auth(), tool);
+      expect(r.allowed).toBe(false);
+      if (!r.allowed) expect(r.code).toBe("CEILING_ORG_PAUSED");
+    }
+  });
+
+  it("a denied dispatch call does not consume ceiling slots", async () => {
+    setCeilings("org-1", { dispatchPaused: true, perKeyLimit: 1, orgLimit: 1 });
+    await checkCircuitBreaker(auth(), "dispatch_create_task");
+    await checkCircuitBreaker(auth(), "dispatch_create_task");
+    expect((await checkCircuitBreaker(auth(), "gsp_bootstrap")).allowed).toBe(true);
+  });
+
+  it("dispatchPaused is scoped to its tenant", async () => {
+    setCeilings("org-1", { dispatchPaused: true });
+    setCeilings("org-2", {});
+    expect((await checkCircuitBreaker(auth({ userId: "org-2" }), "dispatch_create_task")).allowed).toBe(true);
   });
 });
