@@ -2,13 +2,13 @@
  * Key-path authorization (RD-5 PR-E, ISO plan C-2 and amendment 4).
  *
  * One function decides whether a credential may act on a keyIndex document:
- *   sameTenant AND (sameProgram OR fleet-admin)
+ *   sameTenant AND (sameProgram OR key admin)
  *
  * - sameTenant compares RESOLVED tenants on both sides (resolveTenant over canonical_accounts).
  *   A raw keyIndex.userId never decides: the dispatcher key 69cc7291 carries an alternate uid.
  * - sameProgram compares credentialPrincipal(auth) with keyDoc.programId. Program names repeat
  *   across tenants, so the program check alone is never enough.
- * - fleet-admin is isKeyAdmin: literal `fleet.admin` (hasFleetAdminCapability), literal `keys.admin`,
+ * - key admin is isKeyAdmin: literal `fleet.admin` (hasFleetAdminCapability), literal `keys.admin`,
  *   or the KEY_ADMIN_PRINCIPALS allowlist until PR-F deletes it. "*" never satisfies it.
  *
  * A tenant mismatch is reported as "tenant", which callers answer exactly like a missing key.
