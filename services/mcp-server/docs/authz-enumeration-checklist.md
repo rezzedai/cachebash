@@ -1,569 +1,1384 @@
-# Authz chokepoint — §2 enumeration checklist (PR-2)
+# Authorization call-site enumeration (RD-5 PR-C)
 
-Committed reviewable checklist for `PDR-cachebash-authz-chokepoint.md` / `ISO-plan-authz-chokepoint.md` §2. This is
-the enumeration artifact only — **no authorization decisions are added or changed by this document or by PR-2**.
-VECTOR/ISO review this site-by-site to close the plan's PR-2 gate: "VECTOR reviews §2; zero unassigned sites."
+GENERATED from `docs/authz-sites.json` by `scripts/gen-authz-checklist.ts`. Do not edit by hand.
+A test regenerates this file and fails on any difference. Edit the JSON, then run
+`npx tsx scripts/gen-authz-checklist.ts` from `services/mcp-server`.
 
-Base commit: `adaf9a5` (PR-1 merged/deployed, `cachebash-mcp-00191-z4z`).
+Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 for cachebash-mcp (#500)) on rezzedai/cachebash. No handler is changed by this document.
 
-## Predicate
+## Result
 
-Per the PDR/plan §2: *any handler that reads a program, session, agent, target or source identifier from its
-arguments and uses it to select, mutate or destroy data.*
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:163; gsp_write at modules/gsp.ts:435; gsp_diff at modules/gsp.ts:497; gsp_bootstrap at modules/gsp.ts:750; gsp_seed at modules/gsp.ts:1201; gsp_propose at modules/gsp.ts:1312, modules/gsp.ts:1350; gsp_subscribe at modules/gsp.ts:229, modules/gsp.ts:259; gsp_resolve at modules/gsp.ts:1590, modules/gsp.ts:1664; gsp_search at modules/gsp.ts:1791; state_update_program_state at modules/programState.ts:526.**
 
-## Method (independently re-derived, not copied from the plan)
+N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-The plan's §0.3 warns that a naive `args.X`-only grep undercounts: it also matches `query.X`, `body.X`,
-`req.params|query|body.X`, and destructured forms (`const { target, ... } = args`), which hide sites in
-`keys.ts` and `wake/onDemandWake.ts`.
+114 site records, 111 handler entries, 64 AST baseline rows.
 
-The re-derived sweep used:
+| Disposition | Records |
+|---|---|
+| SELF-ONLY | 1 |
+| FOREIGN-READ | 1 |
+| FOREIGN-WRITE | 1 |
+| ADDRESSED | 5 |
+| ATTRIBUTION | 9 |
+| NOT-IDENTITY | 5 |
+| ESCALATE | 92 |
+| **Total** | **114** |
 
-```
-grep -noE '\b(args|query|body|req\.(params|query|body))\.(agentId|target|targetProgram|sessionId|programId|source)\b'
-```
+Status: pending 114.
 
-against every `.ts` file under `services/mcp-server/src/{modules,transport,iso}`, plus manual inspection for
-destructured reads the regex structurally cannot see (confirmed exactly two: `modules/keys.ts:45` and
-`modules/wake/onDemandWake.ts:208`, both flagged by name in the plan's §0.3).
+## Method
 
-A broader keyword list (`owner`, `ownerId`, `program`, `principal`, `userId`, `uid`, `to`, `from`, `recipient`,
-`assignee`, `scheduleOwner`, `forProgram`) was tried first, to check whether the PDR's five-keyword predicate
-(`agentId`, `target`, `sessionId`, `programId`, `source`) was under-inclusive. It was not: none of those extra
-keywords matched anywhere in the swept files. The five-keyword predicate is exhaustive against the actual tree.
+git grep -P, never -E: git 2.54 ignores \b under -E and returns 0 (amendment 2, item 1). Run from the repository root at the base sha.
 
-## Reconciliation: 258 / 258 — matches the plan exactly, per file
-
-| File | This sweep | Plan §2 | Match |
-|---|---|---|---|
-| `modules/programState.ts` | 74 | 74 | ✅ |
-| `modules/relay.ts` | 41 | 41 | ✅ |
-| `modules/dispatch/dispatchHandler.ts` | 36 | 36 | ✅ |
-| `modules/pulse.ts` | 21 | 21 | ✅ |
-| `modules/dispatch/tasks.ts` | 14 | 14 | ✅ |
-| `modules/dispatch/interventions.ts` | 14 | 14 | ✅ |
-| `modules/dispatch/claims.ts` | 10 | 10 | ✅ |
-| `modules/schedule.ts` | 9 | 9 | ✅ |
-| `modules/gsp.ts` | 9 | 9 | ✅ |
-| `modules/programRegistry.ts` | 6 | 6 | ✅ |
-| `modules/rate-limits.ts` | 4 | 4 | ✅ |
-| `modules/metrics.ts` | 3 | 3 | ✅ |
-| `modules/ack-compliance.ts` | 3 | 3 | ✅ |
-| `modules/trace.ts` | 2 | 2 | ✅ |
-| `modules/audit.ts` | 2 | 2 | ✅ |
-| `modules/sprint.ts` | 1 | 1 | ✅ |
-| `modules/signal.ts` | 1 | 1 | ✅ |
-| `modules/keys.ts` (destructured, manual) | 1 | 1 | ✅ DONE, PR-1 |
-| `modules/wake/onDemandWake.ts` (destructured, manual) | 1 | 1 | ✅ |
-| **Module subtotal** | **252** | **252** | ✅ |
-| `transport/rest.ts` | 6 | 6 | ✅ |
-| `iso/isoServer.ts` | 0 | 0 | ✅ (thin dispatcher onto the same handlers — §0.1) |
-| **Total** | **258** | **258** | ✅ |
-
-No discrepancy to report: the independently re-derived count reconciles exactly to the plan's claimed 258 across
-20 files and 3 transports. No 259th site was found. (One line-counting note: like the plan's own count, a single
-source line that reads two identifiers — e.g. `args.source ? args.source : ...` or
-`args.target !== self && args.target !== "all"` — is counted once per identifier occurrence, not once per line;
-several such lines appear in `relay.ts`, `dispatchHandler.ts`, `tasks.ts`, and `schedule.ts` in the appendix below,
-each occurrence listed as its own row for that reason.)
-
-## Disposition vocabulary
-
-Per the plan's §4.2 / §2 preamble: **SELF-ONLY** / **FOREIGN-READ** (fleet-read capability) / **FOREIGN-WRITE**
-(admin capability). Default for anything unclassified is SELF-ONLY. Dispositions below are the plan's own
-per-file assignments (§2.1/§2.2/§2.3), applied to each site; they are ISO's assignment, not re-litigated here,
-**except** where flagged as an escalation (see "Escalations" below and inline in the appendix).
-
-## `credentialPrincipal` adoption (PR-2 scope: swap only where behavior-identical)
-
-Searched every `auth.programId` read and every `isAdmin`/`hasCapability` call site in the module layer for a
-literal drop-in match to `credentialPrincipal(auth)` (`auth.keyProgramId ?? auth.programId`, from
-`auth/ownerAuthz.ts`). Only **one** true drop-in existed:
-
-- **`transport/rest.ts:478`** (portal owner send-message, `POST /v1/relay/messages`) previously computed
-  `const source = auth.keyProgramId ?? auth.programId;` inline — byte-for-byte the same expression
-  `credentialPrincipal()` returns. Swapped to `const source = credentialPrincipal(auth);` (see diff). This is
-  provably behavior-identical: same inputs (`auth.keyProgramId`, `auth.programId`), same operator (`??`), same
-  output type coerced to `string`. Covered by `__tests__/portal-owner-send-message.test.ts`, which passes
-  unchanged (see verification below).
-
-**Everywhere else `isAdmin(auth)` is called** (`relay.ts`, `pulse.ts`, `programRegistry.ts`, `metrics.ts`,
-`audit.ts`, `trace.ts`, `claims.ts`, `completion.ts`), it resolves via `(ADMIN_PROGRAMS).includes(auth.programId)`
-— **list membership against `auth.programId`**, not an identity resolution against
-`auth.keyProgramId ?? auth.programId`. `auth.programId` is the X-Program-Id-overridable field (BUG-006); under a
-header override `auth.programId` and `credentialPrincipal(auth)` can diverge. Swapping `isAdmin`'s internals, or
-swapping its call sites' input from `auth.programId` to `credentialPrincipal(auth)`, would be a **behavior
-change** (and in the override case, arguably a bug fix) — not "identical for every input." Per instructions, left
-untouched and noted in the appendix for a later PR (the plan already assigns this: "Both primitives here are the
-broken ones (§0.2) — replace, don't reuse" is PR-4/PR-5 territory, not PR-2's no-behavior-change scope).
-
-No other inline `auth.keyProgramId ?? auth.programId` (or equivalent) expression exists anywhere else in
-`services/mcp-server/src` — confirmed by grepping every `keyProgramId` reference in the tree.
-
-## Escalations to BASHER
-
-1. **`modules/pulse.ts` — `getContextUtilizationHandler` (lines 727, 729, 754).** The plan's prose names only
-   three of pulse.ts's handlers explicitly (`pulse_update_session` SELF-ONLY, `get_fleet_health` FOREIGN-READ,
-   `pause`/`resume_program` FOREIGN-WRITE), even though its 21-site count includes this handler's 3 sites.
-   `getContextUtilizationHandler` takes `args.sessionId` and, when supplied, reads
-   `tenants/{userId}/sessions/{args.sessionId}` and returns that session's **full `contextHistory`** — with
-   **no gate of any kind**, not even a broken one (no `isAdmin`, no self-comparison). Worse: the no-`sessionId`
-   branch unconditionally aggregates and returns **every active session's** context summary fleet-wide,
-   regardless of caller. This is currently reachable by any valid key today (pre-existing, not introduced by
-   PR-2 — no behavior changed here). Structurally it looks like it should be FOREIGN-READ (same shape as
-   `get_fleet_health`, which the plan does name), but the plan's text never assigns it a disposition, so per §5's
-   own instruction ("never ship a SELF-ONLY on a site you have not confirmed") I have not assumed one. Flagged
-   in the appendix as `UNASSIGNED IN PLAN PROSE` rather than silently defaulted to SELF-ONLY or silently
-   upgraded to FOREIGN-READ. No code changed here — PR-2 makes no authz decisions.
-2. **D4 (relay.ts broadcast exemption) encountered, not resolved.** `relay.ts` has a `t === "all"` broadcast
-   exemption at the read-filter sites (around lines 472, 477, 743) that the plan explicitly flags as unresolved
-   ("whether a broadcast message read by a non-owner is legitimate") and instructs not to assume an answer on.
-   Confirmed present, confirmed untouched — noted in the appendix per-row, not adjudicated.
-3. No site was found that the plan's §2 does not list — the 258 reconciles exactly (see above), so there is no
-   259th-site finding to escalate.
-4. No disposition in the plan's §2 was found to be evidently wrong (as distinct from item 1's "not stated").
-
-## Verification (before / after — PR-2 changes only)
-
-Baseline run (before any PR-2 change), `npx jest` in `services/mcp-server`:
+Regex (a):
 
 ```
-Test Suites: 1 skipped, 57 passed, 57 of 58 total
-Tests:       21 skipped, 863 passed, 884 total
+git grep -n -o -P '\b(args|query|body|req\.(params|query|body))\.(agentId|target|targetProgram|sessionId|programId|source)\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'
 ```
 
-Post-change run (after the `credentialPrincipal` swap in `transport/rest.ts`):
+Regex (b):
 
 ```
-Test Suites: 1 skipped, 57 passed, 57 of 58 total
-Tests:       21 skipped, 863 passed, 884 total
+git grep -n -P '\b(args|query|body|p|params|input|parsed|validated)\.(agent|agentId|program|programId|program_id|target|targetProgram|target_program|sessionId|session_id|source|callerSource|from|to|recipient|owner|ownerId|assignee|claimedBy|seatId|tenantId|userId|uid|principal|newTarget|reassignTo|escalateTo|keyHash)\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'
 ```
 
-Identical pass/fail set — zero tests changed status, including `portal-owner-send-message.test.ts` (the direct
-coverage of the swapped line), which passed both before and after.
+Regex (c):
 
----
+```
+git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\b[^}]*\} = (args|req|body|query|input|parsed|params|p)\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'
+```
 
-## Appendix — every site, file:line, identifier, disposition
+| Measure | Count at base |
+|---|---|
+| (a) occurrences | 271 |
+| (a) lines | 255 |
+| (a) files | 18 |
+| (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
+| (c) lines | 3 |
 
+Expected at the base: 271 occurrences, 255 lines, 18 files; 59; 3. Differs from expected: no.
 
-### `modules/programState.ts` — 74 site(s)
+Sites are keyed by handler and expression, not by line. `line_at_base` is the first line at the base sha.
 
-Primitive present in file: **verifySource**. Default disposition: **SELF-ONLY (enforced — reference impl, confirm only)**.
+### Disposition vocabulary (D-e)
 
-| Line | Identifier read | Snippet | Disposition |
+| Label | Meaning |
+|---|---|
+| SELF-ONLY | the caller may act only on its own subject |
+| FOREIGN-READ | a foreign subject may be read, widened only by literal fleet.observe |
+| FOREIGN-WRITE | a foreign subject may be written, widened only by literal fleet.admin |
+| ADDRESSED | the argument names a recipient; the sender is bound by the resolver |
+| ATTRIBUTION | the argument is stored as a label and selects nothing |
+| NOT-IDENTITY | regex hit that is not a caller argument, with the reason |
+| ESCALATE | disposition not readable from the code; evidence and a recommendation given, ISO and VECTOR decide |
+
+## ESCALATE (92)
+
+Each record gives the evidence and a recommendation. The builder picks nothing; ISO reviews every record and VECTOR reviews ESCALATE, ADDRESSED and ATTRIBUTION.
+
+### `index.main:params.target`
+
+- Where: `index.ts`, handler `main`, expression `params.target`, line 613 at base, 2 occurrence(s).
+- Tool: none; transports internal; effect write; decided by ISO; closes in ISO-assign.
+- Binding today: OIDC service-account token (index.ts:502-510); no program principal; wakes params.target for activeUserIds[0].
+- Evidence: POST /v1/internal/wake-target reads params.target (index.ts:613, :628) and calls wakeTarget with userId = activeUserIds[0]; the caller is a service account, not a program credential.
+- Recommendation: ADDRESSED (target names who to wake; the response carries an outcome only). ISO to confirm the service-account path needs no principal.
+
+### `ack-compliance.getAckComplianceHandler:args.programId`
+
+- Where: `modules/ack-compliance.ts`, handler `getAckComplianceHandler`, expression `args.programId`, line 112 at base, 3 occurrence(s).
+- Tool: audit_get_ack_compliance; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none: args.programId filters query on source (ack-compliance.ts:112-114).
+- Evidence: No comparison against auth.programId, credentialPrincipal or a capability inside the handler (guard grep, recon section 8). Any caller can filter the ledger to another program's source.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `audit.getAuditHandler:args.programId`
+
+- Where: `modules/audit.ts`, handler `getAuditHandler`, expression `args.programId`, line 44 at base, 2 occurrence(s).
+- Tool: audit_get_audit; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
+- Binding today: isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:25.
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: Gate at audit.ts:25 passes for the five isAdmin names or any key with audit.read or "*". Once past the gate, args.programId filters any program's ledger rows.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N.
+
+### `clu.cluIngestHandler:parsed.session_id`
+
+- Where: `modules/clu.ts`, handler `cluIngestHandler`, expression `parsed.session_id`, line 92 at base, 1 occurrence(s).
+- Tool: clu_ingest; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: clu.ts:92 takes parsed.session_id or generates one and writes the ingestion under tenants/{auth.userId}/...; no owner field and no principal comparison.
+- Recommendation: ATTRIBUTION if ingestion documents carry no program ownership; otherwise SELF-ONLY. Evidence for ownership was not found in clu.ts.
+
+### `clu.cluAnalyzeHandler:parsed.session_id`
+
+- Where: `modules/clu.ts`, handler `cluAnalyzeHandler`, expression `parsed.session_id`, line 137 at base, 3 occurrence(s).
+- Tool: clu_analyze; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: The handler reads nothing from the id (clu.ts:125-175). It writes caller data to clu_sessions/{id}/analyses (clu.ts:155-162) under a caller-chosen id; nothing compares the id to the caller.
+- Recommendation: Write family: FOREIGN-WRITE on literal fleet.admin for another principal's clu session; SELF-ONLY when unruled. No FOREIGN-READ applies because the handler reads no document by this id.
+
+### `claims.claimTaskHandler:args.sessionId`
+
+- Where: `modules/dispatch/claims.ts`, handler `claimTaskHandler`, expression `args.sessionId`, line 76 at base, 6 occurrence(s).
+- Tool: dispatch_claim_task; transports mcp, rest, iso; effect write; decided by ISO; closes in PR-K.
+- Binding today: claimedBy === auth.programId for re-claim; sessionId unbound (claims.ts:75-80).
+- Evidence: args.sessionId is stored on the claim (claims.ts:96 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
+- Recommendation: Remove sessionId from every authorization comparison; claimedBy is the owner. Label sessionId ATTRIBUTION after that.
+
+### `claims.batchClaimTasksHandler:args.sessionId`
+
+- Where: `modules/dispatch/claims.ts`, handler `batchClaimTasksHandler`, expression `args.sessionId`, line 292 at base, 4 occurrence(s).
+- Tool: dispatch_batch_claim_tasks; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
+- Binding today: same as dispatch_claim_task (claims.ts:293).
+- Evidence: args.sessionId is stored on the claim (claims.ts:311 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
+- Recommendation: Same as dispatch_claim_task.
+
+### `dispatchHandler.dispatchHandler:args.source`
+
+- Where: `modules/dispatch/dispatchHandler.ts`, handler `dispatchHandler`, expression `args.source`, line 780 at base, 1 occurrence(s).
+- Tool: dispatch_dispatch; transports mcp, rest; effect write; decided by C-5; closes in PR-K.
+- Binding today: verifySource (gate.ts:153); legacy and mobile credentials skip source pinning (gate.ts:163).
+- Name lists: NL-VERIFYSOURCE-ADMIN.
+- Evidence: dispatchHandler.ts:780 calls verifySource. verifySource returns claimedSource unchecked for credentials named legacy or mobile.
+- Recommendation: ATTRIBUTION or ADDRESSED sender binding after VECTOR rules on legacy and mobile (C-5).
+
+### `interventions.retryTaskHandler:args.newTarget`
+
+- Where: `modules/dispatch/interventions.ts`, handler `retryTaskHandler`, expression `args.newTarget`, line 81 at base, 6 occurrence(s).
+- Tool: dispatch_retry_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none: newTarget only checked against the program registry (interventions.ts:81-86).
+- Evidence: The handler re-targets any task id in the tenant. No comparison of the task owner to the caller.
+- Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
+
+### `interventions.reassignTaskHandler:args.newTarget`
+
+- Where: `modules/dispatch/interventions.ts`, handler `reassignTaskHandler`, expression `args.newTarget`, line 283 at base, 7 occurrence(s).
+- Tool: dispatch_reassign_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none beyond registry check (interventions.ts:283-286).
+- Evidence: Moves any task in the tenant to another program. No owner or principal comparison (zero === or !== on auth.programId in the file, recon section 8).
+- Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
+
+### `interventions.escalateTaskHandler:args.escalateTo`
+
+- Where: `modules/dispatch/interventions.ts`, handler `escalateTaskHandler`, expression `args.escalateTo`, line 395 at base, 4 occurrence(s).
+- Tool: dispatch_escalate_task; transports mcp; effect write; decided by C-5; closes in PR-L.
+- Binding today: none beyond registry check; default target from a name list (interventions.ts:374-385).
+- Name lists: NL-ESCALATION-CHAIN.
+- Evidence: escalateTo is registry-validated at interventions.ts:395-399. When absent, getDefaultEscalationTarget picks from a hardcoded chain (iso, orchestrator, vector, dispatcher, legacy).
+- Recommendation: ADDRESSED for escalateTo; the chain is routing, not a gate. Task ownership is the open question (see the args.taskId record).
+
+### `interventions.quarantineProgramHandler:args.programId`
+
+- Where: `modules/dispatch/interventions.ts`, handler `quarantineProgramHandler`, expression `args.programId`, line 507 at base, 7 occurrence(s).
+- Tool: dispatch_quarantine_program; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none in handler; tool capability fleet.control, wildcard-satisfiable.
+- Evidence: interventions.ts:507-512 checks only that the program exists, then sets quarantine on programs/{id}. Any key with fleet.control or "*" can stop any program's intake.
+- Recommendation: FOREIGN-WRITE on literal fleet.admin. A wrong SELF-ONLY here removes the dispatcher's quarantine path; hold for C-5 if the dispatcher uses it.
+
+### `interventions.unquarantineProgramHandler:args.programId`
+
+- Where: `modules/dispatch/interventions.ts`, handler `unquarantineProgramHandler`, expression `args.programId`, line 571 at base, 7 occurrence(s).
+- Tool: dispatch_unquarantine_program; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: same as dispatch_quarantine_program.
+- Evidence: interventions.ts:571-576, same shape as quarantine.
+- Recommendation: Same as dispatch_quarantine_program.
+
+### `interventions.replayTaskHandler:args.newTarget`
+
+- Where: `modules/dispatch/interventions.ts`, handler `replayTaskHandler`, expression `args.newTarget`, line 639 at base, 7 occurrence(s).
+- Tool: dispatch_replay_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none beyond registry check.
+- Evidence: interventions.ts:639-642 reads any task by id and clones it to newTarget. No owner comparison.
+- Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
+
+### `tasks.getTasksHandler:args.target`
+
+- Where: `modules/dispatch/tasks.ts`, handler `getTasksHandler`, expression `args.target`, line 154 at base, 3 occurrence(s).
+- Tool: dispatch_get_tasks; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K (after iso and the dispatcher hold fleet.observe).
+- Binding today: none when target is supplied; self-default when absent unless legacy, mobile or dispatcher (tasks.ts:154-160).
+- Name lists: NL-GETTASKS-DEFAULT.
+- Evidence: tasks.ts:154 filters by any target without comparison. tasks.ts:157-158 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.
+- Recommendation: FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. Order matters: the flip lands only after iso and the dispatcher hold literal fleet.observe. Today only vector and sark hold it (ownerAuthz.ts:149-152), so an earlier flip denies the dispatcher poll and iso. The dispatcher's use also needs the C-5 ruling.
+
+### `tasks.createTaskHandler:args.source`
+
+- Where: `modules/dispatch/tasks.ts`, handler `createTaskHandler`, expression `args.source`, line 408 at base, 1 occurrence(s).
+- Tool: dispatch_create_task; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-K.
+- Binding today: verifySource; legacy and mobile skip pinning (gate.ts:163).
+- Name lists: NL-VERIFYSOURCE-ADMIN.
+- Evidence: tasks.ts:408 calls verifySource.
+- Recommendation: ATTRIBUTION or ADDRESSED sender binding after C-5.
+
+### `gsp.gspWriteHandler:args.source`
+
+- Where: `modules/gsp.ts`, handler `gspWriteHandler`, expression `args.source`, line 432 at base, 1 occurrence(s).
+- Tool: gsp_write; transports mcp, rest; effect write; decided by C-5; closes in PR-L.
+- Binding today: verifySource (gsp.ts:432); legacy and mobile skip pinning.
+- Name lists: NL-VERIFYSOURCE-ADMIN.
+- Evidence: gsp.ts:432 calls verifySource and stores the result as updatedBy. Which program may write which namespace is not checked anywhere in gspWriteHandler.
+- Recommendation: ATTRIBUTION for source after C-5. Namespace write authority is a separate question for ISO (ruling HpgeGWU8).
+
+### `keys.revokeKeyHandler:keyHash`
+
+- Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 139 at base, 1 occurrence(s).
+- Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-E.
+- Binding today: tenant uid equality (keys.ts:158) then principal equality or isKeyAdmin (keys.ts:167-169); isKeyAdmin admits vector, sark and keys.admin.
+- Name lists: NL-KEY-ADMIN.
+- Evidence: The tenant check is satisfied by every key (one tenant). KEY_ADMIN_PRINCIPALS is a hardcoded list at ownerAuthz.ts:114. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
+- Recommendation: FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The list is deleted in PR-F.
+
+### `metrics.getProgramHealthHandler:args.programId`
+
+- Where: `modules/metrics.ts`, handler `getProgramHealthHandler`, expression `args.programId`, line 855 at base, 3 occurrence(s).
+- Tool: metrics_get_program_health; transports mcp; effect read; decided by C-5; closes in PR-L.
+- Binding today: isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:842.
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: After the gate, args.programId filters completed tasks by target (metrics.ts:855-857).
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `programRegistry.updateProgramHandler:args.programId`
+
+- Where: `modules/programRegistry.ts`, handler `updateProgramHandler`, expression `args.programId`, line 391 at base, 6 occurrence(s).
+- Tool: programs_update_program; transports mcp; effect write; decided by C-5; closes in PR-L.
+- Binding today: inline name list on auth.programId, or self (programRegistry.ts:399-403).
+- Name lists: NL-REGISTRY-ADMIN.
+- Evidence: Six hardcoded names (legacy, mobile, orchestrator, iso, vector, dispatcher) may edit any program entry (role, groups, tags). auth.programId is the mutable field while the override path exists.
+- Recommendation: SELF-ONLY; FOREIGN-WRITE only on literal fleet.admin (D-d).
+
+### `programState.getProgramStateHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `getProgramStateHandler`, expression `args.programId`, line 230 at base, 11 occurrence(s).
+- Tool: state_get_program_state; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: canRead: auth.programId in STATE_READERS or STATE_WRITERS, or self.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: A foreign read returns the whole state document including contextSummary and learnedPatterns (programState.ts:250). The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: FOREIGN-READ on literal fleet.observe, document minus memory fields with memory.status "omitted".
+
+### `programState.storeMemoryHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `storeMemoryHandler`, expression `args.programId`, line 322 at base, 8 occurrence(s).
+- Tool: state_store_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: canWrite: auth.programId in STATE_WRITERS (legacy, mobile) or self.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: Writes a pattern into the subject's state document. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY, all writers.
+
+### `programState.recallMemoryHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `recallMemoryHandler`, expression `args.programId`, line 382 at base, 9 occurrence(s).
+- Tool: state_recall_memory; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: canRead.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: Reads the subject's learned patterns. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `programState.memoryHealthHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `memoryHealthHandler`, expression `args.programId`, line 454 at base, 9 occurrence(s).
+- Tool: state_memory_health; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: canRead.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: Reads the subject's memory health. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `programState.updateProgramStateHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `updateProgramStateHandler`, expression `args.programId`, line 517 at base, 12 occurrence(s).
+- Tool: state_update_program_state; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: Writes state and history for the subject. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `programState.deleteMemoryHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `deleteMemoryHandler`, expression `args.programId`, line 670 at base, 8 occurrence(s).
+- Tool: state_delete_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: Deletes a pattern from the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `programState.reinforceMemoryHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `reinforceMemoryHandler`, expression `args.programId`, line 727 at base, 8 occurrence(s).
+- Tool: state_reinforce_memory; transports mcp, rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: Mutates a pattern in the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `programState.getContextHistoryHandler:args.programId`
+
+- Where: `modules/programState.ts`, handler `getContextHistoryHandler`, expression `args.programId`, line 787 at base, 7 occurrence(s).
+- Tool: state_get_context_history; transports mcp, rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: canRead.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: Reads the subject's context history. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.
+- Recommendation: C-4: SELF-ONLY.
+
+### `pulse.createSessionHandler:args.sessionId`
+
+- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 86 at base, 1 occurrence(s).
+- Tool: pulse_create_session; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:133), so it overwrites any program's existing session document.
+- Recommendation: Require the session id prefix to equal the principal, as update_session does (SELF-ONLY).
+
+### `pulse.createSessionHandler:args.programId`
+
+- Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.programId`, line 115 at base, 1 occurrence(s).
+- Tool: pulse_create_session; transports mcp, rest; effect write; decided by C-5; closes in PR-L.
+- Binding today: none; skipped for legacy and mobile at pulse.ts:144.
+- Name lists: NL-PULSE-REGISTRY-SKIP.
+- Evidence: pulse.ts:115 writes args.programId into the session and, at :144 onward, piggybacks a write to programs/{programId} (lastHeartbeat). Any caller can touch another program's registry entry.
+- Recommendation: programId derives from the principal (SELF-ONLY).
+
+### `pulse.updateSessionHandler:args.sessionId`
+
+- Where: `modules/pulse.ts`, handler `updateSessionHandler`, expression `args.sessionId`, line 176 at base, 1 occurrence(s).
+- Tool: pulse_update_session; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-L.
+- Binding today: session id prefix equals auth.programId unless legacy, mobile or dispatcher (pulse.ts:205-219); denial names auth.programId.
+- Name lists: NL-PULSE-PRIV.
+- Evidence: SARK C2 gate. auth.programId is the mutable field while the override path exists, and three names skip the gate.
+- Recommendation: SELF-ONLY on credentialPrincipal; dispatcher use needs the C-5 table.
+
+### `pulse.listSessionsHandler:args.programId`
+
+- Where: `modules/pulse.ts`, handler `listSessionsHandler`, expression `args.programId`, line 713 at base, 2 occurrence(s).
+- Tool: pulse_list_sessions; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none in handler; REST route adds requireAdmin (rest.ts:512).
+- Evidence: pulse.ts:713 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `pulse.getContextUtilizationHandler:args.sessionId`
+
+- Where: `modules/pulse.ts`, handler `getContextUtilizationHandler`, expression `args.sessionId`, line 791 at base, 3 occurrence(s).
+- Tool: pulse_get_context_utilization; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: pulse.ts:791 reads any session's contextHistory by id; absent returns all active sessions.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `pulse.pauseProgramHandler:args.programId`
+
+- Where: `modules/pulse.ts`, handler `pauseProgramHandler`, expression `args.programId`, line 891 at base, 6 occurrence(s).
+- Tool: pulse_pause_program; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none in handler; tool capability pulse.write.
+- Evidence: pulse.ts:891-896 sets programs/{id}.paused for any registered program. C-3 adds a separate dispatchPaused flag; this site is the per-program flag.
+- Recommendation: FOREIGN-WRITE on literal fleet.admin.
+
+### `pulse.resumeProgramHandler:args.programId`
+
+- Where: `modules/pulse.ts`, handler `resumeProgramHandler`, expression `args.programId`, line 954 at base, 7 occurrence(s).
+- Tool: pulse_resume_program; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none in handler; tool capability pulse.write.
+- Evidence: pulse.ts:954-959, same shape as pause.
+- Recommendation: FOREIGN-WRITE on literal fleet.admin.
+
+### `rate-limits.getRateLimitEventsHandler:args.sessionId`
+
+- Where: `modules/rate-limits.ts`, handler `getRateLimitEventsHandler`, expression `args.sessionId`, line 105 at base, 2 occurrence(s).
+- Tool: metrics_get_rate_limit_events; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: rate-limits.ts:105-106 filters events by any session id; events carry the writing program.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `relay.sendMessageHandler:args.source`
+
+- Where: `modules/relay.ts`, handler `sendMessageHandler`, expression `args.source`, line 134 at base, 3 occurrence(s).
+- Tool: relay_send_message; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-K.
+- Binding today: verifySource; legacy and mobile skip pinning (gate.ts:163).
+- Name lists: NL-VERIFYSOURCE-ADMIN.
+- Evidence: relay.ts:140 verifySource, :304 reuse.
+- Recommendation: ATTRIBUTION or ADDRESSED sender binding after C-5.
+
+### `relay.getMessagesHandler:args.sessionId`
+
+- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.sessionId`, line 474 at base, 1 occurrence(s).
+- Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
+- Binding today: post-query filter t === auth.programId or "all" unless legacy, mobile or dispatcher (relay.ts:472-480); silent empty, no denial.
+- Name lists: NL-RELAY-GETMSG.
+- Evidence: args.sessionId is the fallback requestedTarget (relay.ts:474). Reads and, by default, marks messages delivered.
+- Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:477): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows.
+
+### `relay.getMessagesHandler:args.target`
+
+- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.target`, line 474 at base, 1 occurrence(s).
+- Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
+- Binding today: same as args.sessionId record.
+- Name lists: NL-RELAY-GETMSG.
+- Evidence: relay.ts:474, same filter. For the three named credentials the filter honours the requested target.
+- Recommendation: Same as the args.sessionId record, including the dispatcher exemption (relay.ts:477, C-5 rule 1).
+
+### `relay.getSentMessagesHandler:args.source`
+
+- Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 617 at base, 2 occurrence(s).
+- Tool: relay_get_sent_messages; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
+- Binding today: isAdmin may set source, else forced to auth.programId (relay.ts:616-617).
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: isAdmin is the five-name list in gate.ts:131.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `relay.queryMessageHistoryHandler:args.source`
+
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 743 at base, 7 occurrence(s).
+- Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
+- Binding today: isAdmin, else must be self or "all" (relay.ts:754-763).
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: Participant scoping coerces non-admin callers to self. The admin bypass is the five-name list.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `relay.queryMessageHistoryHandler:args.target`
+
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 743 at base, 8 occurrence(s).
+- Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
+- Binding today: same as args.source record.
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: relay.ts:757-763 same scoping.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `schedule.createScheduleHandler:args.target`
+
+- Where: `modules/schedule.ts`, handler `createScheduleHandler`, expression `args.target`, line 128 at base, 2 occurrence(s).
+- Tool: schedule_create; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; createdBy = auth.programId (schedule.ts:141).
+- Evidence: schedule.ts:128 stores the target. The task the executor later creates uses source "scheduler" (schedule-executor.ts:115), so the creating program is not carried to the recipient as the sender.
+- Recommendation: ADDRESSED for target. Sender attribution for scheduled work is the open item.
+
+### `schedule.paginateAndFilter:args.target`
+
+- Where: `modules/schedule.ts`, handler `paginateAndFilter`, expression `args.target`, line 186 at base, 2 occurrence(s).
+- Tool: schedule_list; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: Helper of schedule_list; filters in memory by target (schedule.ts:186).
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `schedule.listSchedulesHandler:args.target`
+
+- Where: `modules/schedule.ts`, handler `listSchedulesHandler`, expression `args.target`, line 200 at base, 3 occurrence(s).
+- Tool: schedule_list; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: schedule.ts:200-204 lists any target's schedules.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `schedule.updateScheduleHandler:args.target`
+
+- Where: `modules/schedule.ts`, handler `updateScheduleHandler`, expression `args.target`, line 296 at base, 2 occurrence(s).
+- Tool: schedule_update; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none.
+- Evidence: schedule.ts:296 re-targets a schedule found by id. No createdBy comparison.
+- Recommendation: SELF-ONLY on createdBy; FOREIGN-WRITE on literal fleet.admin.
+
+### `sprint.createSprintHandler:args.sessionId`
+
+- Where: `modules/sprint.ts`, handler `createSprintHandler`, expression `args.sessionId`, line 183 at base, 1 occurrence(s).
+- Tool: sprint_create_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
+- Binding today: none; stored on the active sprint task (sprint.ts:183) and read as claim ownership.
+- Evidence: sprint.ts:183 stores args.sessionId on a task with status "active". completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.
+- Recommendation: Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164), so no owner check can substitute.
+
+### `trace.queryTracesHandler:args.programId`
+
+- Where: `modules/trace.ts`, handler `queryTracesHandler`, expression `args.programId`, line 215 at base, 2 occurrence(s).
+- Tool: trace_query_traces; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
+- Binding today: isAdmin(auth) name list (trace.ts:198).
+- Name lists: NL-ADMIN-PROGRAMS.
+- Evidence: After the isAdmin gate, args.programId filters ledger traces (trace.ts:215-216).
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `onDemandWake.wakeTarget:userId,target,callerSource`
+
+- Where: `modules/wake/onDemandWake.ts`, handler `wakeTarget`, expression `userId,target,callerSource`, line 208 at base, 1 occurrence(s).
+- Tool: none; transports internal; effect write; decided by ISO; closes in ISO-assign.
+- Binding today: none in function; callers: relay.ts:302, dispatch, index.ts:623.
+- Evidence: wakeTarget takes a tenant userId, a target and a callerSource label and has no principal parameter. Callers pass a validated target (ADDRESSED) or a service-account request (index.ts:611).
+- Recommendation: ADDRESSED for target, ATTRIBUTION for callerSource; the open item is the internal route's lack of a principal (see the index.ts record).
+
+### `CustomHTTPTransport.(module):parsed.sessionId`
+
+- Where: `transport/CustomHTTPTransport.ts`, handler `(module)`, expression `parsed.sessionId`, line 130 at base, 9 occurrence(s).
+- Tool: none; transports none; effect read; decided by ISO; closes in ISO-assign.
+- Binding today: none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:147-150).
+- Evidence: parsed.sessionId comes from a caller-chosen header. An invalid id proceeds under Bearer auth (:147-150). A heartbeat updates sessions/{header}.lastHeartbeat for any program in the tenant (:159). DELETE removes any mcp_sessions document in the tenant (:230). It is an identity-selecting argument, not protocol framing alone.
+- Recommendation: Bind the header id to the principal that created the MCP session (SELF-ONLY on session ownership) before the heartbeat write and the DELETE. ISO to assign the PR.
+
+### `rest.route GET /v1/tasks/stats:query.target`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/tasks/stats`, expression `query.target`, line 323 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
+- Binding today: requireAdmin: "*" or ADMIN_READERS (rest.ts:132-137, :319).
+- Name lists: NL-ADMIN-READERS.
+- Evidence: Counts any target's tasks by querying Firestore directly (rest.ts:321-336); no MCP handler, so no capability gate, breaker or audit.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5).
+
+### `rest.route GET /v1/messages/unread:query.sessionId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/messages/unread`, expression `query.sessionId`, line 422 at base, 2 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none.
+- Evidence: rest.ts:419-425 queries relay documents directly. With query.sessionId it filters target equal to that value; without it, returns every pending message in the tenant (limit 50). No principal check.
+- Recommendation: SELF-ONLY; the widest unauthenticated-by-principal read in the table.
+
+### `rest.route GET /v1/messages:query.sessionId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 449 at base, 1 occurrence(s).
+- Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
+- Binding today: delegates to relay_get_messages (handler filter).
+- Name lists: NL-RELAY-GETMSG.
+- Evidence: rest.ts:449 passes sessionId (default "rest") into the handler, which applies relay.ts:472-480.
+- Recommendation: Disposition follows the relay_get_messages records.
+
+### `rest.route GET /v1/program-state/:programId:p.programId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 786 at base, 1 occurrence(s).
+- Tool: state_get_program_state; transports rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_get_program_state; the gate is in the handler.
+- Recommendation: Disposition follows the state_get_program_state record.
+
+### `rest.route PATCH /v1/program-state/:programId:p.programId`
+
+- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 791 at base, 1 occurrence(s).
+- Tool: state_update_program_state; transports rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_update_program_state; the gate is in the handler.
+- Recommendation: Disposition follows the state_update_program_state record.
+
+### `rest.route GET /v1/program-state/:programId/context-history:p.programId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 796 at base, 1 occurrence(s).
+- Tool: state_get_context_history; transports rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_get_context_history; the gate is in the handler.
+- Recommendation: Disposition follows the state_get_context_history record.
+
+### `rest.route POST /v1/memory/:programId/patterns:p.programId`
+
+- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 803 at base, 1 occurrence(s).
+- Tool: state_store_memory; transports rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_store_memory; the gate is in the handler.
+- Recommendation: Disposition follows the state_store_memory record.
+
+### `rest.route GET /v1/memory/:programId/patterns:p.programId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 808 at base, 1 occurrence(s).
+- Tool: state_recall_memory; transports rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_recall_memory; the gate is in the handler.
+- Recommendation: Disposition follows the state_recall_memory record.
+
+### `rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId`
+
+- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 812 at base, 1 occurrence(s).
+- Tool: state_delete_memory; transports rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_delete_memory; the gate is in the handler.
+- Recommendation: Disposition follows the state_delete_memory record.
+
+### `rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId`
+
+- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 817 at base, 1 occurrence(s).
+- Tool: state_reinforce_memory; transports rest; effect write; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.
+- Recommendation: Disposition follows the state_reinforce_memory record.
+
+### `rest.route GET /v1/memory/:programId/health:p.programId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 821 at base, 1 occurrence(s).
+- Tool: state_memory_health; transports rest; effect read; decided by C-5; closes in PR-J.
+- Binding today: delegates to the handler's canRead or canWrite.
+- Name lists: NL-STATE-READERS, NL-STATE-WRITERS.
+- Evidence: The path segment becomes args.programId for state_memory_health; the gate is in the handler.
+- Recommendation: Disposition follows the state_memory_health record.
+
+### `rest.route GET /v1/interrupts/peek:query.sessionId`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 855 at base, 1 occurrence(s).
+- Tool: relay_get_messages; transports rest; effect read; decided by C-5; closes in PR-K.
+- Binding today: delegates to relay_get_messages with markAsRead false.
+- Name lists: NL-RELAY-GETMSG.
+- Evidence: rest.ts:855 passes sessionId (default "peek").
+- Recommendation: Disposition follows the relay_get_messages records.
+
+### `rest.route GET /v1/tasks/stats:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/tasks/stats`, expression `getFirestore()`, line 321 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
+- Binding today: requireAdmin: "*" or ADMIN_READERS (rest.ts:132-137, :319).
+- Name lists: NL-ADMIN-READERS.
+- Evidence: Counts tasks tenant-wide or by query.target straight from Firestore; skips callTool (no capability gate, breaker, rate limit or audit).
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5).
+
+### `rest.route GET /v1/messages/unread:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/messages/unread`, expression `getFirestore()`, line 419 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none.
+- Evidence: Lists pending relay documents straight from Firestore; with no sessionId it returns every pending message in the tenant (limit 50).
+- Recommendation: SELF-ONLY by principal; route through callTool.
+
+### `rest.route POST /v1/messages/mark_read:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route POST /v1/messages/mark_read`, expression `getFirestore()`, line 436 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect write; decided by ISO; closes in PR-M.
+- Binding today: enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:429-441).
+- Evidence: Marks up to 100 caller-supplied relay document ids read in the tenant. Does not compare the document target to the caller.
+- Recommendation: SELF-ONLY on the message target; broadcast documents must not transition (PDR section 6).
+
+### `rest.route GET /v1/sessions/history:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/sessions/history`, expression `getFirestore()`, line 533 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
+- Binding today: requireAdmin (rest.ts:531).
+- Name lists: NL-ADMIN-READERS.
+- Evidence: Lists archived sessions tenant-wide; no identifier argument.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `rest.route GET /v1/sprints/active:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/sprints/active`, expression `getFirestore()`, line 603 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
+- Binding today: requireAdmin (rest.ts:602).
+- Name lists: NL-ADMIN-READERS.
+- Evidence: Lists active sprint tasks tenant-wide; no identifier argument.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+
+### `rest.route GET /v1/gsp/proposals:getFirestore()`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/gsp/proposals`, expression `getFirestore()`, line 749 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none.
+- Evidence: Lists GSP proposals for the tenant straight from Firestore; filter by status only. The tenant segment is auth.userId (rest.ts:750).
+- Recommendation: Disposition follows the gsp_resolve and gsp_propose records; route through callTool.
+
+### `rest.route GET /v1/budget/summary:budgetSummaryHandler`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/budget/summary`, expression `budgetSummaryHandler()`, line 666 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
+- Evidence: Calls budgetSummaryHandler directly (rest.ts:665-667); no capability gate, breaker, rate limit or audit.
+- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
+
+### `rest.route GET /v1/dreams:dreamPeekHandler`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/dreams`, expression `dreamPeekHandler()`, line 707 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
+- Evidence: Calls dreamPeekHandler directly; skips callTool.
+- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
+
+### `rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/gsp/namespaces`, expression `gspListNamespacesHandler()`, line 729 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
+- Evidence: Calls gspListNamespacesHandler directly; skips callTool. Lists namespace names and entry counts for the tenant.
+- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
+
+### `rest.route GET /v1/dreams/peek:dreamPeekHandler`
+
+- Where: `transport/rest.ts`, handler `route GET /v1/dreams/peek`, expression `dreamPeekHandler()`, line 859 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
+- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
+- Evidence: Legacy duplicate of GET /v1/dreams; calls dreamPeekHandler directly.
+- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
+
+### `rest.createRestRouter:enrollHandler`
+
+- Where: `transport/rest.ts`, handler `createRestRouter`, expression `enrollHandler(req, res)`, line 975 at base, 1 occurrence(s).
+- Tool: none; transports rest; effect write; decided by ISO; closes in PR-M.
+- Binding today: none: public pre-auth route /enroll; identity comes from the enrollment token document (enrollment.ts:113, :178-179).
+- Evidence: rest.ts:975 hands /enroll to enrollHandler before authentication and without callTool. The handler exchanges a one-time token for a cb_ key: tenant from the enrollment document, program fixed to ENROLLMENT_PROGRAM_ID, no request argument selects either. Not in the recon (amendment 2).
+- Recommendation: NOT-IDENTITY for the arguments (the principal is created, not read). ISO to confirm the unauthenticated route is intended.
+
+### `interventions.abortTaskHandler:args.taskId`
+
+- Where: `modules/dispatch/interventions.ts`, handler `abortTaskHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
+- Tool: dispatch_abort_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: abortTaskHandler (interventions.ts:195) aborts any task id in the tenant; it records abortedBy: auth.programId but compares nothing to the task owner.
+- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+
+### `interventions.escalateTaskHandler:args.taskId`
+
+- Where: `modules/dispatch/interventions.ts`, handler `escalateTaskHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
+- Tool: dispatch_escalate_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: escalateTaskHandler (interventions.ts:390) re-routes any task id; escalatedBy is recorded, not compared.
+- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+
+### `interventions.approveTaskHandler:args.taskId`
+
+- Where: `modules/dispatch/interventions.ts`, handler `approveTaskHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
+- Tool: dispatch_approve_task; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: approveTaskHandler (interventions.ts) approves any pending task id; no approver or owner comparison found.
+- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+
+### `tasks.getTaskByIdHandler:args.taskId`
+
+- Where: `modules/dispatch/tasks.ts`, handler `getTaskByIdHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
+- Tool: dispatch_get_task_by_id; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: getTaskByIdHandler (tasks.ts:565) returns any task document in the tenant by id.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+
+### `schedule.getScheduleHandler:args.scheduleId`
+
+- Where: `modules/schedule.ts`, handler `getScheduleHandler`, expression `args.scheduleId`, line n/a at base, 1 occurrence(s).
+- Tool: schedule_get; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: getScheduleHandler returns any schedule by id; createdBy is stored (schedule.ts:141) but not compared.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+
+### `schedule.deleteScheduleHandler:args.scheduleId`
+
+- Where: `modules/schedule.ts`, handler `deleteScheduleHandler`, expression `args.scheduleId`, line n/a at base, 1 occurrence(s).
+- Tool: schedule_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: deleteScheduleHandler deletes any schedule by id; no createdBy comparison.
+- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+
+### `webhook.webhookDeleteHandler:args.webhookId`
+
+- Where: `modules/webhook.ts`, handler `webhookDeleteHandler`, expression `args.webhookId`, line n/a at base, 1 occurrence(s).
+- Tool: webhook_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: webhookDeleteHandler deletes any webhook by id; createdBy is stored (webhook.ts:130), not compared.
+- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+
+### `policy.createPolicy:args.id`
+
+- Where: `modules/policy.ts`, handler `createPolicy`, expression `args.id`, line n/a at base, 1 occurrence(s).
+- Tool: policy_create; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:96-107).
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+
+### `policy.updatePolicy:args.policyId`
+
+- Where: `modules/policy.ts`, handler `updatePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
+- Tool: policy_update; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: updatePolicy edits any policy by id; no owner comparison.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+
+### `policy.deletePolicy:args.policyId`
+
+- Where: `modules/policy.ts`, handler `deletePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
+- Tool: policy_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: deletePolicy removes any policy by id; no owner comparison.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
+
+### `policy.getPolicy:args.policyId`
+
+- Where: `modules/policy.ts`, handler `getPolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
+- Tool: policy_get; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: getPolicy returns any policy by id.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+
+### `policy.listPolicies:(tenant-wide)`
+
+- Where: `modules/policy.ts`, handler `listPolicies`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
+- Tool: policy_list; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: listPolicies returns every policy in the tenant; no identifier argument.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+
+### `policy.policyCheck:(tenant-wide)`
+
+- Where: `modules/policy.ts`, handler `policyCheck`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
+- Tool: policy_check; transports mcp; effect read; decided by ISO; closes in PR-L.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
+- Evidence: policyCheck evaluates caller-supplied action fields against every tenant policy; no identifier selects data.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
+
+### `sprint.updateStoryHandler:args.sprintId`
+
+- Where: `modules/sprint.ts`, handler `updateStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
+- Tool: sprint_update_sprint_story; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Evidence: updateStoryHandler mutates a story in any sprint id. The sprint document stores source "orchestrator" (sprint.ts:164) and no creator; sprint.ts:331 is a TASK_RETRIED event that carries auth.programId, not a stored owner.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+
+### `sprint.addStoryHandler:args.sprintId`
+
+- Where: `modules/sprint.ts`, handler `addStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
+- Tool: sprint_add_story_to_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Evidence: addStoryHandler adds a story to any sprint id; no owner comparison.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+
+### `sprint.completeSprintHandler:args.sprintId`
+
+- Where: `modules/sprint.ts`, handler `completeSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
+- Tool: sprint_complete_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Evidence: completeSprintHandler completes any sprint id; no owner comparison.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+
+### `sprint.getSprintHandler:args.sprintId`
+
+- Where: `modules/sprint.ts`, handler `getSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
+- Tool: sprint_get_sprint; transports mcp, rest, iso; effect read; decided by ISO; closes in PR-L.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Evidence: getSprintHandler returns any sprint by id; reachable on the ISO transport.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first.
+
+### `signal.getResponseHandler:args.questionId`
+
+- Where: `modules/signal.ts`, handler `getResponseHandler`, expression `args.questionId`, line n/a at base, 1 occurrence(s).
+- Tool: signal_get_response; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
+- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Evidence: getResponseHandler returns the answer to any question id; no asker comparison.
+- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+
+### `gsp.gspSearchHandler:program_state-scan`
+
+- Where: `modules/gsp.ts`, handler `gspSearchHandler`, expression `db.collection('tenants/${userId}/sessions/_meta/program_state').get()`, line 1897 at base, 1 occurrence(s).
+- Tool: gsp_search; transports mcp, rest; effect read; decided by C-4; closes in PR-J.
+- Binding today: none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1895-1901).
+- Evidence: gsp.ts:1897-1901 reads all programs' learnedPatterns when scope is not "gsp". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.
+- Recommendation: Restrict the scan to the caller's own program_state document (C-4: memory self-only).
+
+## ADDRESSED (5)
+
+Each label claims no gate is needed, so ISO reviews each one individually.
+
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 230 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 231 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 234 | `args.programId` | `if (!canRead(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 235 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read state for` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 239 | `args.programId` | `if (auth.programId !== args.programId) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 244 | `args.programId` | `target_program: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 250 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 257 | `args.programId` | `state: defaultState(args.programId, "none"),` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 258 | `args.programId` | `message: `No persisted state for "${args.programId}". Returning defaults.`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 280 | `args.programId` | `program_id: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 291 | `args.programId` | `message: `State loaded for "${args.programId}".${decayed ? ` Decay applied: ${patternsMarkedStale} p` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 322 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 323 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 326 | `args.programId` | `if (!canWrite(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 327 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory f` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 331 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 335 | `args.programId` | `const base = existing.exists ? existing.data()! : defaultState(args.programId, "unknown");` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 367 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 371 | `args.programId` | `message: `Pattern "${args.pattern.id}" ${existingIdx >= 0 ? "updated" : "stored"} for "${args.progra` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 382 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 383 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 386 | `args.programId` | `if (!canRead(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 387 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory fo` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 391 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 397 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 400 | `args.programId` | `message: `No memory found for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 434 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 443 | `args.programId` | `message: `Found ${patterns.length} pattern(s) for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 454 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 455 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 458 | `args.programId` | `if (!canRead(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 459 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory he` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 463 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 469 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 480 | `args.programId` | `message: `No memory state for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 494 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 510 | `args.programId` | `message: `Memory health for "${args.programId}": ${activePatterns.length} active, ${stalePatterns.le` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 517 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 518 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 521 | `args.programId` | `if (!canWrite(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 522 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write state fo` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 526 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 530 | `args.programId` | `const base = existing.exists ? existing.data()! : defaultState(args.programId, args.sessionId \|\| "` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 530 | `args.sessionId` | `const base = existing.exists ? existing.data()! : defaultState(args.programId, args.sessionId \|\| "` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 534 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 536 | `args.programId` | `lastUpdatedBy: auth.programId === "legacy" \|\| auth.programId === "mobile" ? args.programId : auth.` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 538 | `args.sessionId` | `sessionId: args.sessionId \|\| base.sessionId \|\| "unknown",` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 612 | `args.programId` | `const historyRef = db.collection(`tenants/${auth.userId}/sessions/_meta/program_state/${args.program` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 640 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 650 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 652 | `args.programId` | `message: `State updated for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 670 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 671 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 674 | `args.programId` | `if (!canWrite(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 675 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory f` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 679 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 683 | `args.programId` | `return jsonResult({ success: false, error: `No memory state for "${args.programId}".` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 705 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 708 | `args.programId` | `message: `Pattern "${args.patternId}" deleted from "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 727 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 728 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 731 | `args.programId` | `if (!canWrite(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 732 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory f` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 736 | `args.programId` | `const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 740 | `args.programId` | `return jsonResult({ success: false, error: `No memory state for "${args.programId}".` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 768 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 771 | `args.programId` | `message: `Pattern "${args.patternId}" reinforced for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 787 | `args.programId` | `if (!(await isProgramRegistered(auth.userId, args.programId))) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 788 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 791 | `args.programId` | `if (!canRead(auth, args.programId)) {` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 792 | `args.programId` | `return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read context h` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 796 | `args.programId` | `const historyRef = db.collection(`tenants/${auth.userId}/sessions/_meta/program_state/${args.program` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 806 | `args.programId` | `programId: args.programId,` | SELF-ONLY (enforced — reference impl, confirm only) |
-| 809 | `args.programId` | `message: `Retrieved ${entries.length} context history entries for "${args.programId}".`,` | SELF-ONLY (enforced — reference impl, confirm only) |
+| dispatchHandler.sendTaskAndDirective:args.target | dispatch_dispatch | none on target; helper called by dispatchHandler | The argument names the recipient of a task and a directive. The sender is source-bound by verifySource (see the args.source record). |
+| dispatchHandler.dispatchHandler:args.target | dispatch_dispatch | target must be a registered program, group or @role; no caller binding | dispatchHandler.ts:783 onward validates the target and creates a task, a directive and a wake for it. The target is the recipient. It also returns target state (heartbeat) to the caller. |
+| tasks.createTaskHandler:args.target | dispatch_create_task | target must be a registered program, group or @role (tasks.ts:411-416) | The argument names the recipient of a new task. The sender is bound by verifySource. |
+| relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:172-190) | The argument names the recipient. The sender is bound by verifySource at relay.ts:140. |
+| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:971-976 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
-### `modules/relay.ts` — 41 site(s)
+## ATTRIBUTION (9)
 
-Primitive present in file: **verifySource, isAdmin**. Default disposition: **SELF-ONLY (+broadcast "all" exemption — D4 unresolved)**.
+Each label claims no gate is needed, so ISO reviews each one individually.
 
-| Line | Identifier read | Snippet | Disposition |
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 131 | `args.target` | `if (args.message_type === "STATUS" && args.target !== "user" && args.target !== "admin") {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 131 | `args.target` | `if (args.message_type === "STATUS" && args.target !== "user" && args.target !== "admin") {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 133 | `args.source` | ``[Comms Pattern] ${args.source}→${args.target} STATUS via relay. ` +` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 133 | `args.target` | ``[Comms Pattern] ${args.source}→${args.target} STATUS via relay. ` +` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 139 | `args.source` | `const verifiedSource = verifySource(args.source, auth, "mcp");` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 172 | `args.target` | `let targets = await resolveTargetsAsync(auth.userId, args.target);` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 178 | `args.target` | `const rawTarget: string = args.target;` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 231 | `args.sessionId` | `sessionId: args.sessionId \|\| null,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 260 | `args.target` | `multicastSource: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 276 | `args.target` | `title: `[${verifiedSource}→${args.target}] ${args.message_type}`,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 280 | `args.target` | `target: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 302 | `args.source` | `wakeTarget({ userId: auth.userId, target: tenantOwnerCapture, waitForAlive: false, callerSource: arg` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 321 | `args.target` | `target: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 344 | `args.target` | `message: `Multicast sent to ${targets.length} recipients (${args.target}). ID: "${multicastId}"`,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 351 | `args.target` | `target: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 363 | `args.target` | `args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 366 | `args.sessionId` | `args.sessionId` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 385 | `args.target` | `target: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 398 | `args.target` | `title: `[${verifiedSource}→${args.target}] ${args.message_type}`,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 402 | `args.target` | `target: args.target,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 472 | `args.target` | `const requestedTarget = args.target \|\| args.sessionId;` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 472 | `args.sessionId` | `const requestedTarget = args.target \|\| args.sessionId;` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 615 | `args.source` | `const source = isPrivileged && args.source ? args.source : auth.programId;` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 615 | `args.source` | `const source = isPrivileged && args.source ? args.source : auth.programId;` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 624 | `args.target` | `if (args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 625 | `args.target` | `query = query.where("target", "==", args.target);` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 723 | `args.source` | `if (!args.threadId && !args.source && !args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 723 | `args.target` | `if (!args.threadId && !args.source && !args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 737 | `args.source` | `if (args.source && args.source !== self) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 737 | `args.source` | `if (args.source && args.source !== self) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 743 | `args.target` | `if (args.target && args.target !== self && args.target !== "all") {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 743 | `args.target` | `if (args.target && args.target !== self && args.target !== "all") {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 743 | `args.target` | `if (args.target && args.target !== self && args.target !== "all") {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 778 | `args.source` | `if (privileged \|\| args.source \|\| args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 778 | `args.target` | `if (privileged \|\| args.source \|\| args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 782 | `args.source` | `if (args.source) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 783 | `args.source` | `q = q.where("source", "==", args.source);` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 785 | `args.target` | `if (args.target) {` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 786 | `args.target` | `q = q.where("target", "==", args.target);` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 851 | `args.source` | `source: args.source ?? null,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
-| 852 | `args.target` | `target: args.target ?? null,` | SELF-ONLY (+broadcast "all" exemption — D4 unresolved) |
+| index.main:params.callerSource | none | none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document. |
+| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:135, :343). 5 pass a caller-controlled value: verifiedSource at relay.ts:331, relay.ts:432, dispatch/tasks.ts:508 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:163), and args.programId at pulse.ts:163. So the label is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity. |
+| programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:530, :538 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
+| rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:78) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
+| relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:233) | relay.ts:233 stores sessionId on the message. relay.ts:368 passes it to logDirective. It selects no existing document. |
+| signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:219) | Stored as a label on the alert document; selects nothing. |
+| signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:279) | Passed into writeAlertDocs as a stored label; selects nothing. |
+| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:937) | rest.ts:939 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
-### `modules/dispatch/dispatchHandler.ts` — 36 site(s)
+## NOT-IDENTITY (5)
 
-Primitive present in file: **verifySource**. Default disposition: **FOREIGN-WRITE (orchestrator, by capability not name — R7)**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 231 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 269 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 293 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 361 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 380 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 399 | `args.target` | `logDirective(auth.userId, txResult.directiveId!, verifiedSource, args.target, directiveMessage.subst` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 416 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 710 | `args.source` | `const verifiedSource = verifySource(args.source, auth, "mcp");` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 713 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 713 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 713 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 714 | `args.target` | `const isKnown = await isProgramRegistered(auth.userId, args.target);` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 718 | `args.target` | `error: `Unknown target program: "${args.target}". Use a valid program ID.`,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 734 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 773 | `args.target` | `const targetPaused = await isProgramPaused(auth.userId, args.target);` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 776 | `args.target` | ``[target_paused] Target program "${args.target}" is paused. Task will be created but target won't re` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 781 | `args.target` | `const targetQuarantined = await isProgramQuarantined(auth.userId, args.target);` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 784 | `args.target` | ``[target_quarantined] Target program "${args.target}" is quarantined. Dispatch blocked. Use dispatch` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 824 | `args.target` | `queryTargetState(auth.userId, args.target),` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 840 | `args.target` | `message: `Dispatch obligation stored for ${args.target}, but runtime preflight exceeded the caller b` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 864 | `args.target` | `message: `Dispatch obligation stored for ${args.target}, but runtime preflight failed after persiste` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 887 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 905 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 926 | `args.target` | `message: `Dispatch obligation stored for ${args.target}, but wake exceeded the caller boundary. Trac` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 958 | `args.target` | `message: `Dispatch obligation stored for ${args.target}, but wake failed after persistence: ${runtim` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1002 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1024 | `args.target` | `currentTarget: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1059 | `args.target` | `args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1110 | `args.target` | `const spawnConfig = SPAWNABLE_PROGRAMS.get(args.target);` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1153 | `args.target` | `programId: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1160 | `args.target` | `? `Task created but target "${args.target}" is QUARANTINED. Dispatch blocked. Use dispatch_unquarant` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1162 | `args.target` | `? `Task created but target "${args.target}" is PAUSED. Task will remain queued until target is resum` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1164 | `args.target` | `? `Dispatched to ${args.target} — uptake confirmed by ${uptakeVia \|\| "claim"}${claimedBy ? ` from ` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1166 | `args.target` | `? `Dispatch obligation stored for ${args.target}; uptake wait skipped by caller. Track pendingHandle` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1167 | `args.target` | `: `Dispatch obligation stored for ${args.target} but uptake NOT confirmed within ${args.uptakeTimeou` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
-| 1187 | `args.target` | `target: args.target,` | FOREIGN-WRITE (orchestrator, by capability not name — R7) |
+| suggestion.suggestTargetHandler:p.programId | dispatch_suggest_target | n/a | suggestion.ts:87 is a map callback variable over ranked program rows, not a request argument. |
+| patternConsolidation.consolidatePatternsHandler:p.programId | pattern_consolidate | n/a | patternConsolidation.ts:238 and :313 are loop variables over program documents, not request arguments (recon section 8). |
+| programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:374 is a map callback variable over registry rows. |
+| signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:274-280), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
+| callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
 
-### `modules/pulse.ts` — 21 site(s)
+## SELF-ONLY (1)
 
-Primitive present in file: **isAdmin, hasCapability (both broken — §0.2 shape)**. Default disposition: **MIXED — see per-handler override**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 74 | `args.sessionId` | `const sessionId = args.sessionId \|\| `session_${Date.now()}`;` | SELF-ONLY (createSessionHandler) |
-| 103 | `args.programId` | `const programId = args.programId \|\| sessionId.split(".")[0];` | SELF-ONLY (createSessionHandler) |
-| 164 | `args.sessionId` | `const sessionId = args.sessionId \|\| `session_${Date.now()}`;` | SELF-ONLY (updateSessionHandler — R6-adjacent, pulse_update_session) |
-| 649 | `args.programId` | `if (args.programId) {` | FOREIGN-READ (getFleetHealthHandler — named in plan) |
-| 650 | `args.programId` | `query = query.where("programId", "==", args.programId);` | FOREIGN-READ (getFleetHealthHandler — named in plan) |
-| 727 | `args.sessionId` | `if (args.sessionId) {` | UNASSIGNED IN PLAN PROSE — getContextUtilizationHandler reads args.sessionId with NO gate at all (no self-check, no capability check); default SELF-ONLY per §5 but this handler structurally needs cross-session visibility like get_fleet_health. ESCALATED to BASHER — see report. |
-| 729 | `args.sessionId` | `const sessionDoc = await db.doc(`tenants/${auth.userId}/sessions/${args.sessionId}`).get();` | UNASSIGNED IN PLAN PROSE — getContextUtilizationHandler reads args.sessionId with NO gate at all (no self-check, no capability check); default SELF-ONLY per §5 but this handler structurally needs cross-session visibility like get_fleet_health. ESCALATED to BASHER — see report. |
-| 754 | `args.sessionId` | `sessionId: args.sessionId,` | UNASSIGNED IN PLAN PROSE — getContextUtilizationHandler reads args.sessionId with NO gate at all (no self-check, no capability check); default SELF-ONLY per §5 but this handler structurally needs cross-session visibility like get_fleet_health. ESCALATED to BASHER — see report. |
-| 827 | `args.programId` | `const programExists = await isProgramRegistered(auth.userId, args.programId);` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 829 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 832 | `args.programId` | `const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 854 | `args.programId` | `program_id: args.programId,` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 869 | `args.programId` | `programId: args.programId,` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 872 | `args.programId` | `message: `Program "${args.programId}" paused. Task intake suspended.`,` | FOREIGN-WRITE (pauseProgramHandler — named in plan) |
-| 890 | `args.programId` | `const programExists = await isProgramRegistered(auth.userId, args.programId);` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 892 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 895 | `args.programId` | `const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 902 | `args.programId` | `throw new Error(`Program "${args.programId}" is not paused.`);` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 918 | `args.programId` | `program_id: args.programId,` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 932 | `args.programId` | `programId: args.programId,` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
-| 934 | `args.programId` | `message: `Program "${args.programId}" resumed. Task intake re-enabled.`,` | FOREIGN-WRITE (resumeProgramHandler — named in plan) |
+| relay.getSentMessagesHandler:args.target | relay_get_sent_messages | narrows a result already bound by source (relay.ts:626-627) | The filter intersects with source, which the args.source record owns. The target argument cannot widen the result. |
 
-### `modules/dispatch/tasks.ts` — 14 site(s)
+## FOREIGN-READ (1)
 
-Primitive present in file: **verifySource**. Default disposition: **FOREIGN-READ (R7)**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 154 | `args.target` | `if (args.target && args.type !== "sprint" && args.type !== "sprint-story") {` | FOREIGN-READ (R7) |
-| 156 | `args.target` | `query = query.where("target", "==", args.target);` | FOREIGN-READ (R7) |
-| 157 | `args.target` | `} else if (!args.target && auth.programId !== "legacy" && auth.programId !== "mobile"` | FOREIGN-READ (R7) |
-| 370 | `args.source` | `const verifiedSource = verifySource(args.source, auth, "mcp");` | FOREIGN-READ (R7) |
-| 373 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-READ (R7) |
-| 373 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-READ (R7) |
-| 373 | `args.target` | `if (args.target !== "all" && !args.target.startsWith("@") && !isGroupTarget(args.target)) {` | FOREIGN-READ (R7) |
-| 374 | `args.target` | `const isKnown = await isProgramRegistered(auth.userId, args.target);` | FOREIGN-READ (R7) |
-| 376 | `args.target` | `return jsonResult({ success: false, error: `Unknown target program: "${args.target}". Use a valid pr` | FOREIGN-READ (R7) |
-| 407 | `args.target` | `target: args.target,` | FOREIGN-READ (R7) |
-| 461 | `args.target` | `target: args.target,` | FOREIGN-READ (R7) |
-| 481 | `args.target` | `target: args.target,` | FOREIGN-READ (R7) |
-| 511 | `args.target` | `const targetInfo = await queryTargetState(auth.userId, args.target);` | FOREIGN-READ (R7) |
-| 518 | `args.target` | `enriched.warning = `Target "${args.target}" is ${targetInfo.targetState} (heartbeat: ${targetInfo.he` | FOREIGN-READ (R7) |
+| gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:641-654); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
 
-### `modules/gsp.ts` — 9 site(s)
+## FOREIGN-WRITE (1)
 
-Primitive present in file: **verifySource (present, unused in bootstrap)**. Default disposition: **FOREIGN-READ, memory-stripped (R3/R5) — see per-handler override**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| 430 | `args.source` | `const verifiedSource = verifySource(args.source, auth, "mcp");` | SELF-ONLY (gspWriteHandler — the ONE call site of verifySource in this file; correctly scoped to own writes) |
-| 623 | `args.agentId` | `agentId: args.agentId,` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — same bootstrap read (agentId echoed in response/log, not itself a second store query) |
-| 668 | `args.agentId` | `const programDoc = await db.doc(`tenants/${auth.userId}/programs/${args.agentId}`).get();` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — plan-cited: identity read (R3) |
-| 680 | `args.agentId` | `: getDefaultCapabilities(args.agentId as ValidProgramId);` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — plan-cited: capabilities read (R3) |
-| 683 | `args.agentId` | `console.warn(`[GSP Bootstrap] Failed to load identity for ${args.agentId}:`, err);` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — same bootstrap read (agentId echoed in response/log, not itself a second store query) |
-| 928 | `args.agentId` | `.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.agentId}`)` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — plan-cited: program_state read (R3, R5 memory) |
-| 987 | `args.agentId` | `.where("target", "in", [args.agentId, "all"])` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — plan-cited: pendingTasks read (R3) |
-| 1016 | `args.agentId` | `.where("target", "==", args.agentId)` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — plan-cited: unreadMessages read (R3) |
-| 1069 | `args.agentId` | `message: `Bootstrap payload generated for ${args.agentId}`,` | FOREIGN-READ, memory-stripped (gspBootstrapHandler, UNGATED — verifySource imported but never called here) — same bootstrap read (agentId echoed in response/log, not itself a second store query) |
+| keys.createKeyHandler:programId | keys_create_key | literal keys.provision via isKeyProvisioner (keys.ts:36; KEY_PROVISION_CAPABILITY, ownerAuthz.ts:51-53); a "*" key fails the literal includes and cannot mint | The real gate is the literal keys.provision capability (keys.ts:36, ownerAuthz.ts:51-53), not a name list and not fleet.admin. The handler mints a key for any programId. FOREIGN-WRITE in the vocabulary names fleet.admin as its widening capability, so this record is FOREIGN-WRITE with a different literal capability; the PR that closes it decides whether keys.provision is renamed or kept. createKey defaults capabilities to ["*"] at keys.ts:64 (amendment 2). |
 
-### `modules/programRegistry.ts` — 6 site(s)
+## Sites the regexes cannot see
 
-Primitive present in file: **isAdmin**. Default disposition: **FOREIGN-WRITE (registration mutates fleet routing)**.
+Four classes. Each is a record with `regex: none` and an anchor the test checks in the handler's source.
 
-| Line | Identifier read | Snippet | Disposition |
+### 1. REST routes that query Firestore directly (rest.ts:321, 419, 436, 533, 603, 749)
+
+| Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| 391 | `args.programId` | `const ref = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);` | FOREIGN-WRITE (registration mutates fleet routing) |
-| 395 | `args.programId` | `return jsonResult({ success: false, error: `Program not found: "${args.programId}"` });` | FOREIGN-WRITE (registration mutates fleet routing) |
-| 400 | `args.programId` | `const isSelf = auth.programId === args.programId;` | FOREIGN-WRITE (registration mutates fleet routing) |
-| 417 | `args.programId` | `invalidateCache(auth.userId, args.programId);` | FOREIGN-WRITE (registration mutates fleet routing) |
-| 427 | `args.programId` | `programId: args.programId,` | FOREIGN-WRITE (registration mutates fleet routing) |
-| 429 | `args.programId` | `message: `Program "${args.programId}" updated.`,` | FOREIGN-WRITE (registration mutates fleet routing) |
+| rest.route GET /v1/tasks/stats:getFirestore() | 321 | ESCALATE | requireAdmin: "*" or ADMIN_READERS (rest.ts:132-137, :319) |
+| rest.route GET /v1/messages/unread:getFirestore() | 419 | ESCALATE | none |
+| rest.route POST /v1/messages/mark_read:getFirestore() | 436 | ESCALATE | enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:429-441) |
+| rest.route GET /v1/sessions/history:getFirestore() | 533 | ESCALATE | requireAdmin (rest.ts:531) |
+| rest.route GET /v1/sprints/active:getFirestore() | 603 | ESCALATE | requireAdmin (rest.ts:602) |
+| rest.route GET /v1/gsp/proposals:getFirestore() | 749 | ESCALATE | none |
 
-### `modules/metrics.ts` — 3 site(s)
+### 2. Calls that skip callTool (rest.ts:666, 707, 729, 859, and enrollHandler at 975)
 
-Primitive present in file: **isAdmin, hasCapability**. Default disposition: **FOREIGN-READ**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| 683 | `args.programId` | `if (args.programId) {` | FOREIGN-READ |
-| 684 | `args.programId` | `tasksQuery = tasksQuery.where("target", "==", args.programId);` | FOREIGN-READ |
-| 829 | `args.programId` | `programs: args.programId ? results : results,` | FOREIGN-READ |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | 666 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
+| rest.route GET /v1/dreams:dreamPeekHandler | 707 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | 729 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | 859 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
+| rest.createRestRouter:enrollHandler | 975 | ESCALATE | none: public pre-auth route /enroll; identity comes from the enrollment token document (enrollment.ts:113, :178-179) |
 
-### `modules/audit.ts` — 2 site(s)
+### 3. Object-id handlers named in plan section 6
 
-Primitive present in file: **isAdmin, hasCapability**. Default disposition: **FOREIGN-READ**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| 44 | `args.programId` | `if (args.programId) {` | FOREIGN-READ |
-| 45 | `args.programId` | `query = query.where("programId", "==", args.programId);` | FOREIGN-READ |
+| interventions.abortTaskHandler:args.taskId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| interventions.escalateTaskHandler:args.taskId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| interventions.approveTaskHandler:args.taskId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| tasks.getTaskByIdHandler:args.taskId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| schedule.getScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| schedule.deleteScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| webhook.webhookDeleteHandler:args.webhookId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| policy.createPolicy:args.id | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.updatePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.deletePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.getPolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| signal.getResponseHandler:args.questionId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 
-### `modules/trace.ts` — 2 site(s)
+### 4. Memory fan-out in gsp_search (gsp.ts:1897-1901)
 
-Primitive present in file: **isAdmin**. Default disposition: **FOREIGN-READ**.
-
-| Line | Identifier read | Snippet | Disposition |
+| Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| 214 | `args.programId` | `if (args.programId) {` | FOREIGN-READ |
-| 215 | `args.programId` | `query = query.where("programId", "==", args.programId);` | FOREIGN-READ |
+| gsp.gspSearchHandler:program_state-scan | 1897 | ESCALATE | none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1895-1901) |
 
-### `modules/dispatch/claims.ts` — 10 site(s)
+The AST rules also found a tenant-uid comparison outside the tool registry: `oauth/serviceAccounts.ts:100` (revokeServiceAccount). It is a baseline row, not a site record.
 
-Primitive present in file: **isAdmin**. Default disposition: **SELF-ONLY (claim is a lease on own work)**.
+## All site records
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 76 | `args.sessionId` | `const sameSession = (data.sessionId ?? null) === (args.sessionId ?? null);` | SELF-ONLY (claim is a lease on own work) |
-| 96 | `args.sessionId` | `sessionId: args.sessionId \|\| null,` | SELF-ONLY (claim is a lease on own work) |
-| 113 | `args.sessionId` | `emitClaimEvent(db, auth.userId, args.taskId, args.sessionId \|\| auth.programId, "contention");` | SELF-ONLY (claim is a lease on own work) |
-| 128 | `args.sessionId` | `session_id: args.sessionId \|\| undefined,` | SELF-ONLY (claim is a lease on own work) |
-| 136 | `args.sessionId` | `sessionId: args.sessionId,` | SELF-ONLY (claim is a lease on own work) |
-| 145 | `args.sessionId` | `emitClaimEvent(db, auth.userId, args.taskId, args.sessionId \|\| auth.programId, "claimed");` | SELF-ONLY (claim is a lease on own work) |
-| 292 | `args.sessionId` | `const sameSession = (data.sessionId ?? null) === (args.sessionId ?? null);` | SELF-ONLY (claim is a lease on own work) |
-| 311 | `args.sessionId` | `sessionId: args.sessionId \|\| null,` | SELF-ONLY (claim is a lease on own work) |
-| 338 | `args.sessionId` | `session_id: args.sessionId \|\| undefined,` | SELF-ONLY (claim is a lease on own work) |
-| 344 | `args.sessionId` | `sessionId: args.sessionId,` | SELF-ONLY (claim is a lease on own work) |
+| Site | Regex | Occ. | Line | Disposition | By | Closes in | Bundle |
+|---|---|---|---|---|---|---|---|
+| index.main:params.target | b | 2 | 613 | ESCALATE | ISO | ISO-assign | false |
+| index.main:params.callerSource | b | 1 | 630 | ATTRIBUTION | ISO | n/a | false |
+| ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 112 | ESCALATE | ISO | PR-L | false |
+| analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | ATTRIBUTION | ISO | n/a | false |
+| analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | ATTRIBUTION | ISO | n/a | false |
+| audit.getAuditHandler:args.programId | a | 2 | 44 | ESCALATE | C-5 | PR-L | false |
+| clu.cluIngestHandler:parsed.session_id | b | 1 | 92 | ESCALATE | ISO | PR-L | false |
+| clu.cluAnalyzeHandler:parsed.session_id | b | 3 | 137 | ESCALATE | ISO | PR-L | false |
+| claims.claimTaskHandler:args.sessionId | a | 6 | 76 | ESCALATE | ISO | PR-K | false |
+| claims.batchClaimTasksHandler:args.sessionId | a | 4 | 292 | ESCALATE | ISO | PR-K | false |
+| dispatchHandler.sendTaskAndDirective:args.target | a | 7 | 234 | ADDRESSED | ISO | PR-K | false |
+| dispatchHandler.dispatchHandler:args.source | a | 1 | 780 | ESCALATE | C-5 | PR-K | false |
+| dispatchHandler.dispatchHandler:args.target | a | 40 | 783 | ADDRESSED | ISO | PR-K | false |
+| interventions.retryTaskHandler:args.newTarget | b | 6 | 81 | ESCALATE | ISO | PR-L | false |
+| interventions.reassignTaskHandler:args.newTarget | b | 7 | 283 | ESCALATE | ISO | PR-L | false |
+| interventions.escalateTaskHandler:args.escalateTo | b | 4 | 395 | ESCALATE | C-5 | PR-L | false |
+| interventions.quarantineProgramHandler:args.programId | a | 7 | 507 | ESCALATE | ISO | PR-L | false |
+| interventions.unquarantineProgramHandler:args.programId | a | 7 | 571 | ESCALATE | ISO | PR-L | false |
+| interventions.replayTaskHandler:args.newTarget | b | 7 | 639 | ESCALATE | ISO | PR-L | false |
+| suggestion.suggestTargetHandler:p.programId | b | 1 | 87 | NOT-IDENTITY | ISO | n/a | false |
+| tasks.getTasksHandler:args.target | a | 3 | 154 | ESCALATE | C-5 | PR-K (after iso and the dispatcher hold fleet.observe) | false |
+| tasks.createTaskHandler:args.source | a | 1 | 408 | ESCALATE | C-5 | PR-K | false |
+| tasks.createTaskHandler:args.target | a | 10 | 411 | ADDRESSED | ISO | PR-K | false |
+| gsp.gspWriteHandler:args.source | a | 1 | 432 | ESCALATE | C-5 | PR-L | false |
+| gsp.gspBootstrapHandler:args.agentId | a | 11 | 662 | FOREIGN-READ | C-4 | PR-I | false |
+| keys.createKeyHandler:programId | c | 1 | 45 | FOREIGN-WRITE | ISO | n/a | false |
+| keys.revokeKeyHandler:keyHash | c | 1 | 139 | ESCALATE | C-5 | PR-E | false |
+| metrics.getProgramHealthHandler:args.programId | a | 3 | 855 | ESCALATE | C-5 | PR-L | false |
+| patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
+| programRegistry.listProgramsHandler:p.programId | b | 1 | 374 | NOT-IDENTITY | ISO | n/a | false |
+| programRegistry.updateProgramHandler:args.programId | a | 6 | 391 | ESCALATE | C-5 | PR-L | false |
+| programState.getProgramStateHandler:args.programId | a | 11 | 230 | ESCALATE | C-5 | PR-J | false |
+| programState.storeMemoryHandler:args.programId | a | 8 | 322 | ESCALATE | C-5 | PR-J | false |
+| programState.recallMemoryHandler:args.programId | a | 9 | 382 | ESCALATE | C-5 | PR-J | false |
+| programState.memoryHealthHandler:args.programId | a | 9 | 454 | ESCALATE | C-5 | PR-J | false |
+| programState.updateProgramStateHandler:args.programId | a | 12 | 517 | ESCALATE | C-5 | PR-J | false |
+| programState.updateProgramStateHandler:args.sessionId | a | 2 | 530 | ATTRIBUTION | ISO | n/a | false |
+| programState.deleteMemoryHandler:args.programId | a | 8 | 670 | ESCALATE | C-5 | PR-J | false |
+| programState.reinforceMemoryHandler:args.programId | a | 8 | 727 | ESCALATE | C-5 | PR-J | false |
+| programState.getContextHistoryHandler:args.programId | a | 7 | 787 | ESCALATE | C-5 | PR-J | false |
+| pulse.createSessionHandler:args.sessionId | a | 1 | 86 | ESCALATE | ISO | PR-L | false |
+| pulse.createSessionHandler:args.programId | a | 1 | 115 | ESCALATE | C-5 | PR-L | false |
+| pulse.updateSessionHandler:args.sessionId | a | 1 | 176 | ESCALATE | C-5 | PR-L | false |
+| pulse.listSessionsHandler:args.programId | a | 2 | 713 | ESCALATE | ISO | PR-L | false |
+| pulse.getContextUtilizationHandler:args.sessionId | a | 3 | 791 | ESCALATE | ISO | PR-L | false |
+| pulse.pauseProgramHandler:args.programId | a | 6 | 891 | ESCALATE | ISO | PR-L | false |
+| pulse.resumeProgramHandler:args.programId | a | 7 | 954 | ESCALATE | ISO | PR-L | false |
+| rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 76 | ATTRIBUTION | ISO | n/a | false |
+| rate-limits.getRateLimitEventsHandler:args.sessionId | a | 2 | 105 | ESCALATE | ISO | PR-L | false |
+| relay.sendMessageHandler:args.target | a | 15 | 132 | ADDRESSED | ISO | PR-K | false |
+| relay.sendMessageHandler:args.source | a | 3 | 134 | ESCALATE | C-5 | PR-K | false |
+| relay.sendMessageHandler:args.sessionId | a | 2 | 233 | ATTRIBUTION | ISO | n/a | false |
+| relay.getMessagesHandler:args.sessionId | a | 1 | 474 | ESCALATE | C-5 | PR-K | false |
+| relay.getMessagesHandler:args.target | a | 1 | 474 | ESCALATE | C-5 | PR-K | false |
+| relay.getSentMessagesHandler:args.source | a | 2 | 617 | ESCALATE | C-5 | PR-K | false |
+| relay.getSentMessagesHandler:args.target | a | 2 | 626 | SELF-ONLY | ISO | n/a | false |
+| relay.queryMessageHistoryHandler:args.source | a | 7 | 743 | ESCALATE | C-5 | PR-K | false |
+| relay.queryMessageHistoryHandler:args.target | a | 8 | 743 | ESCALATE | C-5 | PR-K | false |
+| relay.sendDirectiveHandler:parsed.target | b | 2 | 971 | ADDRESSED | ISO | PR-K | false |
+| schedule.createScheduleHandler:args.target | a | 2 | 128 | ESCALATE | ISO | PR-L | false |
+| schedule.paginateAndFilter:args.target | a | 2 | 186 | ESCALATE | ISO | PR-L | false |
+| schedule.listSchedulesHandler:args.target | a | 3 | 200 | ESCALATE | ISO | PR-L | false |
+| schedule.updateScheduleHandler:args.target | a | 2 | 296 | ESCALATE | ISO | PR-L | false |
+| signal.writeAlertDocs:input.source | b | 2 | 213 | NOT-IDENTITY | ISO | n/a | false |
+| signal.writeAlertDocs:input.sessionId | b | 1 | 219 | ATTRIBUTION | ISO | n/a | false |
+| signal.sendAlertHandler:args.sessionId | a | 1 | 279 | ATTRIBUTION | ISO | n/a | false |
+| sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ESCALATE | ISO | PR-K | false |
+| trace.queryTracesHandler:args.programId | a | 2 | 215 | ESCALATE | C-5 | PR-L | false |
+| onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
+| callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
+| CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
+| rest.route GET /v1/tasks/stats:query.target | a | 1 | 323 | ESCALATE | C-5 | PR-M | false |
+| rest.route GET /v1/messages/unread:query.sessionId | a | 2 | 422 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/messages:query.sessionId | a | 1 | 449 | ESCALATE | C-5 | PR-K | false |
+| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 786 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 791 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 796 | ESCALATE | C-5 | PR-J | false |
+| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 803 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 808 | ESCALATE | C-5 | PR-J | false |
+| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 812 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 817 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 821 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 855 | ESCALATE | C-5 | PR-K | false |
+| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 939 | ATTRIBUTION | ISO | n/a | false |
+| rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 321 | ESCALATE | C-5 | PR-M | false |
+| rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 419 | ESCALATE | ISO | PR-M | false |
+| rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 436 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/sessions/history:getFirestore() | none | 1 | 533 | ESCALATE | C-5 | PR-M | false |
+| rest.route GET /v1/sprints/active:getFirestore() | none | 1 | 603 | ESCALATE | C-5 | PR-M | false |
+| rest.route GET /v1/gsp/proposals:getFirestore() | none | 1 | 749 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | 1 | 666 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/dreams:dreamPeekHandler | none | 1 | 707 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | 1 | 729 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | 1 | 859 | ESCALATE | ISO | PR-M | false |
+| rest.createRestRouter:enrollHandler | none | 1 | 975 | ESCALATE | ISO | PR-M | false |
+| interventions.abortTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| interventions.escalateTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| interventions.approveTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| tasks.getTaskByIdHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| schedule.getScheduleHandler:args.scheduleId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| schedule.deleteScheduleHandler:args.scheduleId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| webhook.webhookDeleteHandler:args.webhookId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.createPolicy:args.id | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.updatePolicy:args.policyId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.deletePolicy:args.policyId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.getPolicy:args.policyId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.listPolicies:(tenant-wide) | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| policy.policyCheck:(tenant-wide) | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| sprint.updateStoryHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| sprint.addStoryHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| sprint.completeSprintHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| sprint.getSprintHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| signal.getResponseHandler:args.questionId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
+| gsp.gspSearchHandler:program_state-scan | none | 1 | 1897 | ESCALATE | C-4 | PR-J | false |
 
-### `modules/keys.ts` — 1 site(s)
+## Handler entries (R6)
 
-Primitive present in file: **credentialPrincipal, isKeyAdmin**. Default disposition: **DONE (PR-1, shipped & proven on cachebash-mcp-00191-z4z)**.
+| Tool | Handler | Transports | Effect | Sites | Name lists | serves_bundle_data |
+|---|---|---|---|---|---|---|
+| admin_merge_accounts | mergeAccountsHandler | mcp | write | 0 | 1 | false |
+| audit_get_audit | getAuditHandler | mcp rest iso | read | 1 | 1 | false |
+| audit_get_ack_compliance | getAckComplianceHandler | mcp rest | read | 1 | 0 | false |
+| clu_ingest | cluIngestHandler | mcp | write | 1 | 0 | false |
+| clu_analyze | cluAnalyzeHandler | mcp | read | 1 | 0 | false |
+| clu_report | cluReportHandler | mcp | read | 0 | 0 | false |
+| dispatch_get_tasks | getTasksHandler | mcp rest iso | read | 1 | 1 | false |
+| dispatch_get_task_by_id | getTaskByIdHandler | mcp rest | read | 1 | 0 | false |
+| dispatch_create_task | createTaskHandler | mcp rest iso | write | 2 | 1 | false |
+| dispatch_claim_task | claimTaskHandler | mcp rest iso | write | 1 | 0 | false |
+| dispatch_unclaim_task | unclaimTaskHandler | mcp rest | write | 0 | 1 | false |
+| dispatch_complete_task | completeTaskHandler | mcp rest iso | write | 0 | 1 | false |
+| dispatch_record_task_telemetry | recordTaskTelemetryHandler | mcp rest | write | 0 | 1 | false |
+| dispatch_batch_claim_tasks | batchClaimTasksHandler | mcp rest | write | 1 | 0 | false |
+| dispatch_batch_complete_tasks | batchCompleteTasksHandler | mcp rest | write | 0 | 1 | false |
+| dispatch_get_contention_metrics | getContentionMetricsHandler | mcp rest | read | 0 | 0 | false |
+| dispatch_dispatch | dispatchHandler | mcp rest | write | 3 | 1 | false |
+| dispatch_retry_task | retryTaskHandler | mcp | write | 1 | 0 | false |
+| dispatch_abort_task | abortTaskHandler | mcp | write | 1 | 0 | false |
+| dispatch_reassign_task | reassignTaskHandler | mcp | write | 1 | 0 | false |
+| dispatch_escalate_task | escalateTaskHandler | mcp | write | 2 | 1 | false |
+| dispatch_quarantine_program | quarantineProgramHandler | mcp | write | 1 | 0 | false |
+| dispatch_unquarantine_program | unquarantineProgramHandler | mcp | write | 1 | 0 | false |
+| dispatch_replay_task | replayTaskHandler | mcp | write | 1 | 0 | false |
+| dispatch_approve_task | approveTaskHandler | mcp | write | 1 | 0 | false |
+| dispatch_get_task_lineage | getTaskLineageHandler | mcp | read | 0 | 0 | false |
+| dispatch_export_tasks | exportTasksHandler | mcp | read | 0 | 0 | false |
+| dispatch_suggest_target | suggestTargetHandler | mcp | read | 1 | 0 | false |
+| dispatch_backfill_task_expires_at | backfillTaskExpiresAtHandler | mcp | write | 0 | 1 | false |
+| dispatch_reap_expired_tasks | reapExpiredTasksHandler | mcp | write | 0 | 1 | false |
+| dream_peek | dreamPeekHandler | mcp rest | read | 0 | 0 | false |
+| dream_activate | dreamActivateHandler | mcp rest | write | 0 | 0 | false |
+| feedback_submit_feedback | submitFeedbackHandler | mcp rest | write | 0 | 0 | false |
+| gsp_read | gspReadHandler | mcp rest | read | 0 | 0 | false |
+| gsp_write | gspWriteHandler | mcp rest | write | 1 | 1 | false |
+| gsp_diff | gspDiffHandler | mcp | read | 0 | 0 | false |
+| gsp_bootstrap | gspBootstrapHandler | mcp | read | 1 | 0 | false |
+| gsp_seed | gspSeedHandler | mcp | write | 0 | 1 | false |
+| gsp_propose | gspProposeHandler | mcp | write | 0 | 1 | false |
+| gsp_subscribe | gspSubscribeHandler | mcp | write | 0 | 0 | false |
+| gsp_resolve | gspResolveHandler | mcp rest | write | 0 | 0 | false |
+| gsp_search | gspSearchHandler | mcp rest | read | 1 | 0 | false |
+| keys_create_key | createKeyHandler | mcp rest | write | 1 | 0 | false |
+| keys_revoke_key | revokeKeyHandler | mcp rest | write | 1 | 1 | false |
+| keys_rotate_key | rotateKeyHandler | mcp rest | write | 0 | 0 | false |
+| keys_list_keys | listKeysHandler | mcp rest iso | read | 0 | 1 | false |
+| metrics_get_cost_summary | getCostSummaryHandler | mcp rest iso | read | 0 | 1 | false |
+| metrics_get_comms_metrics | getCommsMetricsHandler | mcp rest iso | read | 0 | 1 | false |
+| metrics_get_operational_metrics | getOperationalMetricsHandler | mcp rest iso | read | 0 | 1 | false |
+| metrics_log_rate_limit_event | logRateLimitEventHandler | mcp rest | write | 1 | 0 | false |
+| metrics_get_rate_limit_events | getRateLimitEventsHandler | mcp rest | read | 1 | 0 | false |
+| metrics_get_cost_forecast | getCostForecastHandler | mcp | read | 0 | 1 | false |
+| metrics_get_sla_compliance | getSlaComplianceHandler | mcp | read | 0 | 1 | false |
+| metrics_get_program_health | getProgramHealthHandler | mcp | read | 1 | 1 | false |
+| pattern_consolidate | consolidatePatternsHandler | mcp | write | 1 | 0 | false |
+| pattern_get_consolidated | getConsolidatedPatternsHandler | mcp | read | 0 | 0 | false |
+| policy_create | createPolicy | mcp | write | 1 | 0 | false |
+| policy_update | updatePolicy | mcp | write | 1 | 0 | false |
+| policy_delete | deletePolicy | mcp | write | 1 | 0 | false |
+| policy_get | getPolicy | mcp | read | 1 | 0 | false |
+| policy_list | listPolicies | mcp | read | 1 | 0 | false |
+| policy_check | policyCheck | mcp | read | 1 | 0 | false |
+| state_get_program_state | getProgramStateHandler | mcp rest | read | 2 | 2 | false |
+| state_update_program_state | updateProgramStateHandler | mcp rest | write | 3 | 1 | false |
+| state_get_context_history | getContextHistoryHandler | mcp rest | read | 2 | 2 | false |
+| state_store_memory | storeMemoryHandler | mcp rest | write | 2 | 1 | false |
+| state_recall_memory | recallMemoryHandler | mcp rest | read | 2 | 2 | false |
+| state_memory_health | memoryHealthHandler | mcp rest | read | 2 | 2 | false |
+| state_delete_memory | deleteMemoryHandler | mcp rest | write | 2 | 1 | false |
+| state_reinforce_memory | reinforceMemoryHandler | mcp rest | write | 2 | 1 | false |
+| programs_list_programs | listProgramsHandler | mcp | read | 1 | 0 | false |
+| programs_update_program | updateProgramHandler | mcp | write | 1 | 1 | false |
+| pulse_create_session | createSessionHandler | mcp rest | write | 2 | 1 | false |
+| pulse_update_session | updateSessionHandler | mcp rest iso | write | 1 | 2 | false |
+| pulse_list_sessions | listSessionsHandler | mcp rest | read | 1 | 0 | false |
+| pulse_get_fleet_health | getFleetHealthHandler | mcp rest iso | read | 0 | 1 | false |
+| pulse_get_fleet_timeline | getFleetTimelineHandler | mcp rest | read | 0 | 0 | false |
+| pulse_write_fleet_snapshot | writeFleetSnapshotHandler | mcp rest | write | 0 | 0 | false |
+| pulse_get_context_utilization | getContextUtilizationHandler | mcp rest | read | 1 | 0 | false |
+| pulse_pause_program | pauseProgramHandler | mcp | write | 1 | 0 | false |
+| pulse_resume_program | resumeProgramHandler | mcp | write | 1 | 0 | false |
+| relay_send_message | sendMessageHandler | mcp rest iso | write | 3 | 1 | false |
+| relay_get_messages | getMessagesHandler | mcp rest iso | mixed | 4 | 1 | false |
+| relay_get_dead_letters | getDeadLettersHandler | mcp rest iso | read | 0 | 1 | false |
+| relay_list_groups | listGroupsHandler | mcp rest | read | 0 | 0 | false |
+| relay_get_sent_messages | getSentMessagesHandler | mcp rest iso | read | 2 | 1 | false |
+| relay_query_message_history | queryMessageHistoryHandler | mcp rest iso | read | 2 | 1 | false |
+| relay_send_directive | sendDirectiveHandler | mcp | write | 1 | 1 | false |
+| request_help (lite) | requestHelpHandler | mcp | write | 0 | 0 | false |
+| schedule_create | createScheduleHandler | mcp | write | 1 | 0 | false |
+| schedule_list | listSchedulesHandler | mcp | read | 2 | 0 | false |
+| schedule_get | getScheduleHandler | mcp | read | 1 | 0 | false |
+| schedule_update | updateScheduleHandler | mcp | write | 1 | 0 | false |
+| schedule_delete | deleteScheduleHandler | mcp | write | 1 | 0 | false |
+| signal_ask_question | askQuestionHandler | mcp rest | write | 0 | 0 | false |
+| signal_get_response | getResponseHandler | mcp rest | read | 1 | 0 | false |
+| signal_send_alert | sendAlertHandler | mcp rest iso | write | 3 | 0 | false |
+| sprint_create_sprint | createSprintHandler | mcp rest | write | 1 | 0 | false |
+| sprint_update_sprint_story | updateStoryHandler | mcp rest | write | 1 | 0 | false |
+| sprint_add_story_to_sprint | addStoryHandler | mcp rest | write | 1 | 0 | false |
+| sprint_complete_sprint | completeSprintHandler | mcp rest | write | 1 | 0 | false |
+| sprint_get_sprint | getSprintHandler | mcp rest iso | read | 1 | 0 | false |
+| trace_query_traces | queryTracesHandler | mcp rest iso | read | 1 | 1 | false |
+| trace_query_trace | queryTraceHandler | mcp rest | read | 0 | 1 | false |
+| usage_get_usage | getUsageHandler | mcp rest | read | 0 | 0 | false |
+| usage_get_invoice | getInvoiceHandler | mcp rest | read | 0 | 0 | false |
+| usage_set_budget | setBudgetHandler | mcp rest | write | 0 | 0 | false |
+| webhook_register | webhookRegisterHandler | mcp | write | 0 | 0 | false |
+| webhook_list | webhookListHandler | mcp | read | 0 | 0 | false |
+| webhook_delete | webhookDeleteHandler | mcp | write | 1 | 0 | false |
+| webhook_get_deliveries | webhookGetDeliveriesHandler | mcp | read | 0 | 0 | false |
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 45 | `args.programId (destructured)` | `const { programId, label } = args;` | DONE (PR-1, shipped & proven on cachebash-mcp-00191-z4z) |
+Lite-profile entries (not in the 110): request_help.
 
-### `modules/dispatch/interventions.ts` — 14 site(s)
+### Bundle greps
 
-Primitive present in file: **none**. Default disposition: **FOREIGN-WRITE (admin capability — largest unprotected surface)**.
+```
+git grep -n -i -P 'brain[ _-]?bundle|brainBundle|bundle' -- . ':!*package-lock.json' ':!apps/mobile'
+CONTRIBUTING.md:104:- **Is it focused?** One PR, one change. Don't bundle unrelated modifications.
+apps/web/tsconfig.json:15:    "moduleResolution": "bundler",
+docs/deployment.md:346:flutter build appbundle --release
+```
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 507 | `args.programId` | `const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 510 | `args.programId` | `const isKnown = await isProgramRegistered(auth.userId, args.programId);` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 512 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 537 | `args.programId` | `program_id: args.programId,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 551 | `args.programId` | `programId: args.programId,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 555 | `args.programId` | `? `Program "${args.programId}" was already quarantined. Reason updated.`` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 556 | `args.programId` | `: `Program "${args.programId}" quarantined. All dispatches blocked until unquarantined.`,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 571 | `args.programId` | `const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 574 | `args.programId` | `const isKnown = await isProgramRegistered(auth.userId, args.programId);` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 576 | `args.programId` | `return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 584 | `args.programId` | `return { error: `Program "${args.programId}" is not quarantined.` };` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 606 | `args.programId` | `program_id: args.programId,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 619 | `args.programId` | `programId: args.programId,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
-| 621 | `args.programId` | `message: `Program "${args.programId}" unquarantined. Dispatch enabled.`,` | FOREIGN-WRITE (admin capability — largest unprotected surface) |
+Result: 3 hits, none a bundle store.
 
-### `modules/schedule.ts` — 9 site(s)
+```
+git grep -i -c -P '\bbrain\b'
+services/mcp-server/src/modules/relay.ts:1
+```
 
-Primitive present in file: **none**. Default disposition: **FOREIGN-WRITE (writes work into target's future)**.
+Result: 1 file; the hit is the comment 'split-brain' at relay.ts:22.
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 105 | `args.target` | `target: args.target,` | FOREIGN-WRITE (writes work into target's future) |
-| 123 | `args.target` | `message: `Schedule "${args.name}" created for target "${args.target}" with cron "${args.cron}".`,` | FOREIGN-WRITE (writes work into target's future) |
-| 159 | `args.target` | `if (args.target !== undefined && data.target !== args.target) continue;` | FOREIGN-WRITE (writes work into target's future) |
-| 159 | `args.target` | `if (args.target !== undefined && data.target !== args.target) continue;` | FOREIGN-WRITE (writes work into target's future) |
-| 173 | `args.target` | `const filters = { target: args.target \|\| null, enabled: args.enabled ?? null };` | FOREIGN-WRITE (writes work into target's future) |
-| 176 | `args.target` | `if (args.target) {` | FOREIGN-WRITE (writes work into target's future) |
-| 177 | `args.target` | `ref = ref.where("target", "==", args.target);` | FOREIGN-WRITE (writes work into target's future) |
-| 269 | `args.target` | `if (args.target !== undefined) updates.target = args.target;` | FOREIGN-WRITE (writes work into target's future) |
-| 269 | `args.target` | `if (args.target !== undefined) updates.target = args.target;` | FOREIGN-WRITE (writes work into target's future) |
+```
+git grep -n -i -P 'getStorage|\.bucket\(|gs://|storageBucket' -- services
+services/functions/public/cli-auth.html:136:      storageBucket: "cachebash-app.firebasestorage.app",
+```
 
-### `modules/rate-limits.ts` — 4 site(s)
+Result: 1 hit, a Firebase web config; no server-side object storage.
 
-Primitive present in file: **none**. Default disposition: **FOREIGN-READ**.
+### Handlers storing caller-keyed tenant data (10)
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 76 | `args.sessionId` | `sessionId: args.sessionId,` | FOREIGN-READ |
-| 90 | `args.sessionId` | `message: `Rate limit event logged for session ${args.sessionId}.`,` | FOREIGN-READ |
-| 105 | `args.sessionId` | `if (args.sessionId) {` | FOREIGN-READ |
-| 106 | `args.sessionId` | `query = query.where("sessionId", "==", args.sessionId);` | FOREIGN-READ |
+Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).
 
-### `modules/ack-compliance.ts` — 3 site(s)
+| Tool | Tenant segment built at | Note |
+|---|---|---|
+| gsp_read | modules/gsp.ts:163 | ruled by ISO, upheld by VECTOR |
+| gsp_write | modules/gsp.ts:435 | ruled by ISO, upheld by VECTOR |
+| gsp_diff | modules/gsp.ts:497 | ruled by ISO, upheld by VECTOR |
+| gsp_bootstrap | modules/gsp.ts:750 | ruled by ISO, upheld by VECTOR |
+| gsp_seed | modules/gsp.ts:1201 | ruled by ISO, upheld by VECTOR |
+| gsp_propose | modules/gsp.ts:1312; modules/gsp.ts:1350 | ruled by ISO, upheld by VECTOR |
+| gsp_subscribe | modules/gsp.ts:229; modules/gsp.ts:259 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
+| gsp_resolve | modules/gsp.ts:1590; modules/gsp.ts:1664 | ruled by ISO, upheld by VECTOR |
+| gsp_search | modules/gsp.ts:1791 | ruled by ISO, upheld by VECTOR |
+| state_update_program_state | modules/programState.ts:526 | ruled by ISO, upheld by VECTOR |
 
-Primitive present in file: **none**. Default disposition: **FOREIGN-READ**.
+The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 112 | `args.programId` | `if (args.programId) {` | FOREIGN-READ |
-| 113 | `args.programId` | `query = query.where("source", "==", args.programId);` | FOREIGN-READ |
-| 146 | `args.programId` | `programId: args.programId \|\| "all",` | FOREIGN-READ |
+Probe T6.gsp_read (src/__tests__/probes/t6.probe.ts) asserts the property at runtime: tenant B reads tenant A's namespace and key and gets found:false, and tenant A reads its own row.
 
-### `modules/signal.ts` — 1 site(s)
+Namespace and key authority inside the tenant is an authorization question and has its own site records (for example gsp_write source, gsp_search memory scan).
 
-Primitive present in file: **none**. Default disposition: **SELF-ONLY**.
+## C-5 table: hardcoded name lists
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 187 | `args.sessionId` | `sessionId: args.sessionId \|\| null,` | SELF-ONLY |
+Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measurement (source: `grid/specs/EVIDENCE-rd5-c5-usage.md` in rezzedai/grid, merged f98406ff). The ledger records only calls through callTool. The dispatcher, legacy and mobile show 0 rows because the direct REST routes write no ledger row, so a zero does not show a principal never calls the path. programId is auth.programId, mutable while the override path exists (PR-H). Counts are even, so compare ratios. VECTOR rules per identity in grid plan amendment 3; no name list changes here. No list is deleted before VECTOR rules per identity.
 
-### `modules/sprint.ts` — 1 site(s)
+| Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
+|---|---|---|
+| NL-STATE-READERS `config/access-tiers.ts:9` [orchestrator, vector, iso, auditor, dispatcher] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history | members seen: vector 18, iso 76; non-members: basher 178, vector_datatrue 4, tensor 2 |
+| NL-STATE-WRITERS `config/access-tiers.ts:12` [legacy, mobile] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history, state_store_memory, state_update_program_state, state_delete_memory, state_reinforce_memory | members seen: none; non-members: iso 930, basher 312, vector 306, vector_datatrue 78, tensor 2 |
+| NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
+| NL-ADMIN-PROGRAMS `middleware/gate.ts:131` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
+| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:163` [legacy, mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
+| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/completion.ts:537` [iso, orchestrator, legacy, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
+| NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
+| NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:157` [legacy, mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
+| NL-REGISTRY-ADMIN `modules/programRegistry.ts:399` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
+| NL-PULSE-PRIV `modules/pulse.ts:210` [legacy, mobile, dispatcher] (handler) | pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
+| NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:144` [legacy, mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
+| NL-RELAY-GETMSG `modules/relay.ts:477` [legacy, mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
+| NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | members seen: none |
+| NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
+| NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
+| NL-GSP-SEED-AUTH `modules/gsp.ts:1189` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
+| NL-KEY-ADMIN `auth/ownerAuthz.ts:114` [vector, sark] (handler) | keys_list_keys, keys_revoke_key | members seen: vector 2; non-members: iso 2 |
+| NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
+| NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
+| NL-GSP-REVIEWERS `modules/gsp.ts:609` [iso, vector] (routing) | gsp_propose | members seen: none |
+| NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
+| NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
+| NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | not measured (no tool_call rows exist for this path) |
 
-Primitive present in file: **none**. Default disposition: **SELF-ONLY**.
+### Name list notes
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 181 | `args.sessionId` | `sessionId: args.sessionId \|\| null,` | SELF-ONLY |
+- NL-STATE-READERS: canRead; a member reads any program's state.
+- NL-STATE-WRITERS: canRead and canWrite; a member reads and writes any program's state.
+- NL-ADMIN-READERS: requireAdmin also passes any key holding "*".
+- NL-ADMIN-PROGRAMS: isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).
+- NL-VERIFYSOURCE-ADMIN: These credentials may claim any source.
+- NL-CLAIM-OWNER-OVERRIDE: These names may unclaim or complete a task they do not own.
+- NL-ESCALATION-CHAIN: Picks the default escalation recipient. It gates nothing.
+- NL-GETTASKS-DEFAULT: These names see every task when no target is given.
+- NL-REGISTRY-ADMIN: These names may edit any program entry.
+- NL-PULSE-PRIV: These names may write any session.
+- NL-PULSE-REGISTRY-SKIP: Skips the program-registry write for these names. It gates nothing.
+- NL-RELAY-GETMSG: These names read messages for any requested target.
+- NL-ACCOUNT-MERGE: Only this name may merge accounts.
+- NL-BACKFILL-AUTH: Also passes on "*".
+- NL-REAP-AUTH: Also passes on "*".
+- NL-GSP-SEED-AUTH: Also passes on "*".
+- NL-KEY-ADMIN: Also passes on literal keys.admin. Deleted in PR-F (D-b).
+- NL-REST-RELAY-MOBILE: Branches the source on the mobile name before credentialPrincipal.
+- NL-SESSION-COMPLIANCE: Exempts or classifies callers for the session-boot rule. It is not an identity gate on data.
+- NL-GSP-REVIEWERS: Chooses proposal reviewers. It gates nothing.
+- NL-OAUTH-ALLOWLIST: Read from OAUTH_ALLOWED_UIDS; the default list is in the same file.
+- NL-OAUTH-BINDABLE: Programs an OAuth token may bind to.
+- NL-FIREBASE-MOBILE: A Firebase user without a program mapping authenticates as mobile.
 
-### `modules/wake/onDemandWake.ts` — 1 site(s)
+## D-f AST baseline (pending)
 
-Primitive present in file: **none**. Default disposition: **FOREIGN-WRITE (waking another program — destructured, invisible to args.-only grep)**.
+| Rule | Rows | Occurrences |
+|---|---|---|
+| S1 | 57 | 220 |
+| S2 | 2 | 2 |
+| S3 | 5 | 5 |
 
-| Line | Identifier read | Snippet | Disposition |
-|---|---|---|---|
-| 208 | `req.target (destructured)` | `const { userId, target, waitForAlive = true, callerSource, taskId } = req;` | FOREIGN-WRITE (waking another program — destructured, invisible to args.-only grep) |
-### `transport/rest.ts` — 6 site(s) + the admin gate (bypasses handlers — §0.1 does not reach these)
+The test fails on a violation with no row and on a row that no longer matches. The baseline only shrinks.
 
-These run their own Firestore queries directly instead of delegating to an MCP handler, so a handler-level PR-3/4/5
-fix will **not** reach them; they are separately enumerated per the plan's §2.3 and §0.2.
-
-**Line-number note:** the sweep was run against the exact same commit the plan cites (`adaf9a5` — this worktree's
-`HEAD`), and the site *count* (6) and the routes they belong to match the plan exactly, but the precise line
-numbers below (verified by direct `grep -n` against this checkout) differ by 1-4 lines from the plan's own
-citations (`:128-130`, `:324`/`:330`, `:423-424`, `:450`, `:854`, `:938`). Route-for-route this is the same six
-sites, just cited a few lines off in the plan's prose — not a discrepancy in the enumeration or the count, so not
-escalated as a finding, just disclosed for anyone diffing against the plan's line numbers directly.
-
-| Line (verified) | Read | Route / snippet | Disposition |
-|---|---|---|---|
-| 129-130 | `auth.capabilities.includes("*")` + `auth.programId` | `requireAdmin()`: `if (auth.capabilities.includes("*") \|\| (ADMIN_READERS as readonly string[]).includes(auth.programId)) {` | **REWRITE** (§0.2 — gates R1; explicitly assigned to PR-4, **not touched by PR-2**) |
-| 325 | `query.target` | `GET /v1/tasks/stats`: `const target = query.target as string \| undefined;` then `if (target) q = q.where("target", "==", target);` — route is already behind `requireAdmin()` (the broken §0.2 gate, line 321) | FOREIGN-READ — direct cross-program task read |
-| 424 | `query.sessionId` | `GET /v1/messages/unread`: `if (query.sessionId) {` | SELF-ONLY |
-| 425 | `query.sessionId` | `GET /v1/messages/unread`: `q = q.where("target", "==", query.sessionId);` — no gate of any kind on this route; any caller can pass any `sessionId` | SELF-ONLY |
-| 451 | `query.sessionId` | `GET /v1/messages`: `callTool(auth, req, "get_messages", { sessionId: query.sessionId \|\| "rest", ...query })` | SELF-ONLY — reaches R6's drain via REST |
-| 857 | `query.sessionId` | `GET /v1/interrupts/peek` (legacy redirect): `callTool(auth, req, "get_messages", { sessionId: query.sessionId \|\| "peek", markAsRead: false })` | SELF-ONLY |
-| 941 | `body.programId` | `POST /admin/reset-program-cache`: `const programId = body.programId as string \| undefined;` — route is already behind an inline `auth.capabilities.includes("*")` check (line 936, same broken wildcard shape as §0.2, not the `requireAdmin()` helper) | FOREIGN-WRITE |
-
-Both `GET /v1/messages/unread` sites (424, 425) currently have **no gate at all** — not even the broken §0.2
-wildcard/programId one. Disposition SELF-ONLY per the plan's default; not changed here (PR-2 makes no
-authorization decisions).
-
-### `iso/isoServer.ts` — 0 sites
-
-Confirmed by reading the file, not by trusting a zero-hit grep (§0.3's own warning about a "clean zero from a new
-sweep"). `iso/isoServer.ts` maps 19 tool names onto the **same handler functions** the MCP layer calls
-(`ISO_TOOL_HANDLERS`, `:30-49`), then calls `handler(authContext, args)` at `:138` — it reads no identifier from
-its own arguments. Its own gate, `checkToolCapability(name, authContext.capabilities)` (`:102`), is
-wildcard-satisfiable and adds no protection of its own; a fix that lands inside the handler (§0.1's architectural
-instruction: "gate inside the handler, never in a transport wrapper") covers this transport automatically. It
-exposes `dispatch_get_tasks`, `relay_get_messages`, `keys_list_keys`, and `pulse_update_session` — every hole in
-the PDR is reachable here today, same as the plan states.
+| Rule | File | Handler | Expression | Occ. | Line at base |
+|---|---|---|---|---|---|
+| S1 | index.ts | main | `auth.programId` | 17 | 169 |
+| S1 | iso/isoServer.ts | createIsoServer | `authContext.programId` | 12 | 104 |
+| S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 134 |
+| S1 | middleware/gate.ts | verifySource | `auth.programId` | 1 | 160 |
+| S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 108 |
+| S1 | modules/account-merge.ts | mergeAccountsHandler | `auth.programId` | 1 | 25 |
+| S1 | modules/dispatch/backfillExpiresAt.ts | backfillTaskExpiresAtHandler | `auth.programId` | 2 | 62 |
+| S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 7 | 77 |
+| S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 9 | 188 |
+| S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 5 | 293 |
+| S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 16 | 509 |
+| S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 13 | 846 |
+| S1 | modules/dispatch/completion.ts | recordTaskTelemetryHandler | `auth.programId` | 1 | 1030 |
+| S1 | modules/dispatch/interventions.ts | retryTaskHandler | `auth.programId` | 3 | 107 |
+| S1 | modules/dispatch/interventions.ts | abortTaskHandler | `auth.programId` | 5 | 215 |
+| S1 | modules/dispatch/interventions.ts | reassignTaskHandler | `auth.programId` | 4 | 302 |
+| S1 | modules/dispatch/interventions.ts | escalateTaskHandler | `auth.programId` | 4 | 419 |
+| S1 | modules/dispatch/interventions.ts | quarantineProgramHandler | `auth.programId` | 3 | 524 |
+| S1 | modules/dispatch/interventions.ts | unquarantineProgramHandler | `auth.programId` | 3 | 590 |
+| S1 | modules/dispatch/interventions.ts | replayTaskHandler | `auth.programId` | 2 | 718 |
+| S1 | modules/dispatch/interventions.ts | approveTaskHandler | `auth.programId` | 4 | 781 |
+| S1 | modules/dispatch/reapExpiredTasks.ts | reapExpiredTasksHandler | `auth.programId` | 2 | 220 |
+| S1 | modules/dispatch/tasks.ts | getTasksHandler | `auth.programId` | 5 | 157 |
+| S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1192 |
+| S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1352 |
+| S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1475 |
+| S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1636 |
+| S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 92 |
+| S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 399 |
+| S1 | modules/programState.ts | canRead | `auth.programId` | 3 | 119 |
+| S1 | modules/programState.ts | canWrite | `auth.programId` | 2 | 130 |
+| S1 | modules/programState.ts | getProgramStateHandler | `auth.programId` | 4 | 235 |
+| S1 | modules/programState.ts | storeMemoryHandler | `auth.programId` | 2 | 327 |
+| S1 | modules/programState.ts | recallMemoryHandler | `auth.programId` | 1 | 387 |
+| S1 | modules/programState.ts | memoryHealthHandler | `auth.programId` | 1 | 459 |
+| S1 | modules/programState.ts | updateProgramStateHandler | `auth.programId` | 4 | 522 |
+| S1 | modules/programState.ts | deleteMemoryHandler | `auth.programId` | 2 | 675 |
+| S1 | modules/programState.ts | reinforceMemoryHandler | `auth.programId` | 2 | 732 |
+| S1 | modules/programState.ts | getContextHistoryHandler | `auth.programId` | 1 | 792 |
+| S1 | modules/pulse.ts | updateSessionHandler | `auth.programId` | 4 | 209 |
+| S1 | modules/pulse.ts | pauseProgramHandler | `auth.programId` | 3 | 909 |
+| S1 | modules/pulse.ts | resumeProgramHandler | `auth.programId` | 3 | 972 |
+| S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
+| S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 111 |
+| S1 | modules/relay.ts | getMessagesHandler | `auth.programId` | 4 | 477 |
+| S1 | modules/relay.ts | getSentMessagesHandler | `auth.programId` | 1 | 617 |
+| S1 | modules/relay.ts | queryMessageHistoryHandler | `auth.programId` | 5 | 756 |
+| S1 | modules/schedule.ts | createScheduleHandler | `auth.programId` | 1 | 141 |
+| S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
+| S1 | modules/sprint.ts | updateStoryHandler | `auth.programId` | 2 | 331 |
+| S1 | modules/sprint.ts | completeSprintHandler | `auth.programId` | 1 | 456 |
+| S1 | modules/webhook.ts | webhookRegisterHandler | `auth.programId` | 1 | 130 |
+| S1 | transport/rest.ts | requireAdmin | `auth.programId` | 1 | 133 |
+| S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 190 |
+| S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 310 |
+| S1 | transport/rest.ts | route POST /v1/relay/messages | `auth.programId` | 1 | 472 |
+| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 950 |
+| S2 | modules/keys.ts | revokeKeyHandler | `auth.userId` | 1 | 158 |
+| S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
+| S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 400 |
+| S3 | modules/programState.ts | getProgramStateHandler | `args.programId` | 1 | 239 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 757 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 763 |
+| S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 186 |
