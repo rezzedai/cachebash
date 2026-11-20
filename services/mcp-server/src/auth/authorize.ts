@@ -8,8 +8,9 @@
  *   A raw keyIndex.userId never decides: the dispatcher key 69cc7291 carries an alternate uid.
  * - sameProgram compares credentialPrincipal(auth) with keyDoc.programId. Program names repeat
  *   across tenants, so the program check alone is never enough.
- * - key admin is isKeyAdmin: literal `fleet.admin` (hasFleetAdminCapability), literal `keys.admin`,
- *   or the KEY_ADMIN_PRINCIPALS allowlist until PR-F deletes it. "*" never satisfies it.
+ * - key admin is isKeyAdmin: literal `fleet.admin` only. "*" never satisfies it, and no program
+ *   name does.
+ * - a key document with no programId is denied with reason "program", for every caller, admin included.
  *
  * A tenant mismatch is reported as "tenant", which callers answer exactly like a missing key.
  * Otherwise the key hash would tell a caller whether another tenant holds that key.
@@ -52,7 +53,8 @@ export async function authorizeKeySubject(
   tenantOf: TenantOf,
 ): Promise<KeyDecision> {
   const principal = credentialPrincipal(auth);
-  const subject = typeof keyDoc.programId === "string" && keyDoc.programId ? keyDoc.programId : "legacy";
+  const hasProgram = typeof keyDoc.programId === "string" && keyDoc.programId !== "";
+  const subject = hasProgram ? (keyDoc.programId as string) : "";
 
   const docUid = typeof keyDoc.userId === "string" ? keyDoc.userId : "";
   if (!docUid) return { allowed: false, reason: "tenant", principal, subject };
@@ -60,6 +62,7 @@ export async function authorizeKeySubject(
   const [callerTenant, docTenant] = await Promise.all([tenantOf(auth.userId), tenantOf(docUid)]);
   if (callerTenant !== docTenant) return { allowed: false, reason: "tenant", principal, subject };
 
+  if (!hasProgram) return { allowed: false, reason: "program", principal, subject };
   if (subject === principal) return { allowed: true, via: "self", principal, subject };
   if (isKeyAdmin(auth)) return { allowed: true, via: "fleet.admin", principal, subject };
   return { allowed: false, reason: "program", principal, subject };

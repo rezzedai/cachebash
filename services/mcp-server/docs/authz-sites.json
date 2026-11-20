@@ -432,26 +432,6 @@
       "usage_30d": "members seen: gsp-sync 56"
     },
     {
-      "id": "NL-KEY-ADMIN",
-      "file": "auth/ownerAuthz.ts",
-      "line": 114,
-      "name": "KEY_ADMIN_PRINCIPALS",
-      "members": [
-        "vector",
-        "sark"
-      ],
-      "layer": "handler",
-      "guard_sites": [
-        "auth/ownerAuthz.ts:114"
-      ],
-      "guards": [
-        "keys_list_keys",
-        "keys_revoke_key"
-      ],
-      "note": "Also passes on literal keys.admin. Deleted in PR-F (D-b).",
-      "usage_30d": "members seen: vector 2; non-members: iso 2"
-    },
-    {
       "id": "NL-REST-RELAY-MOBILE",
       "file": "transport/rest.ts",
       "line": 472,
@@ -1477,9 +1457,7 @@
       "site_ids": [
         "keys.revokeKeyHandler:keyHash"
       ],
-      "name_lists": [
-        "NL-KEY-ADMIN"
-      ]
+      "name_lists": []
     },
     {
       "tool": "keys_rotate_key",
@@ -1514,9 +1492,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-KEY-ADMIN"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_get_cost_summary",
@@ -3418,17 +3394,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers \"Key not found\" (PR-E). isKeyAdmin still admits the KEY_ADMIN_PRINCIPALS allowlist until PR-F.",
+      "binding_today": "auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers \"Key not found\" (PR-E). isKeyAdmin is literal fleet.admin only; a key document with no programId is denied with reason \"program\" (PR-F).",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "done",
-      "closes_in": "PR-E",
+      "closes_in": "PR-F",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-KEY-ADMIN"
-      ],
-      "evidence": "The tenant check is satisfied by every key (one tenant). KEY_ADMIN_PRINCIPALS is a hardcoded list at ownerAuthz.ts:114. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.",
-      "recommendation": "FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The list is deleted in PR-F."
+      "name_lists": [],
+      "evidence": "The tenant check is satisfied by every key (one tenant). Key administration comes from a literal fleet.admin on the credential: the KEY_ADMIN_PRINCIPALS list and keys.admin were deleted in PR-F. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.",
+      "recommendation": "FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The name list is gone (PR-F)."
     },
     {
       "id": "metrics.getProgramHealthHandler:args.programId",

@@ -3,12 +3,12 @@ import { join } from "path";
 import {
   FLEET_ADMIN_CAPABILITY,
   FLEET_OBSERVE_CAPABILITY,
-  KEYS_ADMIN_CAPABILITY,
   hasFleetAdminCapability,
   hasFleetObserveCapability,
   isKeyAdmin,
 } from "../../auth/ownerAuthz";
 import {
+  ALL_CAPABILITIES,
   DEFAULT_CAPABILITIES,
   LITERAL_ONLY_CAPABILITIES,
   WINGMAN_TIER_CAPABILITIES,
@@ -22,11 +22,10 @@ describe("RD-5 PR-D capability names", () => {
   it("spells the names dotted", () => {
     expect(FLEET_ADMIN_CAPABILITY).toBe("fleet.admin");
     expect(FLEET_OBSERVE_CAPABILITY).toBe("fleet.observe");
-    expect(KEYS_ADMIN_CAPABILITY).toBe("keys.admin");
   });
 
-  it("LITERAL_ONLY_CAPABILITIES lists exactly the three names", () => {
-    expect([...LITERAL_ONLY_CAPABILITIES].sort()).toEqual(["fleet.admin", "fleet.observe", "keys.admin"]);
+  it("LITERAL_ONLY_CAPABILITIES lists exactly the two names", () => {
+    expect([...LITERAL_ONLY_CAPABILITIES].sort()).toEqual(["fleet.admin", "fleet.observe"]);
   });
 
   it("no role default holds a literal-only capability", () => {
@@ -37,9 +36,9 @@ describe("RD-5 PR-D capability names", () => {
     }
   });
 
-  it("WINGMAN_TIER_CAPABILITIES holds neither fleet.admin nor keys.admin", () => {
+  it("WINGMAN_TIER_CAPABILITIES holds neither fleet.admin nor fleet.observe", () => {
     expect(WINGMAN_TIER_CAPABILITIES).not.toContain("fleet.admin");
-    expect(WINGMAN_TIER_CAPABILITIES).not.toContain("keys.admin");
+    expect(WINGMAN_TIER_CAPABILITIES).not.toContain("fleet.observe");
   });
 
   it("a [\"*\"] credential fails both literal helpers", () => {
@@ -53,11 +52,17 @@ describe("RD-5 PR-D capability names", () => {
     expect(isKeyAdmin(auth(["fleet.admin"]))).toBe(true);
   });
 
-  it("keys.admin and the allowlist still pass isKeyAdmin; a missing list fails", () => {
-    expect(isKeyAdmin(auth(["keys.admin"]))).toBe(true);
-    expect(isKeyAdmin(auth([], "vector"))).toBe(true);
+  it("keys.admin and the old allowlist names no longer pass isKeyAdmin; a missing list fails", () => {
+    expect(isKeyAdmin(auth(["keys.admin"]))).toBe(false);
+    expect(isKeyAdmin(auth([], "vector"))).toBe(false);
+    expect(isKeyAdmin(auth([], "sark"))).toBe(false);
     expect(isKeyAdmin(auth(undefined))).toBe(false);
     expect(hasFleetAdminCapability(auth(undefined))).toBe(false);
+  });
+
+  it("keys.admin is not a capability name", () => {
+    expect(ALL_CAPABILITIES as readonly string[]).not.toContain("keys.admin");
+    expect(LITERAL_ONLY_CAPABILITIES as readonly string[]).not.toContain("keys.admin");
   });
 
   it("D-a: no fleet-observe/fleet_observe/fleet-admin/fleet_admin spelling in non-test src", () => {

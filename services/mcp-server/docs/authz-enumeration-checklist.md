@@ -222,11 +222,10 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 ### `keys.revokeKeyHandler:keyHash`
 
 - Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 139 at base, 1 occurrence(s).
-- Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-E.
-- Binding today: auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers "Key not found" (PR-E). isKeyAdmin still admits the KEY_ADMIN_PRINCIPALS allowlist until PR-F..
-- Name lists: NL-KEY-ADMIN.
-- Evidence: The tenant check is satisfied by every key (one tenant). KEY_ADMIN_PRINCIPALS is a hardcoded list at ownerAuthz.ts:114. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
-- Recommendation: FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The list is deleted in PR-F.
+- Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-F.
+- Binding today: auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers "Key not found" (PR-E). isKeyAdmin is literal fleet.admin only; a key document with no programId is denied with reason "program" (PR-F)..
+- Evidence: The tenant check is satisfied by every key (one tenant). Key administration comes from a literal fleet.admin on the credential: the KEY_ADMIN_PRINCIPALS list and keys.admin were deleted in PR-F. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
+- Recommendation: FOREIGN-WRITE on literal fleet.admin per C-2 (PR-E). The name list is gone (PR-F).
 
 ### `metrics.getProgramHealthHandler:args.programId`
 
@@ -995,7 +994,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | gsp.gspWriteHandler:args.source | a | 1 | 432 | ESCALATE | C-5 | PR-L | false |
 | gsp.gspBootstrapHandler:args.agentId | a | 11 | 662 | FOREIGN-READ | C-4 | PR-I | false |
 | keys.createKeyHandler:programId | c | 1 | 45 | FOREIGN-WRITE | ISO | n/a | false |
-| keys.revokeKeyHandler:keyHash | c | 1 | 139 | ESCALATE | C-5 | PR-E | false |
+| keys.revokeKeyHandler:keyHash | c | 1 | 139 | ESCALATE | C-5 | PR-F | false |
 | metrics.getProgramHealthHandler:args.programId | a | 3 | 855 | ESCALATE | C-5 | PR-L | false |
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.listProgramsHandler:p.programId | b | 1 | 374 | NOT-IDENTITY | ISO | n/a | false |
@@ -1131,9 +1130,9 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | gsp_resolve | gspResolveHandler | mcp rest | write | 0 | 0 | false |
 | gsp_search | gspSearchHandler | mcp rest | read | 1 | 0 | false |
 | keys_create_key | createKeyHandler | mcp rest | write | 1 | 0 | false |
-| keys_revoke_key | revokeKeyHandler | mcp rest | write | 1 | 1 | false |
+| keys_revoke_key | revokeKeyHandler | mcp rest | write | 1 | 0 | false |
 | keys_rotate_key | rotateKeyHandler | mcp rest | write | 0 | 0 | false |
-| keys_list_keys | listKeysHandler | mcp rest iso | read | 0 | 1 | false |
+| keys_list_keys | listKeysHandler | mcp rest iso | read | 0 | 0 | false |
 | metrics_get_cost_summary | getCostSummaryHandler | mcp rest iso | read | 0 | 1 | false |
 | metrics_get_comms_metrics | getCommsMetricsHandler | mcp rest iso | read | 0 | 1 | false |
 | metrics_get_operational_metrics | getOperationalMetricsHandler | mcp rest iso | read | 0 | 1 | false |
@@ -1272,7 +1271,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1189` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
-| NL-KEY-ADMIN `auth/ownerAuthz.ts:114` [vector, sark] (handler) | keys_list_keys, keys_revoke_key | members seen: vector 2; non-members: iso 2 |
 | NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
 | NL-GSP-REVIEWERS `modules/gsp.ts:609` [iso, vector] (routing) | gsp_propose | members seen: none |
@@ -1298,7 +1296,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 - NL-BACKFILL-AUTH: Also passes on "*".
 - NL-REAP-AUTH: Also passes on "*".
 - NL-GSP-SEED-AUTH: Also passes on "*".
-- NL-KEY-ADMIN: Also passes on literal keys.admin. Deleted in PR-F (D-b).
 - NL-REST-RELAY-MOBILE: Branches the source on the mobile name before credentialPrincipal.
 - NL-SESSION-COMPLIANCE: Exempts or classifies callers for the session-boot rule. It is not an identity gate on data.
 - NL-GSP-REVIEWERS: Chooses proposal reviewers. It gates nothing.

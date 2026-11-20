@@ -125,17 +125,24 @@ describe("BUG-009: key administration authorization", () => {
     expect(isKeyAdmin(authFor("radia", ["*"], "vector"))).toBe(false);
   });
 
-  it("the fleet auditor principals are key admins", () => {
-    expect(isKeyAdmin(authFor("vector", ["*"]))).toBe(true);
-    expect(isKeyAdmin(authFor("sark", ["*"]))).toBe(true);
+  it("vector and sark by NAME, without fleet.admin, are NOT key admins", () => {
+    expect(isKeyAdmin(authFor("vector", ["*"]))).toBe(false);
+    expect(isKeyAdmin(authFor("sark", ["*"]))).toBe(false);
+    expect(isKeyAdmin(authFor("vector", ["dispatch.read"]))).toBe(false);
+    expect(isKeyAdmin(authFor("sark", []))).toBe(false);
   });
 
-  it("iso is deliberately NOT a key admin", () => {
+  it("iso is NOT a key admin", () => {
     expect(isKeyAdmin(authFor("iso", ["*"]))).toBe(false);
   });
 
-  it("an explicit literal keys.admin grant confers it", () => {
-    expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "keys.admin"]))).toBe(true);
+  it("keys.admin confers nothing: the name is deleted", () => {
+    expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "keys.admin"]))).toBe(false);
+  });
+
+  it("a literal fleet.admin grant confers it, on any program name", () => {
+    expect(isKeyAdmin(authFor("tensor", ["dispatch.read", "fleet.admin"]))).toBe(true);
+    expect(isKeyAdmin(authFor("vector", ["*", "fleet.admin"]))).toBe(true);
   });
 });
 

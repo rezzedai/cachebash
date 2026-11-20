@@ -36,6 +36,14 @@ describe("authorizeKeySubject truth table", () => {
     { name: "alternate uid of caller tenant, other program, no capability", auth: auth(), doc: { userId: "T0NWeYZI", programId: "dispatcher" }, expect: { allowed: false, reason: "program" } },
     { name: "alternate uid of caller tenant, other program, fleet.admin", auth: auth({ capabilities: ["fleet.admin"] }), doc: { userId: "T0NWeYZI", programId: "dispatcher" }, expect: { allowed: true, via: "fleet.admin" } },
     { name: "caller session in the alternate uid, key in canonical", auth: auth({ userId: "T0NWeYZI" }), doc: { userId: "7viFKVtl", programId: "iso" }, expect: { allowed: true, via: "self" } },
+    { name: "same tenant, vector by NAME without fleet.admin", auth: auth({ programId: "vector" as any, keyProgramId: "vector" as any, capabilities: ["*"] }), doc: { userId: "7viFKVtl", programId: "iso" }, expect: { allowed: false, reason: "program" } },
+    { name: "same tenant, sark by NAME without fleet.admin", auth: auth({ programId: "sark" as any, keyProgramId: "sark" as any, capabilities: [] }), doc: { userId: "7viFKVtl", programId: "iso" }, expect: { allowed: false, reason: "program" } },
+    { name: "same tenant, literal keys.admin is deleted", auth: auth({ capabilities: ["keys.admin"] }), doc: { userId: "7viFKVtl", programId: "vector" }, expect: { allowed: false, reason: "program" } },
+    { name: "missing programId, fleet.admin", auth: auth({ capabilities: ["fleet.admin"] }), doc: { userId: "7viFKVtl" }, expect: { allowed: false, reason: "program" } },
+    { name: "empty programId, fleet.admin", auth: auth({ capabilities: ["fleet.admin"] }), doc: { userId: "7viFKVtl", programId: "" }, expect: { allowed: false, reason: "program" } },
+    { name: "missing programId, plain caller", auth: auth(), doc: { userId: "7viFKVtl" }, expect: { allowed: false, reason: "program" } },
+    { name: "non-string programId", auth: auth({ capabilities: ["fleet.admin"] }), doc: { userId: "7viFKVtl", programId: 7 }, expect: { allowed: false, reason: "program" } },
+    { name: "missing programId, other tenant answers tenant", auth: auth({ capabilities: ["fleet.admin"] }), doc: { userId: "other" }, expect: { allowed: false, reason: "tenant" } },
     { name: "key document with no userId", auth: auth(), doc: { programId: "iso" }, expect: { allowed: false, reason: "tenant" } },
   ];
 
@@ -44,6 +52,12 @@ describe("authorizeKeySubject truth table", () => {
     expect(d.allowed).toBe(row.expect.allowed);
     if (d.allowed) expect(d.via).toBe(row.expect.via);
     else expect(d.reason).toBe(row.expect.reason);
+  });
+
+  it('no decision ever names "legacy" for a key document without programId', async () => {
+    const d = await authorizeKeySubject(auth({ capabilities: ["fleet.admin"] }), { userId: "7viFKVtl" }, tenantOf);
+    expect(d.subject).not.toBe("legacy");
+    expect(d.subject).toBe("");
   });
 
   it("a resolution failure rejects instead of deciding", async () => {

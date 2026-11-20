@@ -27,7 +27,7 @@ export const ALL_CAPABILITIES = [
   "keys.provision",
   // RD-5 PR-D: literal-only names. Checked by literal membership in
   // auth/ownerAuthz (never implied by "*"); in no role default or preset.
-  "keys.admin", "fleet.observe", "fleet.admin",
+  "fleet.observe", "fleet.admin",
   "audit.read",
   "state.read", "state.write",
   "metrics.read",
@@ -53,7 +53,6 @@ export type Capability = (typeof ALL_CAPABILITIES)[number];
  * list. "*" never grants them. Granted by name through grant-capability.ts.
  */
 export const LITERAL_ONLY_CAPABILITIES: readonly Capability[] = [
-  "keys.admin",
   "fleet.observe",
   "fleet.admin",
 ];
