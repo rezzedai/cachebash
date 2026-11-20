@@ -890,6 +890,7 @@ describe("gspSeedHandler", () => {
     const restrictedAuth: AuthContext = {
       ...mockAuth,
       programId: "basher" as any,
+      keyProgramId: "basher" as any,
       capabilities: ["dispatch.read"],
     };
 

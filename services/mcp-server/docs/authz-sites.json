@@ -347,23 +347,22 @@
     {
       "id": "NL-GSP-SEED-AUTH",
       "file": "modules/gsp.ts",
-      "line": 1215,
+      "line": 1216,
       "name": "gsp_seed authorizedPrograms",
       "members": [
         "vector",
         "iso",
-        "admin",
         "dispatcher",
         "gsp-sync"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1215"
+        "modules/gsp.ts:1220"
       ],
       "guards": [
         "gsp_seed"
       ],
-      "note": "Also passes on \"*\".",
+      "note": "admin dropped in PR-L (L-D11); compared with credentialPrincipal. Also passes on \"*\" until PR-N (W.19).",
       "usage_30d": "members seen: gsp-sync 56"
     },
     {
@@ -432,7 +431,7 @@
       "layer": "routing",
       "guard_sites": [
         "modules/gsp.ts:617",
-        "modules/gsp.ts:1409"
+        "modules/gsp.ts:1411"
       ],
       "guards": [
         "gsp_propose"
@@ -1254,7 +1253,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1228"
+        "modules/gsp.ts:1230"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1281,8 +1280,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1339",
-        "modules/gsp.ts:1377"
+        "modules/gsp.ts:1341",
+        "modules/gsp.ts:1379"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1337,8 +1336,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1617",
-        "modules/gsp.ts:1693"
+        "modules/gsp.ts:1619",
+        "modules/gsp.ts:1695"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1364,7 +1363,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1820"
+        "modules/gsp.ts:1822"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -5459,7 +5458,7 @@
       "class": "gsp-memory-scan",
       "anchor": "sessions/_meta/program_state",
       "occurrences": 1,
-      "line_at_base": 1902,
+      "line_at_base": 1904,
       "tool": "gsp_search",
       "transports": [
         "mcp",
@@ -5564,8 +5563,8 @@
       "file": "modules/gsp.ts",
       "handler": "gspSeedHandler",
       "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 1218,
+      "occurrences": 1,
+      "line_at_base": 1265,
       "status": "pending"
     },
     {
@@ -5574,7 +5573,7 @@
       "handler": "gspProposeHandler",
       "expr": "auth.programId",
       "occurrences": 7,
-      "line_at_base": 1379,
+      "line_at_base": 1381,
       "status": "pending"
     },
     {
@@ -5583,7 +5582,7 @@
       "handler": "gspSubscribeHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 1502,
+      "line_at_base": 1504,
       "status": "pending"
     },
     {
@@ -5592,7 +5591,7 @@
       "handler": "gspResolveHandler",
       "expr": "auth.programId",
       "occurrences": 8,
-      "line_at_base": 1664,
+      "line_at_base": 1666,
       "status": "pending"
     },
     {
