@@ -1,16 +1,4 @@
 {
-  "T2.schedule_create": {
-    "closes_in": "PR-L",
-    "hole": "schedules work for any program (row 34)"
-  },
-  "T2.schedule_list": {
-    "closes_in": "PR-L",
-    "hole": "lists any program's schedules (row 35)"
-  },
-  "T2.schedule_update": {
-    "closes_in": "PR-L",
-    "hole": "re-targets a schedule to any program (row 36)"
-  },
   "T2.audit_get_ack_compliance": {
     "closes_in": "PR-L",
     "hole": "reads any program's ack compliance (row 41)"

@@ -175,14 +175,15 @@ export const CASES: Case[] = [
   readMarker("schedule_list", "target"),
   {
     id: "schedule_update", tool: "schedule_update",
+    // PR-L L-D5: the schedule is owned by the caller (`scoped`), so only the changed target and name are in question
     prepare: async (c) => {
-      const s = await seederCall(c, "schedule_create", { name: `su-${c.n}`, target: "ops", cron: "0 0 1 1 *", taskTemplate: { title: `su-${c.n}` } });
+      const s = await callTool(c.w, c.w.creds.scoped, "schedule_create", { name: `su0-${c.n}`, target: "alpha", cron: "0 0 1 1 *", taskTemplate: { title: `su-${c.n}` } });
       (c as any).scheduleId = s.json?.scheduleId;
     },
-    args: (c) => ({ scheduleId: (c as any).scheduleId, target: c.subject }),
+    args: (c) => ({ scheduleId: (c as any).scheduleId, target: c.subject, name: `su-${c.n}` }),
     reached: async (c) => {
       const g = await seederCall(c, "schedule_get", { scheduleId: (c as any).scheduleId });
-      return g.json?.schedule?.target === c.subject;
+      return g.json?.schedule?.target === c.subject && g.json?.schedule?.name === `su-${c.n}`;
     },
   },
   // --- programs / audit / metrics / trace (rows 37-43)

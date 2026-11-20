@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 303,
-    "a_lines": 286,
+    "a_occurrences": 315,
+    "a_lines": 291,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -4137,21 +4137,21 @@
       "handler": "createScheduleHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 128,
+      "occurrences": 5,
+      "line_at_base": 141,
       "tool": "schedule_create",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none; createdBy = auth.programId (schedule.ts:141)",
+      "binding_today": "none; createdBy = auth.programId (schedule.ts:163)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "schedule.ts:128 stores the target. The task the executor later creates uses source \"scheduler\" (schedule-executor.ts:115), so the creating program is not carried to the recipient as the sender.",
+      "evidence": "schedule.ts:150 stores the target. The task the executor later creates uses source \"scheduler\" (schedule-executor.ts:115), so the creating program is not carried to the recipient as the sender.",
       "recommendation": "ADDRESSED for target. Sender attribution for scheduled work is the open item."
     },
     {
@@ -4161,7 +4161,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 186,
+      "line_at_base": 209,
       "tool": "schedule_list",
       "transports": [
         "mcp"
@@ -4174,7 +4174,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Helper of schedule_list; filters in memory by target (schedule.ts:186).",
+      "evidence": "Helper of schedule_list; filters in memory by target (schedule.ts:209).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4183,8 +4183,8 @@
       "handler": "listSchedulesHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 3,
-      "line_at_base": 200,
+      "occurrences": 8,
+      "line_at_base": 224,
       "tool": "schedule_list",
       "transports": [
         "mcp"
@@ -4197,7 +4197,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "schedule.ts:200-204 lists any target's schedules.",
+      "evidence": "schedule.ts:224-239 lists any target's schedules.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4206,8 +4206,8 @@
       "handler": "updateScheduleHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 296,
+      "occurrences": 6,
+      "line_at_base": 325,
       "tool": "schedule_update",
       "transports": [
         "mcp"
@@ -4220,7 +4220,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "schedule.ts:296 re-targets a schedule found by id. No createdBy comparison.",
+      "evidence": "schedule.ts:344 re-targets a schedule found by id. No createdBy comparison.",
       "recommendation": "SELF-ONLY on createdBy; FOREIGN-WRITE on literal fleet.admin."
     },
     {
@@ -5121,7 +5121,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "getScheduleHandler returns any schedule by id; createdBy is stored (schedule.ts:141) but not compared.",
+      "evidence": "getScheduleHandler returns any schedule by id; createdBy is stored (schedule.ts:163) but not compared.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
     },
     {
@@ -5647,15 +5647,6 @@
     },
     {
       "rule": "S1",
-      "file": "modules/schedule.ts",
-      "handler": "createScheduleHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 141,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
       "file": "modules/sprint.ts",
       "handler": "createSprintHandler",
       "expr": "auth.programId",
@@ -5777,7 +5768,7 @@
       "handler": "paginateAndFilter",
       "expr": "args.target",
       "occurrences": 1,
-      "line_at_base": 186,
+      "line_at_base": 209,
       "status": "pending"
     }
   ],

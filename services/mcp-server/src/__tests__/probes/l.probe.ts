@@ -318,4 +318,34 @@ describe("L fleet paths", () => {
     const r = await callTool(w, w.creds.scoped, "dispatch_record_task_telemetry", { taskId, tokens_in: 1, tokens_out: 2, cost_usd: 0.01 });
     expect(denialNames(r, "alpha")).toBe(true);
   });
+
+  // rows 19, 20: a schedule is read by its creator, its target, the override principals or fleet.observe; managed by its creator, the override principals or fleet.admin.
+  const ownSchedule = async (w: World): Promise<string> => {
+    const made = await callTool(w, w.creds.scoped, "schedule_create", { name: `l-sch-${nextN()}`, target: "alpha", cron: "0 0 1 1 *", taskTemplate: { title: "l-sch" } });
+    if (!made.json?.scheduleId) throw new Error(`schedule setup failed: ${made.text.slice(0, 300)}`);
+    return made.json.scheduleId as string;
+  };
+  probe("L.schedule_get_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "schedule_get", { scheduleId: w.seed.A.beta.scheduleId });
+    expect(denialNames(r, "alpha")).toBe(true);
+    expect(r.text).not.toContain(marker("A", "beta"));
+  });
+  test("L.schedule_get_foreign_denied control: the creator reads its own schedule", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "schedule_get", { scheduleId: await ownSchedule(w) });
+    expect(r.json?.success).toBe(true);
+  });
+  probe("L.schedule_delete_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "schedule_delete", { scheduleId: w.seed.A.beta.scheduleId });
+    expect(denialNames(r, "alpha")).toBe(true);
+    const still = await callTool(w, w.seeders.A, "schedule_get", { scheduleId: w.seed.A.beta.scheduleId });
+    expect(still.json?.success).toBe(true);
+  });
+  test("L.schedule_delete_foreign_denied control: the creator deletes its own schedule", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "schedule_delete", { scheduleId: await ownSchedule(w) });
+    expect(r.json?.success).toBe(true);
+  });
 });

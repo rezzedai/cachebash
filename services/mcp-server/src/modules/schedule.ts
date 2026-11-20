@@ -6,6 +6,9 @@
 import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
+import { credentialPrincipal, hasFleetAdminCapability, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { logDenial } from "../auth/denialLog.js";
+import { TASK_OVERRIDE_PRINCIPALS as OVERRIDE } from "./dispatch/shared.js";
 import { CronExpressionParser } from "cron-parser";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
@@ -105,6 +108,22 @@ export function isValidCron(cron: string): boolean {
   }
 }
 
+// ── Authorization (RD-5 PR-L rows 17 to 20, L-D5) ───────────────────────────
+// The executor writes `source: "scheduler"` on the tasks it dispatches, so a schedule's target is a claim about whose work it queues.
+// Targets are therefore self-only: the principal, the iso and dispatcher override, or the literal fleet.admin capability.
+
+const isOverride = (p: string): boolean => (OVERRIDE as readonly string[]).includes(p);
+const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetAdminCapability(auth);
+const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
+const mayListFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetObserveCapability(auth);
+const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
+  doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);
+
+function denySchedule(p: string, tool: string, subject: string | null, verb: string, what: string, code: "FOREIGN_SUBJECT" | "NOT_OWNER" = "FOREIGN_SUBJECT"): ToolResult {
+  logDenial({ principal: p, tool, subject, code });
+  return jsonResult({ success: false, error: `Access denied: "${p}" cannot ${verb} "${what}"` });
+}
+
 // ── Handlers ────────────────────────────────────────────────────────────────
 
 export async function createScheduleHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -117,6 +136,9 @@ export async function createScheduleHandler(auth: AuthContext, rawArgs: unknown)
       message: `Invalid cron expression: "${args.cron}". Use standard 5-field cron syntax (minute hour day month weekday).`,
     });
   }
+
+  const principal = credentialPrincipal(auth);
+  if (!mayScheduleFor(auth, principal, args.target)) return denySchedule(principal, "schedule_create", args.target, "schedule work for", args.target);
 
   const db = getFirestore();
   const now = new Date().toISOString();
@@ -138,7 +160,7 @@ export async function createScheduleHandler(auth: AuthContext, rawArgs: unknown)
     nextRunAt: computeNextRun(args.cron),
     createdAt: now,
     updatedAt: now,
-    createdBy: auth.programId,
+    createdBy: principal,
   };
 
   await scheduleRef.set(schedule);
@@ -172,7 +194,8 @@ const FALLBACK_PAGE_SIZE = 300;
  */
 async function paginateAndFilter(
   collRef: FirebaseFirestore.CollectionReference,
-  args: { target?: string; enabled?: boolean }
+  args: { target?: string; enabled?: boolean },
+  visible?: (data: FirebaseFirestore.DocumentData) => boolean
 ): Promise<FirebaseFirestore.DocumentData[]> {
   const matched: FirebaseFirestore.DocumentData[] = [];
   let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
@@ -185,6 +208,7 @@ async function paginateAndFilter(
       const data = doc.data();
       if (args.target !== undefined && data.target !== args.target) continue;
       if (args.enabled !== undefined && data.enabled !== args.enabled) continue;
+      if (visible && !visible(data)) continue;
       matched.push(data);
     }
     if (pageSnap.docs.length < FALLBACK_PAGE_SIZE) break; // last page reached
@@ -198,6 +222,17 @@ export async function listSchedulesHandler(auth: AuthContext, rawArgs: unknown):
   const db = getFirestore();
   const collRef = db.collection(`tenants/${auth.userId}/schedules`);
   const filters = { target: args.target || null, enabled: args.enabled ?? null };
+
+  // RD-5 PR-L row 18 (L-D1): a foreign target needs the override principals or fleet.observe. With no target, a principal
+  // without them sees the schedules it created or that target it, filtered in memory over the whole collection.
+  const principal = credentialPrincipal(auth);
+  const seesAll = isOverride(principal) || hasFleetObserveCapability(auth);
+  if (args.target && !mayListFor(auth, principal, args.target)) return denySchedule(principal, "schedule_list", args.target, "read schedules for", args.target);
+  if (!args.target && !seesAll) {
+    const mine = await paginateAndFilter(collRef, args, (d) => d.target === principal || d.createdBy === principal);
+    const schedules = mine.slice(0, args.limit);
+    return jsonResult({ success: true, schedules, returned: schedules.length, degraded: false, filters });
+  }
 
   let ref: FirebaseFirestore.Query = collRef;
   if (args.target) {
@@ -256,6 +291,11 @@ export async function getScheduleHandler(auth: AuthContext, rawArgs: unknown): P
     });
   }
 
+  const readPrincipal = credentialPrincipal(auth);
+  if (!mayReadSchedule(auth, readPrincipal, doc.data() ?? {})) {
+    return denySchedule(readPrincipal, "schedule_get", (doc.data()?.createdBy as string | undefined) ?? null, "read schedule", args.scheduleId);
+  }
+
   return jsonResult({
     success: true,
     schedule: doc.data(),
@@ -276,6 +316,14 @@ export async function updateScheduleHandler(auth: AuthContext, rawArgs: unknown)
       error: "SCHEDULE_NOT_FOUND",
       message: `Schedule "${args.scheduleId}" not found.`,
     });
+  }
+
+  const updatePrincipal = credentialPrincipal(auth);
+  if (!mayManage(auth, updatePrincipal, doc.data() ?? {})) {
+    return denySchedule(updatePrincipal, "schedule_update", (doc.data()?.createdBy as string | undefined) ?? null, "update schedule", args.scheduleId, "NOT_OWNER");
+  }
+  if (args.target !== undefined && !mayScheduleFor(auth, updatePrincipal, args.target)) {
+    return denySchedule(updatePrincipal, "schedule_update", args.target, "schedule work for", args.target);
   }
 
   const updates: Record<string, unknown> = { updatedAt: now };
@@ -333,6 +381,11 @@ export async function deleteScheduleHandler(auth: AuthContext, rawArgs: unknown)
       error: "SCHEDULE_NOT_FOUND",
       message: `Schedule "${args.scheduleId}" not found.`,
     });
+  }
+
+  const deletePrincipal = credentialPrincipal(auth);
+  if (!mayManage(auth, deletePrincipal, doc.data() ?? {})) {
+    return denySchedule(deletePrincipal, "schedule_delete", (doc.data()?.createdBy as string | undefined) ?? null, "delete schedule", args.scheduleId, "NOT_OWNER");
   }
 
   await docRef.delete();

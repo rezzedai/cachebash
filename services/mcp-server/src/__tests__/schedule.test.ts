@@ -135,7 +135,7 @@ const mockAuth: AuthContext = {
   programId: "vector" as any,
   keyProgramId: "vector" as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
-  capabilities: ["*"],
+  capabilities: ["*", "fleet.admin", "fleet.observe"], // PR-L: schedule targets and reads are bound to the principal; the fixtures name other programs
   rateLimitTier: "internal",
 };
 

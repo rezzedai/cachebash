@@ -198,7 +198,7 @@ describe("kind-less schedule", () => {
 });
 
 describe("schedule_create validation", () => {
-  const auth: any = { userId: U, programId: "iso" };
+  const auth: any = { userId: U, programId: "iso", keyProgramId: "iso" };
   const base = { name: "PRE-OPEN watchdog", target: "iso", cron: "15 13 * * 1-5" };
   const watch = { scheduleId: WATCHED, status: "created", withinHours: 2, message: MSG };
 

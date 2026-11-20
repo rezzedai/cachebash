@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 33 AST baseline rows.
+114 site records, 111 handler entries, 32 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 303 |
-| (a) lines | 286 |
+| (a) occurrences | 315 |
+| (a) lines | 291 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -367,34 +367,34 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `schedule.createScheduleHandler:args.target`
 
-- Where: `modules/schedule.ts`, handler `createScheduleHandler`, expression `args.target`, line 128 at base, 2 occurrence(s).
+- Where: `modules/schedule.ts`, handler `createScheduleHandler`, expression `args.target`, line 141 at base, 5 occurrence(s).
 - Tool: schedule_create; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; createdBy = auth.programId (schedule.ts:141).
-- Evidence: schedule.ts:128 stores the target. The task the executor later creates uses source "scheduler" (schedule-executor.ts:115), so the creating program is not carried to the recipient as the sender.
+- Binding today: none; createdBy = auth.programId (schedule.ts:163).
+- Evidence: schedule.ts:150 stores the target. The task the executor later creates uses source "scheduler" (schedule-executor.ts:115), so the creating program is not carried to the recipient as the sender.
 - Recommendation: ADDRESSED for target. Sender attribution for scheduled work is the open item.
 
 ### `schedule.paginateAndFilter:args.target`
 
-- Where: `modules/schedule.ts`, handler `paginateAndFilter`, expression `args.target`, line 186 at base, 2 occurrence(s).
+- Where: `modules/schedule.ts`, handler `paginateAndFilter`, expression `args.target`, line 209 at base, 2 occurrence(s).
 - Tool: schedule_list; transports mcp; effect read; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: Helper of schedule_list; filters in memory by target (schedule.ts:186).
+- Evidence: Helper of schedule_list; filters in memory by target (schedule.ts:209).
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `schedule.listSchedulesHandler:args.target`
 
-- Where: `modules/schedule.ts`, handler `listSchedulesHandler`, expression `args.target`, line 200 at base, 3 occurrence(s).
+- Where: `modules/schedule.ts`, handler `listSchedulesHandler`, expression `args.target`, line 224 at base, 8 occurrence(s).
 - Tool: schedule_list; transports mcp; effect read; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: schedule.ts:200-204 lists any target's schedules.
+- Evidence: schedule.ts:224-239 lists any target's schedules.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `schedule.updateScheduleHandler:args.target`
 
-- Where: `modules/schedule.ts`, handler `updateScheduleHandler`, expression `args.target`, line 296 at base, 2 occurrence(s).
+- Where: `modules/schedule.ts`, handler `updateScheduleHandler`, expression `args.target`, line 325 at base, 6 occurrence(s).
 - Tool: schedule_update; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: schedule.ts:296 re-targets a schedule found by id. No createdBy comparison.
+- Evidence: schedule.ts:344 re-targets a schedule found by id. No createdBy comparison.
 - Recommendation: SELF-ONLY on createdBy; FOREIGN-WRITE on literal fleet.admin.
 
 ### `sprint.createSprintHandler:args.sessionId`
@@ -657,7 +657,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/schedule.ts`, handler `getScheduleHandler`, expression `args.scheduleId`, line n/a at base, 1 occurrence(s).
 - Tool: schedule_get; transports mcp; effect read; decided by ISO; closes in PR-L.
 - Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
-- Evidence: getScheduleHandler returns any schedule by id; createdBy is stored (schedule.ts:141) but not compared.
+- Evidence: getScheduleHandler returns any schedule by id; createdBy is stored (schedule.ts:163) but not compared.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
 
 ### `schedule.deleteScheduleHandler:args.scheduleId`
@@ -948,10 +948,10 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | relay.queryMessageHistoryHandler:args.source | a | 8 | 787 | ESCALATE | C-5 | PR-K | false |
 | relay.queryMessageHistoryHandler:args.target | a | 9 | 787 | ESCALATE | C-5 | PR-K | false |
 | relay.sendDirectiveHandler:parsed.target | b | 2 | 1018 | ADDRESSED | ISO | PR-K | false |
-| schedule.createScheduleHandler:args.target | a | 2 | 128 | ESCALATE | ISO | PR-L | false |
-| schedule.paginateAndFilter:args.target | a | 2 | 186 | ESCALATE | ISO | PR-L | false |
-| schedule.listSchedulesHandler:args.target | a | 3 | 200 | ESCALATE | ISO | PR-L | false |
-| schedule.updateScheduleHandler:args.target | a | 2 | 296 | ESCALATE | ISO | PR-L | false |
+| schedule.createScheduleHandler:args.target | a | 5 | 141 | ESCALATE | ISO | PR-L | false |
+| schedule.paginateAndFilter:args.target | a | 2 | 209 | ESCALATE | ISO | PR-L | false |
+| schedule.listSchedulesHandler:args.target | a | 8 | 224 | ESCALATE | ISO | PR-L | false |
+| schedule.updateScheduleHandler:args.target | a | 6 | 325 | ESCALATE | ISO | PR-L | false |
 | signal.writeAlertDocs:input.source | b | 2 | 213 | NOT-IDENTITY | ISO | n/a | false |
 | signal.writeAlertDocs:input.sessionId | b | 1 | 219 | ATTRIBUTION | ISO | n/a | false |
 | signal.sendAlertHandler:args.sessionId | a | 1 | 279 | ATTRIBUTION | ISO | n/a | false |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 28 | 115 |
+| S1 | 27 | 114 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1252,7 +1252,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 400 |
 | S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
-| S1 | modules/schedule.ts | createScheduleHandler | `auth.programId` | 1 | 141 |
 | S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
 | S1 | modules/sprint.ts | updateStoryHandler | `auth.programId` | 2 | 331 |
 | S1 | modules/sprint.ts | completeSprintHandler | `auth.programId` | 1 | 456 |
@@ -1266,4 +1265,4 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 401 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 802 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 809 |
-| S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 186 |
+| S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

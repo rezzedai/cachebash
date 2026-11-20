@@ -1,0 +1,13 @@
+# mutation for probe T2.schedule_update: a schedule is retargeted to any program
+diff --git a/src/modules/schedule.ts b/src/modules/schedule.ts
+--- a/src/modules/schedule.ts
++++ b/src/modules/schedule.ts
+@@ -113,7 +113,7 @@
+ // Targets are therefore self-only: the principal, the iso and dispatcher override, or the literal fleet.admin capability.
+ 
+ const isOverride = (p: string): boolean => (OVERRIDE as readonly string[]).includes(p);
+-const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetAdminCapability(auth);
++const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => Boolean(auth && p && target);
+ const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
+ const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
+   doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);

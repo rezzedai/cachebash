@@ -1,0 +1,13 @@
+# mutation for probe L.schedule_delete_foreign_denied: any key deletes any schedule
+diff --git a/src/modules/schedule.ts b/src/modules/schedule.ts
+--- a/src/modules/schedule.ts
++++ b/src/modules/schedule.ts
+@@ -114,7 +114,7 @@
+ 
+ const isOverride = (p: string): boolean => (OVERRIDE as readonly string[]).includes(p);
+ const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetAdminCapability(auth);
+-const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
++const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => Boolean(auth && p && doc);
+ const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
+   doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);
+ 
