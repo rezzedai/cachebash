@@ -128,7 +128,8 @@ export function credentialPrincipal(auth: AuthContext): string {
 export function isKeyAdmin(auth: AuthContext): boolean {
   if (KEY_ADMIN_PRINCIPALS.includes(credentialPrincipal(auth))) return true;
   return Array.isArray(auth.capabilities)
-    && auth.capabilities.includes(KEYS_ADMIN_CAPABILITY);
+    && (auth.capabilities.includes(KEYS_ADMIN_CAPABILITY)
+      || hasFleetAdminCapability(auth));
 }
 
 /**
@@ -174,4 +175,22 @@ export const FLEET_OBSERVE_CAPABILITY = "fleet.observe";
 export function hasFleetObserveCapability(auth: AuthContext): boolean {
   return Array.isArray(auth.capabilities)
     && auth.capabilities.includes(FLEET_OBSERVE_CAPABILITY);
+}
+
+/**
+ * FLEET_ADMIN_CAPABILITY — RD-5 PR-D (ISO plan section 7, D-b). The literal
+ * capability that replaces the hardcoded KEY_ADMIN_PRINCIPALS list once PR-F
+ * deletes it. Inert until a key document holds it: no role default or preset
+ * contains it, and `isKeyAdmin` accepts it only as a widening.
+ */
+export const FLEET_ADMIN_CAPABILITY = "fleet.admin";
+
+/**
+ * True iff `auth`'s own capabilities literally include `fleet.admin`.
+ * Never routed through `hasCapability`: a `["*"]` credential must fail it.
+ * Checks capabilities only; the caller binds identity via `credentialPrincipal`.
+ */
+export function hasFleetAdminCapability(auth: AuthContext): boolean {
+  return Array.isArray(auth.capabilities)
+    && auth.capabilities.includes(FLEET_ADMIN_CAPABILITY);
 }
