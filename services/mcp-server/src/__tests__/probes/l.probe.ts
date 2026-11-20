@@ -407,4 +407,20 @@ describe("L fleet paths", () => {
     expect((await callTool(w, obs, "metrics_get_program_health", { programId: "beta" })).json?.success).toBe(true);
     expect((await callTool(w, w.creds.wildcard, "metrics_get_program_health", {})).json?.success).toBe(true);
   });
+
+  // rows 24, 26: the trace tools follow TRACE_ADMIN_PRINCIPALS (mobile, dispatcher). A bare "*" key named legacy no longer passes.
+  probe("L.trace_names_rebound", async () => {
+    const w = world();
+    const legacy = await mint(w, "legacy", "probe-l-trace-legacy", ["*"]);
+    const one = await callTool(w, legacy, "trace_query_trace", { traceId: "l-trace" });
+    expect(denialNames(one, "legacy")).toBe(true);
+    const many = await callTool(w, legacy, "trace_query_traces", {});
+    expect(denialNames(many, "legacy")).toBe(true);
+  });
+  test("L.trace_names_rebound control: a minted dispatcher key reads both", async () => {
+    const w = world();
+    const dispatcher = await mint(w, "dispatcher", "probe-l-trace-dispatcher", ["*"]);
+    expect((await callTool(w, dispatcher, "trace_query_trace", { traceId: "l-trace" })).json?.success).toBe(true);
+    expect((await callTool(w, dispatcher, "trace_query_traces", {})).json?.success).toBe(true);
+  });
 });

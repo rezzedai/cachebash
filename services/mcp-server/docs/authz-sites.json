@@ -4322,7 +4322,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 218,
+      "line_at_base": 223,
       "tool": "trace_query_traces",
       "transports": [
         "mcp",
@@ -4330,7 +4330,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) name list (trace.ts:200)",
+      "binding_today": "isAdmin(auth) name list (trace.ts:204)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -4339,7 +4339,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "After the isAdmin gate, args.programId filters ledger traces (trace.ts:218-219).",
+      "evidence": "After the isAdmin gate, args.programId filters ledger traces (trace.ts:223-224).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {

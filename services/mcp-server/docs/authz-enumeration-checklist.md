@@ -407,11 +407,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `trace.queryTracesHandler:args.programId`
 
-- Where: `modules/trace.ts`, handler `queryTracesHandler`, expression `args.programId`, line 218 at base, 2 occurrence(s).
+- Where: `modules/trace.ts`, handler `queryTracesHandler`, expression `args.programId`, line 223 at base, 2 occurrence(s).
 - Tool: trace_query_traces; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
-- Binding today: isAdmin(auth) name list (trace.ts:200).
+- Binding today: isAdmin(auth) name list (trace.ts:204).
 - Name lists: NL-ADMIN-PROGRAMS.
-- Evidence: After the isAdmin gate, args.programId filters ledger traces (trace.ts:218-219).
+- Evidence: After the isAdmin gate, args.programId filters ledger traces (trace.ts:223-224).
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `onDemandWake.wakeTarget:userId,target,callerSource`
@@ -956,7 +956,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | signal.writeAlertDocs:input.sessionId | b | 1 | 219 | ATTRIBUTION | ISO | n/a | false |
 | signal.sendAlertHandler:args.sessionId | a | 1 | 279 | ATTRIBUTION | ISO | n/a | false |
 | sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ESCALATE | ISO | PR-K | false |
-| trace.queryTracesHandler:args.programId | a | 2 | 218 | ESCALATE | C-5 | PR-L | false |
+| trace.queryTracesHandler:args.programId | a | 2 | 223 | ESCALATE | C-5 | PR-L | false |
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
 | callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
 | CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
