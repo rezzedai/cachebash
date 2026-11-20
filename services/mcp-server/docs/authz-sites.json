@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 320,
-    "a_lines": 296,
+    "a_occurrences": 319,
+    "a_lines": 295,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -63,32 +63,6 @@
   ],
   "bundle_statement_basis": "N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile \"lite\"; it is not in the 110.",
   "name_lists": [
-    {
-      "id": "NL-ADMIN-READERS",
-      "file": "config/access-tiers.ts",
-      "line": 6,
-      "name": "ADMIN_READERS",
-      "members": [
-        "admin",
-        "legacy",
-        "mobile",
-        "orchestrator",
-        "vector",
-        "iso"
-      ],
-      "layer": "rest",
-      "guard_sites": [
-        "transport/rest.ts:134"
-      ],
-      "guards": [
-        "route GET /v1/tasks/stats",
-        "route GET /v1/sessions",
-        "route GET /v1/sessions/history",
-        "route GET /v1/sprints/active"
-      ],
-      "note": "requireAdmin also passes any key holding \"*\".",
-      "usage_30d": "not measured (no tool_call rows exist for this path)"
-    },
     {
       "id": "NL-VERIFYSOURCE-ADMIN",
       "file": "middleware/gate.ts",
@@ -333,14 +307,14 @@
     {
       "id": "NL-REST-RELAY-MOBILE",
       "file": "transport/rest.ts",
-      "line": 476,
+      "line": 471,
       "name": "POST /v1/relay/messages mobile branch",
       "members": [
         "mobile"
       ],
       "layer": "rest",
       "guard_sites": [
-        "transport/rest.ts:476"
+        "transport/rest.ts:471"
       ],
       "guards": [
         "route POST /v1/relay/messages"
@@ -461,8 +435,8 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:654",
-        "modules/relay.ts:800"
+        "modules/relay.ts:686",
+        "modules/relay.ts:832"
       ],
       "guards": [
         "relay_get_sent_messages",
@@ -3667,7 +3641,7 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:516)",
+      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:514)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "done",
@@ -3930,7 +3904,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 653,
+      "line_at_base": 685,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -3957,7 +3931,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 669,
+      "line_at_base": 701,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -3981,7 +3955,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 788,
+      "line_at_base": 820,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4008,7 +3982,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 9,
-      "line_at_base": 788,
+      "line_at_base": 820,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4025,7 +3999,7 @@
       "name_lists": [
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "relay.ts:762-768 same scoping.",
+      "evidence": "relay.ts:794-800 same scoping.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4035,7 +4009,7 @@
       "expr": "parsed.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 1019,
+      "line_at_base": 1051,
       "tool": "relay_send_directive",
       "transports": [
         "mcp"
@@ -4048,7 +4022,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:978-983 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
+      "evidence": "relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
     },
     {
       "id": "schedule.createScheduleHandler:args.target",
@@ -4337,23 +4311,21 @@
       "expr": "query.target",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 327,
+      "line_at_base": 316,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:133-139, :323)",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker get_tasks (dispatch.read), then authorizeTasksRead on credentialPrincipal(auth): a named foreign target needs TASKS_ALL_PRINCIPALS or the literal fleet.observe; no target counts target == principal unless TASKS_ALL or fleet.observe (rest.ts, PR-M row 3)",
+      "disposition": "FOREIGN-READ",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-READERS"
-      ],
-      "evidence": "Counts any target's tasks by querying Firestore directly (rest.ts:325-340); no MCP handler, so no capability gate, breaker or audit.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5)."
+      "name_lists": [],
+      "evidence": "PR-M row 3: the route no longer trusts requireAdmin; a foreign target is refused and logged (FOREIGN_SUBJECT).",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/messages/unread:query.sessionId",
@@ -4361,22 +4333,22 @@
       "handler": "route GET /v1/messages/unread",
       "expr": "query.sessionId",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 426,
+      "occurrences": 1,
+      "line_at_base": 423,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none",
-      "disposition": "ESCALATE",
+      "binding_today": "callTool get_messages with markAsRead:false; sessionId defaults to credentialPrincipal(auth); authorizeRelayRead decides (PR-M row 1)",
+      "disposition": "SELF-ONLY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:423-429 queries relay documents directly. With query.sessionId it filters target equal to that value; without it, returns every pending message in the tenant (limit 50). No principal check.",
-      "recommendation": "SELF-ONLY; the widest unauthenticated-by-principal read in the table."
+      "evidence": "PR-M row 1: the route reads through get_messages. A foreign sessionId is refused with the relay denial text; the response keeps { messages, count }, newest first, at most 50 (21.1 C2).",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/messages:query.sessionId",
@@ -4385,7 +4357,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 453,
+      "line_at_base": 448,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4400,7 +4372,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:453 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
+      "evidence": "rest.ts:448 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4410,7 +4382,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 790,
+      "line_at_base": 788,
       "tool": "state_get_program_state",
       "transports": [
         "rest"
@@ -4433,7 +4405,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 795,
+      "line_at_base": 793,
       "tool": "state_update_program_state",
       "transports": [
         "rest"
@@ -4456,7 +4428,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 800,
+      "line_at_base": 798,
       "tool": "state_get_context_history",
       "transports": [
         "rest"
@@ -4479,7 +4451,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 807,
+      "line_at_base": 805,
       "tool": "state_store_memory",
       "transports": [
         "rest"
@@ -4502,7 +4474,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 812,
+      "line_at_base": 810,
       "tool": "state_recall_memory",
       "transports": [
         "rest"
@@ -4525,7 +4497,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 816,
+      "line_at_base": 814,
       "tool": "state_delete_memory",
       "transports": [
         "rest"
@@ -4548,7 +4520,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 821,
+      "line_at_base": 819,
       "tool": "state_reinforce_memory",
       "transports": [
         "rest"
@@ -4571,7 +4543,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 825,
+      "line_at_base": 823,
       "tool": "state_memory_health",
       "transports": [
         "rest"
@@ -4594,7 +4566,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 859,
+      "line_at_base": 857,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4609,7 +4581,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:859 passes sessionId (default \"peek\").",
+      "evidence": "rest.ts:857 passes sessionId (default \"peek\").",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4619,20 +4591,20 @@
       "expr": "body.programId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 944,
+      "line_at_base": 942,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "capabilities.includes(\"*\") (rest.ts:942)",
+      "binding_today": "capabilities.includes(\"*\") (rest.ts:940)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:944 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
+      "evidence": "rest.ts:942 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
     },
     {
       "id": "rest.route GET /v1/tasks/stats:getFirestore()",
@@ -4643,23 +4615,21 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 325,
+      "line_at_base": 324,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin: \"*\" or ADMIN_READERS (rest.ts:133-139, :323)",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker get_tasks plus authorizeTasksRead on credentialPrincipal(auth) (PR-M row 3)",
+      "disposition": "FOREIGN-READ",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-READERS"
-      ],
-      "evidence": "Counts tasks tenant-wide or by query.target straight from Firestore; skips callTool (no capability gate, breaker, rate limit or audit).",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5)."
+      "name_lists": [],
+      "evidence": "PR-M row 3: counts are scoped to the principal's own target unless TASKS_ALL_PRINCIPALS or fleet.observe.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/messages/unread:getFirestore()",
@@ -4668,23 +4638,23 @@
       "expr": "getFirestore()",
       "regex": "none",
       "class": "rest-getfirestore",
-      "anchor": "getFirestore()",
+      "anchor": "get_messages",
       "occurrences": 1,
-      "line_at_base": 423,
+      "line_at_base": 421,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none",
-      "disposition": "ESCALATE",
+      "binding_today": "no direct Firestore read: callTool get_messages (PR-M row 1)",
+      "disposition": "SELF-ONLY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Lists pending relay documents straight from Firestore; with no sessionId it returns every pending message in the tenant (limit 50).",
-      "recommendation": "SELF-ONLY by principal; route through callTool."
+      "evidence": "PR-M row 1: the direct relay query is gone; the route calls get_messages.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route POST /v1/messages/mark_read:getFirestore()",
@@ -4693,23 +4663,23 @@
       "expr": "getFirestore()",
       "regex": "none",
       "class": "rest-getfirestore",
-      "anchor": "getFirestore()",
+      "anchor": "markReadHandler",
       "occurrences": 1,
-      "line_at_base": 440,
+      "line_at_base": 439,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:433-445)",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker relay_mark_read, then markReadHandler per id: target is the principal, or RELAY_READ_ALL_PRINCIPALS; broadcast ids never change state (M-D1, PR-M row 2)",
+      "disposition": "SELF-ONLY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Marks up to 100 caller-supplied relay document ids read in the tenant. Does not compare the document target to the caller.",
-      "recommendation": "SELF-ONLY on the message target; broadcast documents must not transition (PDR section 6)."
+      "evidence": "PR-M row 2: the route no longer reads or writes Firestore directly. A refused id writes one logDenial; a missing id is notFound and is not a denial.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/sessions/history:getFirestore()",
@@ -4718,25 +4688,23 @@
       "expr": "getFirestore()",
       "regex": "none",
       "class": "rest-getfirestore",
-      "anchor": "getFirestore()",
+      "anchor": "list_sessions",
       "occurrences": 1,
-      "line_at_base": 537,
+      "line_at_base": 536,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin (rest.ts:535)",
-      "disposition": "ESCALATE",
+      "binding_today": "callTool list_sessions with includeArchived:true: self, PULSE_PRIV or fleet.observe (PR-L row 4; PR-M row 5, M-D2)",
+      "disposition": "FOREIGN-READ",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-READERS"
-      ],
-      "evidence": "Lists archived sessions tenant-wide; no identifier argument.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
+      "name_lists": [],
+      "evidence": "PR-M row 5: archived sessions come from list_sessions, so a program key sees its own archived sessions only. The route keeps its sessions key; durationMs and createdAt are null because list_sessions does not return createdAt.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/sprints/active:getFirestore()",
@@ -4747,23 +4715,21 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 607,
+      "line_at_base": 597,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "requireAdmin (rest.ts:606)",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker sprint_get_sprint (sprint.read), then each sprint passes mayActOnSprint(read) on credentialPrincipal(auth); others are dropped (PR-M row 6)",
+      "disposition": "FOREIGN-READ",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-READERS"
-      ],
-      "evidence": "Lists active sprint tasks tenant-wide; no identifier argument.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
+      "name_lists": [],
+      "evidence": "PR-M row 6: the list is filtered per sprint; there is no per-item denial.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/gsp/proposals:getFirestore()",
@@ -4774,21 +4740,21 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 753,
+      "line_at_base": 751,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker gsp_read (gsp.read); tenant-wide by ruling M-D3 (PR-M row 7)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Lists GSP proposals for the tenant straight from Firestore; filter by status only. The tenant segment is auth.userId (rest.ts:754).",
-      "recommendation": "Disposition follows the gsp_resolve and gsp_propose records; route through callTool."
+      "evidence": "PR-M row 7: proposals are governance records every reviewer reads; gsp_resolve's gate decides who acts (PR-N).",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/budget/summary:budgetSummaryHandler",
@@ -4799,21 +4765,21 @@
       "class": "rest-direct-handler",
       "anchor": "budgetSummaryHandler(",
       "occurrences": 1,
-      "line_at_base": 670,
+      "line_at_base": 664,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker metrics_get_cost_summary (metrics.read); tenant aggregate by ruling M-D4 (PR-M row 8)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Calls budgetSummaryHandler directly (rest.ts:669-671); no capability gate, breaker, rate limit or audit.",
-      "recommendation": "Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler."
+      "evidence": "PR-M row 8: the route now passes the capability gate and the circuit breaker; the summary is a tenant aggregate.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/dreams:dreamPeekHandler",
@@ -4822,23 +4788,23 @@
       "expr": "dreamPeekHandler()",
       "regex": "none",
       "class": "rest-direct-handler",
-      "anchor": "dreamPeekHandler(",
+      "anchor": "dream_peek",
       "occurrences": 1,
-      "line_at_base": 711,
+      "line_at_base": 705,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry",
-      "disposition": "ESCALATE",
+      "binding_today": "callTool dream_peek (dream.read); handler unchanged (PR-M row 9)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Calls dreamPeekHandler directly; skips callTool.",
-      "recommendation": "Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler."
+      "evidence": "PR-M row 9: the route goes through callTool.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler",
@@ -4849,21 +4815,21 @@
       "class": "rest-direct-handler",
       "anchor": "gspListNamespacesHandler(",
       "occurrences": 1,
-      "line_at_base": 733,
+      "line_at_base": 729,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry",
-      "disposition": "ESCALATE",
+      "binding_today": "enforceBreaker gsp_read (gsp.read); namespace list is tenant-wide (PR-M row 10)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Calls gspListNamespacesHandler directly; skips callTool. Lists namespace names and entry counts for the tenant.",
-      "recommendation": "Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler."
+      "evidence": "PR-M row 10: the route passes the gsp.read capability gate and the circuit breaker.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.route GET /v1/dreams/peek:dreamPeekHandler",
@@ -4872,23 +4838,23 @@
       "expr": "dreamPeekHandler()",
       "regex": "none",
       "class": "rest-direct-handler",
-      "anchor": "dreamPeekHandler(",
+      "anchor": "dream_peek",
       "occurrences": 1,
-      "line_at_base": 863,
+      "line_at_base": 861,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry",
-      "disposition": "ESCALATE",
+      "binding_today": "callTool dream_peek (dream.read); handler unchanged (PR-M row 9)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Legacy duplicate of GET /v1/dreams; calls dreamPeekHandler directly.",
-      "recommendation": "Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler."
+      "evidence": "PR-M row 9: the legacy duplicate goes through callTool.",
+      "recommendation": "Done in PR-M."
     },
     {
       "id": "rest.createRestRouter:enrollHandler",
@@ -4899,21 +4865,21 @@
       "class": "rest-direct-handler",
       "anchor": "enrollHandler(",
       "occurrences": 1,
-      "line_at_base": 980,
+      "line_at_base": 978,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none: public pre-auth route /enroll; identity comes from the enrollment token document (enrollment.ts:113, :178-179)",
-      "disposition": "ESCALATE",
+      "binding_today": "none by design: public pre-auth route /enroll; the enrollment token is the credential and ENROLLMENT_PROGRAM_ID binds the identity (M-D5)",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-M",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:980 hands /enroll to enrollHandler before authentication and without callTool. The handler exchanges a one-time token for a cb_ key: tenant from the enrollment document, program fixed to ENROLLMENT_PROGRAM_ID, no request argument selects either. Not in the recon (amendment 2).",
-      "recommendation": "NOT-IDENTITY for the arguments (the principal is created, not read). ISO to confirm the unauthenticated route is intended."
+      "evidence": "M-D5: no request argument selects a tenant or a program; the principal is created from the enrollment document, not read.",
+      "recommendation": "No change. Closed as NOT-IDENTITY (M-D5)."
     },
     {
       "id": "interventions.abortTaskHandler:args.taskId",
@@ -5590,19 +5556,10 @@
     {
       "rule": "S1",
       "file": "transport/rest.ts",
-      "handler": "requireAdmin",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 134,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
       "handler": "callTool",
       "expr": "auth.programId",
       "occurrences": 11,
-      "line_at_base": 192,
+      "line_at_base": 180,
       "status": "pending"
     },
     {
@@ -5611,16 +5568,7 @@
       "handler": "enforceBreaker",
       "expr": "auth.programId",
       "occurrences": 2,
-      "line_at_base": 314,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
-      "handler": "route POST /v1/relay/messages",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 476,
+      "line_at_base": 302,
       "status": "pending"
     },
     {
@@ -5629,7 +5577,7 @@
       "handler": "route POST /admin/reset-program-cache",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 955,
+      "line_at_base": 953,
       "status": "pending"
     },
     {
@@ -5656,7 +5604,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.source",
       "occurrences": 1,
-      "line_at_base": 803,
+      "line_at_base": 835,
       "status": "pending"
     },
     {
@@ -5665,7 +5613,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.target",
       "occurrences": 1,
-      "line_at_base": 810,
+      "line_at_base": 842,
       "status": "pending"
     },
     {
