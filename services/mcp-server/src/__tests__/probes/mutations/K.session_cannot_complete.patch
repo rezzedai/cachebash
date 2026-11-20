@@ -1,0 +1,13 @@
+# mutation for probe K.session_cannot_complete: the generic isClaimingSession is restored at complete_task: any session id equal to the caller owns the task
+diff --git a/src/modules/dispatch/completion.ts b/src/modules/dispatch/completion.ts
+--- a/src/modules/dispatch/completion.ts
++++ b/src/modules/dispatch/completion.ts
+@@ -534,7 +534,7 @@
+ 
+       // Authorization (K-D1): the owner, or the iso and dispatcher keys.
+       const principal = credentialPrincipal(auth);
+-      if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
++      if (!isTaskOwner(data, principal) && !(data.sessionId != null && data.sessionId === principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
+         console.warn(`[complete_task] AUTHZ_DENY credentialPrincipal=${principal} taskId=${args.taskId} claimedBy=${data.claimedBy}`);
+         throw new Error(`Unauthorized: only the claiming owner, ISO, or admin can complete this task (caller "${principal}").`);
+       }

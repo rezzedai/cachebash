@@ -248,6 +248,13 @@ function applyDecay(state: any): DecayResult {
   return { state, decayed, patternsMarkedStale, contextCleared };
 }
 
+/** The only state fields a foreign fleet.observe reader receives (PDR 4.3). A new field is private until listed here. */
+const FOREIGN_STATE_FIELDS = ["programId", "version", "sessionId", "lastUpdatedBy", "lastUpdatedAt", "baselines"] as const;
+const foreignView = (state: object) => {
+  const rec = state as Record<string, unknown>;
+  return Object.fromEntries(FOREIGN_STATE_FIELDS.filter((k) => k in rec).map((k) => [k, rec[k]]));
+};
+
 export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetProgramStateSchema.parse(rawArgs);
 
@@ -282,12 +289,6 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
       + `which grants state visibility, not another program's private memory `
       + `(learned patterns, context summary).`,
   };
-  /** A foreign reader gets the document minus its memory fields. */
-  const withoutMemory = (state: any) => {
-    const { learnedPatterns: _lp, contextSummary: _cs, ...rest } = state;
-    return rest;
-  };
-
   const db = getFirestore();
   const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
   const doc = await docRef.get();
@@ -297,7 +298,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
     return jsonResult({
       success: true,
       exists: false,
-      state: omitted ? withoutMemory(defaults) : defaults,
+      state: omitted ? foreignView(defaults) : defaults,
       memory: omitted ? omittedMemory : { status: "empty" },
       message: `No persisted state for "${args.programId}". Returning defaults.`,
     });
@@ -332,7 +333,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   return jsonResult({
     success: true,
     exists: true,
-    state: omitted ? withoutMemory(decayedState) : decayedState,
+    state: omitted ? foreignView(decayedState) : decayedState,
     memory: omitted ? omittedMemory : { status: "loaded" },
     message: `State loaded for "${args.programId}".${!omitted && decayed ? ` Decay applied: ${patternsMarkedStale} patterns marked stale${contextCleared ? ', context cleared' : ''}.` : ''}`,
   });

@@ -1,0 +1,13 @@
+# mutation for probe K.dispatcher_claimed_task_completes_by_target: the delegated-claim branch of isTaskOwner is removed: the builder cannot complete the task the dispatcher claimed for it
+diff --git a/src/modules/dispatch/shared.ts b/src/modules/dispatch/shared.ts
+--- a/src/modules/dispatch/shared.ts
++++ b/src/modules/dispatch/shared.ts
+@@ -103,7 +103,7 @@
+  */
+ export function isTaskOwner(data: { claimedBy?: unknown; sessionId?: unknown }, p: string): boolean {
+   return (data.claimedBy != null && data.claimedBy === p) ||
+-    (data.claimedBy === "dispatcher" && data.sessionId === p);
++    false;
+ }
+ 
+ /** Owner overrides for unclaim and complete (K-D1): the iso and dispatcher keys act on any task. */

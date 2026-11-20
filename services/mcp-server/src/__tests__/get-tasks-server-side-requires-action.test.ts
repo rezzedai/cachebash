@@ -53,6 +53,7 @@ function makeAuth(programId: string): AuthContext {
   return {
     userId: "u1",
     programId,
+    keyProgramId: programId,
     apiKeyHash: "hash",
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
     capabilities: ["*"],

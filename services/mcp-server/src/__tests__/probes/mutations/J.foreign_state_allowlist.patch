@@ -1,0 +1,14 @@
+# mutation for probe J.foreign_state_allowlist: the allowlist is replaced by the old denylist: only learnedPatterns and contextSummary are withheld
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -252,7 +252,8 @@
+ const FOREIGN_STATE_FIELDS = ["programId", "version", "sessionId", "lastUpdatedBy", "lastUpdatedAt", "baselines"] as const;
+ const foreignView = (state: object) => {
+   const rec = state as Record<string, unknown>;
+-  return Object.fromEntries(FOREIGN_STATE_FIELDS.filter((k) => k in rec).map((k) => [k, rec[k]]));
++  const { learnedPatterns: _lp, contextSummary: _cs, ...rest } = rec;
++  return rest;
+ };
+ 
+ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {

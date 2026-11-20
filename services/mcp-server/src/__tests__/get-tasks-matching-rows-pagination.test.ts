@@ -116,6 +116,7 @@ function makeAuth(): AuthContext {
   return {
     userId: "u1",
     programId: "basher",
+    keyProgramId: "basher",
     apiKeyHash: "hash",
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
     capabilities: ["*"],

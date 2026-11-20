@@ -10,7 +10,8 @@ import { z } from "zod";
 import { syncTaskClaimed } from "../github-sync.js";
 import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
-import { type ToolResult, jsonResult, decryptTaskFields, buildTransition, appendTransition } from "./shared.js";
+import { type ToolResult, jsonResult, decryptTaskFields, buildTransition, appendTransition, isTaskOwner, TASK_OVERRIDE_PRINCIPALS } from "./shared.js";
+import { credentialPrincipal } from "../../auth/ownerAuthz.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
@@ -60,6 +61,7 @@ function emitClaimEvent(
 
 export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = ClaimTaskSchema.parse(rawArgs);
+  const principal = credentialPrincipal(auth);
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
@@ -70,12 +72,9 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 
       const data = doc.data()!;
 
-      // Idempotent: already claimed by this session (normalize null/undefined —
-      // a claim without sessionId wrote null, and a retry's undefined !== null
-      // read as contention, stranding the claimer) or by this program.
-      const sameSession = (data.sessionId ?? null) === (args.sessionId ?? null);
-      const sameProgram = data.claimedBy != null && data.claimedBy === auth.programId;
-      if (data.status === "active" && (sameSession || sameProgram)) {
+      // Idempotent re-claim: only the owner (K-D1). sessionId is attribution; a matching or missing
+      // sessionId never makes a caller the owner of another program's active task.
+      if (data.status === "active" && isTaskOwner(data, principal)) {
         return { alreadyClaimed: true, data };
       }
 
@@ -97,7 +96,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         // Owner identity — sessionId is free-form ("iso.task-x"), so authz and
         // sweepers key on claimedBy. Never written before this fix: every
         // normally-claimed task read back claimedBy: null.
-        claimedBy: auth.programId,
+        claimedBy: principal, // from the credential only: never an argument (VECTOR wT2tk4EA, K.claimed_by_unforgeable)
         claimedAt: FieldValue.serverTimestamp(),
         lastHeartbeat: FieldValue.serverTimestamp(),
         attempt_count: FieldValue.increment(1),
@@ -166,6 +165,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 
 export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UnclaimTaskSchema.parse(rawArgs);
+  const principal = credentialPrincipal(auth);
   const db = getFirestore();
   const taskRef = db.doc(`tenants/${auth.userId}/tasks/${args.taskId}`);
 
@@ -180,17 +180,9 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
         return { error: `Task not unclaimable (status: ${data.status}). Only active tasks can be unclaimed.` };
       }
 
-      // Authorization: the claiming OWNER (claimedBy — written on claim),
-      // the claiming session (legacy back-compat: sessionId values like
-      // "iso.task-x" almost never equal a programId, which locked owners out
-      // of self-recovery), any program with 'iso' identity, or admin key.
-      const claimingSession = data.sessionId as string | undefined;
-      const isClaimingSession = claimingSession && claimingSession === auth.programId;
-      const isClaimingOwner = data.claimedBy != null && data.claimedBy === auth.programId;
-      const isIso = auth.programId === "iso" || auth.programId === "orchestrator";
-      const isAdmin = auth.programId === "legacy" || auth.programId === "dispatcher";
-      if (!isClaimingOwner && !isClaimingSession && !isIso && !isAdmin) {
-        return { error: `Unauthorized: only the claiming owner, ISO, or admin can unclaim this task.` };
+      // Authorization (K-D1): the owner, or the iso and dispatcher keys.
+      if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
+        return { error: `Unauthorized: only the claiming owner, ISO, or admin can unclaim this task (caller "${principal}").` };
       }
 
       // Validate lifecycle transition: active -> created
@@ -274,6 +266,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
 
 export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = BatchClaimTasksSchema.parse(rawArgs);
+  const principal = credentialPrincipal(auth);
   const db = getFirestore();
 
   const results: Array<{ taskId: string; success: boolean; error?: string; title?: string }> = [];
@@ -287,11 +280,8 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
 
         const data = doc.data()!;
 
-        // Idempotent: already claimed by this session (null/undefined
-        // normalized) or by this program — same rule as single claim
-        const sameSession = (data.sessionId ?? null) === (args.sessionId ?? null);
-        const sameProgram = data.claimedBy != null && data.claimedBy === auth.programId;
-        if (data.status === "active" && (sameSession || sameProgram)) {
+        // Idempotent re-claim: owner only, same rule as single claim (K-D1)
+        if (data.status === "active" && isTaskOwner(data, principal)) {
           return { alreadyClaimed: true, data };
         }
 
@@ -309,7 +299,7 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
           status: "active",
           startedAt: FieldValue.serverTimestamp(),
           sessionId: args.sessionId || null,
-          claimedBy: auth.programId,
+          claimedBy: principal, // from the credential only: never an argument (VECTOR wT2tk4EA, K.claimed_by_unforgeable)
           claimedAt: FieldValue.serverTimestamp(),
           lastHeartbeat: FieldValue.serverTimestamp(),
           attempt_count: FieldValue.increment(1),

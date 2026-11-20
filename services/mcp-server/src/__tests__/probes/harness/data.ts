@@ -50,9 +50,9 @@ export async function seedData(world: { baseUrl: string }, seeders: Record<Tenan
       const msg = await must(`message ${t}/${p}`, callTool(w, S, "relay_send_message", { message: mk, source: "legacy", target: p, message_type: "DIRECTIVE" }));
       const sessionId = `${p}-s1`;
       await must(`session ${t}/${p}`, callTool(w, S, "pulse_create_session", { name: mk, sessionId, programId: p, status: mk }));
-      // context history (pulse_get_context_utilization) and a sent message with source=p (relay_get_sent_messages / history)
+      // context history (pulse_get_context_utilization) and a sent message with source=p (relay_get_sent_messages / history); sent as the mobile seeder, the only source-exempt principal (PR-K)
       await must(`ctx ${t}/${p}`, callTool(w, S, "pulse_update_session", { sessionId, status: mk, contextUsedPct: 42, lastHeartbeat: true }));
-      await must(`sent ${t}/${p}`, callTool(w, S, "relay_send_message", { message: sentMarker(t, p), source: p, target: p === "alpha" ? "beta" : "alpha", message_type: "STATUS" }));
+      await must(`sent ${t}/${p}`, callTool(w, SS, "relay_send_message", { message: sentMarker(t, p), source: p, target: p === "alpha" ? "beta" : "alpha", message_type: "STATUS" }));
       const sched = await must(`schedule ${t}/${p}`, callTool(w, S, "schedule_create", { name: mk, target: p, cron: "0 0 1 1 *", taskTemplate: { title: mk } }));
       out[t][p] = {
         marker: mk, taskId: task.taskId, scheduleId: sched.scheduleId ?? sched.id, sessionId, patternId, messageId: msg.messageId,

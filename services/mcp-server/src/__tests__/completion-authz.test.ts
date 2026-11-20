@@ -40,7 +40,7 @@ import type { AuthContext } from "../auth/authValidator.js";
 const ENC = Buffer.from("test-encryption-key-32-bytes-long!!!");
 
 function auth(programId: string): AuthContext {
-  return { userId: "u1", programId, apiKeyHash: "h", encryptionKey: ENC, capabilities: ["*"], rateLimitTier: "internal" } as AuthContext;
+  return { userId: "u1", programId, keyProgramId: programId, apiKeyHash: "h", encryptionKey: ENC, capabilities: ["*"], rateLimitTier: "internal" } as AuthContext;
 }
 
 function taskDoc(claimedBy: string | null) {
@@ -104,10 +104,24 @@ describe("complete_task authorization gate (SARK C3)", () => {
     expect(res.success).toBe(true);
   });
 
-  it("ALLOWS orchestrator (iso alias) to complete any task", async () => {
+  it("REJECTS orchestrator: the iso alias is dropped (RD-5 PR-K, amendment 3)", async () => {
     taskDoc("basher");
     const res = parse(await completeTaskHandler(auth("orchestrator"), ARGS) as never);
-    expect(res.success).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('caller "orchestrator"');
+  });
+
+  it("REJECTS legacy: the admin override is dropped (RD-5 PR-K, amendment 3)", async () => {
+    taskDoc("basher");
+    const res = parse(await completeTaskHandler(auth("legacy"), ARGS) as never);
+    expect(res.success).toBe(false);
+  });
+
+  it("REJECTS a session id equal to the caller when the claim was not the dispatcher's (K-D1)", async () => {
+    taskDocClaimedWithSession("quorra", "basher");
+    const res = parse(await completeTaskHandler(auth("basher"), ARGS) as never);
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('caller "basher"');
   });
 
   it("ALLOWS dispatcher (admin) to complete any task", async () => {

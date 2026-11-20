@@ -6,6 +6,7 @@
 import { getFirestore, serverTimestamp } from "../../firebase/client.js";
 import { verifySource } from "../../middleware/gate.js";
 import { AuthContext } from "../../auth/authValidator.js";
+import { credentialPrincipal, hasFleetObserveCapability } from "../../auth/ownerAuthz.js";
 import { z } from "zod";
 import { isGroupTarget } from "../../config/programs.js";
 import { isProgramRegistered } from "../programRegistry.js";
@@ -131,6 +132,20 @@ function classifyRequiresAction(taskData: Record<string, unknown>): boolean {
   }
 }
 
+/** Principals that read every task with no target, or any named target (K-D4). `legacy` is dropped (amendment 3 rule 1). */
+const TASKS_ALL_PRINCIPALS = ["mobile", "dispatcher"] as const;
+
+/**
+ * Row 7: may `auth` read tasks for `target`? No target, self and the broadcast target always; the TASKS_ALL_PRINCIPALS (K-D4);
+ * anyone else only with the literal fleet.observe capability. Bound to credentialPrincipal, never to auth.programId.
+ */
+function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
+  const principal = credentialPrincipal(auth);
+  const seesAll = (TASKS_ALL_PRINCIPALS as readonly string[]).includes(principal);
+  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth);
+  return { allowed, principal, seesAll };
+}
+
 export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetTasksSchema.parse(rawArgs);
   const db = getFirestore();
@@ -144,22 +159,25 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
     query = query.where("type", "==", args.type);
   }
 
-  // Target filtering — two modes:
-  // (a) Caller named a specific target: query exactly that target. Works for all key types.
-  //     This is the fleet supervision path (ISO querying beck's queue, etc.).
-  //     NEVER silently fall back to caller scope when a target is specified.
-  // (b) No target specified + program key: scope to own tasks + broadcast.
-  //     Legacy/mobile/dispatcher keys with no target: see everything.
-  // Sprints are org-wide — skip target filter for sprint types.
-  if (args.target && args.type !== "sprint" && args.type !== "sprint-story") {
-    // Explicit target: filter server-side, no caller-scope fallback
+  // Target filtering (RD-5 PR-K row 7, K-D4, K-D5):
+  // (a) Caller named a specific target: query exactly that target. A foreign target needs a TASKS_ALL_PRINCIPALS
+  //     name or the literal fleet.observe capability (the fleet supervision path). NEVER fall back to caller scope.
+  // (b) No target: TASKS_ALL_PRINCIPALS see everything; every other key defaults to own queue + broadcast.
+  // Sprint types skip the target filter (K-D5 option 1; closes in PR-L via known-open T2.dispatch_get_tasks_sprint).
+  const { allowed, principal, seesAll } = authorizeTasksRead(auth, args.target);
+  const sprintType = args.type === "sprint" || args.type === "sprint-story";
+  if (args.target && !sprintType) {
+    if (!allowed) {
+      return jsonResult({
+        success: false,
+        error: `Access denied: "${principal}" cannot read tasks for "${args.target}"`,
+      });
+    }
     query = query.where("target", "==", args.target);
-  } else if (!args.target && auth.programId !== "legacy" && auth.programId !== "mobile"
-      && auth.programId !== "dispatcher" && args.type !== "sprint" && args.type !== "sprint-story") {
+  } else if (!args.target && !seesAll && !sprintType) {
     // No target: program keys default to own queue + broadcast
-    query = query.where("target", "in", [auth.programId, "all"]);
+    query = query.where("target", "in", [principal, "all"]);
   }
-  // No target + legacy/mobile/dispatcher: no filter (see everything in tenant)
 
   // WP-2 (cost PDR): push the requires_action equality server-side so a poll
   // reads only actionable rows instead of every created task in the tenant.
@@ -184,7 +202,7 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   // reads are all status:"created" with the default type:"all"). Every other
   // shape keeps today's post-filter behaviour, unchanged and un-regressed.
   const shapeHasIndex = args.status !== "all" && args.type === "all";
-  if (args.requires_action !== null && auth.programId !== "mobile" && shapeHasIndex) {
+  if (args.requires_action !== null && principal !== "mobile" && shapeHasIndex) {
     query = query.where("requires_action", "==", args.requires_action);
   }
 

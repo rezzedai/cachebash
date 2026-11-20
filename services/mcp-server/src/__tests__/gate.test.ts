@@ -83,10 +83,10 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
     });
   });
 
-  describe("legacy/mobile exemption (admin-tier actors)", () => {
-    it("allows legacy key to claim any source", () => {
+  describe("source exemption (RD-5 PR-K: mobile only)", () => {
+    it("rejects a legacy key claiming another source, naming legacy", () => {
       const auth = makeAuth({ keyProgramId: "legacy" as ValidProgramId, programId: "legacy" as ValidProgramId });
-      expect(verifySource("iso", auth, "mcp")).toBe("iso");
+      expect(() => verifySource("iso", auth, "mcp")).toThrow(/key belongs to "legacy", claimed "iso"/);
     });
 
     it("allows mobile key to claim any source", () => {
@@ -100,16 +100,10 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
     });
   });
 
-  describe("backward compat — keyProgramId absent (test mocks / legacy callers)", () => {
-    it("falls back to programId when keyProgramId is absent", () => {
-      // Simulates pre-BUG-005 mocks that never set keyProgramId.
+  describe("keyProgramId absent", () => {
+    it("throws: a missing credential identity never reads as a principal, and programId is not a fallback", () => {
       const auth = makeAuth({ keyProgramId: undefined, programId: "vector" as ValidProgramId });
-      expect(verifySource("vector", auth, "mcp")).toBe("vector");
-    });
-
-    it("throws when programId fallback mismatches claimed source", () => {
-      const auth = makeAuth({ keyProgramId: undefined, programId: "vector" as ValidProgramId });
-      expect(() => verifySource("iso", auth, "mcp")).toThrow(/Source mismatch/);
+      expect(() => verifySource("vector", auth, "mcp")).toThrow(/keyProgramId is empty/);
     });
   });
 

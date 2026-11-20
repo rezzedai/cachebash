@@ -1,5 +1,6 @@
 import { callTool, ToolResult } from "./client";
 import { emulatorDb } from "./emulator";
+import { Timestamp } from "firebase-admin/firestore";
 import { marker, sentMarker, ProgramName } from "./data";
 import { sees } from "./judge";
 import type { CredentialName, World } from "./world";
@@ -126,6 +127,21 @@ export const CASES: Case[] = [
     id: "dispatch_get_tasks", tool: "dispatch_get_tasks",
     args: (c) => ({ target: c.subject, requires_action: null, status: "all", limit: 50 }),
     reached: async (c, r) => sees(r, mk(c)),
+  },
+  {
+    // K-D5 option 1: sprint types skip the target filter (tasks.ts); known-open until PR-L closes the sprint group.
+    // A sprint-story has no target through the handlers, so the row is written directly.
+    id: "dispatch_get_tasks_sprint", tool: "dispatch_get_tasks",
+    prepare: async (c) => {
+      await emulatorDb().doc(`tenants/${c.w.tenants.A}/tasks/spk-${c.n}`).set({
+        type: "sprint-story", title: `spk-${c.n}`, instructions: "", source: "orchestrator", target: c.subject, priority: "normal",
+        action: "sprint", status: "created", requires_action: true, encrypted: false, archived: false,
+        sprint: { parentId: "none", projectName: "probe", wave: 1, dependencies: [], complexity: "normal" },
+        createdAt: Timestamp.now(),
+      });
+    },
+    args: (c) => ({ target: c.subject, type: "sprint-story", requires_action: null, status: "created", limit: 50 }),
+    reached: async (c, r) => sees(r, `spk-${c.n}`),
   },
   ...(["dispatch_reassign_task", "dispatch_retry_task", "dispatch_replay_task"] as const).map((tool): Case => ({
     id: tool, tool,

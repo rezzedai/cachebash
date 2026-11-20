@@ -1,0 +1,13 @@
+# mutation for probe K.sent_messages_foreign_denied: the requested source is silently coerced to the caller
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -648,7 +648,7 @@
+ 
+   // Programs see own sent only; admin can pass optional source to see any
+   const principal = credentialPrincipal(auth);
+-  const source = args.source ?? principal;
++  const source = principal;
+   if (source !== principal && !inList(RELAY_ADMIN_PRINCIPALS, principal)) {
+     return jsonResult({
+       success: false,

@@ -57,7 +57,7 @@ const mockEmitAnalyticsEvent = emitAnalyticsEvent as jest.Mock;
 const ENC = Buffer.from("test-encryption-key-32-bytes-long!!!");
 
 function auth(programId: string): AuthContext {
-  return { userId: "u1", programId, apiKeyHash: "h", encryptionKey: ENC, capabilities: ["*"], rateLimitTier: "internal" } as AuthContext;
+  return { userId: "u1", programId, keyProgramId: programId, apiKeyHash: "h", encryptionKey: ENC, capabilities: ["*"], rateLimitTier: "internal" } as AuthContext;
 }
 
 function taskDoc(claimedBy: string | null) {

@@ -7,6 +7,7 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 import { RELAY_DEFAULT_TTL_SECONDS } from "../types/relay.js";
 import { isGroupTarget, isProgramRegistered, PROGRAM_GROUPS } from "../config/programs.js";
 import { resolveTargetsAsync, resolveGroupAsync, listGroupsAsync } from "./programRegistry.js";
@@ -77,6 +78,12 @@ const GetMessagesSchema = z.object({
 });
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
+
+/** Principals that keep the requested-target inbox read (RD-5 PR-K, amendment 3 rule 1: `legacy` is dropped). */
+const RELAY_READ_ALL_PRINCIPALS = ["mobile", "dispatcher"] as const;
+/** Principals that read any program's sent messages and message history (K-D3 option 1). */
+const RELAY_ADMIN_PRINCIPALS = ["mobile", "dispatcher"] as const;
+const inList = (list: readonly string[], name: string): boolean => list.includes(name);
 
 function jsonResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -447,9 +454,36 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
   });
 }
 
+/**
+ * R6 / K-D2 option 2. The subject of an inbox read is the explicit target, or a sessionId that names another
+ * registered program. A session label that names no program is not a subject. Self and the broadcast target are
+ * always allowed; RELAY_READ_ALL_PRINCIPALS may read any inbox. Bound to credentialPrincipal.
+ */
+async function authorizeRelayRead(
+  auth: AuthContext, target: string | undefined, sessionId: string
+): Promise<{ allowed: boolean; readsAll: boolean; subject: string | undefined }> {
+  const principal = credentialPrincipal(auth);
+  const readsAll = inList(RELAY_READ_ALL_PRINCIPALS, principal);
+  if (readsAll) return { allowed: true, readsAll, subject: target };
+  const subject = target ?? (sessionId !== principal && (await isProgramRegistered(auth.userId, sessionId)) ? sessionId : undefined);
+  const allowed = !subject || subject === principal || subject === "all";
+  return { allowed, readsAll, subject };
+}
+
 export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetMessagesSchema.parse(rawArgs);
   const db = getFirestore();
+  const principal = credentialPrincipal(auth);
+
+  // R6, K-D2 option 2: a restricted key reads only its own inbox (plus broadcasts). The denial fires before
+  // query.get(), so nothing is read or claimed.
+  const { allowed, readsAll, subject } = await authorizeRelayRead(auth, args.target, args.sessionId);
+  if (!allowed) {
+    return jsonResult({
+      success: false,
+      error: `Access denied: "${principal}" cannot read messages for "${subject}"`,
+    });
+  }
 
   // ADR-013: includeDelivered re-opens the body-read window after a claim.
   // Target enforcement below scopes it; the claim transaction skips
@@ -474,11 +508,11 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   const requestedTarget = args.target || args.sessionId;
   const filtered = snapshot.docs.filter((doc) => {
     const t = doc.data().target;
-    if (auth.programId !== "legacy" && auth.programId !== "mobile" && auth.programId !== "dispatcher") {
+    if (!readsAll) {
       // Program keys: only see messages targeted at this program or broadcast
-      return t === auth.programId || t === "all";
+      return t === principal || t === "all";
     }
-    // Legacy/mobile keys: original behavior (filter by requested target)
+    // mobile and dispatcher keys: filter by the requested target
     return !t || t === requestedTarget || t === "all";
   });
 
@@ -613,8 +647,14 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const db = getFirestore();
 
   // Programs see own sent only; admin can pass optional source to see any
-  const isPrivileged = isAdmin(auth);
-  const source = isPrivileged && args.source ? args.source : auth.programId;
+  const principal = credentialPrincipal(auth);
+  const source = args.source ?? principal;
+  if (source !== principal && !inList(RELAY_ADMIN_PRINCIPALS, principal)) {
+    return jsonResult({
+      success: false,
+      error: `Access denied: "${principal}" cannot read sent messages for "${source}"`,
+    });
+  }
 
   let query: Query = db
     .collection(`tenants/${auth.userId}/relay`)
@@ -751,9 +791,10 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   // verifiedSource equivalent — this coercion IS the entire gate (SARK C1).
   // Caller-supplied identity args naming another program are rejected,
   // never passed through to the query.
-  const privileged = isAdmin(auth);
+  const principal = credentialPrincipal(auth);
+  const privileged = inList(RELAY_ADMIN_PRINCIPALS, principal);
   if (!privileged) {
-    const self = auth.programId;
+    const self = principal;
     if (args.source && args.source !== self) {
       return jsonResult({
         success: false,
@@ -809,7 +850,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   } else {
     // Non-admin threadId-only query: the participant constraint is forcibly
     // added (SARK C3 LOCK) — both directions plus broadcast, merged in-handler.
-    const self = auth.programId;
+    const self = principal;
     queries = [
       applyCommonFilters(collection.where("source", "==", self)),
       applyCommonFilters(collection.where("target", "==", self)),
@@ -860,8 +901,8 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
     timestamp: new Date().toISOString(),
     correlationId: generateCorrelationId(),
     tool: "relay_query_message_history.read",
-    source: auth.programId,
-    programId: auth.programId,
+    source: principal,
+    programId: principal,
     userId: auth.userId,
     endpoint: "handler",
     allowed: true,
@@ -875,7 +916,7 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
         since: args.since ?? null,
         until: args.until ?? null,
         limit: args.limit,
-        participantScope: privileged ? null : auth.programId,
+        participantScope: privileged ? null : principal,
       },
       resultCount: messages.length,
       messageIds: messages.map((m) => m.id),

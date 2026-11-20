@@ -49,13 +49,14 @@ jest.mock("../firebase/client.js", () => ({
 import { getTasksHandler } from "../modules/dispatch/tasks.js";
 import type { AuthContext } from "../auth/authValidator.js";
 
-function makeAuth(programId: string): AuthContext {
+function makeAuth(programId: string, capabilities: string[] = ["*"]): AuthContext {
   return {
     userId: "u1",
     programId,
+    keyProgramId: programId,
     apiKeyHash: "hash",
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
-    capabilities: ["*"],
+    capabilities,
     rateLimitTier: "internal",
   } as AuthContext;
 }
@@ -71,7 +72,7 @@ beforeEach(() => {
 
 describe("get_tasks target filter — P1 regression (2026-06-11)", () => {
   it("program key with explicit target: queries the named target, not caller scope", async () => {
-    await getTasksHandler(makeAuth("iso"), { target: "beck", status: "created" });
+    await getTasksHandler(makeAuth("iso", ["*", "fleet.observe"]), { target: "beck", status: "created" });
 
     const targetFilters = targetWhereArgs();
     expect(targetFilters).toHaveLength(1);
@@ -100,26 +101,43 @@ describe("get_tasks target filter — P1 regression (2026-06-11)", () => {
     expect(values).toContain("all");
   });
 
-  it("legacy key with explicit target: queries named target, not everything", async () => {
-    await getTasksHandler(makeAuth("legacy"), { target: "casp", status: "created" });
+  it("dispatcher key with explicit target: queries named target, not everything", async () => {
+    await getTasksHandler(makeAuth("dispatcher"), { target: "casp", status: "created" });
 
     const targetFilters = targetWhereArgs();
     expect(targetFilters).toHaveLength(1);
     expect(targetFilters[0]).toEqual(["target", "==", "casp"]);
   });
 
-  it("legacy key with NO target: no target filter (sees everything in tenant)", async () => {
-    await getTasksHandler(makeAuth("legacy"), { status: "created" });
+  it("dispatcher key with NO target: no target filter (sees everything in tenant)", async () => {
+    await getTasksHandler(makeAuth("dispatcher"), { status: "created" });
+    expect(targetWhereArgs()).toHaveLength(0);
+  });
 
-    const targetFilters = targetWhereArgs();
-    // No target filter should be applied — legacy key without target sees all
-    expect(targetFilters).toHaveLength(0);
+  it("mobile key with NO target: no target filter", async () => {
+    await getTasksHandler(makeAuth("mobile"), { status: "created" });
+    expect(targetWhereArgs()).toHaveLength(0);
+  });
+
+  it("legacy key with NO target: own queue + broadcast (the name exemption is dropped, RD-5 PR-K)", async () => {
+    await getTasksHandler(makeAuth("legacy"), { status: "created" });
+    const f = targetWhereArgs();
+    expect(f).toHaveLength(1);
+    expect(f[0][1]).toBe("in");
+    expect(f[0][2]).toEqual(["legacy", "all"]);
+  });
+
+  it("foreign target without fleet.observe is denied naming the principal; \"*\" is not fleet.observe", async () => {
+    const res = JSON.parse((await getTasksHandler(makeAuth("iso"), { target: "beck", status: "created" })).content[0].text);
+    expect(res.success).toBe(false);
+    expect(res.error).toBe('Access denied: "iso" cannot read tasks for "beck"');
+    expect(targetWhereArgs()).toHaveLength(0);
   });
 
   it("CRITICAL: caller A with target B never receives caller A's tasks instead", async () => {
     // This is the exact bug: iso calls get_tasks(target: "beck") and gets iso's tasks.
     // After fix: the Firestore query must NOT include auth.programId in any form.
-    await getTasksHandler(makeAuth("iso"), { target: "beck", status: "created" });
+    await getTasksHandler(makeAuth("iso", ["*", "fleet.observe"]), { target: "beck", status: "created" });
 
     const targetFilters = targetWhereArgs();
     // Verify "iso" appears nowhere in the target filter value

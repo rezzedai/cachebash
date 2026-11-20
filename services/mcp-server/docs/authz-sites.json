@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 270,
-    "a_lines": 254,
+    "a_occurrences": 271,
+    "a_lines": 255,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -92,7 +92,7 @@
     {
       "id": "NL-ADMIN-PROGRAMS",
       "file": "middleware/gate.ts",
-      "line": 131,
+      "line": 132,
       "name": "ADMIN_PROGRAMS (isAdmin)",
       "members": [
         "legacy",
@@ -103,7 +103,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:133"
+        "middleware/gate.ts:134"
       ],
       "guards": [
         "audit_get_audit",
@@ -127,15 +127,14 @@
     {
       "id": "NL-VERIFYSOURCE-ADMIN",
       "file": "middleware/gate.ts",
-      "line": 163,
-      "name": "verifySource admin-tier exemption",
+      "line": 147,
+      "name": "SOURCE_ANY_PRINCIPALS source-pinning exemption",
       "members": [
-        "legacy",
         "mobile"
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:163"
+        "middleware/gate.ts:162"
       ],
       "guards": [
         "relay_send_message",
@@ -144,32 +143,30 @@
         "gsp_write",
         "relay_send_directive"
       ],
-      "note": "These credentials may claim any source.",
+      "note": "mobile may send as any source. legacy was dropped in PR-K (amendment 3).",
       "usage_30d": "members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116"
     },
     {
       "id": "NL-CLAIM-OWNER-OVERRIDE",
-      "file": "modules/dispatch/completion.ts",
-      "line": 537,
-      "name": "iso/orchestrator and legacy/dispatcher override",
+      "file": "modules/dispatch/shared.ts",
+      "line": 110,
+      "name": "TASK_OVERRIDE_PRINCIPALS task owner override",
       "members": [
         "iso",
-        "orchestrator",
-        "legacy",
         "dispatcher"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/claims.ts:190",
+        "modules/dispatch/claims.ts:184",
         "modules/dispatch/completion.ts:537",
-        "modules/dispatch/completion.ts:870"
+        "modules/dispatch/completion.ts:867"
       ],
       "guards": [
         "dispatch_unclaim_task",
         "dispatch_complete_task",
         "dispatch_batch_complete_tasks"
       ],
-      "note": "These names may unclaim or complete a task they do not own.",
+      "note": "iso and dispatcher unclaim and complete any task. orchestrator and legacy were dropped in PR-K (K-D1).",
       "usage_30d": "members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26"
     },
     {
@@ -197,21 +194,20 @@
     {
       "id": "NL-GETTASKS-DEFAULT",
       "file": "modules/dispatch/tasks.ts",
-      "line": 157,
-      "name": "get_tasks own-queue default skip",
+      "line": 136,
+      "name": "TASKS_ALL_PRINCIPALS get_tasks default scope and named-target read",
       "members": [
-        "legacy",
         "mobile",
         "dispatcher"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/dispatch/tasks.ts:157"
+        "modules/dispatch/tasks.ts:144"
       ],
       "guards": [
         "dispatch_get_tasks"
       ],
-      "note": "These names see every task when no target is given.",
+      "note": "mobile and dispatcher read every task with no target and any named target (K-D4). legacy was dropped in PR-K.",
       "usage_30d": "members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10"
     },
     {
@@ -282,21 +278,20 @@
     {
       "id": "NL-RELAY-GETMSG",
       "file": "modules/relay.ts",
-      "line": 477,
-      "name": "get_messages target filter exemption",
+      "line": 83,
+      "name": "RELAY_READ_ALL_PRINCIPALS get_messages requested-target read",
       "members": [
-        "legacy",
         "mobile",
         "dispatcher"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:477"
+        "modules/relay.ts:466"
       ],
       "guards": [
         "relay_get_messages"
       ],
-      "note": "These names read messages for any requested target.",
+      "note": "mobile and dispatcher read the requested target. legacy was dropped in PR-K.",
       "usage_30d": "members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38"
     },
     {
@@ -506,6 +501,27 @@
       ],
       "note": "A Firebase user without a program mapping authenticates as mobile.",
       "usage_30d": "not measured (no tool_call rows exist for this path)"
+    },
+    {
+      "id": "NL-RELAY-ADMIN",
+      "file": "modules/relay.ts",
+      "line": 85,
+      "name": "RELAY_ADMIN_PRINCIPALS sent-message and history reads",
+      "members": [
+        "mobile",
+        "dispatcher"
+      ],
+      "layer": "handler",
+      "guard_sites": [
+        "modules/relay.ts:652",
+        "modules/relay.ts:795"
+      ],
+      "guards": [
+        "relay_get_sent_messages",
+        "relay_query_message_history"
+      ],
+      "note": "mobile and dispatcher read any source or participant (K-D3 option 1). Replaces isAdmin at these two sites; gate.ts ADMIN_PROGRAMS is unchanged (PR-L).",
+      "usage_30d": "not measured: new list in PR-K. Members carry over from NL-ADMIN-PROGRAMS (legacy, orchestrator and admin dropped by amendment 3)."
     }
   ],
   "handlers": [
@@ -1773,7 +1789,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/programState.ts:576"
+        "modules/programState.ts:577"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -2699,7 +2715,7 @@
       "expr": "params.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 613,
+      "line_at_base": 629,
       "tool": null,
       "transports": [
         "internal"
@@ -2722,7 +2738,7 @@
       "expr": "params.callerSource",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 630,
+      "line_at_base": 646,
       "tool": null,
       "transports": [
         "internal"
@@ -2882,8 +2898,8 @@
       "handler": "claimTaskHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 6,
-      "line_at_base": 76,
+      "occurrences": 5,
+      "line_at_base": 95,
       "tool": "dispatch_claim_task",
       "transports": [
         "mcp",
@@ -2891,10 +2907,10 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "claimedBy === auth.programId for re-claim; sessionId unbound (claims.ts:75-80)",
+      "binding_today": "isTaskOwner (dispatch/shared.ts): claimedBy equals credentialPrincipal, or claimedBy \"dispatcher\" and sessionId equals the principal. sessionId is attribution; a missing sessionId never matches. claimedBy is written from credentialPrincipal only (RD-5 PR-K, plan 19.1).",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -2907,18 +2923,18 @@
       "handler": "batchClaimTasksHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 4,
-      "line_at_base": 292,
+      "occurrences": 3,
+      "line_at_base": 301,
       "tool": "dispatch_batch_claim_tasks",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "same as dispatch_claim_task (claims.ts:293)",
+      "binding_today": "same as dispatch_claim_task (isTaskOwner, claims.ts)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -2942,7 +2958,7 @@
       "binding_today": "none on target; helper called by dispatchHandler",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -2962,10 +2978,10 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "verifySource (gate.ts:153); legacy and mobile credentials skip source pinning (gate.ts:163)",
+      "binding_today": "verifySource against credentialPrincipal; only mobile may name another source (gate.ts SOURCE_ANY_PRINCIPALS)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -2991,7 +3007,7 @@
       "binding_today": "target must be a registered program, group or @role; no caller binding",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -3165,8 +3181,8 @@
       "handler": "getTasksHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 3,
-      "line_at_base": 154,
+      "occurrences": 5,
+      "line_at_base": 167,
       "tool": "dispatch_get_tasks",
       "transports": [
         "mcp",
@@ -3174,11 +3190,11 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "none when target is supplied; self-default when absent unless legacy, mobile or dispatcher (tasks.ts:154-160)",
+      "binding_today": "authorizeTasksRead (dispatch/tasks.ts): no target allowed; target equal to the principal or \"all\" allowed; TASKS_ALL_PRINCIPALS (mobile, dispatcher) and literal fleet.observe may name any target; no-target default is own queue plus broadcast except TASKS_ALL_PRINCIPALS. Sprint types skip the filter (K-D5, known-open T2.dispatch_get_tasks_sprint, PR-L).",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
-      "closes_in": "PR-K (after iso and the dispatcher hold fleet.observe)",
+      "status": "done",
+      "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
         "NL-GETTASKS-DEFAULT"
@@ -3193,7 +3209,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 408,
+      "line_at_base": 426,
       "tool": "dispatch_create_task",
       "transports": [
         "mcp",
@@ -3201,10 +3217,10 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "verifySource; legacy and mobile skip pinning (gate.ts:163)",
+      "binding_today": "verifySource against credentialPrincipal; only mobile may name another source",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -3220,7 +3236,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 10,
-      "line_at_base": 411,
+      "line_at_base": 429,
       "tool": "dispatch_create_task",
       "transports": [
         "mcp",
@@ -3231,7 +3247,7 @@
       "binding_today": "target must be a registered program, group or @role (tasks.ts:411-416)",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -3244,17 +3260,17 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 432,
+      "line_at_base": 433,
       "tool": "gsp_write",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "verifySource (gsp.ts:432); legacy and mobile skip pinning",
+      "binding_today": "verifySource against credentialPrincipal (PR-K, gate.ts); only mobile may name another source",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [
@@ -3270,7 +3286,7 @@
       "expr": "args.agentId",
       "regex": "a",
       "occurrences": 11,
-      "line_at_base": 662,
+      "line_at_base": 669,
       "tool": "gsp_bootstrap",
       "transports": [
         "mcp"
@@ -3292,7 +3308,7 @@
       "expr": "programId",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 45,
+      "line_at_base": 56,
       "tool": "keys_create_key",
       "transports": [
         "mcp",
@@ -3315,7 +3331,7 @@
       "expr": "keyHash",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 139,
+      "line_at_base": 150,
       "tool": "keys_revoke_key",
       "transports": [
         "mcp",
@@ -3433,7 +3449,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 10,
-      "line_at_base": 230,
+      "line_at_base": 261,
       "tool": "state_get_program_state",
       "transports": [
         "mcp",
@@ -3457,7 +3473,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 322,
+      "line_at_base": 369,
       "tool": "state_store_memory",
       "transports": [
         "mcp",
@@ -3481,7 +3497,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 9,
-      "line_at_base": 382,
+      "line_at_base": 430,
       "tool": "state_recall_memory",
       "transports": [
         "mcp",
@@ -3505,7 +3521,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 9,
-      "line_at_base": 454,
+      "line_at_base": 503,
       "tool": "state_memory_health",
       "transports": [
         "mcp",
@@ -3529,7 +3545,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 12,
-      "line_at_base": 517,
+      "line_at_base": 567,
       "tool": "state_update_program_state",
       "transports": [
         "mcp",
@@ -3553,7 +3569,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 530,
+      "line_at_base": 581,
       "tool": "state_update_program_state",
       "transports": [
         "mcp",
@@ -3576,7 +3592,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 670,
+      "line_at_base": 721,
       "tool": "state_delete_memory",
       "transports": [
         "mcp",
@@ -3600,7 +3616,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 727,
+      "line_at_base": 779,
       "tool": "state_reinforce_memory",
       "transports": [
         "mcp",
@@ -3624,7 +3640,7 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 7,
-      "line_at_base": 787,
+      "line_at_base": 840,
       "tool": "state_get_context_history",
       "transports": [
         "mcp",
@@ -3866,7 +3882,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 15,
-      "line_at_base": 132,
+      "line_at_base": 139,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3877,7 +3893,7 @@
       "binding_today": "none by design; target resolved to program or group, unknown targets rejected (relay.ts:172-190)",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -3890,7 +3906,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 134,
+      "line_at_base": 141,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3898,10 +3914,10 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "verifySource; legacy and mobile skip pinning (gate.ts:163)",
+      "binding_today": "verifySource against credentialPrincipal; only mobile may name another source",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -3917,7 +3933,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 233,
+      "line_at_base": 240,
       "tool": "relay_send_message",
       "transports": [
         "mcp",
@@ -3940,8 +3956,8 @@
       "handler": "getMessagesHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 1,
-      "line_at_base": 474,
+      "occurrences": 2,
+      "line_at_base": 480,
       "tool": "relay_get_messages",
       "transports": [
         "mcp",
@@ -3949,10 +3965,10 @@
         "iso"
       ],
       "effect": "mixed",
-      "binding_today": "post-query filter t === auth.programId or \"all\" unless legacy, mobile or dispatcher (relay.ts:472-480); silent empty, no denial",
+      "binding_today": "authorizeRelayRead (relay.ts): a sessionId that names another registered program is a subject (K-D2 option 2); a restricted key reading another subject is denied before query.get()",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -3967,8 +3983,8 @@
       "handler": "getMessagesHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 1,
-      "line_at_base": 474,
+      "occurrences": 2,
+      "line_at_base": 480,
       "tool": "relay_get_messages",
       "transports": [
         "mcp",
@@ -3976,10 +3992,10 @@
         "iso"
       ],
       "effect": "mixed",
-      "binding_today": "same as args.sessionId record",
+      "binding_today": "authorizeRelayRead (relay.ts): self and \"all\" allowed; RELAY_READ_ALL_PRINCIPALS (mobile, dispatcher) read any inbox; every other foreign target is denied naming credentialPrincipal",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -3994,8 +4010,8 @@
       "handler": "getSentMessagesHandler",
       "expr": "args.source",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 617,
+      "occurrences": 1,
+      "line_at_base": 651,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -4003,14 +4019,15 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin may set source, else forced to auth.programId (relay.ts:616-617)",
+      "binding_today": "source defaults to credentialPrincipal; a foreign source needs RELAY_ADMIN_PRINCIPALS (mobile, dispatcher), else denied naming credentialPrincipal (K-D3 option 1)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS"
+        "NL-ADMIN-PROGRAMS",
+        "NL-RELAY-ADMIN"
       ],
       "evidence": "isAdmin is the five-name list in gate.ts:131.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
@@ -4022,7 +4039,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 626,
+      "line_at_base": 666,
       "tool": "relay_get_sent_messages",
       "transports": [
         "mcp",
@@ -4046,7 +4063,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 7,
-      "line_at_base": 743,
+      "line_at_base": 783,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4054,14 +4071,15 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin, else must be self or \"all\" (relay.ts:754-763)",
+      "binding_today": "privileged is RELAY_ADMIN_PRINCIPALS (mobile, dispatcher); else self is credentialPrincipal (K-D3 option 1)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS"
+        "NL-ADMIN-PROGRAMS",
+        "NL-RELAY-ADMIN"
       ],
       "evidence": "Participant scoping coerces non-admin callers to self. The admin bypass is the five-name list.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
@@ -4073,7 +4091,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 743,
+      "line_at_base": 783,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4084,11 +4102,12 @@
       "binding_today": "same as args.source record",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS"
+        "NL-ADMIN-PROGRAMS",
+        "NL-RELAY-ADMIN"
       ],
       "evidence": "relay.ts:757-763 same scoping.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
@@ -4100,7 +4119,7 @@
       "expr": "parsed.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 971,
+      "line_at_base": 1012,
       "tool": "relay_send_directive",
       "transports": [
         "mcp"
@@ -4109,7 +4128,7 @@
       "binding_today": "delegates to sendMessageHandler",
       "disposition": "ADDRESSED",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -4294,10 +4313,10 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; stored on the active sprint task (sprint.ts:183) and read as claim ownership",
+      "binding_today": "stored as attribution only; ownership is isTaskOwner, which needs claimedBy, and a sprint parent has none (K-D1)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
@@ -4458,10 +4477,10 @@
         "rest"
       ],
       "effect": "mixed",
-      "binding_today": "delegates to relay_get_messages (handler filter)",
+      "binding_today": "delegates to relay_get_messages (authorizeRelayRead decides)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -4667,10 +4686,10 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "delegates to relay_get_messages with markAsRead false",
+      "binding_today": "delegates to relay_get_messages with markAsRead false (authorizeRelayRead decides)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
@@ -5473,7 +5492,7 @@
       "handler": "main",
       "expr": "auth.programId",
       "occurrences": 17,
-      "line_at_base": 169,
+      "line_at_base": 181,
       "status": "pending"
     },
     {
@@ -5491,16 +5510,7 @@
       "handler": "isAdmin",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 134,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "middleware/gate.ts",
-      "handler": "verifySource",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 160,
+      "line_at_base": 135,
       "status": "pending"
     },
     {
@@ -5535,8 +5545,8 @@
       "file": "modules/dispatch/claims.ts",
       "handler": "claimTaskHandler",
       "expr": "auth.programId",
-      "occurrences": 7,
-      "line_at_base": 77,
+      "occurrences": 5,
+      "line_at_base": 89,
       "status": "pending"
     },
     {
@@ -5544,8 +5554,8 @@
       "file": "modules/dispatch/claims.ts",
       "handler": "unclaimTaskHandler",
       "expr": "auth.programId",
-      "occurrences": 9,
-      "line_at_base": 188,
+      "occurrences": 3,
+      "line_at_base": 196,
       "status": "pending"
     },
     {
@@ -5553,8 +5563,8 @@
       "file": "modules/dispatch/claims.ts",
       "handler": "batchClaimTasksHandler",
       "expr": "auth.programId",
-      "occurrences": 5,
-      "line_at_base": 293,
+      "occurrences": 3,
+      "line_at_base": 295,
       "status": "pending"
     },
     {
@@ -5562,8 +5572,8 @@
       "file": "modules/dispatch/completion.ts",
       "handler": "completeTaskHandler",
       "expr": "auth.programId",
-      "occurrences": 16,
-      "line_at_base": 509,
+      "occurrences": 9,
+      "line_at_base": 510,
       "status": "pending"
     },
     {
@@ -5571,8 +5581,8 @@
       "file": "modules/dispatch/completion.ts",
       "handler": "batchCompleteTasksHandler",
       "expr": "auth.programId",
-      "occurrences": 13,
-      "line_at_base": 846,
+      "occurrences": 6,
+      "line_at_base": 844,
       "status": "pending"
     },
     {
@@ -5581,7 +5591,7 @@
       "handler": "recordTaskTelemetryHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 1030,
+      "line_at_base": 1025,
       "status": "pending"
     },
     {
@@ -5667,20 +5677,11 @@
     },
     {
       "rule": "S1",
-      "file": "modules/dispatch/tasks.ts",
-      "handler": "getTasksHandler",
-      "expr": "auth.programId",
-      "occurrences": 5,
-      "line_at_base": 157,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
       "file": "modules/gsp.ts",
       "handler": "gspSeedHandler",
       "expr": "auth.programId",
       "occurrences": 3,
-      "line_at_base": 1192,
+      "line_at_base": 1216,
       "status": "pending"
     },
     {
@@ -5689,7 +5690,7 @@
       "handler": "gspProposeHandler",
       "expr": "auth.programId",
       "occurrences": 7,
-      "line_at_base": 1352,
+      "line_at_base": 1376,
       "status": "pending"
     },
     {
@@ -5698,7 +5699,7 @@
       "handler": "gspSubscribeHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 1475,
+      "line_at_base": 1499,
       "status": "pending"
     },
     {
@@ -5707,7 +5708,7 @@
       "handler": "gspResolveHandler",
       "expr": "auth.programId",
       "occurrences": 8,
-      "line_at_base": 1636,
+      "line_at_base": 1660,
       "status": "pending"
     },
     {
@@ -5716,7 +5717,7 @@
       "handler": "createKeyHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 92,
+      "line_at_base": 103,
       "status": "pending"
     },
     {
@@ -5770,34 +5771,7 @@
       "handler": "sendMessageHandler",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 111,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/relay.ts",
-      "handler": "getMessagesHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 477,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/relay.ts",
-      "handler": "getSentMessagesHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 617,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/relay.ts",
-      "handler": "queryMessageHistoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 5,
-      "line_at_base": 756,
+      "line_at_base": 118,
       "status": "pending"
     },
     {
@@ -5914,7 +5888,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.source",
       "occurrences": 1,
-      "line_at_base": 757,
+      "line_at_base": 798,
       "status": "pending"
     },
     {
@@ -5923,7 +5897,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.target",
       "occurrences": 1,
-      "line_at_base": 763,
+      "line_at_base": 804,
       "status": "pending"
     },
     {
