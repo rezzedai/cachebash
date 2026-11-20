@@ -1,4 +1,5 @@
 import { planGrant, runGrant } from "../../auth/rd5/grantCapability";
+import { ALL_CAPABILITIES, LITERAL_ONLY_CAPABILITIES, DEFAULT_CAPABILITIES, TOOL_CAPABILITIES, type Capability } from "../../middleware/capabilities";
 
 const HASH = "a".repeat(64);
 const FUTURE = new Date(Date.now() + 3_600_000);
@@ -80,6 +81,34 @@ describe("grant-capability refusals", () => {
     expect((await run({ capabilities: [] }, { keyHash: "abc" })).r.ok).toBe(false);
     expect((await run({ capabilities: [] }, { add: "*" })).r.ok).toBe(false);
     expect((await run({ capabilities: [] }, { add: " " })).r.ok).toBe(false);
+  });
+});
+
+describe("grant-capability --add is restricted to the Capability union", () => {
+  const live = { capabilities: ["*", "fleet.read"], active: true, expiresAt: FUTURE, programId: "vector" };
+
+  it("refuses a typo, nonzero, naming the valid list", async () => {
+    const { r, updates } = await run(live, { add: "fleet.obsrve" });
+    expect(r.ok).toBe(false);
+    expect(r.lines.join()).toMatch(/unknown capability fleet\.obsrve; valid: .*fleet\.observe/);
+    expect(updates).toHaveLength(0);
+    expect(planGrant(live, "nope").ok).toBe(false);
+  });
+
+  it.each(["keys.admin", "fleet.observe", "fleet.admin"])("accepts %s in dry-run", async (cap) => {
+    const { r, updates } = await run(live, { add: cap, apply: false });
+    expect(r.ok).toBe(true);
+    expect(updates).toHaveLength(0);
+    expect(r.lines.join("\n")).toContain(`"${cap}"]`);
+  });
+
+  it("the runtime list matches the union and every literal-only name is in it", () => {
+    expect(new Set(ALL_CAPABILITIES).size).toBe(ALL_CAPABILITIES.length);
+    // Compile-time: each value used elsewhere as a Capability must be in the list.
+    const used: Capability[] = [...Object.values(TOOL_CAPABILITIES), ...Object.values(DEFAULT_CAPABILITIES).flat()];
+    for (const c of used) expect(ALL_CAPABILITIES).toContain(c);
+    for (const c of LITERAL_ONLY_CAPABILITIES) expect(ALL_CAPABILITIES).toContain(c);
+    for (const c of ALL_CAPABILITIES) expect(planGrant({ capabilities: ["x"] }, c).ok).toBe(c !== "*");
   });
 });
 

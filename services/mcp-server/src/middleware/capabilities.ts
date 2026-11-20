@@ -8,38 +8,45 @@
 
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 
-/** All valid capability strings */
-export type Capability =
-  | "*"
-  | "dispatch.read" | "dispatch.write"
-  | "relay.read" | "relay.write"
-  | "pulse.read" | "pulse.write"
-  | "signal.read" | "signal.write"
-  | "dream.read" | "dream.write"
-  | "sprint.read" | "sprint.write"
-  | "keys.read" | "keys.write"
+/**
+ * Every valid capability string. The Capability type derives from this list,
+ * so the type and the runtime list cannot drift.
+ */
+export const ALL_CAPABILITIES = [
+  "*",
+  "dispatch.read", "dispatch.write",
+  "relay.read", "relay.write",
+  "pulse.read", "pulse.write",
+  "signal.read", "signal.write",
+  "dream.read", "dream.write",
+  "sprint.read", "sprint.write",
+  "keys.read", "keys.write",
   // keys.provision: explicit, owner-equivalent grant to CREATE keys. Checked by
   // literal membership in auth/ownerAuthz (never implied by "*"); not in any
   // DEFAULT_CAPABILITIES role — must be granted by name.
-  | "keys.provision"
+  "keys.provision",
   // RD-5 PR-D: literal-only names. Checked by literal membership in
   // auth/ownerAuthz (never implied by "*"); in no role default or preset.
-  | "keys.admin" | "fleet.observe" | "fleet.admin"
-  | "audit.read"
-  | "state.read" | "state.write"
-  | "metrics.read"
-  | "fleet.read"
+  "keys.admin", "fleet.observe", "fleet.admin",
+  "audit.read",
+  "state.read", "state.write",
+  "metrics.read",
+  "fleet.read",
   // fleet.control: quarantine/unquarantine programs — hard-denied for wingman tier
-  | "fleet.control"
-  | "trace.read"
-  | "programs.read" | "programs.write"
-  | "gsp.read" | "gsp.write"
+  "fleet.control",
+  "trace.read",
+  "programs.read", "programs.write",
+  "gsp.read", "gsp.write",
   // admin.write: account admin operations — hard-denied for wingman tier
-  | "admin.write"
+  "admin.write",
   // policy.read/write: Gate policy management — hard-denied for wingman tier
-  | "policy.read" | "policy.write"
+  "policy.read", "policy.write",
   // webhooks.read/write: distinct from relay.* so wingman (which has relay.*) cannot reach webhook infrastructure
-  | "webhooks.read" | "webhooks.write";
+  "webhooks.read", "webhooks.write",
+] as const;
+
+/** All valid capability strings */
+export type Capability = (typeof ALL_CAPABILITIES)[number];
 
 /**
  * Capabilities satisfied only by literal membership in a key's capability

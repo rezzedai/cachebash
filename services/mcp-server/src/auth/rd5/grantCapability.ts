@@ -13,6 +13,8 @@
  * wildcard or defaults.
  */
 
+import { ALL_CAPABILITIES } from "../../middleware/capabilities.js";
+
 export type GrantPlan =
   | { ok: true; before: string[]; after: string[]; alreadyHeld: boolean }
   | { ok: false; reason: string };
@@ -28,6 +30,10 @@ export function planGrant(
   }
   if (capability === "*") {
     return { ok: false, reason: "refusing to add the wildcard \"*\"" };
+  }
+  if (!(ALL_CAPABILITIES as readonly string[]).includes(capability)) {
+    const valid = ALL_CAPABILITIES.filter((c) => c !== "*").join(", ");
+    return { ok: false, reason: `unknown capability ${capability}; valid: ${valid}` };
   }
   if (!data) return { ok: false, reason: "key document not found" };
 
