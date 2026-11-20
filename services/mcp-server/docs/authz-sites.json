@@ -307,14 +307,14 @@
     {
       "id": "NL-REST-RELAY-MOBILE",
       "file": "transport/rest.ts",
-      "line": 471,
+      "line": 475,
       "name": "POST /v1/relay/messages mobile branch",
       "members": [
         "mobile"
       ],
       "layer": "rest",
       "guard_sites": [
-        "transport/rest.ts:471"
+        "transport/rest.ts:475"
       ],
       "guards": [
         "route POST /v1/relay/messages"
@@ -3641,7 +3641,7 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:514)",
+      "binding_today": "none in handler; REST route adds requireAdmin (rest.ts:518)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "done",
@@ -4357,7 +4357,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 448,
+      "line_at_base": 452,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4372,7 +4372,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:448 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
+      "evidence": "rest.ts:452 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4382,7 +4382,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 788,
+      "line_at_base": 792,
       "tool": "state_get_program_state",
       "transports": [
         "rest"
@@ -4405,7 +4405,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 793,
+      "line_at_base": 797,
       "tool": "state_update_program_state",
       "transports": [
         "rest"
@@ -4428,7 +4428,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 798,
+      "line_at_base": 802,
       "tool": "state_get_context_history",
       "transports": [
         "rest"
@@ -4451,7 +4451,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 805,
+      "line_at_base": 809,
       "tool": "state_store_memory",
       "transports": [
         "rest"
@@ -4474,7 +4474,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 810,
+      "line_at_base": 814,
       "tool": "state_recall_memory",
       "transports": [
         "rest"
@@ -4497,7 +4497,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 814,
+      "line_at_base": 818,
       "tool": "state_delete_memory",
       "transports": [
         "rest"
@@ -4520,7 +4520,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 819,
+      "line_at_base": 823,
       "tool": "state_reinforce_memory",
       "transports": [
         "rest"
@@ -4543,7 +4543,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 823,
+      "line_at_base": 827,
       "tool": "state_memory_health",
       "transports": [
         "rest"
@@ -4566,7 +4566,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 857,
+      "line_at_base": 861,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4581,7 +4581,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:857 passes sessionId (default \"peek\").",
+      "evidence": "rest.ts:861 passes sessionId (default \"peek\").",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
@@ -4591,20 +4591,20 @@
       "expr": "body.programId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 942,
+      "line_at_base": 946,
       "tool": null,
       "transports": [
         "rest"
       ],
       "effect": "write",
-      "binding_today": "capabilities.includes(\"*\") (rest.ts:940)",
+      "binding_today": "capabilities.includes(\"*\") (rest.ts:944)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rest.ts:942 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
+      "evidence": "rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
     },
     {
       "id": "rest.route GET /v1/tasks/stats:getFirestore()",
@@ -4690,7 +4690,7 @@
       "class": "rest-getfirestore",
       "anchor": "list_sessions",
       "occurrences": 1,
-      "line_at_base": 536,
+      "line_at_base": 540,
       "tool": null,
       "transports": [
         "rest"
@@ -4715,7 +4715,7 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 597,
+      "line_at_base": 601,
       "tool": null,
       "transports": [
         "rest"
@@ -4740,7 +4740,7 @@
       "class": "rest-getfirestore",
       "anchor": "getFirestore()",
       "occurrences": 1,
-      "line_at_base": 751,
+      "line_at_base": 755,
       "tool": null,
       "transports": [
         "rest"
@@ -4765,7 +4765,7 @@
       "class": "rest-direct-handler",
       "anchor": "budgetSummaryHandler(",
       "occurrences": 1,
-      "line_at_base": 664,
+      "line_at_base": 668,
       "tool": null,
       "transports": [
         "rest"
@@ -4790,7 +4790,7 @@
       "class": "rest-direct-handler",
       "anchor": "dream_peek",
       "occurrences": 1,
-      "line_at_base": 705,
+      "line_at_base": 709,
       "tool": null,
       "transports": [
         "rest"
@@ -4815,7 +4815,7 @@
       "class": "rest-direct-handler",
       "anchor": "gspListNamespacesHandler(",
       "occurrences": 1,
-      "line_at_base": 729,
+      "line_at_base": 733,
       "tool": null,
       "transports": [
         "rest"
@@ -4840,7 +4840,7 @@
       "class": "rest-direct-handler",
       "anchor": "dream_peek",
       "occurrences": 1,
-      "line_at_base": 861,
+      "line_at_base": 865,
       "tool": null,
       "transports": [
         "rest"
@@ -4865,7 +4865,7 @@
       "class": "rest-direct-handler",
       "anchor": "enrollHandler(",
       "occurrences": 1,
-      "line_at_base": 978,
+      "line_at_base": 982,
       "tool": null,
       "transports": [
         "rest"
@@ -5577,7 +5577,7 @@
       "handler": "route POST /admin/reset-program-cache",
       "expr": "auth.programId",
       "occurrences": 1,
-      "line_at_base": 953,
+      "line_at_base": 957,
       "status": "pending"
     },
     {

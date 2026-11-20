@@ -273,7 +273,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/pulse.ts`, handler `listSessionsHandler`, expression `args.programId`, line 747 at base, 1 occurrence(s).
 - Tool: pulse_list_sessions; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
-- Binding today: none in handler; REST route adds requireAdmin (rest.ts:514).
+- Binding today: none in handler; REST route adds requireAdmin (rest.ts:518).
 - Evidence: pulse.ts:764 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -429,16 +429,16 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/messages:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 448 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 452 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: rest.ts:448 passes sessionId (default "rest") into the handler, which applies relay.ts:473-481.
+- Evidence: rest.ts:452 passes sessionId (default "rest") into the handler, which applies relay.ts:473-481.
 - Recommendation: Disposition follows the relay_get_messages records.
 
 ### `rest.route GET /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 788 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 792 at base, 1 occurrence(s).
 - Tool: state_get_program_state; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_program_state; the gate is in the handler.
@@ -446,7 +446,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 793 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 797 at base, 1 occurrence(s).
 - Tool: state_update_program_state; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_update_program_state; the gate is in the handler.
@@ -454,7 +454,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/program-state/:programId/context-history:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 798 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 802 at base, 1 occurrence(s).
 - Tool: state_get_context_history; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_context_history; the gate is in the handler.
@@ -462,7 +462,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route POST /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 805 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 809 at base, 1 occurrence(s).
 - Tool: state_store_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_store_memory; the gate is in the handler.
@@ -470,7 +470,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 810 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 814 at base, 1 occurrence(s).
 - Tool: state_recall_memory; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_recall_memory; the gate is in the handler.
@@ -478,7 +478,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 814 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 818 at base, 1 occurrence(s).
 - Tool: state_delete_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_delete_memory; the gate is in the handler.
@@ -486,7 +486,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 819 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 823 at base, 1 occurrence(s).
 - Tool: state_reinforce_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.
@@ -494,7 +494,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/health:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 823 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 827 at base, 1 occurrence(s).
 - Tool: state_memory_health; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_memory_health; the gate is in the handler.
@@ -502,11 +502,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/interrupts/peek:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 857 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 861 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect read; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages with markAsRead false (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: rest.ts:857 passes sessionId (default "peek").
+- Evidence: rest.ts:861 passes sessionId (default "peek").
 - Recommendation: Disposition follows the relay_get_messages records.
 
 ### `interventions.abortTaskHandler:args.taskId`
@@ -695,7 +695,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
-| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:940) | rest.ts:942 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
+| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:944) | rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
 ## NOT-IDENTITY (11)
 
@@ -758,19 +758,19 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | rest.route GET /v1/tasks/stats:getFirestore() | 324 | FOREIGN-READ | enforceBreaker get_tasks plus authorizeTasksRead on credentialPrincipal(auth) (PR-M row 3) |
 | rest.route GET /v1/messages/unread:getFirestore() | 421 | SELF-ONLY | no direct Firestore read: callTool get_messages (PR-M row 1) |
 | rest.route POST /v1/messages/mark_read:getFirestore() | 439 | SELF-ONLY | enforceBreaker relay_mark_read, then markReadHandler per id: target is the principal, or RELAY_READ_ALL_PRINCIPALS; broadcast ids never change state (M-D1, PR-M row 2) |
-| rest.route GET /v1/sessions/history:getFirestore() | 536 | FOREIGN-READ | callTool list_sessions with includeArchived:true: self, PULSE_PRIV or fleet.observe (PR-L row 4; PR-M row 5, M-D2) |
-| rest.route GET /v1/sprints/active:getFirestore() | 597 | FOREIGN-READ | enforceBreaker sprint_get_sprint (sprint.read), then each sprint passes mayActOnSprint(read) on credentialPrincipal(auth); others are dropped (PR-M row 6) |
-| rest.route GET /v1/gsp/proposals:getFirestore() | 751 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); tenant-wide by ruling M-D3 (PR-M row 7) |
+| rest.route GET /v1/sessions/history:getFirestore() | 540 | FOREIGN-READ | callTool list_sessions with includeArchived:true: self, PULSE_PRIV or fleet.observe (PR-L row 4; PR-M row 5, M-D2) |
+| rest.route GET /v1/sprints/active:getFirestore() | 601 | FOREIGN-READ | enforceBreaker sprint_get_sprint (sprint.read), then each sprint passes mayActOnSprint(read) on credentialPrincipal(auth); others are dropped (PR-M row 6) |
+| rest.route GET /v1/gsp/proposals:getFirestore() | 755 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); tenant-wide by ruling M-D3 (PR-M row 7) |
 
 ### 2. Calls that skip callTool (rest.ts:666, 707, 729, 859, and enrollHandler at 975)
 
 | Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| rest.route GET /v1/budget/summary:budgetSummaryHandler | 664 | NOT-IDENTITY | enforceBreaker metrics_get_cost_summary (metrics.read); tenant aggregate by ruling M-D4 (PR-M row 8) |
-| rest.route GET /v1/dreams:dreamPeekHandler | 705 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
-| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | 729 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); namespace list is tenant-wide (PR-M row 10) |
-| rest.route GET /v1/dreams/peek:dreamPeekHandler | 861 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
-| rest.createRestRouter:enrollHandler | 978 | NOT-IDENTITY | none by design: public pre-auth route /enroll; the enrollment token is the credential and ENROLLMENT_PROGRAM_ID binds the identity (M-D5) |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | 668 | NOT-IDENTITY | enforceBreaker metrics_get_cost_summary (metrics.read); tenant aggregate by ruling M-D4 (PR-M row 8) |
+| rest.route GET /v1/dreams:dreamPeekHandler | 709 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | 733 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); namespace list is tenant-wide (PR-M row 10) |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | 865 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
+| rest.createRestRouter:enrollHandler | 982 | NOT-IDENTITY | none by design: public pre-auth route /enroll; the enrollment token is the credential and ENROLLMENT_PROGRAM_ID binds the identity (M-D5) |
 
 ### 3. Object-id handlers named in plan section 6
 
@@ -882,28 +882,28 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
 | rest.route GET /v1/tasks/stats:query.target | a | 1 | 316 | FOREIGN-READ | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:query.sessionId | a | 1 | 423 | SELF-ONLY | ISO | PR-M | false |
-| rest.route GET /v1/messages:query.sessionId | a | 1 | 448 | ESCALATE | C-5 | PR-K | false |
-| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 788 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 793 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 798 | ESCALATE | C-5 | PR-J | false |
-| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 805 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 810 | ESCALATE | C-5 | PR-J | false |
-| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 814 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 819 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 857 | ESCALATE | C-5 | PR-K | false |
-| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 942 | ATTRIBUTION | ISO | n/a | false |
+| rest.route GET /v1/messages:query.sessionId | a | 1 | 452 | ESCALATE | C-5 | PR-K | false |
+| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 792 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 797 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 802 | ESCALATE | C-5 | PR-J | false |
+| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 809 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 814 | ESCALATE | C-5 | PR-J | false |
+| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 818 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 827 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 861 | ESCALATE | C-5 | PR-K | false |
+| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 946 | ATTRIBUTION | ISO | n/a | false |
 | rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 324 | FOREIGN-READ | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 421 | SELF-ONLY | ISO | PR-M | false |
 | rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 439 | SELF-ONLY | ISO | PR-M | false |
-| rest.route GET /v1/sessions/history:getFirestore() | none | 1 | 536 | FOREIGN-READ | C-5 | PR-M | false |
-| rest.route GET /v1/sprints/active:getFirestore() | none | 1 | 597 | FOREIGN-READ | C-5 | PR-M | false |
-| rest.route GET /v1/gsp/proposals:getFirestore() | none | 1 | 751 | NOT-IDENTITY | ISO | PR-M | false |
-| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | 1 | 664 | NOT-IDENTITY | ISO | PR-M | false |
-| rest.route GET /v1/dreams:dreamPeekHandler | none | 1 | 705 | NOT-IDENTITY | ISO | PR-M | false |
-| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | 1 | 729 | NOT-IDENTITY | ISO | PR-M | false |
-| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | 1 | 861 | NOT-IDENTITY | ISO | PR-M | false |
-| rest.createRestRouter:enrollHandler | none | 1 | 978 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/sessions/history:getFirestore() | none | 1 | 540 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/sprints/active:getFirestore() | none | 1 | 601 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/gsp/proposals:getFirestore() | none | 1 | 755 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | 1 | 668 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/dreams:dreamPeekHandler | none | 1 | 709 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | 1 | 733 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | 1 | 865 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.createRestRouter:enrollHandler | none | 1 | 982 | NOT-IDENTITY | ISO | PR-M | false |
 | interventions.abortTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | interventions.escalateTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | interventions.approveTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
@@ -1110,7 +1110,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:45` [iso] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:100` [iso] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1216` [vector, iso, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
-| NL-REST-RELAY-MOBILE `transport/rest.ts:471` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
+| NL-REST-RELAY-MOBILE `transport/rest.ts:475` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:43` [mobile, iso, alan, vector, quorra, radia, casp, sark, basher] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
 | NL-GSP-REVIEWERS `modules/gsp.ts:617` [iso, vector] (routing) | gsp_propose | members seen: none |
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
@@ -1169,7 +1169,7 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
 | S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 180 |
 | S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 302 |
-| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 953 |
+| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 957 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 835 |
