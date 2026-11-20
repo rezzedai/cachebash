@@ -294,4 +294,28 @@ describe("L fleet paths", () => {
     const observed = await callTool(w, w.creds.observer, "dispatch_get_task_by_id", { taskId: w.seed.A.alpha.taskId });
     expect(observed.text).toContain(marker("A", "alpha"));
   });
+
+  // row 16 (K-D1): the dispatcher claims for a builder; the builder completes and records telemetry. Another program may not.
+  const completedByDelegation = async (w: World): Promise<{ taskId: string; beta: WorldCredential }> => {
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-telemetry", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-beta-telemetry", ["*"]);
+    const made = await callTool(w, w.stateSeeders.A, "dispatch_create_task", { title: `l-tel-${nextN()}`, target: "beta", source: "legacy", instructions: "l-tel" });
+    const taskId = made.json?.taskId as string;
+    expect((await callTool(w, dispatcher, "dispatch_claim_task", { taskId, sessionId: "beta" })).json?.success).toBe(true);
+    const done = await callTool(w, beta, "dispatch_complete_task", { taskId, completed_status: "SUCCESS", model: "probe", provider: "probe", result: "l" });
+    expect(done.json?.success).toBe(true);
+    return { taskId, beta };
+  };
+  probe("L.telemetry_delegated_claim", async () => {
+    const w = world();
+    const { taskId, beta } = await completedByDelegation(w);
+    const r = await callTool(w, beta, "dispatch_record_task_telemetry", { taskId, tokens_in: 1, tokens_out: 2, cost_usd: 0.01 });
+    expect(r.json?.success).toBe(true);
+  });
+  test("L.telemetry_delegated_claim control: another program is refused", async () => {
+    const w = world();
+    const { taskId } = await completedByDelegation(w);
+    const r = await callTool(w, w.creds.scoped, "dispatch_record_task_telemetry", { taskId, tokens_in: 1, tokens_out: 2, cost_usd: 0.01 });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
 });

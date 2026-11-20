@@ -5588,15 +5588,6 @@
     },
     {
       "rule": "S1",
-      "file": "modules/dispatch/completion.ts",
-      "handler": "recordTaskTelemetryHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 1026,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
       "file": "modules/dispatch/reapExpiredTasks.ts",
       "handler": "reapExpiredTasksHandler",
       "expr": "auth.programId",

@@ -1005,6 +1005,9 @@ const RecordTaskTelemetrySchema = z.object({
  * overwritten. Caller must be the completing program (claimedBy) or admin.
  * Only telemetry fields are writable — this is not a task-update backdoor.
  */
+/** Principals that record telemetry on any completed task (amendment 3 ADMIN-PROGRAMS, completion.ts). */
+const TELEMETRY_PRIV = ["mobile", "dispatcher"] as const;
+
 export async function recordTaskTelemetryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = RecordTaskTelemetrySchema.parse(rawArgs);
   const db = getFirestore();
@@ -1022,10 +1025,11 @@ export async function recordTaskTelemetryHandler(auth: AuthContext, rawArgs: unk
         return { success: false as const, error: `Telemetry can only be recorded on completed tasks (status: ${data.status})` };
       }
 
-      const { isAdmin } = await import("../../middleware/gate.js");
-      if (!isAdmin(auth) && data.claimedBy !== auth.programId) {
-        logDenial({ principal: denialPrincipal(auth), tool: "dispatch_record_task_telemetry", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
-        return { success: false as const, error: "Only the completing program or admin can record telemetry" };
+      // RD-5 PR-L row 16: K-D1 ownership (claimedBy, or the dispatcher's delegated claim) or mobile and dispatcher; bound to credentialPrincipal.
+      const telemetryCaller = credentialPrincipal(auth);
+      if (!isTaskOwner(data, telemetryCaller) && !(TELEMETRY_PRIV as readonly string[]).includes(telemetryCaller)) {
+        logDenial({ principal: telemetryCaller, tool: "dispatch_record_task_telemetry", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
+        return { success: false as const, error: `Only the completing program or admin can record telemetry (caller "${telemetryCaller}")` };
       }
 
       const updates: Record<string, unknown> = {};

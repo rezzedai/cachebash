@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 36 AST baseline rows.
+114 site records, 111 handler entries, 35 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 31 | 120 |
+| S1 | 30 | 119 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1245,7 +1245,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 297 |
 | S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 9 | 511 |
 | S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 6 | 845 |
-| S1 | modules/dispatch/completion.ts | recordTaskTelemetryHandler | `auth.programId` | 1 | 1026 |
 | S1 | modules/dispatch/reapExpiredTasks.ts | reapExpiredTasksHandler | `auth.programId` | 2 | 221 |
 | S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1218 |
 | S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1379 |
