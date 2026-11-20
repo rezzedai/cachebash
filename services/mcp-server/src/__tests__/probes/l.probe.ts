@@ -279,4 +279,19 @@ describe("L fleet paths", () => {
     const u = await callTool(w, await fleetAdmin(w), "dispatch_unquarantine_program", { programId: "beta" });
     expect(u.json?.success).toBe(true);
   });
+
+  // row 14: a task is read by a party to it, TASKS_ALL_PRINCIPALS or fleet.observe.
+  probe("L.task_by_id_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "dispatch_get_task_by_id", { taskId: w.seed.A.beta.taskId });
+    expect(denialNames(r, "alpha")).toBe(true);
+    expect(r.text).not.toContain(marker("A", "beta"));
+  });
+  test("L.task_by_id_foreign_denied control: the target and an observer read the task", async () => {
+    const w = world();
+    const own = await callTool(w, w.creds.scoped, "dispatch_get_task_by_id", { taskId: w.seed.A.alpha.taskId });
+    expect(own.text).toContain(marker("A", "alpha"));
+    const observed = await callTool(w, w.creds.observer, "dispatch_get_task_by_id", { taskId: w.seed.A.alpha.taskId });
+    expect(observed.text).toContain(marker("A", "alpha"));
+  });
 });

@@ -106,9 +106,5 @@
   "T6.admin_merge_accounts_legacy_cross_tenant": {
     "closes_in": "PR-L",
     "hole": "a legacy key in tenant B merges a uid into tenant A's canonical account: the gate checks programId == legacy and never compares canonicalUid to the caller's tenant (account-merge.ts)"
-  },
-  "T2.dispatch_get_tasks_sprint": {
-    "closes_in": "PR-L",
-    "hole": "type sprint or sprint-story skips the target filter, so any key reads any target's stories (K-D5 option 1, tasks.ts)"
   }
 }

@@ -1,12 +1,13 @@
-# mutation for probe L.fleet_path_orchestrator_reads_sent_task: the task source is not a party to get_task_by_id
+# mutation for probe L.fleet_path_orchestrator_reads_sent_task: the sender is no longer a party to the task it sent
 diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
 --- a/src/modules/dispatch/tasks.ts
 +++ b/src/modules/dispatch/tasks.ts
-@@ -589,6 +589,7 @@ export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): P
+@@ -594,7 +594,7 @@
+ 
+   // RD-5 PR-L row 14: a party to the task (sender, target or owner), TASKS_ALL_PRINCIPALS, or the literal fleet.observe capability. Decided before decrypt.
+   const reader = credentialPrincipal(auth);
+-  if (!isTaskParty(data, reader) && !(TASKS_ALL_PRINCIPALS as readonly string[]).includes(reader) && !hasFleetObserveCapability(auth)) {
++  if (!(data.target === reader) && !(TASKS_ALL_PRINCIPALS as readonly string[]).includes(reader) && !hasFleetObserveCapability(auth)) {
+     logDenial({ principal: reader, tool: "dispatch_get_task_by_id", subject: typeof data.target === "string" ? data.target : null, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${reader}" cannot read task "${args.taskId}"` });
    }
- 
-   const data = doc.data()!;
-+  if (data.target !== auth.programId && auth.programId !== "dispatcher") return jsonResult({ success: false, error: "mutation: source party dropped from get_task_by_id" });
-   const decrypted = decryptTaskFields(data, auth.encryptionKey);
- 
-   return jsonResult({

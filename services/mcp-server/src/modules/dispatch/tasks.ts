@@ -15,7 +15,7 @@ import { emitEvent, classifyTask, type TaskClass } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
 import { generateSpanId } from "../../utils/trace.js";
 import { notifyDispatcher } from "../../webhooks/dispatcher-notify.js";
-import { type ToolResult, jsonResult, decryptTaskFields } from "./shared.js";
+import { type ToolResult, jsonResult, decryptTaskFields, isTaskParty } from "./shared.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { FieldValue, Timestamp, Query, QueryDocumentSnapshot, DocumentData, DocumentReference } from "firebase-admin/firestore";
 
@@ -164,10 +164,10 @@ export async function getTasksHandler(auth: AuthContext, rawArgs: unknown): Prom
   // (a) Caller named a specific target: query exactly that target. A foreign target needs a TASKS_ALL_PRINCIPALS
   //     name or the literal fleet.observe capability (the fleet supervision path). NEVER fall back to caller scope.
   // (b) No target: TASKS_ALL_PRINCIPALS see everything; every other key defaults to own queue + broadcast.
-  // Sprint types skip the target filter (K-D5 option 1; closes in PR-L via known-open T2.dispatch_get_tasks_sprint).
+  // RD-5 PR-L row 15 (K-D5 option 2): a named target is authorized and filtered for every type, sprint types included. A sprint read with no target is unchanged.
   const { allowed, principal, seesAll } = authorizeTasksRead(auth, args.target);
   const sprintType = args.type === "sprint" || args.type === "sprint-story";
-  if (args.target && !sprintType) {
+  if (args.target) {
     if (!allowed) {
       logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: args.target ?? null, code: "FOREIGN_SUBJECT" });
       return jsonResult({
@@ -591,6 +591,14 @@ export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): P
   }
 
   const data = doc.data()!;
+
+  // RD-5 PR-L row 14: a party to the task (sender, target or owner), TASKS_ALL_PRINCIPALS, or the literal fleet.observe capability. Decided before decrypt.
+  const reader = credentialPrincipal(auth);
+  if (!isTaskParty(data, reader) && !(TASKS_ALL_PRINCIPALS as readonly string[]).includes(reader) && !hasFleetObserveCapability(auth)) {
+    logDenial({ principal: reader, tool: "dispatch_get_task_by_id", subject: typeof data.target === "string" ? data.target : null, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${reader}" cannot read task "${args.taskId}"` });
+  }
+
   const decrypted = decryptTaskFields(data, auth.encryptionKey);
 
   return jsonResult({
