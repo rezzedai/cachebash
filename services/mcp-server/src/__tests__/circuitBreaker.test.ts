@@ -7,10 +7,12 @@
  */
 
 import type { AuthContext } from "../auth/authValidator";
+import { TOOL_CAPABILITIES } from "../middleware/capabilities";
 import {
   checkCircuitBreaker,
   isMutatingTool,
   isDispatchFamilyMutation,
+  DISPATCH_PAUSE_EXEMPT,
   pruneWindow,
   countInWindow,
   resetCircuitBreakerState,
@@ -284,15 +286,18 @@ describe("tenant isolation", () => {
 });
 
 describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
-  const DISPATCH_FAMILY = [
-    "dispatch_create_task", "dispatch_claim_task", "dispatch_unclaim_task", "dispatch_complete_task",
-    "dispatch_record_task_telemetry", "dispatch_batch_claim_tasks", "dispatch_batch_complete_tasks",
-    "dispatch_dispatch", "dispatch_retry_task", "dispatch_abort_task", "dispatch_reassign_task",
-    "dispatch_escalate_task", "dispatch_replay_task", "dispatch_approve_task",
-    "dispatch_quarantine_program", "dispatch_unquarantine_program",
-    // legacy aliases resolve to the same family
-    "create_task", "claim_task", "complete_task", "dispatch",
+  // Denied under dispatchPaused: tools that start or move work.
+  const DISPATCH_DENIED = [
+    "dispatch_create_task", "dispatch_claim_task", "dispatch_batch_claim_tasks", "dispatch_dispatch",
+    "dispatch_retry_task", "dispatch_replay_task", "dispatch_reassign_task", "dispatch_approve_task",
   ];
+  // Exempt: wind-down and containment tools stay open under dispatchPaused.
+  const DISPATCH_EXEMPT = [
+    "dispatch_complete_task", "dispatch_batch_complete_tasks", "dispatch_unclaim_task", "dispatch_abort_task",
+    "dispatch_record_task_telemetry", "dispatch_escalate_task",
+    "dispatch_quarantine_program", "dispatch_unquarantine_program",
+  ];
+  const DISPATCH_FAMILY = [...DISPATCH_DENIED, "create_task", "claim_task", "dispatch"]; // + legacy aliases
   // Boot path and everything else: not dispatch family, so allowed under dispatchPaused.
   const BOOT_AND_OTHER = [
     "gsp_bootstrap", "gsp_read", "gsp_write",
@@ -301,9 +306,23 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     "dispatch_get_tasks", "dispatch_get_task_by_id", "get_tasks",
   ];
 
-  it("exposes the dispatch family as the mutating dispatch_* tools", () => {
+  it("pins both sets: every dispatch_ tool in TOOL_CAPABILITIES is placed in exactly one, so a new tool fails here until placed", () => {
+    const mutatingDispatch = Object.keys(TOOL_CAPABILITIES).filter((t) => t.startsWith("dispatch_") && isMutatingTool(t)).sort();
+    expect(mutatingDispatch.filter((t) => isDispatchFamilyMutation(t)).sort()).toEqual([...DISPATCH_DENIED].sort());
+    expect([...DISPATCH_PAUSE_EXEMPT].sort()).toEqual([...DISPATCH_EXEMPT].sort());
+    expect(mutatingDispatch).toEqual([...DISPATCH_DENIED, ...DISPATCH_EXEMPT].sort());
+    expect(DISPATCH_DENIED).toHaveLength(8);
+    expect(DISPATCH_EXEMPT).toHaveLength(8);
+  });
+
+  it("classifies denied, exempt and other tools", () => {
     for (const t of DISPATCH_FAMILY) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: true });
-    for (const t of BOOT_AND_OTHER) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: false });
+    for (const t of [...DISPATCH_EXEMPT, "complete_task", "abort_task", ...BOOT_AND_OTHER]) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: false });
+  });
+
+  it.each(DISPATCH_EXEMPT)("wind-down/containment: %s stays allowed under dispatchPaused", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    expect(await checkCircuitBreaker(auth(), tool)).toEqual({ allowed: true });
   });
 
   it.each(DISPATCH_FAMILY)("denies %s with DISPATCH_PAUSED", async (tool) => {

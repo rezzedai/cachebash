@@ -27,6 +27,8 @@ describe("T7 dispatch pause", () => {
     const c = w.creds.scoped;
     const before = await callTool(w, c, "dispatch_create_task", create("t7-control"));
     expect(before.isError).toBe(false); // control: same call succeeds while the flag is off
+    const taskId = before.json?.taskId ?? before.json?.id ?? before.json?.task?.id;
+    expect(typeof taskId).toBe("string");
     const denied = await withDispatchPaused(c.tenantUid, async () => ({
       create: await callTool(w, c, "dispatch_create_task", create("t7-denied")),
       alias: await callTool(w, c, "create_task", create("t7-denied-alias")),
@@ -36,6 +38,10 @@ describe("T7 dispatch pause", () => {
       expect(r.isError).toBe(true);
       expect(r.json?.error).toBe("DISPATCH_PAUSED");
     }
+    // wind-down stays open: aborting the task created before the flag is not a pause denial
+    const abort = await withDispatchPaused(c.tenantUid, () => callTool(w, c, "dispatch_abort_task", { taskId, reason: "t7 wind-down" }));
+    expect(abort.text).not.toContain("DISPATCH_PAUSED");
+    expect(abort.isError).toBe(false);
     const after = await callTool(w, c, "dispatch_create_task", create("t7-after"));
     expect(after.isError).toBe(false); // clearing the flag restores dispatch
   });

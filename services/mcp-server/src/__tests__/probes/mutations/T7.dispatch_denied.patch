@@ -1,9 +1,9 @@
 # mutation for probe T7.dispatch_denied: dispatchPaused is read but never enforced
 diff --git a/src/middleware/circuitBreaker.ts b/src/middleware/circuitBreaker.ts
-index bdf9919..8efd8c9 100644
+index 5cf285b..7378411 100644
 --- a/src/middleware/circuitBreaker.ts
 +++ b/src/middleware/circuitBreaker.ts
-@@ -215,7 +215,7 @@ export async function checkCircuitBreaker(auth: AuthContext, toolName: string):
+@@ -234,7 +234,7 @@ export async function checkCircuitBreaker(auth: AuthContext, toolName: string):
      return { allowed: false, code: "CEILING_ORG_PAUSED", message, retryAfterMs: config.windowMs };
    }
  

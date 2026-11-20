@@ -20,8 +20,10 @@
  * config is read fresh (no cross-request cache) on every mutating call,
  * flipping `paused` takes effect on the very next request.
  *
- * Dispatch pause (RD-5 C-3): config.dispatchPaused denies only the mutating
- * dispatch family (see isDispatchFamilyMutation) with code DISPATCH_PAUSED.
+ * Dispatch pause (RD-5 C-3): config.dispatchPaused stops NEW work. It denies the
+ * mutating dispatch_* tools that start or move work (see isDispatchFamilyMutation)
+ * with code DISPATCH_PAUSED, and leaves wind-down and containment tools open
+ * (DISPATCH_PAUSE_EXEMPT), so builders can finish and quarantine still works.
  * Every other tool, including gsp_bootstrap (mapped to gsp.write, so the wider
  * `paused` switch denies it), state reads and relay messages, is unaffected, so
  * programs still boot while dispatch is refused. Nothing under src/ writes this
@@ -100,16 +102,33 @@ export function isMutatingTool(toolName: string): boolean {
 }
 
 /**
- * The dispatch family denied by `dispatchPaused`: every mutating tool whose
- * canonical name starts with `dispatch_` (create, claim, unclaim, complete,
- * batch claim/complete, dispatch, retry, abort, reassign, escalate, replay,
- * approve, record telemetry, quarantine, unquarantine). Legacy aliases
- * (create_task, claim_task, ...) resolve to canonical first. Reads such as
+ * Mutating dispatch_* tools that stay open under `dispatchPaused`: they wind down or
+ * contain work. Completing and unclaiming let builders finish mid-task, abort and
+ * escalate end work, telemetry records what ran, and quarantine/unquarantine are the
+ * containment tools a rollback needs. A new mutating dispatch_* tool is NOT in this
+ * set, so it is denied by default (fail closed) until someone places it.
+ */
+export const DISPATCH_PAUSE_EXEMPT: ReadonlySet<string> = new Set([
+  "dispatch_complete_task",
+  "dispatch_batch_complete_tasks",
+  "dispatch_unclaim_task",
+  "dispatch_abort_task",
+  "dispatch_record_task_telemetry",
+  "dispatch_escalate_task",
+  "dispatch_quarantine_program",
+  "dispatch_unquarantine_program",
+]);
+
+/**
+ * The tools denied by `dispatchPaused`: mutating tools whose canonical name starts with
+ * `dispatch_`, minus DISPATCH_PAUSE_EXEMPT. Today that is create_task, claim_task,
+ * batch_claim_tasks, dispatch, retry_task, replay_task, reassign_task, approve_task.
+ * Legacy aliases (create_task, ...) resolve to canonical first. Reads such as
  * dispatch_get_tasks stay allowed, and gsp_*, state_*, relay_* are not in it.
  */
 export function isDispatchFamilyMutation(toolName: string): boolean {
   const canonical = resolveToolAlias(toolName);
-  return canonical.startsWith("dispatch_") && isMutatingTool(canonical);
+  return canonical.startsWith("dispatch_") && isMutatingTool(canonical) && !DISPATCH_PAUSE_EXEMPT.has(canonical);
 }
 
 // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---
