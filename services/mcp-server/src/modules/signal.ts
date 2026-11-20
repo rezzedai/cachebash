@@ -10,6 +10,9 @@ import { encryptQuestionData, decrypt, isEncrypted } from "../encryption/crypto.
 import { CONSTANTS } from "../config/constants.js";
 import { z } from "zod";
 import { Timestamp } from "firebase-admin/firestore";
+import { credentialPrincipal, hasFleetAdminCapability, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { logDenial } from "../auth/denialLog.js";
+import { TASK_OVERRIDE_PRINCIPALS } from "./dispatch/shared.js";
 
 const AskQuestionSchema = z.object({
   question: z.string().max(2000),
@@ -76,6 +79,7 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
     instructions: "",
     preview,
     source: "program",
+    askedBy: credentialPrincipal(auth), // RD-5 PR-L L-D8: who asked; get_response reads it
     target: "user",
     priority: args.priority,
     action: "queue",
@@ -117,6 +121,15 @@ export async function askQuestionHandler(auth: AuthContext, rawArgs: unknown): P
   });
 }
 
+/** Principals that read a question response whatever its asker (mobile is the owner's phone). */
+const RESPONSE_READERS: readonly string[] = ["mobile"];
+
+function mayReadResponse(auth: AuthContext, reader: string, askedBy: unknown): boolean {
+  if (RESPONSE_READERS.includes(reader)) return true;
+  if (typeof askedBy === "string" && askedBy !== "") return askedBy === reader || hasFleetObserveCapability(auth);
+  return (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(reader) || hasFleetAdminCapability(auth);
+}
+
 export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = GetResponseSchema.parse(rawArgs);
   const db = getFirestore();
@@ -127,6 +140,15 @@ export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): P
   }
 
   const data = doc.data()!;
+
+  // RD-5 PR-L row 32 (L-D8, 20.1 item 3): the asker, mobile or a literal fleet.observe holder reads the response. A question with no
+  // askedBy fails closed: only the override principals, literal fleet.admin or mobile read it (the backfill script sets the field).
+  const reader = credentialPrincipal(auth);
+  if (!mayReadResponse(auth, reader, data.askedBy)) {
+    logDenial({ principal: reader, tool: "signal_get_response", subject: typeof data.askedBy === "string" ? data.askedBy : null, code: "NOT_OWNER" });
+    return jsonResult({ success: false, error: `Access denied: "${reader}" cannot read the response to question "${args.questionId}"` });
+  }
+
   const question = data.question as Record<string, unknown> | undefined;
 
   if (data.status === "done" && question?.response) {

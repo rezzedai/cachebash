@@ -1,0 +1,13 @@
+# mutation for probe L.signal_unattributed_fail_closed: a question with no askedBy is readable by any key
+diff --git a/src/modules/signal.ts b/src/modules/signal.ts
+--- a/src/modules/signal.ts
++++ b/src/modules/signal.ts
+@@ -127,7 +127,7 @@
+ function mayReadResponse(auth: AuthContext, reader: string, askedBy: unknown): boolean {
+   if (RESPONSE_READERS.includes(reader)) return true;
+   if (typeof askedBy === "string" && askedBy !== "") return askedBy === reader || hasFleetObserveCapability(auth);
+-  return (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(reader) || hasFleetAdminCapability(auth);
++  return Boolean(auth);
+ }
+ 
+ export async function getResponseHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {

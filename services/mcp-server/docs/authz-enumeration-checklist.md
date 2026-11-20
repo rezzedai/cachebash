@@ -54,7 +54,7 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 | (a) occurrences | 321 |
 | (a) lines | 296 |
 | (a) files | 18 |
-| (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
+| (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
 
 Expected at the base: 271 occurrences, 255 lines, 18 files; 59; 3. Differs from expected: no.
@@ -788,8 +788,8 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:535, :543 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
 | rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:84) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
-| signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:219) | Stored as a label on the alert document; selects nothing. |
-| signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:279) | Passed into writeAlertDocs as a stored label; selects nothing. |
+| signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
+| signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
 | rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:942) | rest.ts:944 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
 ## NOT-IDENTITY (5)
@@ -799,7 +799,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | suggestion.suggestTargetHandler:p.programId | dispatch_suggest_target | n/a | suggestion.ts:87 is a map callback variable over ranked program rows, not a request argument. |
 | patternConsolidation.consolidatePatternsHandler:p.programId | pattern_consolidate | n/a | patternConsolidation.ts:238 and :313 are loop variables over program documents, not request arguments (recon section 8). |
 | programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:376 is a map callback variable over registry rows. |
-| signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:274-280), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
+| signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:296-302), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
 | callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
 
 ## SELF-ONLY (9)
@@ -952,9 +952,9 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | schedule.paginateAndFilter:args.target | a | 2 | 209 | ESCALATE | ISO | PR-L | false |
 | schedule.listSchedulesHandler:args.target | a | 8 | 224 | ESCALATE | ISO | PR-L | false |
 | schedule.updateScheduleHandler:args.target | a | 6 | 325 | ESCALATE | ISO | PR-L | false |
-| signal.writeAlertDocs:input.source | b | 2 | 213 | NOT-IDENTITY | ISO | n/a | false |
-| signal.writeAlertDocs:input.sessionId | b | 1 | 219 | ATTRIBUTION | ISO | n/a | false |
-| signal.sendAlertHandler:args.sessionId | a | 1 | 279 | ATTRIBUTION | ISO | n/a | false |
+| signal.writeAlertDocs:input.source | b | 2 | 235 | NOT-IDENTITY | ISO | n/a | false |
+| signal.writeAlertDocs:input.sessionId | b | 1 | 241 | ATTRIBUTION | ISO | n/a | false |
+| signal.sendAlertHandler:args.sessionId | a | 1 | 301 | ATTRIBUTION | ISO | n/a | false |
 | sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ESCALATE | ISO | PR-K | false |
 | trace.queryTracesHandler:args.programId | a | 2 | 223 | ESCALATE | C-5 | PR-L | false |
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |

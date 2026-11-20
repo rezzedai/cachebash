@@ -19,9 +19,9 @@
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
-      "modules/signal.ts:213",
-      "modules/signal.ts:219",
-      "modules/signal.ts:240"
+      "modules/signal.ts:235",
+      "modules/signal.ts:241",
+      "modules/signal.ts:262"
     ],
     "c_lines": 3,
     "expected": "271 occurrences, 255 lines, 18 files; 59; 3",
@@ -4225,7 +4225,7 @@
       "expr": "input.source",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 213,
+      "line_at_base": 235,
       "tool": "signal_send_alert",
       "transports": [
         "mcp",
@@ -4240,7 +4240,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "sendAlertHandler passes no source (signal.ts:274-280), so the default \"program\" applies. schedule-executor.ts:199 and :208 pass the literal \"watchdog\". No caller-chosen value reaches input.source.",
+      "evidence": "sendAlertHandler passes no source (signal.ts:296-302), so the default \"program\" applies. schedule-executor.ts:199 and :208 pass the literal \"watchdog\". No caller-chosen value reaches input.source.",
       "recommendation": null
     },
     {
@@ -4250,7 +4250,7 @@
       "expr": "input.sessionId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 219,
+      "line_at_base": 241,
       "tool": "signal_send_alert",
       "transports": [
         "mcp",
@@ -4258,7 +4258,7 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "none; stored on alert (signal.ts:219)",
+      "binding_today": "none; stored on alert (signal.ts:241)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
@@ -4274,7 +4274,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 279,
+      "line_at_base": 301,
       "tool": "signal_send_alert",
       "transports": [
         "mcp",
@@ -4282,7 +4282,7 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "none; stored on alert (signal.ts:279)",
+      "binding_today": "none; stored on alert (signal.ts:301)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",

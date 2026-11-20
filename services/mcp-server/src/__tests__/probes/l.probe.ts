@@ -6,6 +6,9 @@ import { CASES, nextN, Ctx } from "./harness/cases";
 import { knownOpen } from "./harness/registry";
 import * as fs from "fs";
 import { emulatorDb } from "./harness/emulator";
+import * as path from "path";
+import { MCP_SERVER_DIR } from "./harness/server";
+import { Timestamp } from "firebase-admin/firestore";
 import { marker } from "./harness/data";
 import { denialNames, sees } from "./harness/judge";
 import type { World, WorldCredential } from "./harness/world";
@@ -31,6 +34,11 @@ const denialLines = (w: World, from: number): any[] =>
     .map((l) => { try { return JSON.parse(l.slice(l.indexOf("{"))); } catch { return null; } })
     .filter(Boolean);
 const logSize = (w: World): number => fs.statSync(w.serverLog).size;
+
+// the backfill under test is the built one, so a mutation-control run exercises the patched copy
+const { runAskedByBackfill } = require(path.join(process.env.PROBE_SERVER_DIR || MCP_SERVER_DIR, "dist/auth/rd5/askedByBackfill.js")) as {
+  runAskedByBackfill: (db: unknown, o: { tenantUid: string; apply: boolean }) => Promise<{ counts: { written: number }; lines: string[] }>;
+};
 
 describe("L fleet paths", () => {
   // grid dispatcher/src/spawner.ts:670 create_session `<prog>-g<n>`
@@ -435,5 +443,71 @@ describe("L fleet paths", () => {
     const w = world();
     const dispatcher = await mint(w, "dispatcher", "probe-l-dead-dispatcher", ["*"]);
     expect((await callTool(w, dispatcher, "relay_get_dead_letters", {})).json?.success).toBe(true);
+  });
+
+  // row 32 (L-D8): a question response is read by its asker, mobile or a fleet.observe holder.
+  const ask = async (w: World, cred: WorldCredential): Promise<string> => {
+    const r = await callTool(w, cred, "signal_ask_question", { question: `l-q-${nextN()}`, encrypt: false });
+    if (!r.json?.questionId) throw new Error(`ask failed: ${r.text.slice(0, 300)}`);
+    return r.json.questionId as string;
+  };
+  probe("L.signal_response_foreign_denied", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-ask-alpha", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-ask-beta", ["*"]);
+    const questionId = await ask(w, alpha);
+    const r = await callTool(w, beta, "signal_get_response", { questionId });
+    expect(denialNames(r, "beta")).toBe(true);
+  });
+  test("L.signal_response_foreign_denied control: the asker and mobile read it", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-ask-alpha2", ["*"]);
+    const questionId = await ask(w, alpha);
+    expect((await callTool(w, alpha, "signal_get_response", { questionId })).json?.success).toBe(true);
+    expect((await callTool(w, w.stateSeeders.A, "signal_get_response", { questionId })).json?.success).toBe(true);
+  });
+
+  // 20.1 item 3: a question with no askedBy fails closed, and the backfill (askedBy from source) restores the owner's read.
+  const unattributed = async (w: World, source: string): Promise<string> => {
+    const ref = await emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({
+      type: "question", title: "l-old", instructions: "", source, target: "user", status: "created", encrypted: false, archived: false,
+      question: { content: "l-old", options: null, context: null, response: null, answeredAt: null }, createdAt: Timestamp.now(),
+    });
+    return ref.id;
+  };
+  probe("L.signal_unattributed_fail_closed", async () => {
+    const w = world();
+    const questionId = await unattributed(w, "beta");
+    const beta = await mint(w, "beta", "probe-l-unattr-beta", ["*"]);
+    const r = await callTool(w, beta, "signal_get_response", { questionId });
+    expect(denialNames(r, "beta")).toBe(true);
+  });
+  test("L.signal_unattributed_fail_closed control: mobile and iso read it", async () => {
+    const w = world();
+    const questionId = await unattributed(w, "beta");
+    const iso = await mint(w, "iso", "probe-l-unattr-iso", ["*"]);
+    expect((await callTool(w, w.stateSeeders.A, "signal_get_response", { questionId })).json?.success).toBe(true);
+    expect((await callTool(w, iso, "signal_get_response", { questionId })).json?.success).toBe(true);
+  });
+  probe("L.signal_backfill_sets_asked_by", async () => {
+    const w = world();
+    const questionId = await unattributed(w, "beta");
+    const skipped = await unattributed(w, "program");
+    const dry = await runAskedByBackfill(emulatorDb() as never, { tenantUid: w.tenants.A, apply: false });
+    expect(dry.counts.written).toBe(0);
+    expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${questionId}`).get()).data()?.askedBy).toBeUndefined();
+    const applied = await runAskedByBackfill(emulatorDb() as never, { tenantUid: w.tenants.A, apply: true });
+    expect(applied.counts.written).toBeGreaterThanOrEqual(1);
+    expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${questionId}`).get()).data()?.askedBy).toBe("beta");
+    expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${skipped}`).get()).data()?.askedBy).toBeUndefined();
+    const beta = await mint(w, "beta", "probe-l-backfill-beta", ["*"]);
+    expect((await callTool(w, beta, "signal_get_response", { questionId })).json?.success).toBe(true);
+  });
+  test("L.signal_backfill_sets_asked_by control: a dry run reports and writes nothing", async () => {
+    const w = world();
+    const questionId = await unattributed(w, "alpha");
+    const dry = await runAskedByBackfill(emulatorDb() as never, { tenantUid: w.tenants.A, apply: false });
+    expect(dry.lines.join("\n")).toContain("DRY RUN");
+    expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${questionId}`).get()).data()?.askedBy).toBeUndefined();
   });
 });
