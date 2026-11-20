@@ -358,6 +358,20 @@ describe("M relay routes (rows 1 and 2)", () => {
     expect((await relayDoc(w, id)).status).toBe("read");
   });
 
+  // VECTOR review #513 item 1: ids that are not strings leave nothing to read; the route answers 400 and writes nothing
+  test("M.mark_read ids with no string id answer 400 and write nothing", async () => {
+    const w = world();
+    const from = logSize(w);
+    for (const messageIds of [[1], [null, ""], [{}]]) {
+      const r = await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds });
+      expect(`${r.httpStatus} ${r.json?.error?.code}`).toBe("400 VALIDATION_ERROR");
+    }
+    const own = await sendTo(w, "alpha", "mr-bad-ids");
+    await rest(w, w.creds.scoped, "POST", "/v1/messages/mark_read", { messageIds: [1] });
+    expect((await relayDoc(w, own)).status).toBe("pending");
+    expect(denialLines(w, from)).toEqual([]);
+  });
+
   // 21.1 nit: a missing id is counted as notFound, is not a denial and writes no denial line
   test("M.mark_read missing id is notFound, not a denial", async () => {
     const w = world();

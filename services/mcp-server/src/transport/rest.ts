@@ -437,7 +437,11 @@ const routes: Route[] = [
       return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must be a non-empty array" }, 400);
     }
     const { markReadHandler } = await import("../modules/relay.js");
-    const out = await markReadHandler(auth, messageIds.filter((id) => typeof id === "string" && id !== ""));
+    const validIds = messageIds.filter((id) => typeof id === "string" && id !== "");
+    if (validIds.length === 0) {
+      return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must contain at least one non-empty string id" }, 400);
+    }
+    const out = await markReadHandler(auth, validIds);
     if (out.denied.length > 0 && out.updated === 0) {
       return restResponse(res, false, { code: "FORBIDDEN", message: out.denied[0].error, denied: out.denied }, 403);
     }
