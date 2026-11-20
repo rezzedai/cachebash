@@ -38,6 +38,24 @@ describe("T6 tenant isolation", () => {
     }
   });
 
+  // RD-5 PR-C, VECTOR ruling kCAh8BiR: gsp_* store caller-keyed values, which is safe only because the tenant
+  // segment of the path is built from auth.userId. Tenant A writes a row; tenant B asks for the same namespace and key.
+  probe("T6.gsp_read", async () => {
+    const w = world();
+    const namespace = "t6-gsp-ns";
+    const key = "t6-gsp-key";
+    const value = "mk-A-gsp-t6-only";
+    const wrote = await callTool(w, w.seeders.A, "gsp_write", { namespace, key, value, tier: "operational" });
+    expect(wrote.json?.success).toBe(true);
+    // control: tenant A reads its own row and gets it
+    const own = await callTool(w, w.creds.wildcard, "gsp_read", { namespace, key });
+    expect({ ok: !own.isError, sawOwn: own.text.includes(value) }).toEqual({ ok: true, sawOwn: true });
+    // deny: tenant B, same namespace and key, gets nothing back
+    const hit = await callTool(w, w.creds.tenantB, "gsp_read", { namespace, key });
+    expect({ leaksA: hit.text.includes(value) || hit.text.includes(w.tenants.A) }).toEqual({ leaksA: false });
+    expect({ found: hit.json?.found, entry: hit.json?.entry ?? null }).toEqual({ found: false, entry: null });
+  });
+
   probe("T6.keys", async () => {
     const w = world();
     // list: only tenant B's keys, and they are there (control)

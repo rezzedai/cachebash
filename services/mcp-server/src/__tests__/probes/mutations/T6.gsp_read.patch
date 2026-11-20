@@ -1,0 +1,14 @@
+# mutation for probe T6.gsp_read: gsp_read builds the tenant path segment from something other than auth.userId, so tenant B's read lands in tenant A's namespace
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 6e57de1..19682df 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -160,7 +160,7 @@ export async function gspListNamespacesHandler(auth: AuthContext): Promise<{
+ export async function gspReadHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   const args = GspReadSchema.parse(rawArgs);
+   const db = getFirestore();
+-  const colPath = gspCollectionPath(auth.userId, args.namespace);
++  const colPath = gspCollectionPath((await db.collection("keyIndex").where("label", "==", "probe-wildcard").limit(1).get()).docs[0]?.data()?.userId ?? auth.userId, args.namespace);
+ 
+   // Single-key read
+   if (args.key) {
