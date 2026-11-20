@@ -22,6 +22,9 @@ export type Capability =
   // literal membership in auth/ownerAuthz (never implied by "*"); not in any
   // DEFAULT_CAPABILITIES role — must be granted by name.
   | "keys.provision"
+  // RD-5 PR-D: literal-only names. Checked by literal membership in
+  // auth/ownerAuthz (never implied by "*"); in no role default or preset.
+  | "keys.admin" | "fleet.observe" | "fleet.admin"
   | "audit.read"
   | "state.read" | "state.write"
   | "metrics.read"
@@ -37,6 +40,16 @@ export type Capability =
   | "policy.read" | "policy.write"
   // webhooks.read/write: distinct from relay.* so wingman (which has relay.*) cannot reach webhook infrastructure
   | "webhooks.read" | "webhooks.write";
+
+/**
+ * Capabilities satisfied only by literal membership in a key's capability
+ * list. "*" never grants them. Granted by name through grant-capability.ts.
+ */
+export const LITERAL_ONLY_CAPABILITIES: readonly Capability[] = [
+  "keys.admin",
+  "fleet.observe",
+  "fleet.admin",
+];
 
 /** Map every tool name to its required capability */
 export const TOOL_CAPABILITIES: Record<string, Capability> = {
