@@ -1,0 +1,13 @@
+# mutation for probe L.webhook_delete_foreign_denied: any key deletes any webhook
+diff --git a/src/modules/webhook.ts b/src/modules/webhook.ts
+--- a/src/modules/webhook.ts
++++ b/src/modules/webhook.ts
+@@ -184,7 +184,7 @@
+   });
+ }
+ 
+-const mayDeleteWebhook = (auth: AuthContext, p: string, createdBy: unknown): boolean => (typeof createdBy === "string" && createdBy === p) || hasFleetAdminCapability(auth);
++const mayDeleteWebhook = (auth: AuthContext, p: string, createdBy: unknown): boolean => Boolean(auth && p && (createdBy || true));
+ 
+ /**
+  * Delete a webhook registration.

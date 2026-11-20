@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 27 AST baseline rows.
+114 site records, 111 handler entries, 26 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -673,7 +673,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/webhook.ts`, handler `webhookDeleteHandler`, expression `args.webhookId`, line n/a at base, 1 occurrence(s).
 - Tool: webhook_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
-- Evidence: webhookDeleteHandler deletes any webhook by id; createdBy is stored (webhook.ts:130), not compared.
+- Evidence: webhookDeleteHandler deletes any webhook by id; createdBy is stored (webhook.ts:132), not compared.
 - Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
 
 ### `policy.createPolicy:args.id`
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 22 | 106 |
+| S1 | 21 | 105 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1250,7 +1250,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
-| S1 | modules/webhook.ts | webhookRegisterHandler | `auth.programId` | 1 | 130 |
 | S1 | transport/rest.ts | requireAdmin | `auth.programId` | 1 | 134 |
 | S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 192 |
 | S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 314 |

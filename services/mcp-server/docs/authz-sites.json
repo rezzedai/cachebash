@@ -5166,7 +5166,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "webhookDeleteHandler deletes any webhook by id; createdBy is stored (webhook.ts:130), not compared.",
+      "evidence": "webhookDeleteHandler deletes any webhook by id; createdBy is stored (webhook.ts:132), not compared.",
       "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
     },
     {
@@ -5620,15 +5620,6 @@
       "expr": "auth.programId",
       "occurrences": 1,
       "line_at_base": 119,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/webhook.ts",
-      "handler": "webhookRegisterHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 130,
       "status": "pending"
     },
     {

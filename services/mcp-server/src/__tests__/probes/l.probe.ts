@@ -587,4 +587,29 @@ describe("L fleet paths", () => {
     expect((await callTool(w, w.creds.scoped, "policy_get", { policyId: id })).json?.success).toBe(true);
     expect((await callTool(w, admin, "policy_delete", { policyId: id })).json?.success).toBe(true);
   });
+
+  // row 36: the registrant deletes its own webhook; a foreign webhook needs literal fleet.admin.
+  const registerHook = async (w: World, cred: WorldCredential): Promise<string> => {
+    const r = await callTool(w, cred, "webhook_register", { events: ["task.created"], callbackUrl: `https://example.invalid/l-${nextN()}` });
+    const id = (r.json?.webhookId ?? r.json?.id) as string | undefined;
+    if (!id) throw new Error(`webhook setup failed: ${r.text.slice(0, 300)}`);
+    return id;
+  };
+  probe("L.webhook_delete_foreign_denied", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-hook-alpha", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-hook-beta", ["*"]);
+    const webhookId = await registerHook(w, alpha);
+    const r = await callTool(w, beta, "webhook_delete", { webhookId });
+    expect(denialNames(r, "beta")).toBe(true);
+    const list = await callTool(w, alpha, "webhook_list", {});
+    expect(list.text).toContain(webhookId);
+  });
+  test("L.webhook_delete_foreign_denied control: the registrant deletes its own, and fleet.admin deletes a foreign one", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-hook-alpha2", ["*"]);
+    const admin = await mint(w, "beta", "probe-l-hook-admin", ["*", "fleet.admin"]);
+    expect((await callTool(w, alpha, "webhook_delete", { webhookId: await registerHook(w, alpha) })).json?.success).toBe(true);
+    expect((await callTool(w, admin, "webhook_delete", { webhookId: await registerHook(w, alpha) })).json?.success).toBe(true);
+  });
 });
