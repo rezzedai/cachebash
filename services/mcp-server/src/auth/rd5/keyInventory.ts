@@ -15,6 +15,7 @@ export interface InventoryDb {
 
 export type CapabilityState =
   | { kind: "list"; values: string[] }
+  | { kind: "empty" }
   | { kind: "missing" }
   | { kind: "not-array"; rawType: string };
 
@@ -36,6 +37,7 @@ export function readCapabilities(data: Record<string, unknown>): CapabilityState
   if (!Array.isArray(data.capabilities)) {
     return { kind: "not-array", rawType: typeof data.capabilities };
   }
+  if (data.capabilities.length === 0) return { kind: "empty" };
   return { kind: "list", values: data.capabilities.map(String) };
 }
 
@@ -63,6 +65,8 @@ export function formatCapabilities(c: CapabilityState): string {
   switch (c.kind) {
     case "list":
       return JSON.stringify(c.values);
+    case "empty":
+      return "!! EMPTY: reads as role defaults";
     case "missing":
       return "!! MISSING (code reads as [\"*\"])";
     case "not-array":

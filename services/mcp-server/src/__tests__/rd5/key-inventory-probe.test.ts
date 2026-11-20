@@ -8,10 +8,17 @@ describe("key-inventory", () => {
     expect(formatRow(inventoryRow("c".repeat(64), { capabilities: ["*", "fleet.read"] }))).toContain('["*","fleet.read"]');
   });
 
+  it("marks an empty array distinctly from a non-empty list", () => {
+    const empty = formatRow(inventoryRow("d".repeat(64), { capabilities: [] }));
+    expect(empty).toContain("EMPTY: reads as role defaults");
+    expect(empty).not.toContain("MISSING");
+    expect(formatRow(inventoryRow("e".repeat(64), { capabilities: ["x"] }))).not.toContain("EMPTY");
+  });
+
   it("prints prefix 8, program, tenant, active, expiresAt, rotatedTo", () => {
     const line = formatRow(inventoryRow("deadbeef" + "0".repeat(56), {
       programId: "vector", userId: "t1", active: true, expiresAt: new Date("2030-01-01T00:00:00Z"),
-      rotatedTo: "x", capabilities: [],
+      rotatedTo: "x", capabilities: ["x"],
     }));
     expect(line).toMatch(/^deadbeef {2}program=vector {2}tenant=t1 {2}active=true {2}expiresAt=2030-01-01T00:00:00.000Z {2}rotatedTo=present/);
   });

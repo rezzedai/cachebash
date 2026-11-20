@@ -6,9 +6,11 @@
  * `capabilities`. It touches no other field and has no remove, rotate or
  * revoke mode.
  *
- * It refuses a key whose `capabilities` field is missing or not an array. The
- * server reads such a key as ["*"] (keys.ts:220, :283), so an arrayUnion would
- * write a one-element list and silently strip the implicit wildcard.
+ * It refuses a key whose `capabilities` field is missing, not an array, or an
+ * empty array. The server reads a missing field as ["*"] (keys.ts:220, :283) and
+ * an empty array as role defaults (authValidator.ts:83-85, key_identity), so an
+ * arrayUnion would write a one-element list and silently strip the implicit
+ * wildcard or defaults.
  */
 
 export type GrantPlan =
@@ -47,6 +49,14 @@ export function planGrant(
     const exp = typeof v.toDate === "function" ? v.toDate() : new Date(data.expiresAt as string | number);
     if (Number.isNaN(exp.getTime())) return { ok: false, reason: "expiresAt is unparseable: refusing" };
     if (exp < now) return { ok: false, reason: `key is expired (${exp.toISOString()})` };
+  }
+
+  if (caps.length === 0) {
+    return {
+      ok: false,
+      reason:
+        "capabilities is an empty array: authValidator.ts:83-85 reads [] as role defaults via getDefaultCapabilities(programId), which may include \"*\". An arrayUnion would write a one-element list and strip them. STOP and report to ISO",
+    };
   }
 
   const before = caps.map(String);

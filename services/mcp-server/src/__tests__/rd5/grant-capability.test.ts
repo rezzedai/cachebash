@@ -45,6 +45,15 @@ describe("grant-capability refusals", () => {
     }
   });
 
+  it("refuses an empty capabilities array (validator reads [] as role defaults)", async () => {
+    const { r, updates } = await run({ capabilities: [], active: true });
+    expect(r.ok).toBe(false);
+    expect(r.lines.join()).toMatch(/empty array/);
+    expect(r.lines.join()).toContain("authValidator.ts:83-85");
+    expect(r.lines.join()).toContain("getDefaultCapabilities");
+    expect(updates).toHaveLength(0);
+  });
+
   it("refuses an inactive key", async () => {
     const { r, updates } = await run({ capabilities: ["*"], active: false });
     expect(r.ok).toBe(false);
@@ -100,11 +109,6 @@ describe("grant-capability behaviour", () => {
     expect(r.ok).toBe(true);
     expect(r.applied).toBe(false);
     expect(updates).toHaveLength(0);
-  });
-
-  it("an empty list is a valid explicit list and is granted", () => {
-    const p = planGrant({ capabilities: [], active: true }, "fleet.admin");
-    expect(p).toMatchObject({ ok: true, after: ["fleet.admin"] });
   });
 
   it("exposes no remove, rotate or revoke mode", () => {
