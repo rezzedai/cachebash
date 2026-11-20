@@ -5,6 +5,7 @@ import { writeKey } from "./harness/seed";
 import { probe } from "./harness/registry";
 import { rest } from "./harness/client";
 import { mint } from "./harness/mint";
+import { seedTenant } from "./harness/seed";
 import { firebaseCred } from "./harness/firebase";
 import { nextN } from "./harness/cases";
 import { marker } from "./harness/data";
@@ -496,5 +497,25 @@ describe("M capability gates (rows 7 to 10)", () => {
     const w = world();
     expect((await rest(w, w.creds.wildcard, "GET", "/v1/gsp/proposals")).httpStatus).toBe(200);
     expect((await rest(w, w.creds.wildcard, "GET", "/v1/gsp/namespaces")).httpStatus).toBe(200);
+  });
+});
+
+describe("M portal relay (row 13)", () => {
+  const OWNER_UID = "7viFKVtl5lgzguhFoZlnYYrqeDG2"; // PORTAL_PRINCIPALS in firebaseAuthValidator.ts
+  probe("M.relay_mobile_principal", async () => {
+    const w = world();
+    const from = logSize(w);
+    const r = await rest(w, phone(w), "POST", "/v1/relay/messages", { message: "m-portal", target: "alpha", message_type: "DIRECTIVE" });
+    expect(r.httpStatus).toBe(403);
+    expect(r.json?.message ?? r.text).toContain('"mobile"');
+    await new Promise((res) => setTimeout(res, 300));
+    expect(denialLines(w, from).filter((l) => l.tool === "relay_send_message" && l.principal === "mobile")).toHaveLength(1);
+  });
+  test("M.relay_mobile_principal control: the owner's Firebase token sends", async () => {
+    const w = world();
+    await seedTenant(OWNER_UID); // the owner's own tenant: mutation ceilings and the two programs
+    const owner = firebaseCred(w, OWNER_UID, { email: "christian@rezzed.ai", emailVerified: true });
+    const r = await rest(w, owner, "POST", "/v1/relay/messages", { message: "m-portal-owner", target: "alpha", message_type: "DIRECTIVE" });
+    expect(`${r.httpStatus} ${r.text.slice(0, 200)}`).toMatch(/^201 /);
   });
 });

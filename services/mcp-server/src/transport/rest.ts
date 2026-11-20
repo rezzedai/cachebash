@@ -480,8 +480,11 @@ const routes: Route[] = [
       sendJson(res, 403, { success: false, error: "PORTAL_OWNER_ONLY", message: "This endpoint requires a Firebase owner ID token." });
       return;
     }
-    if (auth.programId === "mobile") {
-      sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: "This endpoint is restricted to Grid Portal owners." });
+    // RD-5 PR-M row 13 (NL-REST-RELAY-MOBILE): bound to the credential's own principal, and the refusal is logged and names the caller.
+    const caller = credentialPrincipal(auth);
+    if (caller === "mobile") {
+      logDenial({ principal: denialPrincipal(auth), tool: "relay_send_message", subject: null, code: "NOT_OWNER" });
+      sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: `This endpoint is restricted to Grid Portal owners; "${caller}" is not one.` });
       return;
     }
     const body = await readBody(req);
