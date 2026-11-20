@@ -6,7 +6,6 @@
  */
 import type { AuthContext } from "../auth/authValidator";
 import { getMessagesHandler, getSentMessagesHandler, getDeadLettersHandler } from "../modules/relay";
-import { isAdmin } from "../middleware/gate";
 
 type Doc = Record<string, any>;
 const ts = (iso: string) => ({ toDate: () => new Date(iso), toMillis: () => Date.parse(iso) });
@@ -43,7 +42,7 @@ jest.mock("../firebase/client.js", () => ({
 }));
 jest.mock("../middleware/gate.js", () => {
   const real = jest.requireActual("../middleware/gate.js");
-  return { ...real, isAdmin: jest.fn(() => false), logAudit: jest.fn(), generateCorrelationId: jest.fn(() => "corr-1") };
+  return { ...real, logAudit: jest.fn(), generateCorrelationId: jest.fn(() => "corr-1") };
 });
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
@@ -76,8 +75,6 @@ describe("a pending message to a slow reader stays readable", () => {
 });
 
 describe("get_dead_letters", () => {
-  beforeEach(() => (isAdmin as jest.Mock).mockReturnValue(true));
-
   it("returns a message dead-lettered in place, and get_sent_messages still shows it", async () => {
     STORE["tenants/u1/relay/m1"] = {
       ...pending61m, status: "dead_lettered", dead_letter_reason: "EXPIRED_TTL", dead_letter_class: "EXPIRED_TTL",
@@ -110,9 +107,9 @@ describe("get_dead_letters", () => {
     expect(dl.deadLetters.map((d: any) => d.id)).toEqual(["l2", "l1"]);
   });
 
-  it("is still admin only", async () => {
-    (isAdmin as jest.Mock).mockReturnValue(false);
+  it("is still admin only, and the denial names the credentialPrincipal", async () => {
     const r = JSON.parse((await getDeadLettersHandler(auth("tensor"), {})).content[0].text);
     expect(r.success).toBe(false);
+    expect(r.error).toContain('"tensor"');
   });
 });

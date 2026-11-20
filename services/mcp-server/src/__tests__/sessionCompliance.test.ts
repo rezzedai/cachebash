@@ -99,7 +99,7 @@ describe("sessionCompliance", () => {
 
   it("bypasses compliance for exempt programs", async () => {
     const sessionId = "exempt-program";
-    const result = await checkSessionCompliance(auth("admin-mirror"), "send_message", {}, { sessionId, endpoint: "mcp" });
+    const result = await checkSessionCompliance(auth("mobile"), "send_message", {}, { sessionId, endpoint: "mcp" });
 
     expect(result).toEqual({ allowed: true });
     expect(sessionDocs.get(compliancePath(sessionId))).toBeUndefined();

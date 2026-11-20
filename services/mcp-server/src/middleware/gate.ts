@@ -127,16 +127,6 @@ export function createAuditLogger(correlationId: string, userId: string) {
 }
 
 /**
- * Canonical admin check — single source of truth for admin-level access.
- * Admin programs: user-facing clients (legacy/mobile) + system orchestrators.
- */
-const ADMIN_PROGRAMS = ["legacy", "mobile", "orchestrator", "admin", "dispatcher"] as const;
-
-export function isAdmin(auth: AuthContext): boolean {
-  return (ADMIN_PROGRAMS as readonly string[]).includes(auth.programId);
-}
-
-/**
  * Check if AuthContext has a specific capability.
  * Returns true if the key has the exact capability or wildcard "*".
  */

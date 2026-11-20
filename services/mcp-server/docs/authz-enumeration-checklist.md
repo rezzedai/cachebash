@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 26 AST baseline rows.
+114 site records, 111 handler entries, 25 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -98,7 +98,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/audit.ts`, handler `getAuditHandler`, expression `args.programId`, line 39 at base, 3 occurrence(s).
 - Tool: audit_get_audit; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
 - Binding today: isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:27.
-- Name lists: NL-ADMIN-PROGRAMS.
 - Evidence: Gate at audit.ts:27 passes for the five isAdmin names or any key with audit.read or "*". Once past the gate, args.programId filters any program's ledger rows.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N.
 
@@ -232,7 +231,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/metrics.ts`, handler `getProgramHealthHandler`, expression `args.programId`, line 859 at base, 4 occurrence(s).
 - Tool: metrics_get_program_health; transports mcp; effect read; decided by C-5; closes in PR-L.
 - Binding today: isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:849.
-- Name lists: NL-ADMIN-PROGRAMS.
 - Evidence: After the gate, args.programId filters completed tasks by target (metrics.ts:870-872).
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -343,8 +341,8 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 653 at base, 1 occurrence(s).
 - Tool: relay_get_sent_messages; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: source defaults to credentialPrincipal; a foreign source needs RELAY_ADMIN_PRINCIPALS (mobile, dispatcher), else denied naming credentialPrincipal (K-D3 option 1).
-- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
-- Evidence: isAdmin is the five-name list in gate.ts:132.
+- Name lists: NL-RELAY-ADMIN.
+- Evidence: isAdmin is the five-name list in gate.ts:128.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `relay.queryMessageHistoryHandler:args.source`
@@ -352,7 +350,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 788 at base, 8 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: privileged is RELAY_ADMIN_PRINCIPALS (mobile, dispatcher); else self is credentialPrincipal (K-D3 option 1).
-- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
+- Name lists: NL-RELAY-ADMIN.
 - Evidence: Participant scoping coerces non-admin callers to self. The admin bypass is the five-name list.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -361,7 +359,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 788 at base, 9 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: same as args.source record.
-- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
+- Name lists: NL-RELAY-ADMIN.
 - Evidence: relay.ts:762-768 same scoping.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -410,7 +408,6 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/trace.ts`, handler `queryTracesHandler`, expression `args.programId`, line 223 at base, 2 occurrence(s).
 - Tool: trace_query_traces; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
 - Binding today: isAdmin(auth) name list (trace.ts:204).
-- Name lists: NL-ADMIN-PROGRAMS.
 - Evidence: After the isAdmin gate, args.programId filters ledger traces (trace.ts:223-224).
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -783,8 +780,8 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
 | index.main:params.callerSource | none | none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document. |
-| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
-| analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:164), so the value is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:154), so the value is caller-controlled and must not be read as identity. |
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:535, :543 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
 | rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:84) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
@@ -1009,7 +1006,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | Tool | Handler | Transports | Effect | Sites | Name lists | serves_bundle_data |
 |---|---|---|---|---|---|---|
 | admin_merge_accounts | mergeAccountsHandler | mcp | write | 0 | 1 | false |
-| audit_get_audit | getAuditHandler | mcp rest iso | read | 1 | 1 | false |
+| audit_get_audit | getAuditHandler | mcp rest iso | read | 1 | 0 | false |
 | audit_get_ack_compliance | getAckComplianceHandler | mcp rest | read | 1 | 0 | false |
 | clu_ingest | cluIngestHandler | mcp | write | 1 | 0 | false |
 | clu_analyze | cluAnalyzeHandler | mcp | read | 1 | 0 | false |
@@ -1020,7 +1017,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | dispatch_claim_task | claimTaskHandler | mcp rest iso | write | 1 | 0 | false |
 | dispatch_unclaim_task | unclaimTaskHandler | mcp rest | write | 0 | 1 | false |
 | dispatch_complete_task | completeTaskHandler | mcp rest iso | write | 0 | 1 | false |
-| dispatch_record_task_telemetry | recordTaskTelemetryHandler | mcp rest | write | 0 | 1 | false |
+| dispatch_record_task_telemetry | recordTaskTelemetryHandler | mcp rest | write | 0 | 0 | false |
 | dispatch_batch_claim_tasks | batchClaimTasksHandler | mcp rest | write | 1 | 0 | false |
 | dispatch_batch_complete_tasks | batchCompleteTasksHandler | mcp rest | write | 0 | 1 | false |
 | dispatch_get_contention_metrics | getContentionMetricsHandler | mcp rest | read | 0 | 0 | false |
@@ -1054,14 +1051,14 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | keys_revoke_key | revokeKeyHandler | mcp rest | write | 1 | 0 | false |
 | keys_rotate_key | rotateKeyHandler | mcp rest | write | 0 | 0 | false |
 | keys_list_keys | listKeysHandler | mcp rest iso | read | 0 | 0 | false |
-| metrics_get_cost_summary | getCostSummaryHandler | mcp rest iso | read | 0 | 1 | false |
-| metrics_get_comms_metrics | getCommsMetricsHandler | mcp rest iso | read | 0 | 1 | false |
-| metrics_get_operational_metrics | getOperationalMetricsHandler | mcp rest iso | read | 0 | 1 | false |
+| metrics_get_cost_summary | getCostSummaryHandler | mcp rest iso | read | 0 | 0 | false |
+| metrics_get_comms_metrics | getCommsMetricsHandler | mcp rest iso | read | 0 | 0 | false |
+| metrics_get_operational_metrics | getOperationalMetricsHandler | mcp rest iso | read | 0 | 0 | false |
 | metrics_log_rate_limit_event | logRateLimitEventHandler | mcp rest | write | 1 | 0 | false |
 | metrics_get_rate_limit_events | getRateLimitEventsHandler | mcp rest | read | 1 | 0 | false |
-| metrics_get_cost_forecast | getCostForecastHandler | mcp | read | 0 | 1 | false |
-| metrics_get_sla_compliance | getSlaComplianceHandler | mcp | read | 0 | 1 | false |
-| metrics_get_program_health | getProgramHealthHandler | mcp | read | 1 | 1 | false |
+| metrics_get_cost_forecast | getCostForecastHandler | mcp | read | 0 | 0 | false |
+| metrics_get_sla_compliance | getSlaComplianceHandler | mcp | read | 0 | 0 | false |
+| metrics_get_program_health | getProgramHealthHandler | mcp | read | 1 | 0 | false |
 | pattern_consolidate | consolidatePatternsHandler | mcp | write | 1 | 0 | false |
 | pattern_get_consolidated | getConsolidatedPatternsHandler | mcp | read | 0 | 0 | false |
 | policy_create | createPolicy | mcp | write | 1 | 0 | false |
@@ -1083,7 +1080,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | pulse_create_session | createSessionHandler | mcp rest | write | 2 | 1 | false |
 | pulse_update_session | updateSessionHandler | mcp rest iso | write | 1 | 2 | false |
 | pulse_list_sessions | listSessionsHandler | mcp rest | read | 1 | 0 | false |
-| pulse_get_fleet_health | getFleetHealthHandler | mcp rest iso | read | 0 | 1 | false |
+| pulse_get_fleet_health | getFleetHealthHandler | mcp rest iso | read | 0 | 0 | false |
 | pulse_get_fleet_timeline | getFleetTimelineHandler | mcp rest | read | 0 | 0 | false |
 | pulse_write_fleet_snapshot | writeFleetSnapshotHandler | mcp rest | write | 0 | 0 | false |
 | pulse_get_context_utilization | getContextUtilizationHandler | mcp rest | read | 1 | 0 | false |
@@ -1091,10 +1088,10 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | pulse_resume_program | resumeProgramHandler | mcp | write | 1 | 0 | false |
 | relay_send_message | sendMessageHandler | mcp rest iso | write | 3 | 1 | false |
 | relay_get_messages | getMessagesHandler | mcp rest iso | mixed | 4 | 1 | false |
-| relay_get_dead_letters | getDeadLettersHandler | mcp rest iso | read | 0 | 1 | false |
+| relay_get_dead_letters | getDeadLettersHandler | mcp rest iso | read | 0 | 0 | false |
 | relay_list_groups | listGroupsHandler | mcp rest | read | 0 | 0 | false |
-| relay_get_sent_messages | getSentMessagesHandler | mcp rest iso | read | 2 | 1 | false |
-| relay_query_message_history | queryMessageHistoryHandler | mcp rest iso | read | 2 | 1 | false |
+| relay_get_sent_messages | getSentMessagesHandler | mcp rest iso | read | 2 | 0 | false |
+| relay_query_message_history | queryMessageHistoryHandler | mcp rest iso | read | 2 | 0 | false |
 | relay_send_directive | sendDirectiveHandler | mcp | write | 1 | 1 | false |
 | request_help (lite) | requestHelpHandler | mcp | write | 0 | 0 | false |
 | schedule_create | createScheduleHandler | mcp | write | 1 | 0 | false |
@@ -1110,8 +1107,8 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | sprint_add_story_to_sprint | addStoryHandler | mcp rest | write | 1 | 0 | false |
 | sprint_complete_sprint | completeSprintHandler | mcp rest | write | 1 | 0 | false |
 | sprint_get_sprint | getSprintHandler | mcp rest iso | read | 1 | 0 | false |
-| trace_query_traces | queryTracesHandler | mcp rest iso | read | 1 | 1 | false |
-| trace_query_trace | queryTraceHandler | mcp rest | read | 0 | 1 | false |
+| trace_query_traces | queryTracesHandler | mcp rest iso | read | 1 | 0 | false |
+| trace_query_trace | queryTraceHandler | mcp rest | read | 0 | 0 | false |
 | usage_get_usage | getUsageHandler | mcp rest | read | 0 | 0 | false |
 | usage_get_invoice | getInvoiceHandler | mcp rest | read | 0 | 0 | false |
 | usage_set_budget | setBudgetHandler | mcp rest | write | 0 | 0 | false |
@@ -1177,8 +1174,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
 |---|---|---|
 | NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
-| NL-ADMIN-PROGRAMS `middleware/gate.ts:133` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
-| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:148` [mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
+| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:138` [mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
 | NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:115` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
 | NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:398` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
 | NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:137` [mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
@@ -1191,7 +1187,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:100` [iso] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1216` [vector, iso, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
 | NL-REST-RELAY-MOBILE `transport/rest.ts:476` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
-| NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
+| NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:43` [mobile, iso, alan, vector, quorra, radia, casp, sark, basher] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
 | NL-GSP-REVIEWERS `modules/gsp.ts:617` [iso, vector] (routing) | gsp_propose | members seen: none |
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
@@ -1201,7 +1197,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 ### Name list notes
 
 - NL-ADMIN-READERS: requireAdmin also passes any key holding "*".
-- NL-ADMIN-PROGRAMS: isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).
 - NL-VERIFYSOURCE-ADMIN: mobile may send as any source. legacy was dropped in PR-K (amendment 3).
 - NL-CLAIM-OWNER-OVERRIDE: iso and dispatcher unclaim and complete any task. orchestrator and legacy were dropped in PR-K (K-D1).
 - NL-ESCALATION-CHAIN: Picks the default escalation recipient. It gates nothing.
@@ -1215,7 +1210,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 - NL-REAP-AUTH: Also passes on "*".
 - NL-GSP-SEED-AUTH: admin dropped in PR-L (L-D11); compared with credentialPrincipal. Also passes on "*" until PR-N (W.19).
 - NL-REST-RELAY-MOBILE: Branches the source on the mobile name before credentialPrincipal.
-- NL-SESSION-COMPLIANCE: Exempts or classifies callers for the session-boot rule. It is not an identity gate on data.
+- NL-SESSION-COMPLIANCE: Exempts or classifies callers for the session-boot rule. It is not an identity gate on data. PR-L (L-D11) dropped orchestrator, auditor, admin, admin-mirror, bit, builder, able, beck and legacy.
 - NL-GSP-REVIEWERS: Chooses proposal reviewers. It gates nothing.
 - NL-OAUTH-ALLOWLIST: Read from OAUTH_ALLOWED_UIDS; the default list is in the same file.
 - NL-OAUTH-BINDABLE: Programs an OAuth token may bind to.
@@ -1226,7 +1221,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 21 | 103 |
+| S1 | 20 | 102 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1236,8 +1231,7 @@ The test fails on a violation with no row and on a row that no longer matches. T
 |---|---|---|---|---|---|
 | S1 | index.ts | main | `auth.programId` | 17 | 182 |
 | S1 | iso/isoServer.ts | createIsoServer | `authContext.programId` | 12 | 105 |
-| S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 136 |
-| S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 108 |
+| S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 109 |
 | S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 5 | 90 |
 | S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 3 | 198 |
 | S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 297 |

@@ -90,51 +90,16 @@
       "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
-      "id": "NL-ADMIN-PROGRAMS",
-      "file": "middleware/gate.ts",
-      "line": 133,
-      "name": "ADMIN_PROGRAMS (isAdmin)",
-      "members": [
-        "legacy",
-        "mobile",
-        "orchestrator",
-        "admin",
-        "dispatcher"
-      ],
-      "layer": "handler",
-      "guard_sites": [
-        "middleware/gate.ts:135"
-      ],
-      "guards": [
-        "audit_get_audit",
-        "metrics_get_comms_metrics",
-        "metrics_get_cost_summary",
-        "metrics_get_operational_metrics",
-        "metrics_get_cost_forecast",
-        "metrics_get_sla_compliance",
-        "metrics_get_program_health",
-        "pulse_get_fleet_health",
-        "relay_get_sent_messages",
-        "relay_get_dead_letters",
-        "relay_query_message_history",
-        "trace_query_trace",
-        "trace_query_traces",
-        "dispatch_record_task_telemetry"
-      ],
-      "note": "isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).",
-      "usage_30d": "members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2"
-    },
-    {
       "id": "NL-VERIFYSOURCE-ADMIN",
       "file": "middleware/gate.ts",
-      "line": 148,
+      "line": 138,
       "name": "SOURCE_ANY_PRINCIPALS source-pinning exemption",
       "members": [
         "mobile"
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:163"
+        "middleware/gate.ts:153"
       ],
       "guards": [
         "relay_send_message",
@@ -386,15 +351,10 @@
     {
       "id": "NL-SESSION-COMPLIANCE",
       "file": "middleware/sessionCompliance.ts",
-      "line": 42,
+      "line": 43,
       "name": "session compliance exemptions and role sets",
       "members": [
-        "legacy",
         "mobile",
-        "admin",
-        "admin-mirror",
-        "bit",
-        "orchestrator",
         "iso",
         "alan",
         "vector",
@@ -402,21 +362,18 @@
         "radia",
         "casp",
         "sark",
-        "builder",
-        "basher",
-        "able",
-        "beck"
+        "basher"
       ],
       "layer": "middleware",
       "guard_sites": [
-        "middleware/sessionCompliance.ts:42",
-        "middleware/sessionCompliance.ts:44",
-        "middleware/sessionCompliance.ts:45"
+        "middleware/sessionCompliance.ts:43",
+        "middleware/sessionCompliance.ts:45",
+        "middleware/sessionCompliance.ts:46"
       ],
       "guards": [
         "every tool via checkSessionCompliance (MCP and REST)"
       ],
-      "note": "Exempts or classifies callers for the session-boot rule. It is not an identity gate on data.",
+      "note": "Exempts or classifies callers for the session-boot rule. It is not an identity gate on data. PR-L (L-D11) dropped orchestrator, auditor, admin, admin-mirror, bit, builder, able, beck and legacy.",
       "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
@@ -552,9 +509,7 @@
       "site_ids": [
         "audit.getAuditHandler:args.programId"
       ],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "audit_get_ack_compliance",
@@ -765,9 +720,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "dispatch_batch_claim_tasks",
@@ -1465,9 +1418,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_get_comms_metrics",
@@ -1485,9 +1436,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_get_operational_metrics",
@@ -1505,9 +1454,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_log_rate_limit_event",
@@ -1561,9 +1508,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_get_sla_compliance",
@@ -1579,9 +1524,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "metrics_get_program_health",
@@ -1599,9 +1542,7 @@
       "site_ids": [
         "metrics.getProgramHealthHandler:args.programId"
       ],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "pattern_consolidate",
@@ -2033,9 +1974,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "pulse_get_fleet_timeline",
@@ -2191,9 +2130,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "relay_list_groups",
@@ -2231,9 +2168,7 @@
         "relay.getSentMessagesHandler:args.source",
         "relay.getSentMessagesHandler:args.target"
       ],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "relay_query_message_history",
@@ -2254,9 +2189,7 @@
         "relay.queryMessageHistoryHandler:args.source",
         "relay.queryMessageHistoryHandler:args.target"
       ],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "relay_send_directive",
@@ -2557,9 +2490,7 @@
       "site_ids": [
         "trace.queryTracesHandler:args.programId"
       ],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "trace_query_trace",
@@ -2576,9 +2507,7 @@
       "stores_caller_keyed_tenant_data": false,
       "bundle_basis": "No free-form value field and no object storage: argument schemas carry typed fields only, and the three bundle greps return no server-side hit.",
       "site_ids": [],
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "usage_get_usage",
@@ -2786,7 +2715,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -2807,7 +2736,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:164), so the value is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:154), so the value is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -2831,9 +2760,7 @@
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ],
+      "name_lists": [],
       "evidence": "Gate at audit.ts:27 passes for the five isAdmin names or any key with audit.read or \"*\". Once past the gate, args.programId filters any program's ledger rows.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N."
     },
@@ -3358,9 +3285,7 @@
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ],
+      "name_lists": [],
       "evidence": "After the gate, args.programId filters completed tasks by target (metrics.ts:870-872).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
@@ -4017,10 +3942,9 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "isAdmin is the five-name list in gate.ts:132.",
+      "evidence": "isAdmin is the five-name list in gate.ts:128.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4069,7 +3993,6 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
       "evidence": "Participant scoping coerces non-admin callers to self. The admin bypass is the five-name list.",
@@ -4097,7 +4020,6 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [
-        "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
       "evidence": "relay.ts:762-768 same scoping.",
@@ -4335,9 +4257,7 @@
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-ADMIN-PROGRAMS"
-      ],
+      "name_lists": [],
       "evidence": "After the isAdmin gate, args.programId filters ledger traces (trace.ts:223-224).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
@@ -5497,20 +5417,11 @@
     },
     {
       "rule": "S1",
-      "file": "middleware/gate.ts",
-      "handler": "isAdmin",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 136,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
       "file": "middleware/sessionCompliance.ts",
       "handler": "checkSessionCompliance",
       "expr": "auth.programId",
       "occurrences": 11,
-      "line_at_base": 108,
+      "line_at_base": 109,
       "status": "pending"
     },
     {
