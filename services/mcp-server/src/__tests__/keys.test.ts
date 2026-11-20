@@ -40,14 +40,8 @@ jest.mock("../auth/ownerAuthz", () => ({
   // BUG-009: NOT jest.fn() stubs — these are the real predicates, so the
   // authorization behaviour under test here is the shipped behaviour and not a
   // mock that always says yes. Their own unit tests live in ownerAuthz.test.ts.
-  KEYS_ADMIN_CAPABILITY: "keys.admin",
-  KEY_ADMIN_PRINCIPALS: ["vector", "sark"],
   credentialPrincipal: (auth: any) => auth.keyProgramId ?? auth.programId,
-  isKeyAdmin: (auth: any) => {
-    const principal = auth.keyProgramId ?? auth.programId;
-    if (["vector", "sark"].includes(principal)) return true;
-    return Array.isArray(auth.capabilities) && (auth.capabilities.includes("keys.admin") || auth.capabilities.includes("fleet.admin"));
-  },
+  isKeyAdmin: (auth: any) => Array.isArray(auth.capabilities) && auth.capabilities.includes("fleet.admin"),
 }));
 
 // Tenant resolution: alternate uid -> canonical uid, set per test. Identity by default.
@@ -156,11 +150,12 @@ const mockAuth: AuthContext = {
   rateLimitTier: "internal",
 };
 
-// BUG-009: a key-admin caller (credential-bound principal) — the only kind that may see or revoke other programs' keys.
+// BUG-009 / RD-5 PR-F: a key-admin caller (literal fleet.admin on the credential; the program name confers nothing) — the only kind that may see or revoke other programs' keys.
 const adminAuth: AuthContext = {
   ...mockAuth,
   programId: "vector" as any,
   keyProgramId: "vector" as any,
+  capabilities: ["*", "fleet.admin"],
 };
 
 describe("Keys Module Unit Tests", () => {
@@ -573,7 +568,7 @@ describe("Keys Module Unit Tests", () => {
     it("never lists another tenant's keys, even for a key admin, and answers revoke with Key not found", async () => {
       seed("own", "test-user-123", "vector");
       seed("foreign-same-program", "other-tenant", "vector");
-      const admin = { ...mockAuth, programId: "vector", keyProgramId: "vector" } as AuthContext;
+      const admin = { ...mockAuth, programId: "vector", keyProgramId: "vector", capabilities: ["fleet.admin"] } as AuthContext;
       const list = JSON.parse((await listKeysHandler(admin, {})).content[0].text);
       expect(list.keys.map((k: any) => k.keyHash)).toEqual(["own"]);
       const rev = JSON.parse((await revokeKeyHandler(admin, { keyHash: "foreign-same-program" })).content[0].text);

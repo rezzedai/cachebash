@@ -99,17 +99,6 @@ export function disallowedMintCapabilities(
  * credential, the same field verifySource relies on for Identity Sovereignty
  * inv.6. Identity comes only from the credential.
  */
-export const KEYS_ADMIN_CAPABILITY = "keys.admin";
-
-/**
- * Principals allowed to administer OTHER programs' keys. Deliberately tiny and
- * credential-bound: VECTOR is the fleet auditor whose boot depends on fleet
- * reads, SARK is the security auditor. ISO is deliberately NOT here — it
- * authored this fix, and an orchestrator does not need foreign-key
- * administration to do its job; granting it would be self-dealing in a security
- * change. Adding a principal is VECTOR's call, not a code-owner's convenience.
- */
-export const KEY_ADMIN_PRINCIPALS: readonly string[] = ["vector", "sark"];
 
 /**
  * The identity of the AUTHENTICATING credential: `auth.keyProgramId`. Throws when
@@ -123,14 +112,12 @@ export function credentialPrincipal(auth: AuthContext): string {
 }
 
 /**
- * True iff `auth` may list or revoke keys belonging to OTHER programs.
- * Literal capability membership only — "*" does NOT satisfy it.
+ * True iff `auth` may list or revoke keys belonging to OTHER programs. The only
+ * source is a literal `fleet.admin` on the credential (RD-5 OD-2, C-5): "*" never
+ * satisfies it, and no program name confers it.
  */
 export function isKeyAdmin(auth: AuthContext): boolean {
-  if (KEY_ADMIN_PRINCIPALS.includes(credentialPrincipal(auth))) return true;
-  return Array.isArray(auth.capabilities)
-    && (auth.capabilities.includes(KEYS_ADMIN_CAPABILITY)
-      || hasFleetAdminCapability(auth));
+  return hasFleetAdminCapability(auth);
 }
 
 /**
@@ -180,9 +167,9 @@ export function hasFleetObserveCapability(auth: AuthContext): boolean {
 
 /**
  * FLEET_ADMIN_CAPABILITY — RD-5 PR-D (ISO plan section 7, D-b). The literal
- * capability that replaces the hardcoded KEY_ADMIN_PRINCIPALS list once PR-F
- * deletes it. Inert until a key document holds it: no role default or preset
- * contains it, and `isKeyAdmin` accepts it only as a widening.
+ * capability that decides key administration (`isKeyAdmin`). The hardcoded
+ * principal list and `keys.admin` were deleted in PR-F. No role default or preset
+ * contains it: it is granted by name through grant-capability.ts.
  */
 export const FLEET_ADMIN_CAPABILITY = "fleet.admin";
 

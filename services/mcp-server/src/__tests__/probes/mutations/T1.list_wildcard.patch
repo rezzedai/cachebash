@@ -1,0 +1,12 @@
+# mutation for probe T1.list_wildcard: a ["*"] key counts as a key admin
+--- a/src/auth/ownerAuthz.ts
++++ b/src/auth/ownerAuthz.ts
+@@ -117,7 +117,7 @@ export function credentialPrincipal(auth: AuthContext): string {
+  * satisfies it, and no program name confers it.
+  */
+ export function isKeyAdmin(auth: AuthContext): boolean {
+-  return hasFleetAdminCapability(auth);
++  return Array.isArray(auth.capabilities) && auth.capabilities.includes("*");
+ }
+ 
+ /**

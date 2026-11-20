@@ -95,7 +95,14 @@ describe("grant-capability --add is restricted to the Capability union", () => {
     expect(planGrant(live, "nope").ok).toBe(false);
   });
 
-  it.each(["keys.admin", "fleet.observe", "fleet.admin"])("accepts %s in dry-run", async (cap) => {
+  it("keys.admin is an unknown capability and is refused", async () => {
+    const { r, updates } = await run(live, { add: "keys.admin", apply: true });
+    expect(r.ok).toBe(false);
+    expect(r.lines.join()).toMatch(/unknown capability keys\.admin/);
+    expect(updates).toHaveLength(0);
+  });
+
+  it.each(["fleet.observe", "fleet.admin"])("accepts %s in dry-run", async (cap) => {
     const { r, updates } = await run(live, { add: cap, apply: false });
     expect(r.ok).toBe(true);
     expect(updates).toHaveLength(0);

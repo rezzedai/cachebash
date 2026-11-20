@@ -1,0 +1,11 @@
+# mutation for probe T1.list_admin: the fleet.admin branch is removed, so a literal fleet.admin key is no key admin
+--- a/src/auth/authorize.ts
++++ b/src/auth/authorize.ts
+@@ -64,6 +64,6 @@ export async function authorizeKeySubject(
+ 
+   if (!hasProgram) return { allowed: false, reason: "program", principal, subject };
+   if (subject === principal) return { allowed: true, via: "self", principal, subject };
+-  if (isKeyAdmin(auth)) return { allowed: true, via: "fleet.admin", principal, subject };
++  if (false) return { allowed: true, via: "fleet.admin", principal, subject };
+   return { allowed: false, reason: "program", principal, subject };
+ }
