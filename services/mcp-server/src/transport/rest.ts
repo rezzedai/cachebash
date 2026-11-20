@@ -25,7 +25,8 @@ import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
-import { credentialPrincipal } from "../auth/ownerAuthz.js";
+import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { authorizeTasksRead } from "../modules/dispatch/tasks.js";
 import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
@@ -320,11 +321,20 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
 const routes: Route[] = [
   // Dispatch
   route("GET", "/v1/tasks/stats", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 3 (GATE get_tasks): the capability gate, then the get_tasks rule on credentialPrincipal(auth). A named target needs
+    // authorizeTasksRead; no target counts the principal's own queue unless it is a TASKS_ALL principal or holds fleet.observe (L-D1).
+    await enforceBreaker(auth, "get_tasks");
     const query = coerceQueryParams(parseQuery(req.url || ""));
+    const principal = credentialPrincipal(auth);
+    const queryTarget = query.target as string | undefined || undefined;
+    const { allowed, seesAll } = authorizeTasksRead(auth, queryTarget);
+    if (!allowed) {
+      logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: queryTarget ?? null, code: "FOREIGN_SUBJECT" });
+      return restResponse(res, false, { code: "FORBIDDEN", message: `Access denied: "${principal}" cannot read tasks for "${queryTarget}"` }, 403);
+    }
+    const target = queryTarget ?? (seesAll || hasFleetObserveCapability(auth) ? undefined : principal);
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
-    const target = query.target as string | undefined;
     const period = query.period as string | undefined;
 
     if (target || (period && period !== "all")) {
@@ -347,7 +357,7 @@ const routes: Route[] = [
       restResponse(res, true, {
         ...counts,
         total: counts.created + counts.active + counts.done + counts.failed,
-        ...(target ? { target } : {}),
+        ...(queryTarget ? { target: queryTarget } : {}),
         ...(period ? { period } : {}),
       });
     } else {

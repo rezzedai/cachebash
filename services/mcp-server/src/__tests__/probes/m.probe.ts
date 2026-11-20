@@ -366,3 +366,33 @@ describe("M relay routes (rows 1 and 2)", () => {
     expect(denialLines(w, from)).toEqual([]);
   });
 });
+
+const statRow = async (w: World, target: string) =>
+  emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({ target, lifecycle: "created", createdAt: Timestamp.now(), title: `m-stat-${target}` }); // the route counts `lifecycle`, see M.fleet_path_mobile_task_stats
+
+describe("M tasks stats (row 3)", () => {
+  probe("M.task_stats_default_self", async () => {
+    const w = world();
+    await statRow(w, "alpha");
+    await statRow(w, "beta");
+    await statRow(w, "beta");
+    const mine = await rest(w, w.creds.scoped, "GET", "/v1/tasks/stats");
+    expect(mine.httpStatus).toBe(200);
+    const alphaOnly = await rest(w, w.creds.observer, "GET", "/v1/tasks/stats?target=alpha");
+    const betaOnly = await rest(w, w.creds.observer, "GET", "/v1/tasks/stats?target=beta");
+    expect(alphaOnly.json?.data?.total).toBeGreaterThanOrEqual(1);
+    expect(betaOnly.json?.data?.total).toBeGreaterThanOrEqual(2);
+    expect(mine.json?.data?.total).toBe(alphaOnly.json.data.total); // alpha's count excludes beta's rows
+    const foreign = await rest(w, w.creds.scoped, "GET", "/v1/tasks/stats?target=beta");
+    expect(restDenied(foreign, "alpha")).toBe(true);
+  });
+  test("M.task_stats_default_self control: an observer counts every target", async () => {
+    const w = world();
+    await statRow(w, "alpha");
+    await statRow(w, "beta");
+    const all = await rest(w, w.creds.observer, "GET", "/v1/tasks/stats");
+    const a = await rest(w, w.creds.observer, "GET", "/v1/tasks/stats?target=alpha");
+    const b = await rest(w, w.creds.observer, "GET", "/v1/tasks/stats?target=beta");
+    expect(all.json?.data?.total).toBeGreaterThanOrEqual(a.json.data.total + b.json.data.total);
+  });
+});
