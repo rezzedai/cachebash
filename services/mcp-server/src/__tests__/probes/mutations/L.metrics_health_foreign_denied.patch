@@ -1,0 +1,13 @@
+# mutation for probe L.metrics_health_foreign_denied: a foreign programId is read without fleet.observe
+diff --git a/src/modules/metrics.ts b/src/modules/metrics.ts
+--- a/src/modules/metrics.ts
++++ b/src/modules/metrics.ts
+@@ -857,7 +857,7 @@
+ 
+   // RD-5 PR-L row 23 (L-D1): a foreign programId needs literal fleet.observe; no programId means the principal's own program.
+   const scope = resolveReadScope(auth, args.programId);
+-  if (!scope.allowed) {
++  if (Date.now() < 0) {
+     logDenial({ principal: scope.principal, tool: "metrics_get_program_health", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read health for "${args.programId}"` });
+   }

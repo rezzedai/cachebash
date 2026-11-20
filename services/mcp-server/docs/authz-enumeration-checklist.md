@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 316 |
-| (a) lines | 292 |
+| (a) occurrences | 317 |
+| (a) lines | 293 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -229,11 +229,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `metrics.getProgramHealthHandler:args.programId`
 
-- Where: `modules/metrics.ts`, handler `getProgramHealthHandler`, expression `args.programId`, line 862 at base, 3 occurrence(s).
+- Where: `modules/metrics.ts`, handler `getProgramHealthHandler`, expression `args.programId`, line 859 at base, 4 occurrence(s).
 - Tool: metrics_get_program_health; transports mcp; effect read; decided by C-5; closes in PR-L.
-- Binding today: isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:848.
+- Binding today: isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:849.
 - Name lists: NL-ADMIN-PROGRAMS.
-- Evidence: After the gate, args.programId filters completed tasks by target (metrics.ts:862-864).
+- Evidence: After the gate, args.programId filters completed tasks by target (metrics.ts:870-872).
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `programRegistry.updateProgramHandler:args.programId`
@@ -916,7 +916,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | gsp.gspBootstrapHandler:args.agentId | a | 12 | 670 | FOREIGN-READ | C-4 | PR-I | false |
 | keys.createKeyHandler:programId | c | 1 | 58 | FOREIGN-WRITE | ISO | n/a | false |
 | keys.revokeKeyHandler:keyHash | c | 1 | 153 | ESCALATE | C-5 | PR-F | false |
-| metrics.getProgramHealthHandler:args.programId | a | 3 | 862 | ESCALATE | C-5 | PR-L | false |
+| metrics.getProgramHealthHandler:args.programId | a | 4 | 859 | ESCALATE | C-5 | PR-L | false |
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.listProgramsHandler:p.programId | b | 1 | 376 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.updateProgramHandler:args.programId | a | 7 | 396 | ESCALATE | C-5 | PR-L | false |

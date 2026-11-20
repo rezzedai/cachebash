@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 316,
-    "a_lines": 292,
+    "a_occurrences": 317,
+    "a_lines": 293,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -3346,14 +3346,14 @@
       "handler": "getProgramHealthHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 3,
-      "line_at_base": 862,
+      "occurrences": 4,
+      "line_at_base": 859,
       "tool": "metrics_get_program_health",
       "transports": [
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:848",
+      "binding_today": "isAdmin(auth) (name list) or hasCapability metrics.read (wildcard-satisfiable), metrics.ts:849",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3362,7 +3362,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "After the gate, args.programId filters completed tasks by target (metrics.ts:862-864).",
+      "evidence": "After the gate, args.programId filters completed tasks by target (metrics.ts:870-872).",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {

@@ -38,7 +38,7 @@ describe("Telemetry Suite", () => {
     keyProgramId: "orchestrator",
     apiKeyHash: "test-hash",
     encryptionKey: mockEncryptionKey,
-    capabilities: ["*"],
+    capabilities: ["*", "fleet.observe"], // PR-L: a foreign programId in program health needs literal fleet.observe
     rateLimitTier: "standard",
   };
 

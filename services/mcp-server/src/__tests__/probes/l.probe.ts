@@ -394,4 +394,17 @@ describe("L fleet paths", () => {
     const own = await callTool(w, w.creds.wildcard, "audit_get_audit", { limit: 5 });
     expect(own.json?.success).toBe(true);
   });
+
+  // row 23: program health follows L-D1; the five other metrics tools lose the isAdmin disjunct (it was unreachable, H2) and name the caller in the denial (H9).
+  probe("L.metrics_health_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.wildcard, "metrics_get_program_health", { programId: "beta" });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
+  test("L.metrics_health_foreign_denied control: an observer reads a foreign program, the default is the caller's own", async () => {
+    const w = world();
+    const obs = await mint(w, "vector", "probe-l-health-observer", ["*", "fleet.observe"]);
+    expect((await callTool(w, obs, "metrics_get_program_health", { programId: "beta" })).json?.success).toBe(true);
+    expect((await callTool(w, w.creds.wildcard, "metrics_get_program_health", {})).json?.success).toBe(true);
+  });
 });
