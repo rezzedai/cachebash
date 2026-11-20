@@ -70,7 +70,7 @@ describe("a pending message to a slow reader stays readable", () => {
     STORE["tenants/u1/relay/m1"] = pending61m;
     const sent = JSON.parse((await getSentMessagesHandler(auth("vector"), {})).content[0].text);
     expect(sent.messages.map((m: any) => m.id)).toEqual(["m1"]);
-    const inbox = JSON.parse((await getMessagesHandler(auth("tensor"), { sessionId: "tensor-s1", markAsRead: false })).content[0].text);
+    const inbox = JSON.parse((await getMessagesHandler(auth("tensor"), { sessionId: "tensor", markAsRead: false })).content[0].text);
     expect(inbox.interrupts.map((m: any) => m.id)).toEqual(["m1"]);
   });
 });

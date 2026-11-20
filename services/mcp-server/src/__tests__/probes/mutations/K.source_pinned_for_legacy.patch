@@ -1,0 +1,13 @@
+# mutation for probe K.source_pinned_for_legacy: legacy is re-added to the source-exempt principals
+diff --git a/src/middleware/gate.ts b/src/middleware/gate.ts
+--- a/src/middleware/gate.ts
++++ b/src/middleware/gate.ts
+@@ -144,7 +144,7 @@
+ }
+ 
+ /** Principals that may send as any source (RD-5 PR-K, amendment 3 VERIFYSOURCE-ADMIN: `legacy` is dropped). */
+-const SOURCE_ANY_PRINCIPALS = ["mobile"] as const;
++const SOURCE_ANY_PRINCIPALS = ["mobile", "legacy"] as const;
+ 
+ /**
+  * Verify source claim against key identity.

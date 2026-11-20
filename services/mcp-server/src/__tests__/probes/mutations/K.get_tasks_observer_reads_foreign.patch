@@ -1,0 +1,13 @@
+# mutation for probe K.get_tasks_observer_reads_foreign: the fleet.observe branch is deleted: only the all-reading principals read a foreign target
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -142,7 +142,7 @@
+ function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
+   const principal = credentialPrincipal(auth);
+   const seesAll = (TASKS_ALL_PRINCIPALS as readonly string[]).includes(principal);
+-  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth);
++  const allowed = target === undefined || target === principal || target === "all" || seesAll;
+   return { allowed, principal, seesAll };
+ }
+ 

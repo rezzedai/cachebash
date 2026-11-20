@@ -1,0 +1,13 @@
+# mutation for probe K.get_tasks_default_scope: a no-target read is unscoped for every key
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -164,7 +164,7 @@
+       });
+     }
+     query = query.where("target", "==", args.target);
+-  } else if (!args.target && !seesAll && !sprintType) {
++  } else if (false) {
+     // No target: program keys default to own queue + broadcast
+     query = query.where("target", "in", [principal, "all"]);
+   }

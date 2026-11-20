@@ -1,0 +1,13 @@
+# mutation for probe K.relay_dispatcher_exemption: dispatcher is dropped from RELAY_READ_ALL_PRINCIPALS
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -80,7 +80,7 @@
+ type ToolResult = { content: Array<{ type: string; text: string }> };
+ 
+ /** Principals that keep the requested-target inbox read (RD-5 PR-K, amendment 3 rule 1: `legacy` is dropped). */
+-const RELAY_READ_ALL_PRINCIPALS = ["mobile", "dispatcher"] as const;
++const RELAY_READ_ALL_PRINCIPALS = ["mobile"] as const;
+ /** Principals that read any program's sent messages and message history (K-D3 option 1). */
+ const RELAY_ADMIN_PRINCIPALS = ["mobile", "dispatcher"] as const;
+ const inList = (list: readonly string[], name: string): boolean => list.includes(name);

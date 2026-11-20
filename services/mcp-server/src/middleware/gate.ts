@@ -11,6 +11,7 @@ import { generateCorrelationId } from "./correlationId.js";
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { emitEvent } from "../modules/events.js";
 import type { AuthContext } from "../auth/authValidator.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
 export interface AuditEntry {
   timestamp: string;
@@ -142,42 +143,39 @@ export function hasCapability(auth: AuthContext, capability: string): boolean {
   return auth.capabilities.includes(capability) || auth.capabilities.includes("*");
 }
 
+/** Principals that may send as any source (RD-5 PR-K, amendment 3 VERIFYSOURCE-ADMIN: `legacy` is dropped). */
+const SOURCE_ANY_PRINCIPALS = ["mobile"] as const;
+
 /**
  * Verify source claim against key identity.
- * BUG-005 / Identity Sovereignty inv.6: enforces against keyProgramId — the identity
- * bound to the AUTHENTICATING credential (keyProgramId).
- * This closes the impersonation path on all surfaces (HTTP, Desktop, mobile, OAuth).
- *
- * legacy/mobile are admin-tier actors exempted from source pinning.
+ * BUG-005 / Identity Sovereignty inv.6, RD-5 PR-K: enforces against credentialPrincipal(auth),
+ * the identity bound to the AUTHENTICATING credential. This closes the impersonation path on all
+ * surfaces (HTTP, Desktop, mobile, OAuth). `mobile` may send as any source.
  */
 export function verifySource(
   claimedSource: string | undefined,
   auth: AuthContext,
   endpoint: "mcp" | "admin" | "rest"
 ): string {
-  // BUG-005: use the AUTHENTICATING credential's identity (keyProgramId), falling back
-  // to programId only when keyProgramId is absent (test mocks / legacy callers).
-  const credentialIdentity = auth.keyProgramId ?? auth.programId;
+  const principal = credentialPrincipal(auth);
 
-  // Admin-tier actors (legacy/mobile keys) may send on behalf of any source.
-  if (credentialIdentity === "legacy" || credentialIdentity === "mobile") {
-    return claimedSource || credentialIdentity;
+  if ((SOURCE_ANY_PRINCIPALS as readonly string[]).includes(principal)) {
+    return claimedSource || principal;
   }
 
   if (!claimedSource) {
-    // No source claimed — attribute to the key's own identity.
-    return credentialIdentity;
+    // No source claimed: attribute to the key's own identity.
+    return principal;
   }
 
-  // Enforce: claimed source must match the AUTHENTICATING credential's identity.
-  // auth.programId may differ from keyProgramId; that does NOT expand the source identity. A basher key cannot claim source "iso".
-  if (claimedSource !== credentialIdentity) {
+  // auth.programId may differ from the principal; that does NOT expand the source identity. A basher key cannot claim source "iso".
+  if (claimedSource !== principal) {
     console.error(
-      `[SECURITY] BUG-005 identity mismatch: credential="${credentialIdentity}" ` +
+      `[SECURITY] BUG-005 identity mismatch: credential="${principal}" ` +
       `claimed_source="${claimedSource}" endpoint="${endpoint}". Rejecting.`
     );
     throw new Error(
-      `Source mismatch: key belongs to "${credentialIdentity}", claimed "${claimedSource}". ` +
+      `Source mismatch: key belongs to "${principal}", claimed "${claimedSource}". ` +
       `Each program must use its own API key.`
     );
   }

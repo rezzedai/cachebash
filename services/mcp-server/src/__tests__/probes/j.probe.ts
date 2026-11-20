@@ -123,4 +123,20 @@ describe("J program state", () => {
     expect(viaObserve.json?.success).toBe(true);
     expect(JSON.stringify(viaObserve.json.results)).not.toContain(ALPHA); // fleet.observe does not widen memory search
   });
+
+  // PR-K carry-in: a foreign reader gets an allowlist of fields, so a field the schema does not know is private by default.
+  probe("J.foreign_state_allowlist", async () => {
+    const w = world();
+    const n = Date.now().toString(36);
+    await emulatorDb().doc(stateDocPath(w, "alpha")).set({
+      probeUnknown: `uk-${n}`, config: { knownQuirks: [`q-${n}`] }, decay: { decayLog: [`d-${n}`] },
+    }, { merge: true }); // the schema strips unknown fields, so only a direct write adds one
+    const mine = await callTool(w, w.creds.scoped, "state_get_program_state", { programId: "alpha" });
+    for (const tag of [`uk-${n}`, `q-${n}`, `d-${n}`]) expect(mine.text).toContain(tag); // control: the program's own read sees all three
+    const r = await callTool(w, w.creds.observer, "state_get_program_state", { programId: "alpha" });
+    expect(r.json?.success).toBe(true);
+    for (const tag of [`uk-${n}`, `q-${n}`, `d-${n}`]) expect(r.text).not.toContain(tag);
+    const allowed = ["programId", "version", "sessionId", "lastUpdatedBy", "lastUpdatedAt", "baselines"];
+    expect(Object.keys(r.json.state).filter((k) => !allowed.includes(k))).toEqual([]);
+  });
 });

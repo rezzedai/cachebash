@@ -8,11 +8,11 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:164; gsp_write at modules/gsp.ts:436; gsp_diff at modules/gsp.ts:498; gsp_bootstrap at modules/gsp.ts:758; gsp_seed at modules/gsp.ts:1225; gsp_propose at modules/gsp.ts:1336, modules/gsp.ts:1374; gsp_subscribe at modules/gsp.ts:230, modules/gsp.ts:260; gsp_resolve at modules/gsp.ts:1614, modules/gsp.ts:1688; gsp_search at modules/gsp.ts:1815; state_update_program_state at modules/programState.ts:576.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:164; gsp_write at modules/gsp.ts:436; gsp_diff at modules/gsp.ts:498; gsp_bootstrap at modules/gsp.ts:758; gsp_seed at modules/gsp.ts:1225; gsp_propose at modules/gsp.ts:1336, modules/gsp.ts:1374; gsp_subscribe at modules/gsp.ts:230, modules/gsp.ts:260; gsp_resolve at modules/gsp.ts:1614, modules/gsp.ts:1688; gsp_search at modules/gsp.ts:1815; state_update_program_state at modules/programState.ts:577.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 52 AST baseline rows.
+114 site records, 111 handler entries, 47 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -25,7 +25,7 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | ESCALATE | 83 |
 | **Total** | **114** |
 
-Status: pending 104, done 10.
+Status: pending 84, done 30.
 
 ## Method
 
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 270 |
-| (a) lines | 254 |
+| (a) occurrences | 271 |
+| (a) lines | 255 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -79,7 +79,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `index.main:params.target`
 
-- Where: `index.ts`, handler `main`, expression `params.target`, line 613 at base, 2 occurrence(s).
+- Where: `index.ts`, handler `main`, expression `params.target`, line 629 at base, 2 occurrence(s).
 - Tool: none; transports internal; effect write; decided by ISO; closes in ISO-assign.
 - Binding today: OIDC service-account token (index.ts:502-510); no program principal; wakes params.target for activeUserIds[0].
 - Evidence: POST /v1/internal/wake-target reads params.target (index.ts:613, :628) and calls wakeTarget with userId = activeUserIds[0]; the caller is a service account, not a program credential.
@@ -120,17 +120,17 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `claims.claimTaskHandler:args.sessionId`
 
-- Where: `modules/dispatch/claims.ts`, handler `claimTaskHandler`, expression `args.sessionId`, line 76 at base, 6 occurrence(s).
+- Where: `modules/dispatch/claims.ts`, handler `claimTaskHandler`, expression `args.sessionId`, line 95 at base, 5 occurrence(s).
 - Tool: dispatch_claim_task; transports mcp, rest, iso; effect write; decided by ISO; closes in PR-K.
-- Binding today: claimedBy === auth.programId for re-claim; sessionId unbound (claims.ts:75-80).
+- Binding today: isTaskOwner (dispatch/shared.ts): claimedBy equals credentialPrincipal, or claimedBy "dispatcher" and sessionId equals the principal. sessionId is attribution; a missing sessionId never matches. claimedBy is written from credentialPrincipal only (RD-5 PR-K, plan 19.1)..
 - Evidence: args.sessionId is stored on the claim (claims.ts:96 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
 - Recommendation: Remove sessionId from every authorization comparison; claimedBy is the owner. Label sessionId ATTRIBUTION after that.
 
 ### `claims.batchClaimTasksHandler:args.sessionId`
 
-- Where: `modules/dispatch/claims.ts`, handler `batchClaimTasksHandler`, expression `args.sessionId`, line 292 at base, 4 occurrence(s).
+- Where: `modules/dispatch/claims.ts`, handler `batchClaimTasksHandler`, expression `args.sessionId`, line 301 at base, 3 occurrence(s).
 - Tool: dispatch_batch_claim_tasks; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
-- Binding today: same as dispatch_claim_task (claims.ts:293).
+- Binding today: same as dispatch_claim_task (isTaskOwner, claims.ts).
 - Evidence: args.sessionId is stored on the claim (claims.ts:311 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
 - Recommendation: Same as dispatch_claim_task.
 
@@ -138,7 +138,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/dispatch/dispatchHandler.ts`, handler `dispatchHandler`, expression `args.source`, line 780 at base, 1 occurrence(s).
 - Tool: dispatch_dispatch; transports mcp, rest; effect write; decided by C-5; closes in PR-K.
-- Binding today: verifySource (gate.ts:153); legacy and mobile credentials skip source pinning (gate.ts:163).
+- Binding today: verifySource against credentialPrincipal; only mobile may name another source (gate.ts SOURCE_ANY_PRINCIPALS).
 - Name lists: NL-VERIFYSOURCE-ADMIN.
 - Evidence: dispatchHandler.ts:780 calls verifySource. verifySource returns claimedSource unchecked for credentials named legacy or mobile.
 - Recommendation: ATTRIBUTION or ADDRESSED sender binding after VECTOR rules on legacy and mobile (C-5).
@@ -194,34 +194,34 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `tasks.getTasksHandler:args.target`
 
-- Where: `modules/dispatch/tasks.ts`, handler `getTasksHandler`, expression `args.target`, line 154 at base, 3 occurrence(s).
-- Tool: dispatch_get_tasks; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K (after iso and the dispatcher hold fleet.observe).
-- Binding today: none when target is supplied; self-default when absent unless legacy, mobile or dispatcher (tasks.ts:154-160).
+- Where: `modules/dispatch/tasks.ts`, handler `getTasksHandler`, expression `args.target`, line 167 at base, 5 occurrence(s).
+- Tool: dispatch_get_tasks; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
+- Binding today: authorizeTasksRead (dispatch/tasks.ts): no target allowed; target equal to the principal or "all" allowed; TASKS_ALL_PRINCIPALS (mobile, dispatcher) and literal fleet.observe may name any target; no-target default is own queue plus broadcast except TASKS_ALL_PRINCIPALS. Sprint types skip the filter (K-D5, known-open T2.dispatch_get_tasks_sprint, PR-L)..
 - Name lists: NL-GETTASKS-DEFAULT.
 - Evidence: tasks.ts:154 filters by any target without comparison. tasks.ts:157-158 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.
 - Recommendation: FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. Order matters: the flip lands only after iso and the dispatcher hold literal fleet.observe. Today only vector and sark hold it (ownerAuthz.ts:149-152), so an earlier flip denies the dispatcher poll and iso. The dispatcher's use also needs the C-5 ruling.
 
 ### `tasks.createTaskHandler:args.source`
 
-- Where: `modules/dispatch/tasks.ts`, handler `createTaskHandler`, expression `args.source`, line 408 at base, 1 occurrence(s).
+- Where: `modules/dispatch/tasks.ts`, handler `createTaskHandler`, expression `args.source`, line 426 at base, 1 occurrence(s).
 - Tool: dispatch_create_task; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-K.
-- Binding today: verifySource; legacy and mobile skip pinning (gate.ts:163).
+- Binding today: verifySource against credentialPrincipal; only mobile may name another source.
 - Name lists: NL-VERIFYSOURCE-ADMIN.
 - Evidence: tasks.ts:408 calls verifySource.
 - Recommendation: ATTRIBUTION or ADDRESSED sender binding after C-5.
 
 ### `gsp.gspWriteHandler:args.source`
 
-- Where: `modules/gsp.ts`, handler `gspWriteHandler`, expression `args.source`, line 432 at base, 1 occurrence(s).
+- Where: `modules/gsp.ts`, handler `gspWriteHandler`, expression `args.source`, line 433 at base, 1 occurrence(s).
 - Tool: gsp_write; transports mcp, rest; effect write; decided by C-5; closes in PR-L.
-- Binding today: verifySource (gsp.ts:432); legacy and mobile skip pinning.
+- Binding today: verifySource against credentialPrincipal (PR-K, gate.ts); only mobile may name another source.
 - Name lists: NL-VERIFYSOURCE-ADMIN.
 - Evidence: gsp.ts:432 calls verifySource and stores the result as updatedBy. Which program may write which namespace is not checked anywhere in gspWriteHandler.
 - Recommendation: ATTRIBUTION for source after C-5. Namespace write authority is a separate question for ISO (ruling HpgeGWU8).
 
 ### `keys.revokeKeyHandler:keyHash`
 
-- Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 139 at base, 1 occurrence(s).
+- Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 150 at base, 1 occurrence(s).
 - Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-F.
 - Binding today: auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers "Key not found" (PR-E). isKeyAdmin is literal fleet.admin only; a key document with no programId is denied with reason "program" (PR-F)..
 - Evidence: The tenant check is satisfied by every key (one tenant). Key administration comes from a literal fleet.admin on the credential: the KEY_ADMIN_PRINCIPALS list and keys.admin were deleted in PR-F. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
@@ -313,55 +313,55 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.sendMessageHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `sendMessageHandler`, expression `args.source`, line 134 at base, 3 occurrence(s).
+- Where: `modules/relay.ts`, handler `sendMessageHandler`, expression `args.source`, line 141 at base, 3 occurrence(s).
 - Tool: relay_send_message; transports mcp, rest, iso; effect write; decided by C-5; closes in PR-K.
-- Binding today: verifySource; legacy and mobile skip pinning (gate.ts:163).
+- Binding today: verifySource against credentialPrincipal; only mobile may name another source.
 - Name lists: NL-VERIFYSOURCE-ADMIN.
 - Evidence: relay.ts:140 verifySource, :304 reuse.
 - Recommendation: ATTRIBUTION or ADDRESSED sender binding after C-5.
 
 ### `relay.getMessagesHandler:args.sessionId`
 
-- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.sessionId`, line 474 at base, 1 occurrence(s).
+- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.sessionId`, line 480 at base, 2 occurrence(s).
 - Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
-- Binding today: post-query filter t === auth.programId or "all" unless legacy, mobile or dispatcher (relay.ts:472-480); silent empty, no denial.
+- Binding today: authorizeRelayRead (relay.ts): a sessionId that names another registered program is a subject (K-D2 option 2); a restricted key reading another subject is denied before query.get().
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: args.sessionId is the fallback requestedTarget (relay.ts:474). Reads and, by default, marks messages delivered.
 - Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:477): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows.
 
 ### `relay.getMessagesHandler:args.target`
 
-- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.target`, line 474 at base, 1 occurrence(s).
+- Where: `modules/relay.ts`, handler `getMessagesHandler`, expression `args.target`, line 480 at base, 2 occurrence(s).
 - Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
-- Binding today: same as args.sessionId record.
+- Binding today: authorizeRelayRead (relay.ts): self and "all" allowed; RELAY_READ_ALL_PRINCIPALS (mobile, dispatcher) read any inbox; every other foreign target is denied naming credentialPrincipal.
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: relay.ts:474, same filter. For the three named credentials the filter honours the requested target.
 - Recommendation: Same as the args.sessionId record, including the dispatcher exemption (relay.ts:477, C-5 rule 1).
 
 ### `relay.getSentMessagesHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 617 at base, 2 occurrence(s).
+- Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 651 at base, 1 occurrence(s).
 - Tool: relay_get_sent_messages; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
-- Binding today: isAdmin may set source, else forced to auth.programId (relay.ts:616-617).
-- Name lists: NL-ADMIN-PROGRAMS.
+- Binding today: source defaults to credentialPrincipal; a foreign source needs RELAY_ADMIN_PRINCIPALS (mobile, dispatcher), else denied naming credentialPrincipal (K-D3 option 1).
+- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
 - Evidence: isAdmin is the five-name list in gate.ts:131.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `relay.queryMessageHistoryHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 743 at base, 7 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 783 at base, 7 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
-- Binding today: isAdmin, else must be self or "all" (relay.ts:754-763).
-- Name lists: NL-ADMIN-PROGRAMS.
+- Binding today: privileged is RELAY_ADMIN_PRINCIPALS (mobile, dispatcher); else self is credentialPrincipal (K-D3 option 1).
+- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
 - Evidence: Participant scoping coerces non-admin callers to self. The admin bypass is the five-name list.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `relay.queryMessageHistoryHandler:args.target`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 743 at base, 8 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 783 at base, 8 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: same as args.source record.
-- Name lists: NL-ADMIN-PROGRAMS.
+- Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
 - Evidence: relay.ts:757-763 same scoping.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -401,7 +401,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/sprint.ts`, handler `createSprintHandler`, expression `args.sessionId`, line 183 at base, 1 occurrence(s).
 - Tool: sprint_create_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
-- Binding today: none; stored on the active sprint task (sprint.ts:183) and read as claim ownership.
+- Binding today: stored as attribution only; ownership is isTaskOwner, which needs claimedBy, and a sprint parent has none (K-D1).
 - Evidence: sprint.ts:183 stores args.sessionId on a task with status "active". completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.
 - Recommendation: Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164), so no owner check can substitute.
 
@@ -451,7 +451,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 449 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
-- Binding today: delegates to relay_get_messages (handler filter).
+- Binding today: delegates to relay_get_messages (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: rest.ts:449 passes sessionId (default "rest") into the handler, which applies relay.ts:472-480.
 - Recommendation: Disposition follows the relay_get_messages records.
@@ -524,7 +524,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 855 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect read; decided by C-5; closes in PR-K.
-- Binding today: delegates to relay_get_messages with markAsRead false.
+- Binding today: delegates to relay_get_messages with markAsRead false (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: rest.ts:855 passes sessionId (default "peek").
 - Recommendation: Disposition follows the relay_get_messages records.
@@ -889,16 +889,16 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 
 | Site | Regex | Occ. | Line | Disposition | By | Closes in | Bundle |
 |---|---|---|---|---|---|---|---|
-| index.main:params.target | b | 2 | 613 | ESCALATE | ISO | ISO-assign | false |
-| index.main:params.callerSource | b | 1 | 630 | ATTRIBUTION | ISO | n/a | false |
+| index.main:params.target | b | 2 | 629 | ESCALATE | ISO | ISO-assign | false |
+| index.main:params.callerSource | b | 1 | 646 | ATTRIBUTION | ISO | n/a | false |
 | ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 112 | ESCALATE | ISO | PR-L | false |
 | analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | ATTRIBUTION | ISO | n/a | false |
 | analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | ATTRIBUTION | ISO | n/a | false |
 | audit.getAuditHandler:args.programId | a | 2 | 44 | ESCALATE | C-5 | PR-L | false |
 | clu.cluIngestHandler:parsed.session_id | b | 1 | 92 | ESCALATE | ISO | PR-L | false |
 | clu.cluAnalyzeHandler:parsed.session_id | b | 3 | 137 | ESCALATE | ISO | PR-L | false |
-| claims.claimTaskHandler:args.sessionId | a | 6 | 76 | ESCALATE | ISO | PR-K | false |
-| claims.batchClaimTasksHandler:args.sessionId | a | 4 | 292 | ESCALATE | ISO | PR-K | false |
+| claims.claimTaskHandler:args.sessionId | a | 5 | 95 | ESCALATE | ISO | PR-K | false |
+| claims.batchClaimTasksHandler:args.sessionId | a | 3 | 301 | ESCALATE | ISO | PR-K | false |
 | dispatchHandler.sendTaskAndDirective:args.target | a | 7 | 234 | ADDRESSED | ISO | PR-K | false |
 | dispatchHandler.dispatchHandler:args.source | a | 1 | 780 | ESCALATE | C-5 | PR-K | false |
 | dispatchHandler.dispatchHandler:args.target | a | 40 | 783 | ADDRESSED | ISO | PR-K | false |
@@ -909,26 +909,26 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | interventions.unquarantineProgramHandler:args.programId | a | 7 | 571 | ESCALATE | ISO | PR-L | false |
 | interventions.replayTaskHandler:args.newTarget | b | 7 | 639 | ESCALATE | ISO | PR-L | false |
 | suggestion.suggestTargetHandler:p.programId | b | 1 | 87 | NOT-IDENTITY | ISO | n/a | false |
-| tasks.getTasksHandler:args.target | a | 3 | 154 | ESCALATE | C-5 | PR-K (after iso and the dispatcher hold fleet.observe) | false |
-| tasks.createTaskHandler:args.source | a | 1 | 408 | ESCALATE | C-5 | PR-K | false |
-| tasks.createTaskHandler:args.target | a | 10 | 411 | ADDRESSED | ISO | PR-K | false |
-| gsp.gspWriteHandler:args.source | a | 1 | 432 | ESCALATE | C-5 | PR-L | false |
-| gsp.gspBootstrapHandler:args.agentId | a | 11 | 662 | FOREIGN-READ | C-4 | PR-I | false |
-| keys.createKeyHandler:programId | c | 1 | 45 | FOREIGN-WRITE | ISO | n/a | false |
-| keys.revokeKeyHandler:keyHash | c | 1 | 139 | ESCALATE | C-5 | PR-F | false |
+| tasks.getTasksHandler:args.target | a | 5 | 167 | ESCALATE | C-5 | PR-K | false |
+| tasks.createTaskHandler:args.source | a | 1 | 426 | ESCALATE | C-5 | PR-K | false |
+| tasks.createTaskHandler:args.target | a | 10 | 429 | ADDRESSED | ISO | PR-K | false |
+| gsp.gspWriteHandler:args.source | a | 1 | 433 | ESCALATE | C-5 | PR-L | false |
+| gsp.gspBootstrapHandler:args.agentId | a | 11 | 669 | FOREIGN-READ | C-4 | PR-I | false |
+| keys.createKeyHandler:programId | c | 1 | 56 | FOREIGN-WRITE | ISO | n/a | false |
+| keys.revokeKeyHandler:keyHash | c | 1 | 150 | ESCALATE | C-5 | PR-F | false |
 | metrics.getProgramHealthHandler:args.programId | a | 3 | 855 | ESCALATE | C-5 | PR-L | false |
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.listProgramsHandler:p.programId | b | 1 | 374 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.updateProgramHandler:args.programId | a | 6 | 391 | ESCALATE | C-5 | PR-L | false |
-| programState.getProgramStateHandler:args.programId | a | 10 | 230 | FOREIGN-READ | C-4 | PR-J | false |
-| programState.storeMemoryHandler:args.programId | a | 8 | 322 | SELF-ONLY | C-4 | PR-J | false |
-| programState.recallMemoryHandler:args.programId | a | 9 | 382 | SELF-ONLY | C-4 | PR-J | false |
-| programState.memoryHealthHandler:args.programId | a | 9 | 454 | SELF-ONLY | C-4 | PR-J | false |
-| programState.updateProgramStateHandler:args.programId | a | 12 | 517 | SELF-ONLY | C-4 | PR-J | false |
-| programState.updateProgramStateHandler:args.sessionId | a | 2 | 530 | ATTRIBUTION | ISO | n/a | false |
-| programState.deleteMemoryHandler:args.programId | a | 8 | 670 | SELF-ONLY | C-4 | PR-J | false |
-| programState.reinforceMemoryHandler:args.programId | a | 8 | 727 | SELF-ONLY | C-4 | PR-J | false |
-| programState.getContextHistoryHandler:args.programId | a | 7 | 787 | SELF-ONLY | C-4 | PR-J | false |
+| programState.getProgramStateHandler:args.programId | a | 10 | 261 | FOREIGN-READ | C-4 | PR-J | false |
+| programState.storeMemoryHandler:args.programId | a | 8 | 369 | SELF-ONLY | C-4 | PR-J | false |
+| programState.recallMemoryHandler:args.programId | a | 9 | 430 | SELF-ONLY | C-4 | PR-J | false |
+| programState.memoryHealthHandler:args.programId | a | 9 | 503 | SELF-ONLY | C-4 | PR-J | false |
+| programState.updateProgramStateHandler:args.programId | a | 12 | 567 | SELF-ONLY | C-4 | PR-J | false |
+| programState.updateProgramStateHandler:args.sessionId | a | 2 | 581 | ATTRIBUTION | ISO | n/a | false |
+| programState.deleteMemoryHandler:args.programId | a | 8 | 721 | SELF-ONLY | C-4 | PR-J | false |
+| programState.reinforceMemoryHandler:args.programId | a | 8 | 779 | SELF-ONLY | C-4 | PR-J | false |
+| programState.getContextHistoryHandler:args.programId | a | 7 | 840 | SELF-ONLY | C-4 | PR-J | false |
 | pulse.createSessionHandler:args.sessionId | a | 1 | 86 | ESCALATE | ISO | PR-L | false |
 | pulse.createSessionHandler:args.programId | a | 1 | 115 | ESCALATE | C-5 | PR-L | false |
 | pulse.updateSessionHandler:args.sessionId | a | 1 | 176 | ESCALATE | C-5 | PR-L | false |
@@ -938,16 +938,16 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | pulse.resumeProgramHandler:args.programId | a | 7 | 954 | ESCALATE | ISO | PR-L | false |
 | rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 76 | ATTRIBUTION | ISO | n/a | false |
 | rate-limits.getRateLimitEventsHandler:args.sessionId | a | 2 | 105 | ESCALATE | ISO | PR-L | false |
-| relay.sendMessageHandler:args.target | a | 15 | 132 | ADDRESSED | ISO | PR-K | false |
-| relay.sendMessageHandler:args.source | a | 3 | 134 | ESCALATE | C-5 | PR-K | false |
-| relay.sendMessageHandler:args.sessionId | a | 2 | 233 | ATTRIBUTION | ISO | n/a | false |
-| relay.getMessagesHandler:args.sessionId | a | 1 | 474 | ESCALATE | C-5 | PR-K | false |
-| relay.getMessagesHandler:args.target | a | 1 | 474 | ESCALATE | C-5 | PR-K | false |
-| relay.getSentMessagesHandler:args.source | a | 2 | 617 | ESCALATE | C-5 | PR-K | false |
-| relay.getSentMessagesHandler:args.target | a | 2 | 626 | SELF-ONLY | ISO | n/a | false |
-| relay.queryMessageHistoryHandler:args.source | a | 7 | 743 | ESCALATE | C-5 | PR-K | false |
-| relay.queryMessageHistoryHandler:args.target | a | 8 | 743 | ESCALATE | C-5 | PR-K | false |
-| relay.sendDirectiveHandler:parsed.target | b | 2 | 971 | ADDRESSED | ISO | PR-K | false |
+| relay.sendMessageHandler:args.target | a | 15 | 139 | ADDRESSED | ISO | PR-K | false |
+| relay.sendMessageHandler:args.source | a | 3 | 141 | ESCALATE | C-5 | PR-K | false |
+| relay.sendMessageHandler:args.sessionId | a | 2 | 240 | ATTRIBUTION | ISO | n/a | false |
+| relay.getMessagesHandler:args.sessionId | a | 2 | 480 | ESCALATE | C-5 | PR-K | false |
+| relay.getMessagesHandler:args.target | a | 2 | 480 | ESCALATE | C-5 | PR-K | false |
+| relay.getSentMessagesHandler:args.source | a | 1 | 651 | ESCALATE | C-5 | PR-K | false |
+| relay.getSentMessagesHandler:args.target | a | 2 | 666 | SELF-ONLY | ISO | n/a | false |
+| relay.queryMessageHistoryHandler:args.source | a | 7 | 783 | ESCALATE | C-5 | PR-K | false |
+| relay.queryMessageHistoryHandler:args.target | a | 8 | 783 | ESCALATE | C-5 | PR-K | false |
+| relay.sendDirectiveHandler:parsed.target | b | 2 | 1012 | ADDRESSED | ISO | PR-K | false |
 | schedule.createScheduleHandler:args.target | a | 2 | 128 | ESCALATE | ISO | PR-L | false |
 | schedule.paginateAndFilter:args.target | a | 2 | 186 | ESCALATE | ISO | PR-L | false |
 | schedule.listSchedulesHandler:args.target | a | 3 | 200 | ESCALATE | ISO | PR-L | false |
@@ -1162,7 +1162,7 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 | gsp_subscribe | modules/gsp.ts:230; modules/gsp.ts:260 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
 | gsp_resolve | modules/gsp.ts:1614; modules/gsp.ts:1688 | ruled by ISO, upheld by VECTOR |
 | gsp_search | modules/gsp.ts:1815 | ruled by ISO, upheld by VECTOR |
-| state_update_program_state | modules/programState.ts:576 | ruled by ISO, upheld by VECTOR |
+| state_update_program_state | modules/programState.ts:577 | ruled by ISO, upheld by VECTOR |
 
 The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).
 
@@ -1177,15 +1177,15 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
 |---|---|---|
 | NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
-| NL-ADMIN-PROGRAMS `middleware/gate.ts:131` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
-| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:163` [legacy, mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
-| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/completion.ts:537` [iso, orchestrator, legacy, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
+| NL-ADMIN-PROGRAMS `middleware/gate.ts:132` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
+| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:147` [mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
+| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:110` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
 | NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
-| NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:157` [legacy, mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
+| NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:136` [mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
 | NL-REGISTRY-ADMIN `modules/programRegistry.ts:399` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
 | NL-PULSE-PRIV `modules/pulse.ts:210` [legacy, mobile, dispatcher] (handler) | pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
 | NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:144` [legacy, mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
-| NL-RELAY-GETMSG `modules/relay.ts:477` [legacy, mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
+| NL-RELAY-GETMSG `modules/relay.ts:83` [mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
 | NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | members seen: none |
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
@@ -1196,19 +1196,20 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | not measured (no tool_call rows exist for this path) |
+| NL-RELAY-ADMIN `modules/relay.ts:85` [mobile, dispatcher] (handler) | relay_get_sent_messages, relay_query_message_history | not measured: new list in PR-K. Members carry over from NL-ADMIN-PROGRAMS (legacy, orchestrator and admin dropped by amendment 3). |
 
 ### Name list notes
 
 - NL-ADMIN-READERS: requireAdmin also passes any key holding "*".
 - NL-ADMIN-PROGRAMS: isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).
-- NL-VERIFYSOURCE-ADMIN: These credentials may claim any source.
-- NL-CLAIM-OWNER-OVERRIDE: These names may unclaim or complete a task they do not own.
+- NL-VERIFYSOURCE-ADMIN: mobile may send as any source. legacy was dropped in PR-K (amendment 3).
+- NL-CLAIM-OWNER-OVERRIDE: iso and dispatcher unclaim and complete any task. orchestrator and legacy were dropped in PR-K (K-D1).
 - NL-ESCALATION-CHAIN: Picks the default escalation recipient. It gates nothing.
-- NL-GETTASKS-DEFAULT: These names see every task when no target is given.
+- NL-GETTASKS-DEFAULT: mobile and dispatcher read every task with no target and any named target (K-D4). legacy was dropped in PR-K.
 - NL-REGISTRY-ADMIN: These names may edit any program entry.
 - NL-PULSE-PRIV: These names may write any session.
 - NL-PULSE-REGISTRY-SKIP: Skips the program-registry write for these names. It gates nothing.
-- NL-RELAY-GETMSG: These names read messages for any requested target.
+- NL-RELAY-GETMSG: mobile and dispatcher read the requested target. legacy was dropped in PR-K.
 - NL-ACCOUNT-MERGE: Only this name may merge accounts.
 - NL-BACKFILL-AUTH: Also passes on "*".
 - NL-REAP-AUTH: Also passes on "*".
@@ -1219,12 +1220,13 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 - NL-OAUTH-ALLOWLIST: Read from OAUTH_ALLOWED_UIDS; the default list is in the same file.
 - NL-OAUTH-BINDABLE: Programs an OAuth token may bind to.
 - NL-FIREBASE-MOBILE: A Firebase user without a program mapping authenticates as mobile.
+- NL-RELAY-ADMIN: mobile and dispatcher read any source or participant (K-D3 option 1). Replaces isAdmin at these two sites; gate.ts ADMIN_PROGRAMS is unchanged (PR-L).
 
 ## D-f AST baseline (pending)
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 47 | 198 |
+| S1 | 42 | 158 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1232,19 +1234,18 @@ The test fails on a violation with no row and on a row that no longer matches. T
 
 | Rule | File | Handler | Expression | Occ. | Line at base |
 |---|---|---|---|---|---|
-| S1 | index.ts | main | `auth.programId` | 17 | 169 |
+| S1 | index.ts | main | `auth.programId` | 17 | 181 |
 | S1 | iso/isoServer.ts | createIsoServer | `authContext.programId` | 12 | 104 |
-| S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 134 |
-| S1 | middleware/gate.ts | verifySource | `auth.programId` | 1 | 160 |
+| S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 135 |
 | S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 108 |
 | S1 | modules/account-merge.ts | mergeAccountsHandler | `auth.programId` | 1 | 25 |
 | S1 | modules/dispatch/backfillExpiresAt.ts | backfillTaskExpiresAtHandler | `auth.programId` | 2 | 62 |
-| S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 7 | 77 |
-| S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 9 | 188 |
-| S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 5 | 293 |
-| S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 16 | 509 |
-| S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 13 | 846 |
-| S1 | modules/dispatch/completion.ts | recordTaskTelemetryHandler | `auth.programId` | 1 | 1030 |
+| S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 5 | 89 |
+| S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 3 | 196 |
+| S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 295 |
+| S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 9 | 510 |
+| S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 6 | 844 |
+| S1 | modules/dispatch/completion.ts | recordTaskTelemetryHandler | `auth.programId` | 1 | 1025 |
 | S1 | modules/dispatch/interventions.ts | retryTaskHandler | `auth.programId` | 3 | 107 |
 | S1 | modules/dispatch/interventions.ts | abortTaskHandler | `auth.programId` | 5 | 215 |
 | S1 | modules/dispatch/interventions.ts | reassignTaskHandler | `auth.programId` | 4 | 302 |
@@ -1254,21 +1255,17 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/dispatch/interventions.ts | replayTaskHandler | `auth.programId` | 2 | 718 |
 | S1 | modules/dispatch/interventions.ts | approveTaskHandler | `auth.programId` | 4 | 781 |
 | S1 | modules/dispatch/reapExpiredTasks.ts | reapExpiredTasksHandler | `auth.programId` | 2 | 220 |
-| S1 | modules/dispatch/tasks.ts | getTasksHandler | `auth.programId` | 5 | 157 |
-| S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1192 |
-| S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1352 |
-| S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1475 |
-| S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1636 |
-| S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 92 |
+| S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1216 |
+| S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1376 |
+| S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1499 |
+| S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1660 |
+| S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 103 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 399 |
 | S1 | modules/pulse.ts | updateSessionHandler | `auth.programId` | 4 | 209 |
 | S1 | modules/pulse.ts | pauseProgramHandler | `auth.programId` | 3 | 909 |
 | S1 | modules/pulse.ts | resumeProgramHandler | `auth.programId` | 3 | 972 |
 | S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
-| S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 111 |
-| S1 | modules/relay.ts | getMessagesHandler | `auth.programId` | 4 | 477 |
-| S1 | modules/relay.ts | getSentMessagesHandler | `auth.programId` | 1 | 617 |
-| S1 | modules/relay.ts | queryMessageHistoryHandler | `auth.programId` | 5 | 756 |
+| S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 118 |
 | S1 | modules/schedule.ts | createScheduleHandler | `auth.programId` | 1 | 141 |
 | S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
 | S1 | modules/sprint.ts | updateStoryHandler | `auth.programId` | 2 | 331 |
@@ -1281,6 +1278,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 950 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 400 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 757 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 763 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 798 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 804 |
 | S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 186 |

@@ -1,0 +1,13 @@
+# mutation for probe K.broadcast_read_does_not_claim: a broadcast is claimed by the first reader (drop && !isBroadcast, relay.ts)
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -581,7 +581,7 @@
+         // than one true recipient.
+         const isBroadcast = data.target === "all";
+ 
+-        if (data.status === "pending" && !isBroadcast) {
++        if (data.status === "pending") {
+           tx.update(ref, {
+             status: "delivered",
+             deliveredAt: FieldValue.serverTimestamp(),

@@ -97,8 +97,8 @@ export async function seedAll(): Promise<{
   const seeders = {} as { A: WorldCredential; B: WorldCredential };
   for (const t of ["A", "B"] as const) {
     const tenantUid = tenants[t];
-    const { key, keyHash } = await writeKey(tenantUid, "legacy", `probe-seeder-${t}`, ["*"]);
-    seeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "legacy", capabilities: ["*"], key, keyHash };
+    const { key, keyHash } = await writeKey(tenantUid, "legacy", `probe-seeder-${t}`, ["*", "fleet.observe"]); // PR-K: the replay case reads foreign tasks as the seeder
+    seeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "legacy", capabilities: ["*", "fleet.observe"], key, keyHash };
   }
   // PR-J: "legacy" is no longer a program-state principal, so state rows are seeded as `mobile` (STATE_ADMIN_PRINCIPALS, C-5 rule 1)
   const stateSeeders = {} as { A: WorldCredential; B: WorldCredential };

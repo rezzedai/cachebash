@@ -1,0 +1,13 @@
+# mutation for probe K.relay_foreign_direct_denied: the foreign-subject denial is dropped: a restricted key is silently filtered to its own inbox
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -466,7 +466,7 @@
+   const readsAll = inList(RELAY_READ_ALL_PRINCIPALS, principal);
+   if (readsAll) return { allowed: true, readsAll, subject: target };
+   const subject = target ?? (sessionId !== principal && (await isProgramRegistered(auth.userId, sessionId)) ? sessionId : undefined);
+-  const allowed = !subject || subject === principal || subject === "all";
++  const allowed = true;
+   return { allowed, readsAll, subject };
+ }
+ 
