@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_dispatcher_rest_session_writes: the dispatcher is not in PULSE_PRIV
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -84,7 +84,7 @@
+ }
+ 
+ /** Principals that create, update and read any program's sessions (amendment 3 PULSE-PRIV). An empty principal is never one. */
+-const PULSE_PRIV = ["mobile", "dispatcher"] as const;
++const PULSE_PRIV = ["mobile"] as const;
+ /** Session owners that get no program-registry mirror (plan 20 L-D11: `legacy` is an ordinary program). */
+ const PULSE_REGISTRY_SKIP = ["mobile"] as const;
+ const inList = (list: readonly string[], name: string): boolean => name !== "" && list.includes(name);

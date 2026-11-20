@@ -140,7 +140,7 @@ const TASKS_ALL_PRINCIPALS = ["mobile", "dispatcher"] as const;
  * Row 7: may `auth` read tasks for `target`? No target, self and the broadcast target always; the TASKS_ALL_PRINCIPALS (K-D4);
  * anyone else only with the literal fleet.observe capability. Bound to credentialPrincipal, never to auth.programId.
  */
-function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
+export function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
   const principal = credentialPrincipal(auth);
   const seesAll = (TASKS_ALL_PRINCIPALS as readonly string[]).includes(principal);
   const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth);

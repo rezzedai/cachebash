@@ -5,6 +5,7 @@ import { assertEmulatorOnly } from "./guard";
 import { clearEmulator } from "./emulator";
 import { seedAll } from "./seed";
 import { startServer } from "./server";
+import { startFakeAuth } from "./fakeAuth";
 import { seedData } from "./data";
 import { WORLD_FILE_ENV, World } from "./world";
 
@@ -18,7 +19,8 @@ export default async function globalSetup(): Promise<void> {
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rd5-probes-"));
   const serverDir = process.env.PROBE_SERVER_DIR || undefined;
-  const srv = await startServer({ serverDir, logPath: path.join(dir, "server.log") });
+  const auth = await startFakeAuth();
+  const srv = await startServer({ serverDir, logPath: path.join(dir, "server.log"), authHost: auth.host });
 
   const seed = await seedData({ baseUrl: srv.baseUrl }, seeders, stateSeeders);
 

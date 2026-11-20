@@ -23,11 +23,6 @@ let db: FirebaseFirestore.Firestore;
 let testUser: Awaited<ReturnType<typeof seedTestUser>>;
 let auth: AuthContext;
 
-// Mock access-tiers for integration tests
-jest.mock("../../config/access-tiers", () => ({
-  ADMIN_READERS: ["admin", "legacy", "mobile", "orchestrator", "vector", "iso"],
-}));
-
 // Mock events module to prevent telemetry writes
 jest.mock("../../modules/events", () => ({
   emitEvent: jest.fn(),

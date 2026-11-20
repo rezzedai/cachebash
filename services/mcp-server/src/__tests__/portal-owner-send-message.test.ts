@@ -122,10 +122,6 @@ jest.mock("../middleware/pricingEnforce.js", () => ({
 jest.mock("../middleware/usage.js", () => ({
   incrementUsage: jest.fn(),
 }));
-jest.mock("../config/access-tiers.js", () => ({
-  ADMIN_READERS: [],
-  ADMIN_PROGRAMS: [],
-}));
 jest.mock("../config/constants.js", () => ({
   CONSTANTS: { limits: { maxBodySizeBytes: 65536 } },
 }));

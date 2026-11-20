@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_self_rest_telemetry: only TELEMETRY_PRIV records telemetry, so the completing program is refused
+diff --git a/src/modules/dispatch/completion.ts b/src/modules/dispatch/completion.ts
+--- a/src/modules/dispatch/completion.ts
++++ b/src/modules/dispatch/completion.ts
+@@ -1027,7 +1027,7 @@
+ 
+       // RD-5 PR-L row 16: K-D1 ownership (claimedBy, or the dispatcher's delegated claim) or mobile and dispatcher; bound to credentialPrincipal.
+       const telemetryCaller = credentialPrincipal(auth);
+-      if (!isTaskOwner(data, telemetryCaller) && !(TELEMETRY_PRIV as readonly string[]).includes(telemetryCaller)) {
++      if (!(TELEMETRY_PRIV as readonly string[]).includes(telemetryCaller)) {
+         logDenial({ principal: telemetryCaller, tool: "dispatch_record_task_telemetry", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
+         return { success: false as const, error: `Only the completing program or admin can record telemetry (caller "${telemetryCaller}")` };
+       }

@@ -53,7 +53,7 @@ const SITES: Site[] = [
   { id: "W.12", gate: "modules/metrics.ts:723 sla compliance", attempt: viaTool("metrics_get_sla_compliance", {}, "scoped") },
   { id: "W.13", gate: "modules/metrics.ts:841 program health", attempt: viaTool("metrics_get_program_health", {}, "scoped") },
   { id: "W.14", gate: "modules/pulse.ts:401 fleet health", attempt: viaTool("pulse_get_fleet_health", { detail: "summary" }, "scoped") },
-  { id: "W.15", gate: "transport/rest.ts:131 requireAdmin", attempt: viaRest("GET", "/v1/tasks/stats", undefined, "seeder") },
+  { id: "W.15", gate: "transport/rest.ts enforceBreaker(get_tasks) on /v1/tasks/stats", attempt: viaRest("GET", "/v1/tasks/stats", undefined, "seeder") },
   { id: "W.17", gate: "dispatch/backfillExpiresAt.ts:61", attempt: viaTool("dispatch_backfill_task_expires_at", { dryRun: true }, "seeder") },
   { id: "W.18", gate: "dispatch/reapExpiredTasks.ts:219", attempt: viaTool("dispatch_reap_expired_tasks", { dryRun: true }, "seeder") },
   { id: "W.19", gate: "gsp.ts:1189 gsp_seed", attempt: viaTool("gsp_seed", { namespace: "w19-probe", entries: [{ key: "k", value: 1, tier: "architectural" }] }, "seeder") },

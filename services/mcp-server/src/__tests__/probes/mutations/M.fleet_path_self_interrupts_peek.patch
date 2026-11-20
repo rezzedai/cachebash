@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_self_interrupts_peek: a program key may not read even its own inbox
+diff --git a/src/modules/relay.ts b/src/modules/relay.ts
+--- a/src/modules/relay.ts
++++ b/src/modules/relay.ts
+@@ -479,7 +479,7 @@
+   // R6, K-D2 option 2: a restricted key reads only its own inbox (plus broadcasts). The denial fires before
+   // query.get(), so nothing is read or claimed.
+   const { allowed, readsAll, subject } = await authorizeRelayRead(auth, args.target, args.sessionId);
+-  if (!allowed) {
++  if (!allowed || !readsAll) {
+     logDenial({ principal: denialPrincipal(auth), tool: "relay_get_messages", subject: subject ?? null, code: "FOREIGN_SUBJECT" });
+     return jsonResult({
+       success: false,

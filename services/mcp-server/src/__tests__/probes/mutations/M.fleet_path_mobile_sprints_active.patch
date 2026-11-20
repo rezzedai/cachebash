@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_mobile_sprints_active: mobile is not in SPRINT_ALL
+diff --git a/src/modules/sprint.ts b/src/modules/sprint.ts
+--- a/src/modules/sprint.ts
++++ b/src/modules/sprint.ts
+@@ -154,7 +154,7 @@
+ // A sprint records its creator (`createdBy`). Writes need the creator, the iso and dispatcher override, the literal fleet.admin capability, or mobile.
+ // Reads add TASKS_ALL_PRINCIPALS and literal fleet.observe. A sprint with no createdBy fails closed: override, fleet.admin or mobile only.
+ 
+-const SPRINT_ALL: readonly string[] = ["mobile"];
++const SPRINT_ALL: readonly string[] = [];
+ 
+ export function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
+   if (!sprint) return false;

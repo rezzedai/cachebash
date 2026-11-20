@@ -17,6 +17,8 @@ const mockDb = {
   collection: jest.fn(() => ({ doc: jest.fn(() => ({})) })),
   doc: jest.fn(() => ({})),
   batch: jest.fn(() => mockBatch),
+  // PR-M: mark_read reads the messages before it decides per id; the mock holds none, so each id is notFound
+  getAll: jest.fn(async (...refs: unknown[]) => refs.map(() => ({ exists: false, data: () => undefined }))),
 };
 
 jest.mock("../firebase/client.js", () => ({

@@ -1,0 +1,26 @@
+# mutation for probe M.sprints_active_filtered: sprints/active lists every sprint again
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -594,10 +594,6 @@
+     restResponse(res, true, data);
+   }),
+   route("GET", "/v1/sprints/active", async (auth, req, res) => {
+-    // RD-5 PR-M row 6 (GATE sprint_get_sprint): the capability gate, then each sprint must pass mayActOnSprint(read) on
+-    // credentialPrincipal(auth). A sprint the caller may not read is dropped from the list; there is no per-item denial.
+-    await enforceBreaker(auth, "sprint_get_sprint");
+-    const principal = credentialPrincipal(auth);
+     const db = getFirestore();
+     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
+     const snap = await tasksRef
+@@ -607,9 +603,7 @@
+       .limit(10)
+       .get();
+ 
+-    const { mayActOnSprint } = await import("../modules/sprint.js");
+-    const readable = snap.docs.filter((doc: any) => mayActOnSprint(auth, principal, doc.data(), "read"));
+-    const sprints = await Promise.all(readable.map(async (doc: any) => {
++    const sprints = await Promise.all(snap.docs.map(async (doc: any) => {
+       const data = doc.data();
+       // Fetch stories for this sprint
+       const storiesSnap = await tasksRef

@@ -632,6 +632,38 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   }
 }
 
+/**
+ * RD-5 PR-M row 2 (M-D1): POST /v1/messages/mark_read. Per id: the message's target is the principal, or the principal is in
+ * RELAY_READ_ALL_PRINCIPALS (mobile, dispatcher). A broadcast (target "all") is one doc shared by every reader, so it never
+ * changes state for anyone (R6a). A missing id is counted as notFound and is not a denial. Each refused id writes one logDenial.
+ */
+export async function markReadHandler(
+  auth: AuthContext, messageIds: string[]
+): Promise<{ updated: number; notFound: number; broadcast: number; denied: Array<{ id: string; error: string }> }> {
+  const principal = credentialPrincipal(auth);
+  const readsAll = inList(RELAY_READ_ALL_PRINCIPALS, principal);
+  const db = getFirestore();
+  const ids = [...new Set(messageIds.slice(0, 100))];
+  const refs = ids.map((id) => db.doc(`tenants/${auth.userId}/relay/${id}`));
+  const snaps = await db.getAll(...refs);
+  const batch = db.batch();
+  const out = { updated: 0, notFound: 0, broadcast: 0, denied: [] as Array<{ id: string; error: string }> };
+  snaps.forEach((snap, i) => {
+    if (!snap.exists) { out.notFound++; return; }
+    const target = snap.data()?.target;
+    if (target === "all") { out.broadcast++; return; }
+    if (target === principal || readsAll) {
+      batch.update(refs[i], { status: "read", readAt: FieldValue.serverTimestamp() });
+      out.updated++;
+      return;
+    }
+    logDenial({ principal: denialPrincipal(auth), tool: "relay_mark_read", subject: typeof target === "string" ? target : null, code: "FOREIGN_SUBJECT" });
+    out.denied.push({ id: ids[i], error: `Access denied: "${principal}" cannot mark read message "${ids[i]}"` });
+  });
+  if (out.updated > 0) await batch.commit();
+  return out;
+}
+
 const GetDeadLettersSchema = z.object({
   limit: z.number().min(1).max(50).default(20),
 });

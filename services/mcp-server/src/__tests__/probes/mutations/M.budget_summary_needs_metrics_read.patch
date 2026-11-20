@@ -1,0 +1,12 @@
+# mutation for probe M.budget_summary_needs_metrics_read: budget/summary has no capability gate
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -663,7 +663,6 @@
+   // Budget
+   route("GET", "/v1/budget/summary", async (auth, req, res) => {
+     // RD-5 PR-M row 8 (CAP metrics_get_cost_summary, M-D4): metrics.read; the summary is a tenant aggregate.
+-    await enforceBreaker(auth, "metrics_get_cost_summary");
+     const { budgetSummaryHandler } = await import("../modules/budget.js");
+     const result = await budgetSummaryHandler(auth, {});
+     const text = result?.content?.[0]?.text;

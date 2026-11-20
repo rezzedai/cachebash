@@ -1,0 +1,28 @@
+# mutation for probe M.unread_default_self: the unread route reads the relay collection directly again, with no principal check
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -418,15 +418,14 @@
+   // Relay
+   route("GET", "/v1/messages/unread", async (auth, req, res) => {
+     const query = coerceQueryParams(parseQuery(req.url || ""));
+-    // RD-5 PR-M row 1: the inbox read is get_messages (authorizeRelayRead decides). The subject defaults to the principal, never to
+-    // the whole tenant. markAsRead:false keeps this a peek. 21.1 C2: the route still answers { messages, count }, newest first, at most 50.
+-    const data = await callTool(auth, req, "get_messages", { sessionId: (query.sessionId as string) || credentialPrincipal(auth), markAsRead: false }) as {
+-      success?: boolean; interrupts?: Array<{ createdAt?: string | null }>;
+-    };
+-    if (data.success === false) return restResponse(res, true, data);
+-    const messages = [...(data.interrupts ?? [])]
+-      .sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? ""))
+-      .slice(0, 50);
++    const db = getFirestore();
++    const relayRef = db.collection(`tenants/${auth.userId}/relay`);
++    let q: Query = relayRef.where("status", "==", "pending");
++    if (query.sessionId) {
++      q = q.where("target", "==", query.sessionId);
++    }
++    const snap = await q.orderBy("createdAt", "desc").limit(50).get();
++    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+     restResponse(res, true, { messages, count: messages.length });
+   }),
+   route("POST", "/v1/messages/mark_read", async (auth, req, res) => {

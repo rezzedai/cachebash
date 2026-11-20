@@ -1,0 +1,12 @@
+# mutation for probe M.reset_cache_denial_logged: the 403 of /admin/reset-program-cache no longer logs a denial
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -939,7 +939,6 @@
+   // Admin
+   route("POST", "/admin/reset-program-cache", async (auth, req, res) => {
+     if (!auth.capabilities.includes("*")) {
+-      logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
+       return restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
+     }
+     const body = await readBody(req);

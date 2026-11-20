@@ -156,7 +156,7 @@ export function storyStatusToLifecycle(status: string): string {
 
 const SPRINT_ALL: readonly string[] = ["mobile"];
 
-function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
+export function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
   if (!sprint) return false;
   if (SPRINT_ALL.includes(p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return true;
   if (typeof sprint.createdBy !== "string" || sprint.createdBy === "") return false;

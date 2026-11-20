@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_mobile_unread: the unread route sorts oldest first (21.1 C2)
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -425,7 +425,7 @@
+     };
+     if (data.success === false) return restResponse(res, true, data);
+     const messages = [...(data.interrupts ?? [])]
+-      .sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? ""))
++      .sort((x, y) => (x.createdAt ?? "").localeCompare(y.createdAt ?? ""))
+       .slice(0, 50);
+     restResponse(res, true, { messages, count: messages.length });
+   }),

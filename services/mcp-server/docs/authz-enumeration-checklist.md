@@ -12,20 +12,20 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-116 site records, 111 handler entries, 25 AST baseline rows.
+116 site records, 111 handler entries, 23 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
-| SELF-ONLY | 9 |
-| FOREIGN-READ | 2 |
+| SELF-ONLY | 12 |
+| FOREIGN-READ | 6 |
 | FOREIGN-WRITE | 1 |
 | ADDRESSED | 5 |
 | ATTRIBUTION | 9 |
-| NOT-IDENTITY | 5 |
-| ESCALATE | 85 |
+| NOT-IDENTITY | 11 |
+| ESCALATE | 72 |
 | **Total** | **116** |
 
-Status: pending 43, done 73.
+Status: pending 30, done 86.
 
 ## Method
 
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 320 |
-| (a) lines | 296 |
+| (a) occurrences | 319 |
+| (a) lines | 295 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
@@ -73,7 +73,7 @@ Sites are keyed by handler and expression, not by line. `line_at_base` is the fi
 | NOT-IDENTITY | regex hit that is not a caller argument, with the reason |
 | ESCALATE | disposition not readable from the code; evidence and a recommendation given, ISO and VECTOR decide |
 
-## ESCALATE (85)
+## ESCALATE (72)
 
 Each record gives the evidence and a recommendation. The builder picks nothing; ISO reviews every record and VECTOR reviews ESCALATE, ADDRESSED and ATTRIBUTION.
 
@@ -273,7 +273,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/pulse.ts`, handler `listSessionsHandler`, expression `args.programId`, line 747 at base, 1 occurrence(s).
 - Tool: pulse_list_sessions; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
-- Binding today: none in handler; REST route adds requireAdmin (rest.ts:516).
+- Binding today: none in handler; REST route adds requireAdmin (rest.ts:518).
 - Evidence: pulse.ts:764 filters by any program; absent lists all. The MCP and ISO transports reach it with no gate.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -338,7 +338,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.getSentMessagesHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 653 at base, 1 occurrence(s).
+- Where: `modules/relay.ts`, handler `getSentMessagesHandler`, expression `args.source`, line 685 at base, 1 occurrence(s).
 - Tool: relay_get_sent_messages; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: source defaults to credentialPrincipal; a foreign source needs RELAY_ADMIN_PRINCIPALS (mobile, dispatcher), else denied naming credentialPrincipal (K-D3 option 1).
 - Name lists: NL-RELAY-ADMIN.
@@ -347,7 +347,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.queryMessageHistoryHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 788 at base, 8 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 820 at base, 8 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: privileged is RELAY_ADMIN_PRINCIPALS (mobile, dispatcher); else self is credentialPrincipal (K-D3 option 1).
 - Name lists: NL-RELAY-ADMIN.
@@ -356,11 +356,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.queryMessageHistoryHandler:args.target`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 788 at base, 9 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 820 at base, 9 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: same as args.source record.
 - Name lists: NL-RELAY-ADMIN.
-- Evidence: relay.ts:762-768 same scoping.
+- Evidence: relay.ts:794-800 same scoping.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `schedule.createScheduleHandler:args.target`
@@ -427,35 +427,18 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Evidence: parsed.sessionId comes from a caller-chosen header. An invalid id proceeds under Bearer auth (:147-150). A heartbeat updates sessions/{header}.lastHeartbeat for any program in the tenant (:159). DELETE removes any mcp_sessions document in the tenant (:230). It is an identity-selecting argument, not protocol framing alone.
 - Recommendation: Bind the header id to the principal that created the MCP session (SELF-ONLY on session ownership) before the heartbeat write and the DELETE. ISO to assign the PR.
 
-### `rest.route GET /v1/tasks/stats:query.target`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/tasks/stats`, expression `query.target`, line 327 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
-- Binding today: requireAdmin: "*" or ADMIN_READERS (rest.ts:133-139, :323).
-- Name lists: NL-ADMIN-READERS.
-- Evidence: Counts any target's tasks by querying Firestore directly (rest.ts:325-340); no MCP handler, so no capability gate, breaker or audit.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5).
-
-### `rest.route GET /v1/messages/unread:query.sessionId`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/messages/unread`, expression `query.sessionId`, line 426 at base, 2 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none.
-- Evidence: rest.ts:423-429 queries relay documents directly. With query.sessionId it filters target equal to that value; without it, returns every pending message in the tenant (limit 50). No principal check.
-- Recommendation: SELF-ONLY; the widest unauthenticated-by-principal read in the table.
-
 ### `rest.route GET /v1/messages:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 453 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 452 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: rest.ts:453 passes sessionId (default "rest") into the handler, which applies relay.ts:473-481.
+- Evidence: rest.ts:452 passes sessionId (default "rest") into the handler, which applies relay.ts:473-481.
 - Recommendation: Disposition follows the relay_get_messages records.
 
 ### `rest.route GET /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 790 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 792 at base, 1 occurrence(s).
 - Tool: state_get_program_state; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_program_state; the gate is in the handler.
@@ -463,7 +446,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 795 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 797 at base, 1 occurrence(s).
 - Tool: state_update_program_state; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_update_program_state; the gate is in the handler.
@@ -471,7 +454,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/program-state/:programId/context-history:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 800 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 802 at base, 1 occurrence(s).
 - Tool: state_get_context_history; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_context_history; the gate is in the handler.
@@ -479,7 +462,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route POST /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 807 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 809 at base, 1 occurrence(s).
 - Tool: state_store_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_store_memory; the gate is in the handler.
@@ -487,7 +470,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 812 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 814 at base, 1 occurrence(s).
 - Tool: state_recall_memory; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_recall_memory; the gate is in the handler.
@@ -495,7 +478,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 816 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 818 at base, 1 occurrence(s).
 - Tool: state_delete_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_delete_memory; the gate is in the handler.
@@ -503,7 +486,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 821 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 823 at base, 1 occurrence(s).
 - Tool: state_reinforce_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.
@@ -511,7 +494,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/health:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 825 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 827 at base, 1 occurrence(s).
 - Tool: state_memory_health; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_memory_health; the gate is in the handler.
@@ -519,103 +502,12 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/interrupts/peek:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 859 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 861 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect read; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages with markAsRead false (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: rest.ts:859 passes sessionId (default "peek").
+- Evidence: rest.ts:861 passes sessionId (default "peek").
 - Recommendation: Disposition follows the relay_get_messages records.
-
-### `rest.route GET /v1/tasks/stats:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/tasks/stats`, expression `getFirestore()`, line 325 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
-- Binding today: requireAdmin: "*" or ADMIN_READERS (rest.ts:133-139, :323).
-- Name lists: NL-ADMIN-READERS.
-- Evidence: Counts tasks tenant-wide or by query.target straight from Firestore; skips callTool (no capability gate, breaker, rate limit or audit).
-- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Route through callTool or authorizeSubject (PDR 4.5).
-
-### `rest.route GET /v1/messages/unread:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/messages/unread`, expression `getFirestore()`, line 423 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none.
-- Evidence: Lists pending relay documents straight from Firestore; with no sessionId it returns every pending message in the tenant (limit 50).
-- Recommendation: SELF-ONLY by principal; route through callTool.
-
-### `rest.route POST /v1/messages/mark_read:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route POST /v1/messages/mark_read`, expression `getFirestore()`, line 440 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect write; decided by ISO; closes in PR-M.
-- Binding today: enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:433-445).
-- Evidence: Marks up to 100 caller-supplied relay document ids read in the tenant. Does not compare the document target to the caller.
-- Recommendation: SELF-ONLY on the message target; broadcast documents must not transition (PDR section 6).
-
-### `rest.route GET /v1/sessions/history:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/sessions/history`, expression `getFirestore()`, line 537 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
-- Binding today: requireAdmin (rest.ts:535).
-- Name lists: NL-ADMIN-READERS.
-- Evidence: Lists archived sessions tenant-wide; no identifier argument.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
-
-### `rest.route GET /v1/sprints/active:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/sprints/active`, expression `getFirestore()`, line 607 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by C-5; closes in PR-M.
-- Binding today: requireAdmin (rest.ts:606).
-- Name lists: NL-ADMIN-READERS.
-- Evidence: Lists active sprint tasks tenant-wide; no identifier argument.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
-
-### `rest.route GET /v1/gsp/proposals:getFirestore()`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/gsp/proposals`, expression `getFirestore()`, line 753 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none.
-- Evidence: Lists GSP proposals for the tenant straight from Firestore; filter by status only. The tenant segment is auth.userId (rest.ts:754).
-- Recommendation: Disposition follows the gsp_resolve and gsp_propose records; route through callTool.
-
-### `rest.route GET /v1/budget/summary:budgetSummaryHandler`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/budget/summary`, expression `budgetSummaryHandler()`, line 670 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
-- Evidence: Calls budgetSummaryHandler directly (rest.ts:669-671); no capability gate, breaker, rate limit or audit.
-- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
-
-### `rest.route GET /v1/dreams:dreamPeekHandler`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/dreams`, expression `dreamPeekHandler()`, line 711 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
-- Evidence: Calls dreamPeekHandler directly; skips callTool.
-- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
-
-### `rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/gsp/namespaces`, expression `gspListNamespacesHandler()`, line 733 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
-- Evidence: Calls gspListNamespacesHandler directly; skips callTool. Lists namespace names and entry counts for the tenant.
-- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
-
-### `rest.route GET /v1/dreams/peek:dreamPeekHandler`
-
-- Where: `transport/rest.ts`, handler `route GET /v1/dreams/peek`, expression `dreamPeekHandler()`, line 863 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect read; decided by ISO; closes in PR-M.
-- Binding today: none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry.
-- Evidence: Legacy duplicate of GET /v1/dreams; calls dreamPeekHandler directly.
-- Recommendation: Route through callTool so the capability gate, breaker and audit apply (PDR 4.5); disposition then follows the handler.
-
-### `rest.createRestRouter:enrollHandler`
-
-- Where: `transport/rest.ts`, handler `createRestRouter`, expression `enrollHandler(req, res)`, line 980 at base, 1 occurrence(s).
-- Tool: none; transports rest; effect write; decided by ISO; closes in PR-M.
-- Binding today: none: public pre-auth route /enroll; identity comes from the enrollment token document (enrollment.ts:113, :178-179).
-- Evidence: rest.ts:980 hands /enroll to enrollHandler before authentication and without callTool. The handler exchanges a one-time token for a cb_ key: tenant from the enrollment document, program fixed to ENROLLMENT_PROGRAM_ID, no request argument selects either. Not in the recon (amendment 2).
-- Recommendation: NOT-IDENTITY for the arguments (the principal is created, not read). ISO to confirm the unauthenticated route is intended.
 
 ### `interventions.abortTaskHandler:args.taskId`
 
@@ -787,7 +679,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | dispatchHandler.dispatchHandler:args.target | dispatch_dispatch | target must be a registered program, group or @role; no caller binding | dispatchHandler.ts:783 onward validates the target and creates a task, a directive and a wake for it. The target is the recipient. It also returns target state (heartbeat) to the caller. |
 | tasks.createTaskHandler:args.target | dispatch_create_task | target must be a registered program, group or @role (tasks.ts:413-418) | The argument names the recipient of a new task. The sender is bound by verifySource. |
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191) | The argument names the recipient. The sender is bound by verifySource at relay.ts:141. |
-| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:978-983 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
+| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
 ## ATTRIBUTION (9)
 
@@ -803,9 +695,9 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
-| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:942) | rest.ts:944 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
+| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:944) | rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
-## NOT-IDENTITY (5)
+## NOT-IDENTITY (11)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
@@ -814,8 +706,14 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:376 is a map callback variable over registry rows. |
 | signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:296-302), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
 | callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
+| rest.route GET /v1/gsp/proposals:getFirestore() | none | enforceBreaker gsp_read (gsp.read); tenant-wide by ruling M-D3 (PR-M row 7) | PR-M row 7: proposals are governance records every reviewer reads; gsp_resolve's gate decides who acts (PR-N). |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | enforceBreaker metrics_get_cost_summary (metrics.read); tenant aggregate by ruling M-D4 (PR-M row 8) | PR-M row 8: the route now passes the capability gate and the circuit breaker; the summary is a tenant aggregate. |
+| rest.route GET /v1/dreams:dreamPeekHandler | none | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) | PR-M row 9: the route goes through callTool. |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | enforceBreaker gsp_read (gsp.read); namespace list is tenant-wide (PR-M row 10) | PR-M row 10: the route passes the gsp.read capability gate and the circuit breaker. |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) | PR-M row 9: the legacy duplicate goes through callTool. |
+| rest.createRestRouter:enrollHandler | none | none by design: public pre-auth route /enroll; the enrollment token is the credential and ENROLLMENT_PROGRAM_ID binds the identity (M-D5) | M-D5: no request argument selects a tenant or a program; the principal is created from the enrollment document, not read. |
 
-## SELF-ONLY (9)
+## SELF-ONLY (12)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
@@ -827,14 +725,21 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | programState.reinforceMemoryHandler:args.programId | state_reinforce_memory | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_reinforce_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
 | programState.getContextHistoryHandler:args.programId | state_get_context_history | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_get_context_history is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
 | relay.getSentMessagesHandler:args.target | relay_get_sent_messages | narrows a result already bound by source (relay.ts:628-629) | The filter intersects with source, which the args.source record owns. The target argument cannot widen the result. |
+| rest.route GET /v1/messages/unread:query.sessionId | none | callTool get_messages with markAsRead:false; sessionId defaults to credentialPrincipal(auth); authorizeRelayRead decides (PR-M row 1) | PR-M row 1: the route reads through get_messages. A foreign sessionId is refused with the relay denial text; the response keeps { messages, count }, newest first, at most 50 (21.1 C2). |
+| rest.route GET /v1/messages/unread:getFirestore() | none | no direct Firestore read: callTool get_messages (PR-M row 1) | PR-M row 1: the direct relay query is gone; the route calls get_messages. |
+| rest.route POST /v1/messages/mark_read:getFirestore() | none | enforceBreaker relay_mark_read, then markReadHandler per id: target is the principal, or RELAY_READ_ALL_PRINCIPALS; broadcast ids never change state (M-D1, PR-M row 2) | PR-M row 2: the route no longer reads or writes Firestore directly. A refused id writes one logDenial; a missing id is notFound and is not a denial. |
 | gsp.gspSearchHandler:program_state-scan | gsp_search | credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS ["mobile"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J). | PR-J: the memory scan no longer lists the whole program_state collection. A foreign program's learnedPatterns are never returned through gsp_search. |
 
-## FOREIGN-READ (2)
+## FOREIGN-READ (6)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
 | gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:648-661); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
 | programState.getProgramStateHandler:args.programId | state_get_program_state | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self and mobile read the full document; a foreign read needs literal fleet.observe and gets the document minus learnedPatterns and contextSummary with memory.status "omitted" (PR-J). | PR-J: the name lists STATE_READERS and STATE_WRITERS are deleted. A foreign fleet.observe read returns no memory and never writes (decay write-back runs only for self and mobile). Self and mobile reads return memory.status "loaded" or "empty". |
+| rest.route GET /v1/tasks/stats:query.target | none | enforceBreaker get_tasks (dispatch.read), then authorizeTasksRead on credentialPrincipal(auth): a named foreign target needs TASKS_ALL_PRINCIPALS or the literal fleet.observe; no target counts target == principal unless TASKS_ALL or fleet.observe (rest.ts, PR-M row 3) | PR-M row 3: the route no longer trusts requireAdmin; a foreign target is refused and logged (FOREIGN_SUBJECT). |
+| rest.route GET /v1/tasks/stats:getFirestore() | none | enforceBreaker get_tasks plus authorizeTasksRead on credentialPrincipal(auth) (PR-M row 3) | PR-M row 3: counts are scoped to the principal's own target unless TASKS_ALL_PRINCIPALS or fleet.observe. |
+| rest.route GET /v1/sessions/history:getFirestore() | none | callTool list_sessions with includeArchived:true: self, PULSE_PRIV or fleet.observe (PR-L row 4; PR-M row 5, M-D2) | PR-M row 5: archived sessions come from list_sessions, so a program key sees its own archived sessions only. The route keeps its sessions key; durationMs and createdAt are null because list_sessions does not return createdAt. |
+| rest.route GET /v1/sprints/active:getFirestore() | none | enforceBreaker sprint_get_sprint (sprint.read), then each sprint passes mayActOnSprint(read) on credentialPrincipal(auth); others are dropped (PR-M row 6) | PR-M row 6: the list is filtered per sprint; there is no per-item denial. |
 
 ## FOREIGN-WRITE (1)
 
@@ -850,22 +755,22 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 
 | Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| rest.route GET /v1/tasks/stats:getFirestore() | 325 | ESCALATE | requireAdmin: "*" or ADMIN_READERS (rest.ts:133-139, :323) |
-| rest.route GET /v1/messages/unread:getFirestore() | 423 | ESCALATE | none |
-| rest.route POST /v1/messages/mark_read:getFirestore() | 440 | ESCALATE | enforceBreaker on relay_mark_read (capability, wildcard-satisfiable); no ownership check (rest.ts:433-445) |
-| rest.route GET /v1/sessions/history:getFirestore() | 537 | ESCALATE | requireAdmin (rest.ts:535) |
-| rest.route GET /v1/sprints/active:getFirestore() | 607 | ESCALATE | requireAdmin (rest.ts:606) |
-| rest.route GET /v1/gsp/proposals:getFirestore() | 753 | ESCALATE | none |
+| rest.route GET /v1/tasks/stats:getFirestore() | 324 | FOREIGN-READ | enforceBreaker get_tasks plus authorizeTasksRead on credentialPrincipal(auth) (PR-M row 3) |
+| rest.route GET /v1/messages/unread:getFirestore() | 421 | SELF-ONLY | no direct Firestore read: callTool get_messages (PR-M row 1) |
+| rest.route POST /v1/messages/mark_read:getFirestore() | 439 | SELF-ONLY | enforceBreaker relay_mark_read, then markReadHandler per id: target is the principal, or RELAY_READ_ALL_PRINCIPALS; broadcast ids never change state (M-D1, PR-M row 2) |
+| rest.route GET /v1/sessions/history:getFirestore() | 540 | FOREIGN-READ | callTool list_sessions with includeArchived:true: self, PULSE_PRIV or fleet.observe (PR-L row 4; PR-M row 5, M-D2) |
+| rest.route GET /v1/sprints/active:getFirestore() | 601 | FOREIGN-READ | enforceBreaker sprint_get_sprint (sprint.read), then each sprint passes mayActOnSprint(read) on credentialPrincipal(auth); others are dropped (PR-M row 6) |
+| rest.route GET /v1/gsp/proposals:getFirestore() | 755 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); tenant-wide by ruling M-D3 (PR-M row 7) |
 
 ### 2. Calls that skip callTool (rest.ts:666, 707, 729, 859, and enrollHandler at 975)
 
 | Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| rest.route GET /v1/budget/summary:budgetSummaryHandler | 670 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
-| rest.route GET /v1/dreams:dreamPeekHandler | 711 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
-| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | 733 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
-| rest.route GET /v1/dreams/peek:dreamPeekHandler | 863 | ESCALATE | none; the route skips callTool, so no capability gate, circuit breaker, rate limit or audit entry |
-| rest.createRestRouter:enrollHandler | 980 | ESCALATE | none: public pre-auth route /enroll; identity comes from the enrollment token document (enrollment.ts:113, :178-179) |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | 668 | NOT-IDENTITY | enforceBreaker metrics_get_cost_summary (metrics.read); tenant aggregate by ruling M-D4 (PR-M row 8) |
+| rest.route GET /v1/dreams:dreamPeekHandler | 709 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | 733 | NOT-IDENTITY | enforceBreaker gsp_read (gsp.read); namespace list is tenant-wide (PR-M row 10) |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | 865 | NOT-IDENTITY | callTool dream_peek (dream.read); handler unchanged (PR-M row 9) |
+| rest.createRestRouter:enrollHandler | 982 | NOT-IDENTITY | none by design: public pre-auth route /enroll; the enrollment token is the credential and ENROLLMENT_PROGRAM_ID binds the identity (M-D5) |
 
 ### 3. Object-id handlers named in plan section 6
 
@@ -958,11 +863,11 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | relay.sendMessageHandler:args.sessionId | a | 2 | 241 | ATTRIBUTION | ISO | n/a | false |
 | relay.getMessagesHandler:args.sessionId | a | 2 | 481 | ESCALATE | C-5 | PR-K | false |
 | relay.getMessagesHandler:args.target | a | 2 | 481 | ESCALATE | C-5 | PR-K | false |
-| relay.getSentMessagesHandler:args.source | a | 1 | 653 | ESCALATE | C-5 | PR-K | false |
-| relay.getSentMessagesHandler:args.target | a | 2 | 669 | SELF-ONLY | ISO | n/a | false |
-| relay.queryMessageHistoryHandler:args.source | a | 8 | 788 | ESCALATE | C-5 | PR-K | false |
-| relay.queryMessageHistoryHandler:args.target | a | 9 | 788 | ESCALATE | C-5 | PR-K | false |
-| relay.sendDirectiveHandler:parsed.target | b | 2 | 1019 | ADDRESSED | ISO | PR-K | false |
+| relay.getSentMessagesHandler:args.source | a | 1 | 685 | ESCALATE | C-5 | PR-K | false |
+| relay.getSentMessagesHandler:args.target | a | 2 | 701 | SELF-ONLY | ISO | n/a | false |
+| relay.queryMessageHistoryHandler:args.source | a | 8 | 820 | ESCALATE | C-5 | PR-K | false |
+| relay.queryMessageHistoryHandler:args.target | a | 9 | 820 | ESCALATE | C-5 | PR-K | false |
+| relay.sendDirectiveHandler:parsed.target | b | 2 | 1051 | ADDRESSED | ISO | PR-K | false |
 | schedule.createScheduleHandler:args.target | a | 5 | 141 | ESCALATE | ISO | PR-L | false |
 | schedule.paginateAndFilter:args.target | a | 2 | 209 | ESCALATE | ISO | PR-L | false |
 | schedule.listSchedulesHandler:args.target | a | 8 | 224 | ESCALATE | ISO | PR-L | false |
@@ -975,30 +880,30 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
 | callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
 | CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
-| rest.route GET /v1/tasks/stats:query.target | a | 1 | 327 | ESCALATE | C-5 | PR-M | false |
-| rest.route GET /v1/messages/unread:query.sessionId | a | 2 | 426 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/messages:query.sessionId | a | 1 | 453 | ESCALATE | C-5 | PR-K | false |
-| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 790 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 795 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 800 | ESCALATE | C-5 | PR-J | false |
-| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 807 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 812 | ESCALATE | C-5 | PR-J | false |
-| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 816 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 821 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 825 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 859 | ESCALATE | C-5 | PR-K | false |
-| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 944 | ATTRIBUTION | ISO | n/a | false |
-| rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 325 | ESCALATE | C-5 | PR-M | false |
-| rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 423 | ESCALATE | ISO | PR-M | false |
-| rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 440 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/sessions/history:getFirestore() | none | 1 | 537 | ESCALATE | C-5 | PR-M | false |
-| rest.route GET /v1/sprints/active:getFirestore() | none | 1 | 607 | ESCALATE | C-5 | PR-M | false |
-| rest.route GET /v1/gsp/proposals:getFirestore() | none | 1 | 753 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | 1 | 670 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/dreams:dreamPeekHandler | none | 1 | 711 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | 1 | 733 | ESCALATE | ISO | PR-M | false |
-| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | 1 | 863 | ESCALATE | ISO | PR-M | false |
-| rest.createRestRouter:enrollHandler | none | 1 | 980 | ESCALATE | ISO | PR-M | false |
+| rest.route GET /v1/tasks/stats:query.target | a | 1 | 316 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/messages/unread:query.sessionId | a | 1 | 423 | SELF-ONLY | ISO | PR-M | false |
+| rest.route GET /v1/messages:query.sessionId | a | 1 | 452 | ESCALATE | C-5 | PR-K | false |
+| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 792 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 797 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 802 | ESCALATE | C-5 | PR-J | false |
+| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 809 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 814 | ESCALATE | C-5 | PR-J | false |
+| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 818 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 827 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 861 | ESCALATE | C-5 | PR-K | false |
+| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 946 | ATTRIBUTION | ISO | n/a | false |
+| rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 324 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 421 | SELF-ONLY | ISO | PR-M | false |
+| rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 439 | SELF-ONLY | ISO | PR-M | false |
+| rest.route GET /v1/sessions/history:getFirestore() | none | 1 | 540 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/sprints/active:getFirestore() | none | 1 | 601 | FOREIGN-READ | C-5 | PR-M | false |
+| rest.route GET /v1/gsp/proposals:getFirestore() | none | 1 | 755 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/budget/summary:budgetSummaryHandler | none | 1 | 668 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/dreams:dreamPeekHandler | none | 1 | 709 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/gsp/namespaces:gspListNamespacesHandler | none | 1 | 733 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.route GET /v1/dreams/peek:dreamPeekHandler | none | 1 | 865 | NOT-IDENTITY | ISO | PR-M | false |
+| rest.createRestRouter:enrollHandler | none | 1 | 982 | NOT-IDENTITY | ISO | PR-M | false |
 | interventions.abortTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | interventions.escalateTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | interventions.approveTaskHandler:args.taskId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
@@ -1193,7 +1098,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
 |---|---|---|
-| NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
 | NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:138` [mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
 | NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:115` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
 | NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:398` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
@@ -1206,7 +1110,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:45` [iso] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:100` [iso] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1216` [vector, iso, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
-| NL-REST-RELAY-MOBILE `transport/rest.ts:476` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
+| NL-REST-RELAY-MOBILE `transport/rest.ts:475` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:43` [mobile, iso, alan, vector, quorra, radia, casp, sark, basher] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
 | NL-GSP-REVIEWERS `modules/gsp.ts:617` [iso, vector] (routing) | gsp_propose | members seen: none |
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
@@ -1216,7 +1120,6 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 ### Name list notes
 
-- NL-ADMIN-READERS: requireAdmin also passes any key holding "*".
 - NL-VERIFYSOURCE-ADMIN: mobile may send as any source. legacy was dropped in PR-K (amendment 3).
 - NL-CLAIM-OWNER-OVERRIDE: iso and dispatcher unclaim and complete any task. orchestrator and legacy were dropped in PR-K (K-D1).
 - NL-ESCALATION-CHAIN: Picks the default escalation recipient. It gates nothing.
@@ -1241,7 +1144,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 20 | 102 |
+| S1 | 18 | 100 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1264,13 +1167,11 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
-| S1 | transport/rest.ts | requireAdmin | `auth.programId` | 1 | 134 |
-| S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 192 |
-| S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 314 |
-| S1 | transport/rest.ts | route POST /v1/relay/messages | `auth.programId` | 1 | 476 |
-| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 955 |
+| S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 180 |
+| S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 302 |
+| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 957 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 803 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 810 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 835 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 842 |
 | S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

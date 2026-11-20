@@ -12,7 +12,6 @@ import { traceToolCall } from "../modules/trace.js";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
-import { dreamPeekHandler } from "../modules/dream.js";
 import { gspListNamespacesHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
@@ -20,12 +19,11 @@ import { checkPricing } from "../middleware/pricingEnforce.js";
 import { CapabilityError } from "../middleware/capabilities.js";
 import { checkCircuitBreaker, type BreakerCode } from "../middleware/circuitBreaker.js";
 import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
-import { ADMIN_READERS } from "../config/access-tiers.js";
 import { CONSTANTS } from "../config/constants.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
-import { credentialPrincipal } from "../auth/ownerAuthz.js";
+import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
@@ -127,16 +125,6 @@ function coerceQueryParams(params: Record<string, string>): Record<string, unkno
     }
   }
   return result;
-}
-
-/** Admin gate — requires wildcard capability or admin-class programId */
-function requireAdmin(auth: AuthContext, res: http.ServerResponse): boolean {
-  if (auth.capabilities.includes("*") || (ADMIN_READERS as readonly string[]).includes(auth.programId)) {
-    return true;
-  }
-  logDenial({ principal: denialPrincipal(auth), tool: "rest_admin", subject: null, code: "MISSING_CAPABILITY" });
-  restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
-  return false;
 }
 
 /** Compute period start date for time-range filters */
@@ -320,11 +308,21 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
 const routes: Route[] = [
   // Dispatch
   route("GET", "/v1/tasks/stats", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 3 (GATE get_tasks): the capability gate, then the get_tasks rule on credentialPrincipal(auth). A named target needs
+    // authorizeTasksRead; no target counts the principal's own queue unless it is a TASKS_ALL principal or holds fleet.observe (L-D1).
+    await enforceBreaker(auth, "get_tasks");
     const query = coerceQueryParams(parseQuery(req.url || ""));
+    const principal = credentialPrincipal(auth);
+    const queryTarget = query.target as string | undefined || undefined;
+    const { authorizeTasksRead } = await import("../modules/dispatch/tasks.js"); // lazy, as markReadHandler: the module graph pulls the ESM-only octokit
+    const { allowed, seesAll } = authorizeTasksRead(auth, queryTarget);
+    if (!allowed) {
+      logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: queryTarget ?? null, code: "FOREIGN_SUBJECT" });
+      return restResponse(res, false, { code: "FORBIDDEN", message: `Access denied: "${principal}" cannot read tasks for "${queryTarget}"` }, 403);
+    }
+    const target = queryTarget ?? (seesAll || hasFleetObserveCapability(auth) ? undefined : principal);
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
-    const target = query.target as string | undefined;
     const period = query.period as string | undefined;
 
     if (target || (period && period !== "all")) {
@@ -347,7 +345,7 @@ const routes: Route[] = [
       restResponse(res, true, {
         ...counts,
         total: counts.created + counts.active + counts.done + counts.failed,
-        ...(target ? { target } : {}),
+        ...(queryTarget ? { target: queryTarget } : {}),
         ...(period ? { period } : {}),
       });
     } else {
@@ -420,14 +418,15 @@ const routes: Route[] = [
   // Relay
   route("GET", "/v1/messages/unread", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const db = getFirestore();
-    const relayRef = db.collection(`tenants/${auth.userId}/relay`);
-    let q: Query = relayRef.where("status", "==", "pending");
-    if (query.sessionId) {
-      q = q.where("target", "==", query.sessionId);
-    }
-    const snap = await q.orderBy("createdAt", "desc").limit(50).get();
-    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // RD-5 PR-M row 1: the inbox read is get_messages (authorizeRelayRead decides). The subject defaults to the principal, never to
+    // the whole tenant. markAsRead:false keeps this a peek. 21.1 C2: the route still answers { messages, count }, newest first, at most 50.
+    const data = await callTool(auth, req, "get_messages", { sessionId: (query.sessionId as string) || credentialPrincipal(auth), markAsRead: false }) as {
+      success?: boolean; interrupts?: Array<{ createdAt?: string | null }>;
+    };
+    if (data.success === false) return restResponse(res, true, data);
+    const messages = [...(data.interrupts ?? [])]
+      .sort((x, y) => (y.createdAt ?? "").localeCompare(x.createdAt ?? ""))
+      .slice(0, 50);
     restResponse(res, true, { messages, count: messages.length });
   }),
   route("POST", "/v1/messages/mark_read", async (auth, req, res) => {
@@ -437,16 +436,16 @@ const routes: Route[] = [
     if (!Array.isArray(messageIds) || messageIds.length === 0) {
       return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must be a non-empty array" }, 400);
     }
-    const db = getFirestore();
-    const batch = db.batch();
-    for (const id of messageIds.slice(0, 100)) {
-      batch.update(db.doc(`tenants/${auth.userId}/relay/${id}`), {
-        status: "read",
-        readAt: FieldValue.serverTimestamp(),
-      });
+    const { markReadHandler } = await import("../modules/relay.js");
+    const validIds = messageIds.filter((id) => typeof id === "string" && id !== "");
+    if (validIds.length === 0) {
+      return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must contain at least one non-empty string id" }, 400);
     }
-    await batch.commit();
-    restResponse(res, true, { updated: Math.min(messageIds.length, 100) });
+    const out = await markReadHandler(auth, validIds);
+    if (out.denied.length > 0 && out.updated === 0) {
+      return restResponse(res, false, { code: "FORBIDDEN", message: out.denied[0].error, denied: out.denied }, 403);
+    }
+    restResponse(res, true, out);
   }),
   route("GET", "/v1/messages", async (auth, req, res) => {
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -473,8 +472,11 @@ const routes: Route[] = [
       sendJson(res, 403, { success: false, error: "PORTAL_OWNER_ONLY", message: "This endpoint requires a Firebase owner ID token." });
       return;
     }
-    if (auth.programId === "mobile") {
-      sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: "This endpoint is restricted to Grid Portal owners." });
+    // RD-5 PR-M row 13 (NL-REST-RELAY-MOBILE): bound to the credential's own principal, and the refusal is logged and names the caller.
+    const caller = credentialPrincipal(auth);
+    if (caller === "mobile") {
+      logDenial({ principal: denialPrincipal(auth), tool: "relay_send_message", subject: null, code: "NOT_OWNER" });
+      sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: `This endpoint is restricted to Grid Portal owners; "${caller}" is not one.` });
       return;
     }
     const body = await readBody(req);
@@ -504,7 +506,7 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/messages/history", async (auth, req, res) => {
-    // ADR-013: no requireAdmin pre-gate — participant scoping in
+    // ADR-013: no admin pre-gate — participant scoping in
     // queryMessageHistoryHandler is the single source of truth for both
     // transports (SARK C2). Non-admin callers get their own messages only.
     const query = coerceQueryParams(parseQuery(req.url || ""));
@@ -513,7 +515,7 @@ const routes: Route[] = [
   }),
   // Pulse
   route("GET", "/v1/sessions", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 4: list_sessions decides (pulse.ts PR-L row 4); the admin pre-gate is gone.
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const data = await callTool(auth, req, "list_sessions", query);
     restResponse(res, true, data);
@@ -532,38 +534,27 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sessions/history", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 5 (M-D2): list_sessions with includeArchived decides who reads which program's sessions; the route keeps
+    // its `sessions` key and its field names, and keeps only archived rows. list_sessions caps a page at 50, so this route does too.
     const query = coerceQueryParams(parseQuery(req.url || ""));
-    const db = getFirestore();
-    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
-
-    const snap = await db.collection(`tenants/${auth.userId}/sessions`)
-      .where("archived", "==", true)
-      .orderBy("lastUpdate", "desc")
-      .limit(limit)
-      .get();
-
-    const sessions = snap.docs.map((doc: any) => {
-      const data = doc.data();
-      const createdAt = data.createdAt?.toDate?.()?.getTime() || 0;
-      const lastUpdate = data.lastUpdate?.toDate?.()?.getTime() || 0;
-      const durationMs = lastUpdate && createdAt ? lastUpdate - createdAt : null;
-
-      return {
-        sessionId: doc.id,
-        name: data.name,
-        programId: data.programId,
-        status: data.currentAction || data.name,
-        state: data.status,
-        progress: data.progress,
-        projectName: data.projectName,
-        durationMs,
-        durationMinutes: durationMs ? Math.round(durationMs / 60000) : null,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
-        completedAt: data.lastUpdate?.toDate?.()?.toISOString() || null,
-      };
-    });
-
+    const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 50);
+    const data = await callTool(auth, req, "list_sessions", { includeArchived: true, limit: 50 }) as {
+      success?: boolean; sessions?: Array<Record<string, unknown>>;
+    };
+    if (data.success === false) return restResponse(res, true, data);
+    const sessions = (data.sessions ?? []).filter((s) => s.archived === true).slice(0, limit).map((s) => ({
+      sessionId: s.sessionId,
+      name: s.name,
+      programId: s.programId,
+      status: s.status,
+      state: s.state,
+      progress: s.progress,
+      projectName: s.projectName,
+      durationMs: null, // list_sessions does not return createdAt; reported to ISO (PR-M surprise)
+      durationMinutes: null,
+      createdAt: null,
+      completedAt: s.lastUpdate ?? null,
+    }));
     restResponse(res, true, { sessions, count: sessions.length });
   }),
   // Signal
@@ -603,7 +594,10 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sprints/active", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 6 (GATE sprint_get_sprint): the capability gate, then each sprint must pass mayActOnSprint(read) on
+    // credentialPrincipal(auth). A sprint the caller may not read is dropped from the list; there is no per-item denial.
+    await enforceBreaker(auth, "sprint_get_sprint");
+    const principal = credentialPrincipal(auth);
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
     const snap = await tasksRef
@@ -613,7 +607,9 @@ const routes: Route[] = [
       .limit(10)
       .get();
 
-    const sprints = await Promise.all(snap.docs.map(async (doc: any) => {
+    const { mayActOnSprint } = await import("../modules/sprint.js");
+    const readable = snap.docs.filter((doc: any) => mayActOnSprint(auth, principal, doc.data(), "read"));
+    const sprints = await Promise.all(readable.map(async (doc: any) => {
       const data = doc.data();
       // Fetch stories for this sprint
       const storiesSnap = await tasksRef
@@ -666,6 +662,8 @@ const routes: Route[] = [
   }),
   // Budget
   route("GET", "/v1/budget/summary", async (auth, req, res) => {
+    // RD-5 PR-M row 8 (CAP metrics_get_cost_summary, M-D4): metrics.read; the summary is a tenant aggregate.
+    await enforceBreaker(auth, "metrics_get_cost_summary");
     const { budgetSummaryHandler } = await import("../modules/budget.js");
     const result = await budgetSummaryHandler(auth, {});
     const text = result?.content?.[0]?.text;
@@ -708,9 +706,9 @@ const routes: Route[] = [
   }),
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
-    const result = await dreamPeekHandler(auth, {});
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+    const data = await callTool(auth, req, "dream_peek", {});
+    restResponse(res, true, data);
   }),
   route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
     const result = await callTool(auth, req, "dream_activate", { dreamId: p.id });
@@ -730,6 +728,8 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/gsp/namespaces", async (auth, req, res) => {
+    // RD-5 PR-M row 10 (CAP gsp_read): gsp.read; the namespace list is tenant-wide.
+    await enforceBreaker(auth, "gsp_read");
     const data = await gspListNamespacesHandler(auth);
     restResponse(res, true, data);
   }),
@@ -749,6 +749,8 @@ const routes: Route[] = [
   }),
   // GSP Proposals — list pending proposals for the authenticated tenant
   route("GET", "/v1/gsp/proposals", async (auth, req, res) => {
+    // RD-5 PR-M row 7 (CAP gsp_read, M-D3): gsp.read; proposals are tenant-wide governance records, gsp_resolve decides who acts (PR-N).
+    await enforceBreaker(auth, "gsp_read");
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const db = getFirestore();
     const colRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
@@ -860,9 +862,9 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/dreams/peek", async (auth, req, res) => {
-    const result = await dreamPeekHandler(auth, {});
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+    const data = await callTool(auth, req, "dream_peek", {});
+    restResponse(res, true, data);
   }),
   route("POST", "/v1/dreams/activate", async (auth, req, res) => {
     const body = await readBody(req);
@@ -931,13 +933,13 @@ const routes: Route[] = [
   route("PUT", "/v1/budget", async (auth, req, res) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "set_budget", body);
-    logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
     restResponse(res, true, data);
   }),
 
   // Admin
   route("POST", "/admin/reset-program-cache", async (auth, req, res) => {
     if (!auth.capabilities.includes("*")) {
+      logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
       return restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
     }
     const body = await readBody(req);

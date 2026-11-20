@@ -31,6 +31,8 @@ export const MCP_SERVER_DIR = path.resolve(__dirname, "../../../..");
 export async function startServer(opts: {
   serverDir?: string;
   logPath: string;
+  /** host:port of the Auth stand-in (harness/fakeAuth.ts) */
+  authHost?: string;
 }): Promise<RunningServer> {
   const target = assertEmulatorOnly();
   const dir = opts.serverDir ?? MCP_SERVER_DIR;
@@ -45,6 +47,9 @@ export async function startServer(opts: {
     FIREBASE_PROJECT_ID: target.projectId,
     GCLOUD_PROJECT: target.projectId,
     FIRESTORE_EMULATOR_HOST: target.emulatorHost,
+    // RD-5 PR-M: firebase-admin accepts unsigned emulator ID tokens when this is set, so a probe can present the
+    // credential the phone presents. The host is the stand-in of harness/fakeAuth.ts.
+    ...(opts.authHost ? { FIREBASE_AUTH_EMULATOR_HOST: opts.authHost } : {}),
   };
   const child = spawn(process.execPath, [path.join(dir, "dist/index.js")], {
     cwd: dir,

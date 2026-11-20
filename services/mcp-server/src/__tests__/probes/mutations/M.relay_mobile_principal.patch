@@ -1,0 +1,13 @@
+# mutation for probe M.relay_mobile_principal: the portal relay route no longer refuses the mobile principal
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -474,7 +474,7 @@
+     }
+     // RD-5 PR-M row 13 (NL-REST-RELAY-MOBILE): bound to the credential's own principal, and the refusal is logged and names the caller.
+     const caller = credentialPrincipal(auth);
+-    if (caller === "mobile") {
++    if ((caller as string) === "never") {
+       logDenial({ principal: denialPrincipal(auth), tool: "relay_send_message", subject: null, code: "NOT_OWNER" });
+       sendJson(res, 403, { success: false, error: "OWNER_REQUIRED", message: `This endpoint is restricted to Grid Portal owners; "${caller}" is not one.` });
+       return;
