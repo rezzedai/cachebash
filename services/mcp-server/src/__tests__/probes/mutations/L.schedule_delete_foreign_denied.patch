@@ -8,6 +8,6 @@ diff --git a/src/modules/schedule.ts b/src/modules/schedule.ts
  const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetAdminCapability(auth);
 -const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
 +const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => Boolean(auth && p && doc);
+ const mayListFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetObserveCapability(auth);
  const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
    doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);
- 
