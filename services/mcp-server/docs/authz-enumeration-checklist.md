@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 32 AST baseline rows.
+114 site records, 111 handler entries, 31 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -1186,7 +1186,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-PULSE-PRIV `modules/pulse.ts:87` [mobile, dispatcher] (handler) | pulse_create_session, pulse_update_session, pulse_list_sessions, pulse_get_context_utilization | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
 | NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:89` [mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
 | NL-RELAY-GETMSG `modules/relay.ts:84` [mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
-| NL-ACCOUNT-MERGE `modules/account-merge.ts:26` [legacy] (handler) | admin_merge_accounts | members seen: none |
+| NL-ACCOUNT-MERGE `modules/account-merge.ts:29` [env-driven] (handler) | admin_merge_accounts | members seen: none |
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:45` [iso] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:100` [iso] (handler) | dispatch_reap_expired_tasks | members seen: none |
 | NL-GSP-SEED-AUTH `modules/gsp.ts:1215` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
@@ -1210,7 +1210,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 - NL-PULSE-PRIV: These principals create, update and read any program's session. legacy was dropped in PR-L; an empty principal is never a member.
 - NL-PULSE-REGISTRY-SKIP: Skips the program-registry write for session owners in this list. It gates nothing. legacy was dropped in PR-L (L-D11).
 - NL-RELAY-GETMSG: mobile and dispatcher read the requested target. legacy was dropped in PR-K.
-- NL-ACCOUNT-MERGE: Only this name may merge accounts.
+- NL-ACCOUNT-MERGE: Emptied in PR-L: the literal fleet.admin capability decides, and the canonical uid must be the caller tenant.
 - NL-BACKFILL-AUTH: Also passes on "*".
 - NL-REAP-AUTH: Also passes on "*".
 - NL-GSP-SEED-AUTH: Also passes on "*".
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 27 | 112 |
+| S1 | 26 | 111 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1238,7 +1238,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | iso/isoServer.ts | createIsoServer | `authContext.programId` | 12 | 105 |
 | S1 | middleware/gate.ts | isAdmin | `auth.programId` | 1 | 136 |
 | S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 108 |
-| S1 | modules/account-merge.ts | mergeAccountsHandler | `auth.programId` | 1 | 26 |
 | S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 5 | 90 |
 | S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 3 | 198 |
 | S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 297 |

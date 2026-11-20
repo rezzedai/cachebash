@@ -1,12 +1,18 @@
-# mutation for probe T6.admin_merge_accounts: the admin gate is removed: any key may merge accounts
+# mutation for probe T6.admin_merge_accounts: the admin gate and the tenant check are removed: any key may merge accounts
 diff --git a/src/modules/account-merge.ts b/src/modules/account-merge.ts
-index 6821fb0..a0d21d9 100644
 --- a/src/modules/account-merge.ts
 +++ b/src/modules/account-merge.ts
-@@ -23,5 +23,5 @@ function jsonResult(data: unknown): ToolResult {
+@@ -22,11 +22,11 @@
+   return { content: [{ type: "text", text: JSON.stringify(data) }] };
+ }
+ 
+-const mayMergeInto = (tenantUid: string, canonicalUid: string): boolean => canonicalUid === tenantUid;
++const mayMergeInto = (tenantUid: string, canonicalUid: string): boolean => Boolean(tenantUid && canonicalUid);
+ 
  export async function mergeAccountsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-   // Admin gate: only legacy (owner) keys can merge accounts
--  if (auth.programId !== "legacy") {
-+  if (false) {
-     return jsonResult({ success: false, error: "Admin only: merge_accounts requires legacy (admin) key" });
-   }
+   // Admin gate (RD-5 PR-L row 28): the literal fleet.admin capability. No program name confers it, and "*" does not satisfy it.
+-  if (!hasFleetAdminCapability(auth)) {
++  if (Date.now() < 0) {
+     const caller = denialPrincipal(auth);
+     logDenial({ principal: caller, tool: "admin_merge_accounts", subject: null, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `Admin only: merge_accounts requires literal fleet.admin (caller "${caller}")` });

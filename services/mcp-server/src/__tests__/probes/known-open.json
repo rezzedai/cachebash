@@ -86,9 +86,5 @@
   "W.19": {
     "closes_in": "PR-N",
     "hole": "a bare [\"*\"] credential passes: gsp.ts:1213 gsp_seed"
-  },
-  "T6.admin_merge_accounts_legacy_cross_tenant": {
-    "closes_in": "PR-L",
-    "hole": "a legacy key in tenant B merges a uid into tenant A's canonical account: the gate checks programId == legacy and never compares canonicalUid to the caller's tenant (account-merge.ts)"
   }
 }

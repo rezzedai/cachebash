@@ -295,19 +295,17 @@
     {
       "id": "NL-ACCOUNT-MERGE",
       "file": "modules/account-merge.ts",
-      "line": 26,
-      "name": "merge_accounts owner gate",
-      "members": [
-        "legacy"
-      ],
+      "line": 29,
+      "name": "merge_accounts fleet.admin gate",
+      "members": [],
       "layer": "handler",
       "guard_sites": [
-        "modules/account-merge.ts:26"
+        "modules/account-merge.ts:29"
       ],
       "guards": [
         "admin_merge_accounts"
       ],
-      "note": "Only this name may merge accounts.",
+      "note": "Emptied in PR-L: the literal fleet.admin capability decides, and the canonical uid must be the caller tenant.",
       "usage_30d": "members seen: none"
     },
     {
@@ -5514,15 +5512,6 @@
       "expr": "auth.programId",
       "occurrences": 11,
       "line_at_base": 108,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/account-merge.ts",
-      "handler": "mergeAccountsHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 26,
       "status": "pending"
     },
     {

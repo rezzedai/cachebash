@@ -362,4 +362,21 @@ describe("L fleet paths", () => {
     const r = await callTool(w, w.creds.scoped, "programs_update_program", { programId: "beta", displayName: `l-reg-${nextN()}` });
     expect(denialNames(r, "alpha")).toBe(true);
   });
+
+  // L-D10: a fleet.admin key merges into its own tenant only.
+  probe("L.merge_cross_tenant_denied", async () => {
+    const w = world();
+    const admin = await mint(w, "beta", "probe-l-merge-admin", ["*", "fleet.admin"]);
+    const email = `l-merge-${nextN()}@example.invalid`;
+    const r = await callTool(w, admin, "admin_merge_accounts", { email, canonicalUid: w.tenants.B, alternateUid: "l-merge-alt" });
+    expect(denialNames(r, "beta")).toBe(true);
+    expect((await emulatorDb().collection("canonical_accounts").where("email", "==", email).get()).size).toBe(0);
+  });
+  test("L.merge_cross_tenant_denied control: the same key merges into its own tenant", async () => {
+    const w = world();
+    const admin = await mint(w, "beta", "probe-l-merge-admin-ctl", ["*", "fleet.admin"]);
+    const email = `l-merge-ok-${nextN()}@example.invalid`;
+    const r = await callTool(w, admin, "admin_merge_accounts", { email, canonicalUid: w.tenants.A, alternateUid: "l-merge-alt2" });
+    expect(r.json?.success).toBe(true);
+  });
 });
