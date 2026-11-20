@@ -5,6 +5,7 @@
  * unclaimed, or if there are none. Kind-less schedules are unchanged.
  */
 
+jest.mock("../middleware/circuitBreaker.js", () => ({ readDispatchPause: jest.fn(async () => "clear") })); // PR-G: flag read is not under test here
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 
 import { executeSchedulesForUser } from "../modules/schedule-executor.js";

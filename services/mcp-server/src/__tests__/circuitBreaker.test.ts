@@ -7,9 +7,14 @@
  */
 
 import type { AuthContext } from "../auth/authValidator";
+import { TOOL_CAPABILITIES } from "../middleware/capabilities";
 import {
   checkCircuitBreaker,
   isMutatingTool,
+  isDispatchFamilyMutation,
+  DISPATCH_PAUSE_EXEMPT,
+  DISPATCH_PAUSE_EXTRA_DENIED,
+  readDispatchPause,
   pruneWindow,
   countInWindow,
   resetCircuitBreakerState,
@@ -279,5 +284,124 @@ describe("tenant isolation", () => {
     const orgTwoResult = await checkCircuitBreaker(orgTwoAuth, "dispatch_create_task");
     expect(orgTwoResult.allowed).toBe(false);
     if (!orgTwoResult.allowed) expect(orgTwoResult.code).toBe("CEILING_CONFIG_UNAVAILABLE");
+  });
+});
+
+describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
+  // Denied under dispatchPaused: tools that start or move work.
+  const DISPATCH_DENIED = [
+    "dispatch_create_task", "dispatch_claim_task", "dispatch_batch_claim_tasks", "dispatch_dispatch",
+    "dispatch_retry_task", "dispatch_replay_task", "dispatch_reassign_task", "dispatch_approve_task",
+  ];
+  // Exempt: wind-down and containment tools stay open under dispatchPaused.
+  const DISPATCH_EXEMPT = [
+    "dispatch_complete_task", "dispatch_batch_complete_tasks", "dispatch_unclaim_task", "dispatch_abort_task",
+    "dispatch_record_task_telemetry", "dispatch_escalate_task",
+    "dispatch_quarantine_program", "dispatch_unquarantine_program",
+  ];
+  // VECTOR: sprint tools that create task documents are denied too.
+  const EXTRA_DENIED = ["sprint_create_sprint", "sprint_add_story_to_sprint"];
+  const DISPATCH_FAMILY = [...DISPATCH_DENIED, ...EXTRA_DENIED, "create_task", "claim_task", "dispatch"]; // + legacy aliases
+  // Boot path and everything else: not dispatch family, so allowed under dispatchPaused.
+  const BOOT_AND_OTHER = [
+    "gsp_bootstrap", "gsp_read", "gsp_write",
+    "state_get_program_state", "state_update_program_state", "state_store_memory",
+    "sprint_update_sprint_story", "sprint_get_sprint", "sprint_complete_sprint",
+    "relay_get_messages", "relay_send_message", "pulse_create_session", "pulse_update_session",
+    "dispatch_get_tasks", "dispatch_get_task_by_id", "get_tasks",
+  ];
+
+  it("pins both sets: every dispatch_ tool in TOOL_CAPABILITIES is placed in exactly one, so a new tool fails here until placed", () => {
+    const mutatingDispatch = Object.keys(TOOL_CAPABILITIES).filter((t) => t.startsWith("dispatch_") && isMutatingTool(t)).sort();
+    expect(mutatingDispatch.filter((t) => isDispatchFamilyMutation(t)).sort()).toEqual([...DISPATCH_DENIED].sort());
+    expect([...DISPATCH_PAUSE_EXEMPT].sort()).toEqual([...DISPATCH_EXEMPT].sort());
+    expect(mutatingDispatch).toEqual([...DISPATCH_DENIED, ...DISPATCH_EXEMPT].sort());
+    expect([...DISPATCH_PAUSE_EXTRA_DENIED].sort()).toEqual([...EXTRA_DENIED].sort());
+    expect(DISPATCH_DENIED).toHaveLength(8);
+    expect(DISPATCH_EXEMPT).toHaveLength(8);
+    // the denied set is exactly 10: the 8 dispatch tools plus the 2 sprint tools
+    const denied = Object.keys(TOOL_CAPABILITIES).filter((t) => isDispatchFamilyMutation(t)).sort();
+    expect(denied).toEqual([...DISPATCH_DENIED, ...EXTRA_DENIED].sort());
+    expect(denied).toHaveLength(10);
+  });
+
+  it("classifies denied, exempt and other tools", () => {
+    for (const t of DISPATCH_FAMILY) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: true });
+    for (const t of [...DISPATCH_EXEMPT, "complete_task", "abort_task", ...BOOT_AND_OTHER]) expect({ t, family: isDispatchFamilyMutation(t) }).toEqual({ t, family: false });
+  });
+
+  it.each(DISPATCH_EXEMPT)("wind-down/containment: %s stays allowed under dispatchPaused", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    expect(await checkCircuitBreaker(auth(), tool)).toEqual({ allowed: true });
+  });
+
+  it.each(DISPATCH_FAMILY)("denies %s with DISPATCH_PAUSED", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    const r = await checkCircuitBreaker(auth(), tool);
+    expect(r.allowed).toBe(false);
+    if (!r.allowed) {
+      expect(r.code).toBe("DISPATCH_PAUSED");
+      expect(r.message).toContain("Dispatch is paused");
+      expect(r.message).toContain(tool);
+    }
+  });
+
+  it.each(BOOT_AND_OTHER)("boot under dispatchPaused: %s stays allowed", async (tool) => {
+    setCeilings("org-1", { dispatchPaused: true });
+    const r = await checkCircuitBreaker(auth(), tool);
+    expect(r).toEqual({ allowed: true });
+  });
+
+  it("control: the same dispatch call is allowed when dispatchPaused is false or absent", async () => {
+    setCeilings("org-1", { dispatchPaused: false });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { perKeyLimit: 30, orgLimit: 150, windowMs: 60_000, paused: false });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+  });
+
+  it("only a literal true pauses (truthy strings do not)", async () => {
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { ...DEFAULT_CEILINGS, dispatchPaused: "true" });
+    expect((await checkCircuitBreaker(auth(), "dispatch_create_task")).allowed).toBe(true);
+  });
+
+  it("tenant paused is unchanged: still denies every mutation, boot included, with CEILING_ORG_PAUSED", async () => {
+    setCeilings("org-1", { paused: true });
+    for (const tool of ["gsp_bootstrap", "dispatch_create_task", "relay_send_message"]) {
+      const r = await checkCircuitBreaker(auth(), tool);
+      expect(r.allowed).toBe(false);
+      if (!r.allowed) expect(r.code).toBe("CEILING_ORG_PAUSED");
+    }
+  });
+
+  it("a denied dispatch call does not consume ceiling slots", async () => {
+    setCeilings("org-1", { dispatchPaused: true, perKeyLimit: 1, orgLimit: 1 });
+    await checkCircuitBreaker(auth(), "dispatch_create_task");
+    await checkCircuitBreaker(auth(), "dispatch_create_task");
+    expect((await checkCircuitBreaker(auth(), "gsp_bootstrap")).allowed).toBe(true);
+  });
+
+  it("dispatchPaused is scoped to its tenant", async () => {
+    setCeilings("org-1", { dispatchPaused: true });
+    setCeilings("org-2", {});
+    expect((await checkCircuitBreaker(auth({ userId: "org-2" }), "dispatch_create_task")).allowed).toBe(true);
+  });
+});
+
+describe("readDispatchPause (RD-5 PR-G)", () => {
+  it("returns paused only for a literal true", async () => {
+    setCeilings("org-1", { dispatchPaused: true });
+    expect(await readDispatchPause("org-1")).toBe("paused");
+  });
+  it("returns clear for a missing document, false, absent or non-true values", async () => {
+    expect(await readDispatchPause("org-1")).toBe("clear");
+    setCeilings("org-1", { dispatchPaused: false });
+    expect(await readDispatchPause("org-1")).toBe("clear");
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { dispatchPaused: "true" });
+    expect(await readDispatchPause("org-1")).toBe("clear");
+  });
+  it("returns unknown when the read throws", async () => {
+    throwOnRead = true;
+    jest.spyOn(console, "error").mockImplementationOnce(() => {});
+    expect(await readDispatchPause("org-1")).toBe("unknown");
   });
 });

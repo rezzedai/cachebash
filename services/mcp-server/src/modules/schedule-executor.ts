@@ -10,6 +10,12 @@
  * (or if none exist). It runs from here -- a Cloud Scheduler job every minute --
  * so it needs no live session, which is the point: the alert goes to the user's
  * phone and Slack, not to a program.
+ *
+ * Dispatch pause (RD-5 PR-G): when the tenant's dispatchPaused flag is set, task
+ * schedules are skipped with no write, so nextRunAt, lastRunAt and updatedAt stay and
+ * the schedule fires on the first run after the pause lifts. Watch schedules create no
+ * task and still fire. If the flag cannot be read, task schedules are skipped and
+ * counted as an error (fail closed, like the breaker).
  */
 
 import { getFirestore } from "../firebase/client.js";
@@ -18,6 +24,7 @@ import { emitEvent } from "./events.js";
 import { computeNextRun } from "./schedule.js";
 import { CONSTANTS } from "../config/constants.js";
 import { writeAlertDocs } from "./signal.js";
+import { readDispatchPause } from "../middleware/circuitBreaker.js";
 
 export interface ScheduleFired {
   scheduleId: string;
@@ -33,6 +40,8 @@ export interface ScheduleExecutionResult {
   checked: number;
   fired: ScheduleFired[];
   errors: number;
+  /** Task schedules skipped because dispatch is paused (or the flag was unreadable). */
+  skipped: number;
 }
 
 export async function executeSchedulesForUser(userId: string): Promise<ScheduleExecutionResult> {
@@ -40,6 +49,7 @@ export async function executeSchedulesForUser(userId: string): Promise<ScheduleE
   const now = new Date();
   const fired: ScheduleFired[] = [];
   let errors = 0;
+  let skipped = 0;
 
   // Query enabled schedules that are due (nextRunAt <= now)
   const dueSnap = await db.collection(`tenants/${userId}/schedules`)
@@ -62,7 +72,20 @@ export async function executeSchedulesForUser(userId: string): Promise<ScheduleE
     return true;
   });
 
+  // One flag read per tenant per run, before any schedule fires.
+  const pause = await readDispatchPause(userId);
+  if (pause === "unknown") {
+    errors++;
+    console.error(`[ScheduleExecutor] dispatchPaused unreadable for tenant=${userId}; skipping task schedules (fail closed)`);
+  }
+
   for (const doc of uniqueDocs) {
+    if (pause !== "clear" && doc.data().kind !== "watch") {
+      skipped++;
+      const d = doc.data();
+      console.error(`[ScheduleExecutor] DISPATCH_PAUSED skip tenant=${userId} schedule=${doc.id} name=${d.name} nextRunAt=${d.nextRunAt}`);
+      continue;
+    }
     try {
       const result = await fireSchedule(db, userId, doc.ref, now);
       if (result) {
@@ -74,7 +97,7 @@ export async function executeSchedulesForUser(userId: string): Promise<ScheduleE
     }
   }
 
-  return { checked: uniqueDocs.length, fired, errors };
+  return { checked: uniqueDocs.length, fired, errors, skipped };
 }
 
 async function fireSchedule(

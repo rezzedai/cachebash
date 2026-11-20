@@ -8,7 +8,7 @@
  * nothing here trusts an agent-submitted value.
  *
  * Ceilings are per-tenant, configurable in Firestore at
- * tenants/{org}/_meta/ceilings: { perKeyLimit, orgLimit, windowMs, paused }.
+ * tenants/{org}/_meta/ceilings: { perKeyLimit, orgLimit, windowMs, paused, dispatchPaused }.
  *
  * FAIL-CLOSED: if that config is missing, malformed, or the read throws,
  * mutations are denied. Reads never enter this breaker at all (checked via
@@ -19,6 +19,18 @@
  * Kill switch: config.paused denies every mutation for the tenant. Since
  * config is read fresh (no cross-request cache) on every mutating call,
  * flipping `paused` takes effect on the very next request.
+ *
+ * Dispatch pause (RD-5 C-3): config.dispatchPaused stops NEW work. It denies the
+ * mutating dispatch_* tools that start or move work (see isDispatchFamilyMutation)
+ * with code DISPATCH_PAUSED, and leaves wind-down and containment tools open
+ * (DISPATCH_PAUSE_EXEMPT), so builders can finish and quarantine still works.
+ * Two sprint tools that create task documents are also denied
+ * (DISPATCH_PAUSE_EXTRA_DENIED), and the schedule executor reads the flag through
+ * readDispatchPause and skips task schedules without advancing them.
+ * Every other tool, including gsp_bootstrap (mapped to gsp.write, so the wider
+ * `paused` switch denies it), state reads and relay messages, is unaffected, so
+ * programs still boot while dispatch is refused. Nothing under src/ writes this
+ * flag; a test enforces that.
  */
 
 import type { AuthContext } from "../auth/authValidator.js";
@@ -32,6 +44,8 @@ export interface CeilingConfig {
   orgLimit: number;
   windowMs: number;
   paused: boolean;
+  /** Denies the mutating dispatch family only. Absent or non-true means off. */
+  dispatchPaused: boolean;
 }
 
 /**
@@ -45,11 +59,13 @@ export const DEFAULT_CEILINGS: CeilingConfig = {
   orgLimit: 150,
   windowMs: 60_000,
   paused: false,
+  dispatchPaused: false,
 };
 
 export type BreakerCode =
   | "CEILING_CONFIG_UNAVAILABLE"
   | "CEILING_ORG_PAUSED"
+  | "DISPATCH_PAUSED"
   | "CEILING_KEY_EXCEEDED"
   | "CEILING_ORG_EXCEEDED";
 
@@ -86,6 +102,64 @@ export function isMutatingTool(toolName: string): boolean {
   const required = TOOL_CAPABILITIES[canonical];
   if (!required) return false;
   return required.endsWith(".write") || NON_WRITE_MUTATING_CAPABILITIES.has(required);
+}
+
+/**
+ * Mutating dispatch_* tools that stay open under `dispatchPaused`: they wind down or
+ * contain work. Completing and unclaiming let builders finish mid-task, abort and
+ * escalate end work, telemetry records what ran, and quarantine/unquarantine are the
+ * containment tools a rollback needs. A new mutating dispatch_* tool is NOT in this
+ * set, so it is denied by default (fail closed) until someone places it.
+ */
+export const DISPATCH_PAUSE_EXEMPT: ReadonlySet<string> = new Set([
+  "dispatch_complete_task",
+  "dispatch_batch_complete_tasks",
+  "dispatch_unclaim_task",
+  "dispatch_abort_task",
+  "dispatch_record_task_telemetry",
+  "dispatch_escalate_task",
+  "dispatch_quarantine_program",
+  "dispatch_unquarantine_program",
+]);
+
+/**
+ * Non-dispatch_ tools that also create task documents, so `dispatchPaused` denies them
+ * too (VECTOR ruling on PR-G): sprint_create_sprint and sprint_add_story_to_sprint.
+ */
+export const DISPATCH_PAUSE_EXTRA_DENIED: ReadonlySet<string> = new Set([
+  "sprint_create_sprint",
+  "sprint_add_story_to_sprint",
+]);
+
+/**
+ * The tools denied by `dispatchPaused`: mutating tools whose canonical name starts with
+ * `dispatch_`, minus DISPATCH_PAUSE_EXEMPT, plus DISPATCH_PAUSE_EXTRA_DENIED. Today that
+ * is create_task, claim_task, batch_claim_tasks, dispatch, retry_task, replay_task,
+ * reassign_task, approve_task, sprint_create_sprint, sprint_add_story_to_sprint.
+ * Legacy aliases (create_task, ...) resolve to canonical first. Reads such as
+ * dispatch_get_tasks stay allowed, and gsp_*, state_*, relay_* are not in it.
+ */
+export function isDispatchFamilyMutation(toolName: string): boolean {
+  const canonical = resolveToolAlias(toolName);
+  if (DISPATCH_PAUSE_EXTRA_DENIED.has(canonical)) return isMutatingTool(canonical);
+  return canonical.startsWith("dispatch_") && isMutatingTool(canonical) && !DISPATCH_PAUSE_EXEMPT.has(canonical);
+}
+
+/**
+ * Read-only check of the tenant's dispatchPaused flag, for callers that create tasks
+ * outside a tool call (the schedule executor). "clear" when the document is missing or
+ * dispatchPaused is not literally true, "paused" when it is true, "unknown" when the
+ * read throws (the caller fails closed). Never writes.
+ */
+export async function readDispatchPause(org: string): Promise<"paused" | "clear" | "unknown"> {
+  try {
+    const snap = await getFirestore().doc(`tenants/${org}/_meta/ceilings`).get();
+    if (!snap.exists) return "clear";
+    return (snap.data() || {}).dispatchPaused === true ? "paused" : "clear";
+  } catch (err) {
+    console.error("[CircuitBreaker] dispatchPaused read failed:", err);
+    return "unknown";
+  }
 }
 
 // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---
@@ -146,7 +220,7 @@ async function loadCeilingConfig(org: string): Promise<CeilingConfig | null> {
     return null;
   }
 
-  return { perKeyLimit, orgLimit, windowMs, paused: data.paused === true };
+  return { perKeyLimit, orgLimit, windowMs, paused: data.paused === true, dispatchPaused: data.dispatchPaused === true };
 }
 
 function emitBreakerAlert(auth: AuthContext, tool: string, code: BreakerCode, message: string): void {
@@ -189,6 +263,12 @@ export async function checkCircuitBreaker(auth: AuthContext, toolName: string): 
     const message = `Tenant "${org}" is paused; all mutations fail closed until unpaused.`;
     emitBreakerAlert(auth, toolName, "CEILING_ORG_PAUSED", message);
     return { allowed: false, code: "CEILING_ORG_PAUSED", message, retryAfterMs: config.windowMs };
+  }
+
+  if (config.dispatchPaused && isDispatchFamilyMutation(toolName)) {
+    const message = `Dispatch is paused for tenant "${org}"; "${toolName}" is refused until dispatchPaused is cleared. Boot, state reads and messages still work.`;
+    emitBreakerAlert(auth, toolName, "DISPATCH_PAUSED", message);
+    return { allowed: false, code: "DISPATCH_PAUSED", message, retryAfterMs: config.windowMs };
   }
 
   const keyCacheKey = `key:${auth.apiKeyHash}`;

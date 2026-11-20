@@ -1,0 +1,14 @@
+# mutation for probe T7.boot_allowed_under_pause: dispatchPaused denies every mutating tool, so gsp_bootstrap (gsp.write) is refused
+diff --git a/src/middleware/circuitBreaker.ts b/src/middleware/circuitBreaker.ts
+index 964d2c5..3488cad 100644
+--- a/src/middleware/circuitBreaker.ts
++++ b/src/middleware/circuitBreaker.ts
+@@ -142,7 +142,7 @@ export const DISPATCH_PAUSE_EXTRA_DENIED: ReadonlySet<string> = new Set([
+ export function isDispatchFamilyMutation(toolName: string): boolean {
+   const canonical = resolveToolAlias(toolName);
+   if (DISPATCH_PAUSE_EXTRA_DENIED.has(canonical)) return isMutatingTool(canonical);
+-  return canonical.startsWith("dispatch_") && isMutatingTool(canonical) && !DISPATCH_PAUSE_EXEMPT.has(canonical);
++  return isMutatingTool(canonical);
+ }
+ 
+ /**

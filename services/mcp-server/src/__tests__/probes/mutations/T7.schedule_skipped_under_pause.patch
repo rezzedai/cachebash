@@ -1,0 +1,14 @@
+# mutation for probe T7.schedule_skipped_under_pause: the executor ignores the dispatchPaused flag and fires task schedules
+diff --git a/src/modules/schedule-executor.ts b/src/modules/schedule-executor.ts
+index c4cc7d7..0c814dc 100644
+--- a/src/modules/schedule-executor.ts
++++ b/src/modules/schedule-executor.ts
+@@ -80,7 +80,7 @@ export async function executeSchedulesForUser(userId: string): Promise<ScheduleE
+   }
+ 
+   for (const doc of uniqueDocs) {
+-    if (pause !== "clear" && doc.data().kind !== "watch") {
++    if (pause !== "clear" && doc.data().kind !== "watch" && Date.now() < 0) {
+       skipped++;
+       const d = doc.data();
+       console.error(`[ScheduleExecutor] DISPATCH_PAUSED skip tenant=${userId} schedule=${doc.id} name=${d.name} nextRunAt=${d.nextRunAt}`);
