@@ -103,7 +103,7 @@ describe("BUG-009: key administration authorization", () => {
     rateLimitTier: "free",
   });
 
-  it("credentialPrincipal ignores the X-Program-Id override (BUG-006)", () => {
+  it("credentialPrincipal ignores a divergent auth.programId", () => {
     // programId escalated to an admin-tier name; the credential is still radia.
     const auth = authFor("radia", ["*"], "dispatcher");
     expect(credentialPrincipal(auth)).toBe("radia");
@@ -120,8 +120,8 @@ describe("BUG-009: key administration authorization", () => {
     expect(isKeyAdmin(authFor("tensor", ["fleet.read", "programs.read"]))).toBe(false);
   });
 
-  it("an X-Program-Id escalation to vector does not confer key administration", () => {
-    // The header can forge programId AND capabilities; it cannot forge the credential.
+  it("a divergent auth.programId of vector does not confer key administration", () => {
+    // The credential decides, not auth.programId.
     expect(isKeyAdmin(authFor("radia", ["*"], "vector"))).toBe(false);
   });
 

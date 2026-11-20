@@ -17,9 +17,8 @@ export default async function globalSetup(): Promise<void> {
   const { tenants, creds, seeders } = await seedAll();
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rd5-probes-"));
-  const authMode = process.env.PROBE_AUTH_MODE || "key_identity";
   const serverDir = process.env.PROBE_SERVER_DIR || undefined;
-  const srv = await startServer({ serverDir, authMode, logPath: path.join(dir, "server.log") });
+  const srv = await startServer({ serverDir, logPath: path.join(dir, "server.log") });
 
   const seed = await seedData({ baseUrl: srv.baseUrl }, seeders);
 
@@ -27,7 +26,6 @@ export default async function globalSetup(): Promise<void> {
     baseUrl: srv.baseUrl,
     serverPid: srv.pid,
     serverDir: serverDir ?? "",
-    authMode,
     projectId: target.projectId,
     emulatorHost: target.emulatorHost,
     tenants,
@@ -38,5 +36,5 @@ export default async function globalSetup(): Promise<void> {
   const file = path.join(dir, "world.json");
   fs.writeFileSync(file, JSON.stringify(world), { mode: 0o600 });
   process.env[WORLD_FILE_ENV] = file;
-  console.log(`[probes] server ${srv.baseUrl} pid ${srv.pid} authMode=${authMode} world=${file}`);
+  console.log(`[probes] server ${srv.baseUrl} pid ${srv.pid} world=${file}`);
 }

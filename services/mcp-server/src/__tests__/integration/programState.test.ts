@@ -84,6 +84,7 @@ beforeEach(async () => {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
     programId: "basher" as ValidProgramId,
+    keyProgramId: "basher" as ValidProgramId,
     encryptionKey: testUser.encryptionKey,
     capabilities: ["*"],
     rateLimitTier: "internal",

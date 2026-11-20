@@ -10,7 +10,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
-import { validateAuth, assertAuthModeAtBoot, type AuthContext } from "./auth/authValidator.js";
+import { validateAuth, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult, loadAuthCounters } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
@@ -104,9 +104,6 @@ async function getActiveUserIds(): Promise<string[]> {
 }
 
 async function main() {
-  // A13 — assert AUTH_MODE explicitly at boot (see authValidator.ts for why).
-  assertAuthModeAtBoot();
-
   initializeFirebase();
 
   // Seed canonical accounts and authorized emails (idempotent, fire-and-forget)
@@ -351,7 +348,7 @@ async function main() {
       res.setHeader("Access-Control-Allow-Origin", "https://grid-portal.web.app");
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Mcp-Session-Id, X-Program-Id");
+    res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Mcp-Session-Id");
     res.setHeader("Access-Control-Max-Age", "86400");
     res.setHeader("Vary", "Origin");
   }
@@ -455,8 +452,7 @@ async function main() {
     if (url?.startsWith("/oauth/service-accounts")) {
       const saToken = extractBearerToken(req.headers.authorization);
       if (!saToken) return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required" });
-      const saProgramId = req.headers["x-program-id"] as string | undefined;
-      const saAuth = await validateAuth(saToken, saProgramId);
+      const saAuth = await validateAuth(saToken);
       if (!saAuth) return sendJson(res, 401, { error: "unauthorized", error_description: "Invalid token" });
       return handleServiceAccounts(req, res, saAuth);
     }
@@ -467,8 +463,7 @@ async function main() {
     if (url === "/v1/mcp/heartbeat" && req.method === "POST") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const tokenProgramId = req.headers["x-program-id"] as string | undefined;
-      const auth = await validateAuth(token, tokenProgramId);
+      const auth = await validateAuth(token);
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -696,8 +691,7 @@ async function main() {
         checkAuthRateLimit(clientIp);
         return sendJson(res, 401, { error: "Missing Authorization header" });
       }
-      const isoProgramId = req.headers["x-program-id"] as string | undefined;
-      const auth = await validateAuth(token, isoProgramId);
+      const auth = await validateAuth(token);
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
@@ -868,8 +862,7 @@ async function main() {
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
-      const mcpProgramId = req.headers["x-program-id"] as string | undefined;
-      const auth = await validateAuth(token, mcpProgramId);
+      const auth = await validateAuth(token);
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });

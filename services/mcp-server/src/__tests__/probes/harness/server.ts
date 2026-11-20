@@ -30,7 +30,6 @@ export const MCP_SERVER_DIR = path.resolve(__dirname, "../../../..");
  */
 export async function startServer(opts: {
   serverDir?: string;
-  authMode: string;
   logPath: string;
 }): Promise<RunningServer> {
   const target = assertEmulatorOnly();
@@ -46,7 +45,6 @@ export async function startServer(opts: {
     FIREBASE_PROJECT_ID: target.projectId,
     GCLOUD_PROJECT: target.projectId,
     FIRESTORE_EMULATOR_HOST: target.emulatorHost,
-    AUTH_MODE: opts.authMode,
   };
   const child = spawn(process.execPath, [path.join(dir, "dist/index.js")], {
     cwd: dir,

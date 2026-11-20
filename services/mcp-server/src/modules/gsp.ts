@@ -633,10 +633,10 @@ function buildReportingChain(role: string | null): string[] {
  * then only as something that WIDENS this already principal-bound decision —
  * never as a standalone "does auth.capabilities include fleet.observe?" check
  * that could establish identity by itself. `credentialPrincipal` reads
- * `auth.keyProgramId` (never overridable by X-Program-Id) in preference to
- * `auth.programId`, so this cannot be spoofed via header escalation (BUG-006)
- * — see `authValidator.ts`'s `assertAuthModeAtBoot` (A13) for why that holds
- * even for `auth.capabilities` itself under the pinned `key_identity` mode.
+ * `auth.keyProgramId`, the identity bound to the authenticating credential
+ * and set by every auth validator, and never `auth.programId`. A foreign read
+ * is allowed only through the literal `fleet.observe` capability, and then
+ * only as a widening of this principal-bound decision.
  */
 function authorizeGspBootstrapRead(
   auth: AuthContext,

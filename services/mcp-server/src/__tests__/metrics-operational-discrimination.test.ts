@@ -43,6 +43,7 @@ function ev(data: Record<string, unknown>): FakeDoc {
 const adminAuth: AuthContext = {
   userId: "test-user",
   programId: "orchestrator",
+  keyProgramId: "orchestrator",
   apiKeyHash: "test-hash",
   encryptionKey: Buffer.from("test-encryption-key-32-bytes-long!!!"),
   capabilities: ["*"],

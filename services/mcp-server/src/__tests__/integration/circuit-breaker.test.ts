@@ -57,6 +57,7 @@ describe("WS-3 Circuit Breaker Integration", () => {
       apiKeyHash: "test-key-hash",
       encryptionKey: Buffer.from("0123456789abcdef0123456789abcdef"),
       programId: "wingman" as any,
+      keyProgramId: "wingman" as any,
       capabilities: ["dispatch.read", "dispatch.write"],
       rateLimitTier: "free",
       ...overrides,

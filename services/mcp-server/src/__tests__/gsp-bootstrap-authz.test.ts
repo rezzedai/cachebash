@@ -16,19 +16,15 @@
  *         SUCCEEDS, but memory is omitted with an explicit stated reason —
  *         proven against real seeded memory data, not merely absent data.
  *   A12 — a ["*"]-holding key is DENIED at this site (the radia shape).
- *   A13 — AUTH_MODE assertion (assertAuthModeAtBoot), tested directly.
  *   A14 — a key holding the OLD `fleet.read` capability (not `fleet.observe`)
  *         is DENIED, proving the check is the new literal capability and not
  *         the wildcard-satisfiable existing one.
  *
  * Plus the R4a-specific regression this plan calls out as the single most
  * important property: identity binds to credentialPrincipal (keyProgramId),
- * never to auth.programId alone, which is forgeable via X-Program-Id
- * (BUG-006) and — under hybrid/gsp_identity mode — recomputes
- * auth.capabilities too.
+ * never to auth.programId alone.
  */
 import type { AuthContext } from "../auth/authValidator";
-import { assertAuthModeAtBoot } from "../auth/authValidator";
 import { gspBootstrapHandler } from "../modules/gsp";
 
 // ── Minimal in-memory Firestore mock (subset of gsp.test.ts's pattern) ──────
@@ -348,9 +344,9 @@ describe("A14 — legacy fleet.read does NOT confer the new fleet.observe gate",
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe("R4a — capabilities widen an identity decision, they never establish it", () => {
-  it("an X-Program-Id-forged auth.programId does NOT grant a self-read — binds to keyProgramId", async () => {
-    // Attacker's credential is radia; the X-Program-Id header (BUG-006) has
-    // forged auth.programId to "iso" — the exact subject being requested.
+  it("a divergent auth.programId does NOT grant a self-read — binds to keyProgramId", async () => {
+    // The credential is radia; auth.programId reads "iso", the exact subject
+    // being requested.
     // If the gate used auth.programId instead of credentialPrincipal, this
     // would incorrectly read as a self-read and return full memory.
     const auth = authFor({ programId: "iso", keyProgramId: "radia", capabilities: ["*"] });
@@ -362,10 +358,9 @@ describe("R4a — capabilities widen an identity decision, they never establish 
     expect(data.principal).toBe("radia");
   });
 
-  it("a header-recomputed '*' (hybrid-mode orchestrator role escalation) still does not satisfy the literal fleet.observe check", async () => {
-    // Simulates the BUG-006 shape: under hybrid mode, auth.capabilities gets
-    // recomputed to the header-named program's role. Even in the worst case —
-    // recomputed to orchestrator's ["*"] — fleet.observe is a named grant on
+  it("a wildcard capability on a divergent auth.programId still does not satisfy the literal fleet.observe check", async () => {
+    // Even with ["*"] capabilities on a divergent auth.programId,
+    // fleet.observe is a named grant on
     // exactly two principals, never a DEFAULT_CAPABILITIES role member, so
     // this must still deny.
     const auth = authFor({ programId: "iso", keyProgramId: "radia", capabilities: ["*"] });
@@ -373,51 +368,14 @@ describe("R4a — capabilities widen an identity decision, they never establish 
     expect(parse(result).success).toBe(false);
   });
 
-  it("credentialPrincipal, not the header override, is who gets fleet.observe's benefit too", async () => {
+  it("credentialPrincipal is who gets fleet.observe's benefit too", async () => {
     // vector's OWN key (keyProgramId=vector) legitimately holds fleet.observe.
-    // Even if some transport recomputed auth.programId to something else, the
+    // Even if auth.programId differs from the credential, the
     // foreign-read grant still resolves off the credential's own capabilities.
     const auth = authFor({ programId: "some-other-role", keyProgramId: "vector", capabilities: ["*", "fleet.observe"] });
     const result = await gspBootstrapHandler(auth, { agentId: "iso" });
     const data = parse(result);
     expect(data.success).toBe(true);
     expect(data.payload.memory.omitted).toBe(true);
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// A13 — AUTH_MODE is asserted explicitly at boot, not silently inherited from
-// the `|| 'key_identity'` fallback default.
-// ═════════════════════════════════════════════════════════════════════════════
-
-describe("A13 — assertAuthModeAtBoot", () => {
-  it('is NOT ok when AUTH_MODE is unset (the current serving-revision state per the plan)', () => {
-    const result = assertAuthModeAtBoot({} as NodeJS.ProcessEnv);
-    expect(result.ok).toBe(false);
-    expect(result.mode).toBeUndefined();
-  });
-
-  it('is NOT ok when AUTH_MODE is explicitly "hybrid" (the BUG-006-vulnerable mode)', () => {
-    const result = assertAuthModeAtBoot({ AUTH_MODE: "hybrid" } as NodeJS.ProcessEnv);
-    expect(result.ok).toBe(false);
-    expect(result.mode).toBe("hybrid");
-  });
-
-  it('is NOT ok for "gsp_identity" either — only the pinned literal value passes', () => {
-    expect(assertAuthModeAtBoot({ AUTH_MODE: "gsp_identity" } as NodeJS.ProcessEnv).ok).toBe(false);
-  });
-
-  it('IS ok only when AUTH_MODE is explicitly "key_identity"', () => {
-    const result = assertAuthModeAtBoot({ AUTH_MODE: "key_identity" } as NodeJS.ProcessEnv);
-    expect(result.ok).toBe(true);
-    expect(result.mode).toBe("key_identity");
-  });
-
-  it("logs a loud [BOOT][SECURITY] warning (not a silent pass) when not pinned", () => {
-    const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-    assertAuthModeAtBoot({} as NodeJS.ProcessEnv);
-    expect(errSpy).toHaveBeenCalled();
-    expect(errSpy.mock.calls[0][0]).toContain("[BOOT][SECURITY]");
-    errSpy.mockRestore();
   });
 });

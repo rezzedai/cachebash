@@ -3,10 +3,10 @@
  *
  * These tests exercise the REAL verifySource function — no mocks.
  * Purpose: regression guard against any future change that re-opens the
- * BUG-005 impersonation path (hybrid-mode X-Program-Id override bypass).
+ * BUG-005 impersonation path (auth.programId differing from the key's program).
  *
  * BUG-005 attack vector:
- *   cb_ key bound to "basher" + X-Program-Id: iso → auth.programId = "iso"
+ *   cb_ key bound to "basher" with auth.programId = "iso"
  *   caller passes source: "iso" → old code: "iso" === auth.programId → passes
  *   new code: "iso" !== auth.keyProgramId ("basher") → rejected
  */
@@ -39,10 +39,10 @@ jest.mock("../modules/events", () => ({
 }));
 
 describe("verifySource — BUG-005 regression (F-360-1)", () => {
-  describe("BUG-005 attack: keyProgramId !== programId (X-Program-Id override)", () => {
-    it("rejects claimed source matching programId override but not keyProgramId", () => {
+  describe("BUG-005 attack: keyProgramId !== programId", () => {
+    it("rejects claimed source matching programId but not keyProgramId", () => {
       // Exact BUG-005 scenario:
-      //   cb_basher_key sets X-Program-Id: iso → auth.programId = "iso"
+      //   cb_basher_key with auth.programId = "iso"
       //   caller passes source: "iso"
       //   MUST throw — keyProgramId "basher" does not own source "iso"
       const auth = makeAuth({
@@ -56,7 +56,7 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
     });
 
     it("allows claimed source matching keyProgramId even when programId differs", () => {
-      // Same auth context (X-Program-Id override active) but caller claims own identity.
+      // Same auth context (programId differs) but caller claims own identity.
       const auth = makeAuth({
         keyProgramId: "basher" as ValidProgramId,
         programId: "iso" as ValidProgramId,
@@ -66,7 +66,7 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
     });
   });
 
-  describe("normal operation (no X-Program-Id override)", () => {
+  describe("normal operation (programId equals keyProgramId)", () => {
     it("returns keyProgramId when source is undefined", () => {
       const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId });
       expect(verifySource(undefined, auth, "mcp")).toBe("basher");

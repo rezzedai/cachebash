@@ -145,7 +145,7 @@ export function hasCapability(auth: AuthContext, capability: string): boolean {
 /**
  * Verify source claim against key identity.
  * BUG-005 / Identity Sovereignty inv.6: enforces against keyProgramId — the identity
- * bound to the AUTHENTICATING credential — not the X-Program-Id override (programId).
+ * bound to the AUTHENTICATING credential (keyProgramId).
  * This closes the impersonation path on all surfaces (HTTP, Desktop, mobile, OAuth).
  *
  * legacy/mobile are admin-tier actors exempted from source pinning.
@@ -170,8 +170,7 @@ export function verifySource(
   }
 
   // Enforce: claimed source must match the AUTHENTICATING credential's identity.
-  // auth.programId may differ (X-Program-Id override for capability routing) — that
-  // does NOT expand the source identity. A basher key cannot claim source "iso".
+  // auth.programId may differ from keyProgramId; that does NOT expand the source identity. A basher key cannot claim source "iso".
   if (claimedSource !== credentialIdentity) {
     console.error(
       `[SECURITY] BUG-005 identity mismatch: credential="${credentialIdentity}" ` +
