@@ -2,7 +2,7 @@
 diff --git a/src/transport/rest.ts b/src/transport/rest.ts
 --- a/src/transport/rest.ts
 +++ b/src/transport/rest.ts
-@@ -590,10 +590,6 @@
+@@ -594,10 +594,6 @@
      restResponse(res, true, data);
    }),
    route("GET", "/v1/sprints/active", async (auth, req, res) => {
@@ -13,7 +13,7 @@ diff --git a/src/transport/rest.ts b/src/transport/rest.ts
      const db = getFirestore();
      const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
      const snap = await tasksRef
-@@ -603,9 +599,7 @@
+@@ -607,9 +603,7 @@
        .limit(10)
        .get();
  

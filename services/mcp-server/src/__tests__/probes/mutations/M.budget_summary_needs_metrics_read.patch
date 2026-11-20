@@ -2,7 +2,7 @@
 diff --git a/src/transport/rest.ts b/src/transport/rest.ts
 --- a/src/transport/rest.ts
 +++ b/src/transport/rest.ts
-@@ -659,7 +659,6 @@
+@@ -663,7 +663,6 @@
    // Budget
    route("GET", "/v1/budget/summary", async (auth, req, res) => {
      // RD-5 PR-M row 8 (CAP metrics_get_cost_summary, M-D4): metrics.read; the summary is a tenant aggregate.

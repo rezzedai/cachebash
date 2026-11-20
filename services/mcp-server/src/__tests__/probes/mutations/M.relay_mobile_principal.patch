@@ -2,7 +2,7 @@
 diff --git a/src/transport/rest.ts b/src/transport/rest.ts
 --- a/src/transport/rest.ts
 +++ b/src/transport/rest.ts
-@@ -470,7 +470,7 @@
+@@ -474,7 +474,7 @@
      }
      // RD-5 PR-M row 13 (NL-REST-RELAY-MOBILE): bound to the credential's own principal, and the refusal is logged and names the caller.
      const caller = credentialPrincipal(auth);

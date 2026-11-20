@@ -2,7 +2,7 @@
 diff --git a/src/transport/rest.ts b/src/transport/rest.ts
 --- a/src/transport/rest.ts
 +++ b/src/transport/rest.ts
-@@ -530,27 +530,37 @@
+@@ -534,27 +534,37 @@
      restResponse(res, true, data);
    }),
    route("GET", "/v1/sessions/history", async (auth, req, res) => {

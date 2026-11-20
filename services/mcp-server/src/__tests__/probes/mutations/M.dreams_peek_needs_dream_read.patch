@@ -10,7 +10,7 @@ diff --git a/src/transport/rest.ts b/src/transport/rest.ts
  import { gspListNamespacesHandler } from "../modules/gsp.js";
  import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
  import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
-@@ -702,9 +703,9 @@
+@@ -706,9 +707,9 @@
    }),
    // Dream
    route("GET", "/v1/dreams", async (auth, req, res) => {
@@ -23,7 +23,7 @@ diff --git a/src/transport/rest.ts b/src/transport/rest.ts
    }),
    route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
      const result = await callTool(auth, req, "dream_activate", { dreamId: p.id });
-@@ -858,9 +859,9 @@
+@@ -862,9 +863,9 @@
      restResponse(res, true, data);
    }),
    route("GET", "/v1/dreams/peek", async (auth, req, res) => {

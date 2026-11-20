@@ -2,7 +2,7 @@
 diff --git a/src/transport/rest.ts b/src/transport/rest.ts
 --- a/src/transport/rest.ts
 +++ b/src/transport/rest.ts
-@@ -725,7 +725,6 @@
+@@ -729,7 +729,6 @@
    }),
    route("GET", "/v1/gsp/namespaces", async (auth, req, res) => {
      // RD-5 PR-M row 10 (CAP gsp_read): gsp.read; the namespace list is tenant-wide.
@@ -10,7 +10,7 @@ diff --git a/src/transport/rest.ts b/src/transport/rest.ts
      const data = await gspListNamespacesHandler(auth);
      restResponse(res, true, data);
    }),
-@@ -746,7 +745,6 @@
+@@ -750,7 +749,6 @@
    // GSP Proposals — list pending proposals for the authenticated tenant
    route("GET", "/v1/gsp/proposals", async (auth, req, res) => {
      // RD-5 PR-M row 7 (CAP gsp_read, M-D3): gsp.read; proposals are tenant-wide governance records, gsp_resolve decides who acts (PR-N).
