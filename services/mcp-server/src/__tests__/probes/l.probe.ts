@@ -1,7 +1,7 @@
 import { world } from "./harness/load";
 import { callTool } from "./harness/client";
 import { probe } from "./harness/registry";
-import { writeKey } from "./harness/seed";
+import { mint } from "./harness/mint";
 import { CASES, nextN, Ctx } from "./harness/cases";
 import { knownOpen } from "./harness/registry";
 import * as fs from "fs";
@@ -13,12 +13,6 @@ import type { World, WorldCredential } from "./harness/world";
  * fleet-watch, reconciliation, the hooks, the orchestrator scripts). Every probe passes on unmodified main and after every
  * PR-L commit; each patch under mutations/ drops the grant the path survives through, and the probe must go red.
  */
-
-/** A tenant-A credential of `programId` holding exactly `capabilities`. */
-async function mint(w: World, programId: string, label: string, capabilities: string[]): Promise<WorldCredential> {
-  const { key, keyHash } = await writeKey(w.tenants.A, programId, label, capabilities);
-  return { name: "scoped", tenant: "A", tenantUid: w.tenants.A, programId, capabilities, key, keyHash };
-}
 
 /** A session of `program`, created as the mobile seeder. */
 async function freshSession(w: World, program: string): Promise<string> {
