@@ -1,7 +1,7 @@
 import { world } from "./harness/load";
 import { callTool } from "./harness/client";
 import { probe } from "./harness/registry";
-import { writeKey } from "./harness/seed";
+import { mint } from "./harness/mint";
 import { nextN } from "./harness/cases";
 import { emulatorDb } from "./harness/emulator";
 import { Timestamp } from "firebase-admin/firestore";
@@ -12,12 +12,6 @@ import type { World, WorldCredential } from "./harness/world";
 /**
  * K (RD-5 PR-K, plan section 19 as revised by 19.1): the relay and dispatch families are bound to credentialPrincipal.
  */
-
-/** A tenant-A credential of `programId` holding exactly `capabilities`. */
-async function mint(w: World, programId: string, label: string, capabilities: string[]): Promise<WorldCredential> {
-  const { key, keyHash } = await writeKey(w.tenants.A, programId, label, capabilities);
-  return { name: "scoped", tenant: "A", tenantUid: w.tenants.A, programId, capabilities, key, keyHash };
-}
 
 const taskFor = async (w: World, target: string, n: string): Promise<string> => {
   const t = await callTool(w, w.seeders.A, "dispatch_create_task", { title: `k-${n}`, target, source: "legacy", instructions: `ki-${n}` });

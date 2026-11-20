@@ -57,7 +57,7 @@ import type { AuthContext } from "../auth/authValidator.js";
 const USER = "u1";
 
 function auth(programId: string): AuthContext {
-  return { userId: USER, programId, capabilities: ["*"] } as unknown as AuthContext;
+  return { userId: USER, programId, keyProgramId: programId, capabilities: ["*"] } as unknown as AuthContext;
 }
 
 function parse(result: { content: Array<{ text: string }> }) {

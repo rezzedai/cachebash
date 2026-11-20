@@ -1,0 +1,13 @@
+# mutation for probe T2.dispatch_get_tasks_sprint: sprint types skip the target authorization and filter again
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -167,7 +167,7 @@
+   // RD-5 PR-L row 15 (K-D5 option 2): a named target is authorized and filtered for every type, sprint types included. A sprint read with no target is unchanged.
+   const { allowed, principal, seesAll } = authorizeTasksRead(auth, args.target);
+   const sprintType = args.type === "sprint" || args.type === "sprint-story";
+-  if (args.target) {
++  if (args.target && !sprintType) {
+     if (!allowed) {
+       logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: args.target ?? null, code: "FOREIGN_SUBJECT" });
+       return jsonResult({

@@ -1,0 +1,22 @@
+# mutation for probe T2.pulse_resume_program: neither the capability check nor the pausedBy check runs, so a key resumes another program
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -1019,7 +1019,7 @@
+ 
+   // RD-5 PR-L row 8 (L-D3): fleet.admin resumes any program; the principal resumes itself only when it paused itself (checked in the transaction).
+   const rz = authorizePulseControl(auth, args.programId);
+-  if (!rz.allowed) {
++  if (false) {
+     logDenial({ principal: rz.principal, tool: "pulse_resume_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `Access denied: "${rz.principal}" cannot resume "${args.programId}"` });
+   }
+@@ -1039,7 +1039,7 @@
+       if (!doc.exists || !doc.data()?.paused) {
+         throw new Error(`Program "${args.programId}" is not paused.`);
+       }
+-      if (!hasFleetAdminCapability(auth) && doc.data()?.pausedBy !== rz.principal) {
++      if (false) {
+         throw new AuthzDenied(`Access denied: "${rz.principal}" cannot resume "${args.programId}" (paused by "${doc.data()?.pausedBy}")`);
+       }
+ 

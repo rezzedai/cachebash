@@ -16,6 +16,8 @@ import type { SeedData } from "./data";
 export interface World {
   baseUrl: string;
   serverPid: number;
+  /** the server process log: stdout and stderr of dist/index.js, one JSON line per authz denial */
+  serverLog: string;
   serverDir: string;
   projectId: string;
   emulatorHost: string;

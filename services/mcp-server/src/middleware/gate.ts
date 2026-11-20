@@ -13,6 +13,7 @@ import { emitEvent } from "../modules/events.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 export interface AuditEntry {
   timestamp: string;
   correlationId: string;
@@ -126,16 +127,6 @@ export function createAuditLogger(correlationId: string, userId: string) {
 }
 
 /**
- * Canonical admin check — single source of truth for admin-level access.
- * Admin programs: user-facing clients (legacy/mobile) + system orchestrators.
- */
-const ADMIN_PROGRAMS = ["legacy", "mobile", "orchestrator", "admin", "dispatcher"] as const;
-
-export function isAdmin(auth: AuthContext): boolean {
-  return (ADMIN_PROGRAMS as readonly string[]).includes(auth.programId);
-}
-
-/**
  * Check if AuthContext has a specific capability.
  * Returns true if the key has the exact capability or wildcard "*".
  */
@@ -174,6 +165,7 @@ export function verifySource(
       `[SECURITY] BUG-005 identity mismatch: credential="${principal}" ` +
       `claimed_source="${claimedSource}" endpoint="${endpoint}". Rejecting.`
     );
+    logDenial({ principal: denialPrincipal(auth), tool: "verifySource", subject: claimedSource, code: "SOURCE_MISMATCH" });
     throw new Error(
       `Source mismatch: key belongs to "${principal}", claimed "${claimedSource}". ` +
       `Each program must use its own API key.`

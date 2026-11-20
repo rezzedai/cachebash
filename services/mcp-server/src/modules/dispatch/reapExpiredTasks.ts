@@ -49,6 +49,8 @@ import { getFirestore } from "../../firebase/client.js";
 import type { AuthContext } from "../../auth/authValidator.js";
 import { emitEvent } from "../events.js";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
+import { credentialPrincipal } from "../../auth/ownerAuthz.js";
 // R1.4 (dispatch-defects-1-and-2, ISO-ruled additive-only): a task deleted by
 // the reaper while it never reached a resolved outcome lapsed with its
 // requirements unmet -- today that is silent, the doc simply stops existing.
@@ -95,7 +97,7 @@ const BATCH_WRITE_MAX = 400;
 // Same "admin/orchestrator only" gate as backfillExpiresAt.ts / gsp.ts's
 // gspSeedHandler -- a bulk delete across the tenant's tasks collection is not
 // something an ordinary tenant role should be able to trigger.
-const AUTHORIZED_PROGRAMS = ["basher", "iso", "vector"];
+const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; the "*" capability still passes until PR-N
 
 const ReapSchema = z.object({
   execute: z.boolean().default(false),
@@ -217,11 +219,13 @@ async function reapByIds(
 
 export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const hasWildcard = auth.capabilities.includes("*");
-  if (!AUTHORIZED_PROGRAMS.includes(auth.programId) && !hasWildcard) {
+  const principal = credentialPrincipal(auth);
+  if (!AUTHORIZED_PROGRAMS.includes(principal) && !hasWildcard) {
+    logDenial({ principal, tool: "dispatch_reap_expired_tasks", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",
-      message: `dispatch_reap_expired_tasks requires a fleet-internal role. Current programId: ${auth.programId}`,
+      message: `dispatch_reap_expired_tasks requires a fleet-internal role (iso). credentialPrincipal: "${principal}"`,
     });
   }
 

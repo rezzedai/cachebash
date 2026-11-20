@@ -4,7 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middleware/gate.js";
+import { verifySource, logAudit, generateCorrelationId } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
@@ -20,6 +20,7 @@ import { logDirective, markDirectiveAcknowledged } from "./ack-compliance.js";
 import { getComplianceConfig } from "../config/compliance.js";
 import { FieldValue, Timestamp, Query, QueryDocumentSnapshot } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 // ADR-014: normalize relay body across split-brain write paths.
 // sendMessageHandler writes `payload`; sendTaskAndDirective (dispatchHandler) wrote `message`.
 // After dispatchHandler is aligned, this still handles legacy docs in Firestore.
@@ -479,6 +480,7 @@ export async function getMessagesHandler(auth: AuthContext, rawArgs: unknown): P
   // query.get(), so nothing is read or claimed.
   const { allowed, readsAll, subject } = await authorizeRelayRead(auth, args.target, args.sessionId);
   if (!allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "relay_get_messages", subject: subject ?? null, code: "FOREIGN_SUBJECT" });
     return jsonResult({
       success: false,
       error: `Access denied: "${principal}" cannot read messages for "${subject}"`,
@@ -650,6 +652,7 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
   const principal = credentialPrincipal(auth);
   const source = args.source ?? principal;
   if (source !== principal && !inList(RELAY_ADMIN_PRINCIPALS, principal)) {
+    logDenial({ principal: denialPrincipal(auth), tool: "relay_get_sent_messages", subject: source, code: "FOREIGN_SUBJECT" });
     return jsonResult({
       success: false,
       error: `Access denied: "${principal}" cannot read sent messages for "${source}"`,
@@ -698,11 +701,13 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 }
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only (legacy/mobile keys)
-  if (!isAdmin(auth)) {
+  // Admin only (RD-5 PR-L row 30, K-D3): RELAY_ADMIN_PRINCIPALS on credentialPrincipal. Dead letters carry message bodies.
+  const principal = credentialPrincipal(auth);
+  if (!inList(RELAY_ADMIN_PRINCIPALS, principal)) {
+    logDenial({ principal, tool: "relay_get_dead_letters", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
-      error: "Dead letter queue is only accessible by admin.",
+      error: `Access denied: "${principal}" cannot read dead letters (the dead letter queue is only accessible by admin principals).`,
     });
   }
 
@@ -796,12 +801,14 @@ export async function queryMessageHistoryHandler(auth: AuthContext, rawArgs: unk
   if (!privileged) {
     const self = principal;
     if (args.source && args.source !== self) {
+      logDenial({ principal: denialPrincipal(auth), tool: "relay_query_message_history", subject: args.source ?? null, code: "FOREIGN_SUBJECT" });
       return jsonResult({
         success: false,
         error: `Participant scope: non-admin callers may only query source "${self}".`,
       });
     }
     if (args.target && args.target !== self && args.target !== "all") {
+      logDenial({ principal: denialPrincipal(auth), tool: "relay_query_message_history", subject: args.target ?? null, code: "FOREIGN_SUBJECT" });
       return jsonResult({
         success: false,
         error: `Participant scope: non-admin callers may only query target "${self}" or "all".`,

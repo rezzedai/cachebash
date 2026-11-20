@@ -5,10 +5,12 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { isAdmin, hasCapability } from "../middleware/gate.js";
+import { hasCapability } from "../middleware/gate.js";
+import { resolveReadScope } from "../auth/readScope.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 const GetAuditSchema = z.object({
   limit: z.number().min(1).max(100).default(50),
   allowed: z.boolean().optional(),
@@ -22,15 +24,23 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  if (!isAdmin(auth) && !hasCapability(auth, "audit.read")) {
+  if (!hasCapability(auth, "audit.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "audit_get_audit", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
-      error: "get_audit requires audit.read capability.",
+      error: `get_audit requires audit.read capability (caller "${denialPrincipal(auth)}").`,
     });
   }
 
   const args = GetAuditSchema.parse(rawArgs);
   const db = getFirestore();
+
+  // RD-5 PR-L row 22: a foreign programId needs literal fleet.observe; no programId means the principal's own entries.
+  const scope = resolveReadScope(auth, args.programId);
+  if (!scope.allowed) {
+    logDenial({ principal: scope.principal, tool: "audit_get_audit", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read audit for "${args.programId}"` });
+  }
 
   let query: FirebaseFirestore.Query = db
     .collection(`tenants/${auth.userId}/ledger`)
@@ -41,8 +51,8 @@ export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Prom
     query = query.where("allowed", "==", args.allowed);
   }
 
-  if (args.programId) {
-    query = query.where("programId", "==", args.programId);
+  if (scope.filter) {
+    query = query.where("programId", "==", scope.filter);
   }
 
   const snapshot = await query.limit(args.limit).get();

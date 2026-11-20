@@ -22,6 +22,7 @@ import { z } from "zod";
 import type { ValidProgramId } from "../config/programs.js";
 import { OWNER_PROGRAM_ID } from "../config/owner.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 // ── Schema version for all GSP entries ──────────────────────────────────────
 const GSP_SCHEMA_VERSION = 1;
 
@@ -668,6 +669,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown): 
 
   const authz = authorizeGspBootstrapRead(auth, args.agentId);
   if (!authz.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: "gsp_bootstrap", subject: args.agentId, code: "FOREIGN_SUBJECT" });
     return jsonResult({
       success: false,
       error: "FORBIDDEN",
@@ -1210,14 +1212,17 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   // so the capability gate still denies it dispatch/state/keys/etc. Listing it
   // here rather than widening its capabilities to "*" keeps a CI-resident
   // credential scoped to governance-state writes and nothing else.
-  const authorizedPrograms = ["vector", "iso", "admin", "dispatcher", "gsp-sync"];
+  // RD-5 PR-L row 37 (L-D11): `admin` is dropped, and the list is compared with credentialPrincipal. The "*" capability still passes until PR-N.
+  const authorizedPrograms = ["vector", "iso", "dispatcher", "gsp-sync"];
   const hasWildcard = auth.capabilities.includes("*");
+  const seedPrincipal = credentialPrincipal(auth);
 
-  if (!authorizedPrograms.includes(auth.programId) && !hasWildcard) {
+  if (!authorizedPrograms.includes(seedPrincipal) && !hasWildcard) {
+    logDenial({ principal: seedPrincipal, tool: "gsp_seed", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
       error: "UNAUTHORIZED",
-      message: `gsp_seed requires admin/orchestrator role. Current programId: ${auth.programId}`,
+      message: `gsp_seed requires admin/orchestrator role. credentialPrincipal: "${seedPrincipal}"`,
     });
   }
 
@@ -1645,6 +1650,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         version: proposal.version + 1,
       });
 
+      logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
       return jsonResult({
         success: false,
         error: "PROPOSAL_EXPIRED",
@@ -1658,6 +1664,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
     if (args.decision === "withdrawn") {
       // Only the proposer can withdraw
       if (auth.programId !== proposal.proposedBy) {
+        logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",
@@ -1668,6 +1675,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
     } else {
       // approved or rejected - only reviewers can resolve
       if (!proposal.reviewers.includes(auth.programId)) {
+        logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: null, code: "NOT_GRANTED" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",

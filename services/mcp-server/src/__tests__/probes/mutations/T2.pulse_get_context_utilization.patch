@@ -1,0 +1,13 @@
+# mutation for probe T2.pulse_get_context_utilization: the session-owner check no longer runs, so a key reads another program's context history
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -844,7 +844,7 @@
+   const ctxSeesAll = inList(PULSE_PRIV, ctxPrincipal) || hasFleetObserveCapability(auth);
+   if (args.sessionId) {
+     const owner = sessionOwnerProgramId(args.sessionId);
+-    if (!authorizePulse(auth, owner, "read").allowed) {
++    if (false) {
+       logDenial({ principal: ctxPrincipal, tool: "pulse_get_context_utilization", subject: owner, code: "FOREIGN_SUBJECT" });
+       return jsonResult({ success: false, error: `Access denied: "${ctxPrincipal}" cannot read context for session "${args.sessionId}"` });
+     }

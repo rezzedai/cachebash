@@ -890,6 +890,7 @@ describe("gspSeedHandler", () => {
     const restrictedAuth: AuthContext = {
       ...mockAuth,
       programId: "basher" as any,
+      keyProgramId: "basher" as any,
       capabilities: ["dispatch.read"],
     };
 
@@ -1248,6 +1249,27 @@ describe("gspResolveHandler", () => {
 
     expect(data.success).toBe(false);
     expect(data.error).toBe("UNAUTHORIZED");
+  });
+
+  // RD-5 PR-L section 20 D: a refused withdrawal is counted by the authz_denial log metric; the proposer's own is not
+  it("logs one authz_denial for a withdrawal by a non-proposer and none for the proposer", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const denials = () => warn.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('"event":"authz_denial"'));
+    try {
+      seedPendingProposal({ proposedBy: "basher" });
+      const refused = parse(await gspResolveHandler(mockAuth, { proposalId, decision: "withdrawn" }));
+      expect(refused.error).toBe("UNAUTHORIZED");
+      expect(denials()).toHaveLength(1);
+      expect(JSON.parse(denials()[0])).toMatchObject({ tool: "gsp_resolve", subject: "basher", code: "NOT_OWNER" });
+
+      warn.mockClear();
+      seedPendingProposal({ proposedBy: "vector" });
+      const ok = parse(await gspResolveHandler(mockAuth, { proposalId, decision: "withdrawn" }));
+      expect(ok.success).toBe(true);
+      expect(denials()).toHaveLength(0);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   // #40

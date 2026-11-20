@@ -1,0 +1,13 @@
+# mutation for probe L.policy_write_needs_admin: policy writes no longer need fleet.admin
+diff --git a/src/modules/policy.ts b/src/modules/policy.ts
+--- a/src/modules/policy.ts
++++ b/src/modules/policy.ts
+@@ -165,7 +165,7 @@
+  * policy_check evaluates it for every caller, so reads stay open (not an identity question). Returns the denial, or null when allowed.
+  */
+ function denyUnlessPolicyAdmin(auth: AuthContext, tool: string, subject: string | null): ToolResult | null {
+-  if (hasFleetAdminCapability(auth)) return null;
++  if (auth) return null;
+   const caller = denialPrincipal(auth);
+   logDenial({ principal: caller, tool, subject, code: "MISSING_CAPABILITY" });
+   return jsonResult({ success: false, error: `Access denied: "${caller}" cannot write policy${subject ? ` "${subject}"` : ""} (literal fleet.admin required)` });

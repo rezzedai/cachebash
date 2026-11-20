@@ -1,0 +1,27 @@
+# mutation for probe L.empty_principal_not_privileged: an empty principal is privileged again: the auth layer admits a key document with no programId and update_session treats a missing programId as privileged
+diff --git a/src/auth/authValidator.ts b/src/auth/authValidator.ts
+--- a/src/auth/authValidator.ts
++++ b/src/auth/authValidator.ts
+@@ -59,7 +59,7 @@
+ 
+     // The key's canonical identity. A key document with no programId is denied:
+     // no principal is minted from a missing field.
+-    if (typeof data.programId !== "string" || data.programId === "") {
++    if (typeof data.programId !== "string") {
+       console.warn("[Auth] keyIndex document has no programId; denying");
+       return null;
+     }
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -246,8 +246,8 @@
+   // Reject cross-session writes to prevent a confused-deputy attack where any
+   // key with pulse.write could set handoffRequired on a sibling's session.
+   // Admin keys (legacy/mobile/dispatcher) retain full access for supervision.
+-  const callerProgramId = credentialPrincipal(auth);
+-  if (!inList(PULSE_PRIV, callerProgramId)) {
++  const callerProgramId = auth.programId;
++  if (callerProgramId && !inList(PULSE_PRIV, callerProgramId)) {
+     const sessionPrefix = sessionOwnerProgramId(sessionId);
+     if (sessionPrefix !== callerProgramId) {
+       logDenial({ principal: denialPrincipal(auth), tool: "pulse_update_session", subject: sessionPrefix, code: "FOREIGN_SUBJECT" });

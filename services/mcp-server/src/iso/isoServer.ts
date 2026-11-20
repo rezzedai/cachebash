@@ -27,6 +27,7 @@ import { ISO_TOOL_DEFINITIONS } from "./toolDefinitions.js";
 import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
   dispatch_get_tasks: getTasksHandler,
   relay_get_messages: getMessagesHandler,
@@ -102,6 +103,7 @@ export async function createIsoServer(): Promise<{
     const capCheck = checkToolCapability(name, authContext.capabilities);
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      logDenial({ principal: denialPrincipal(authContext), tool: name, subject: null, code: "MISSING_CAPABILITY" });
       return {
         content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${authContext.capabilities.join(", ")}]` }],
         isError: true,

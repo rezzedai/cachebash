@@ -7,10 +7,14 @@
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
-import { isAdmin } from "../middleware/gate.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
+
+/** Principals that read the trace ledger (amendment 3 ADMIN-PROGRAMS, trace). `legacy` and `orchestrator` are not members. */
+const TRACE_ADMIN_PRINCIPALS: readonly string[] = ["mobile", "dispatcher"];
 import { z } from "zod";
 import { Timestamp, Query } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
@@ -89,9 +93,11 @@ const QueryTraceSchema = z.object({
 
 /** Fan-out query: find all tasks, messages, and ledger entries for a traceId */
 export async function queryTraceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only gate
-  if (!isAdmin(auth)) {
-    return jsonResult({ success: false, error: "query_trace is only accessible by admin." });
+  // Admin only gate, bound to credentialPrincipal (RD-5 PR-L row 26)
+  const principal = credentialPrincipal(auth);
+  if (!TRACE_ADMIN_PRINCIPALS.includes(principal)) {
+    logDenial({ principal, tool: "trace_query_trace", subject: null, code: "NOT_GRANTED" });
+    return jsonResult({ success: false, error: `Access denied: "${principal}" cannot query traces (query_trace is only accessible by admin principals).` });
   }
 
   const args = QueryTraceSchema.parse(rawArgs);
@@ -194,11 +200,13 @@ const QueryTracesSchema = z.object({
 });
 
 export async function queryTracesHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only gate
-  if (!isAdmin(auth)) {
+  // Admin only gate, bound to credentialPrincipal (RD-5 PR-L row 24)
+  const principal = credentialPrincipal(auth);
+  if (!TRACE_ADMIN_PRINCIPALS.includes(principal)) {
+    logDenial({ principal, tool: "trace_query_traces", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
-      error: "query_traces is only accessible by admin.",
+      error: `Access denied: "${principal}" cannot query traces (query_traces is only accessible by admin principals).`,
     });
   }
 

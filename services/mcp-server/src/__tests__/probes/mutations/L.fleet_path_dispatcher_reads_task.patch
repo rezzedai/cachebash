@@ -1,0 +1,13 @@
+# mutation for probe L.fleet_path_dispatcher_reads_task: the dispatcher is not in TASKS_ALL_PRINCIPALS
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -134,7 +134,7 @@
+ }
+ 
+ /** Principals that read every task with no target, or any named target (K-D4). `legacy` is dropped (amendment 3 rule 1). */
+-const TASKS_ALL_PRINCIPALS = ["mobile", "dispatcher"] as const;
++const TASKS_ALL_PRINCIPALS = ["mobile"] as const;
+ 
+ /**
+  * Row 7: may `auth` read tasks for `target`? No target, self and the broadcast target always; the TASKS_ALL_PRINCIPALS (K-D4);

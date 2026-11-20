@@ -1,0 +1,13 @@
+# mutation for probe L.signal_backfill_sets_asked_by: the backfill writes nothing
+diff --git a/src/auth/rd5/askedByBackfill.ts b/src/auth/rd5/askedByBackfill.ts
+--- a/src/auth/rd5/askedByBackfill.ts
++++ b/src/auth/rd5/askedByBackfill.ts
+@@ -44,7 +44,7 @@
+   if (opts.apply) {
+     for (let i = 0; i < plan.length; i += BATCH_SIZE) {
+       const batch = db.batch();
+-      for (const p of plan.slice(i, i + BATCH_SIZE)) batch.update(p.ref, { askedBy: p.askedBy });
++      for (const p of plan.slice(i, i + BATCH_SIZE)) void p;
+       await batch.commit();
+       counts.written += Math.min(BATCH_SIZE, plan.length - i);
+     }

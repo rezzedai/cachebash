@@ -2,16 +2,16 @@
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -258,7 +258,7 @@
+@@ -266,7 +266,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
    // Bound to credentialPrincipal(auth). A foreign read needs the literal fleet.observe
    // capability and gets the document without memory (RD-5 C-4, PDR 4.3).
    const authz = authorizeStateRead(auth, args.programId, true);
 -  if (!authz.allowed) {
 +  if (false) {
+     logDenial({ principal: denialPrincipal(auth), tool: "state_get_program_state", subject: args.programId, code: "FOREIGN_SUBJECT" });
      return jsonResult({ success: false, error: `Access denied: "${authz.principal}" cannot read state for "${args.programId}"` });
    }
- 
-@@ -273,7 +273,7 @@
+@@ -282,7 +282,7 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
      });
    }
  

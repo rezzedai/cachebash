@@ -10,6 +10,9 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 import { Timestamp, Query } from "firebase-admin/firestore";
+import { resolveReadScope } from "../auth/readScope.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
+import { logDenial } from "../auth/denialLog.js";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -65,6 +68,9 @@ function periodStart(period: string): Date {
   }
 }
 
+/** Program that owns a session id: "beta" from "beta-s1" or "beta.task". */
+const sessionOwner = (sessionId: string): string => sessionId.split(".")[0].split("-")[0];
+
 // === Handlers ===
 
 export async function logRateLimitEventHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
@@ -74,7 +80,7 @@ export async function logRateLimitEventHandler(auth: AuthContext, rawArgs: unkno
   const eventData = {
     timestamp: serverTimestamp(),
     sessionId: args.sessionId,
-    programId: auth.programId,
+    programId: credentialPrincipal(auth),
     modelTier: args.modelTier,
     endpoint: args.endpoint,
     backoffMs: args.backoffMs,
@@ -95,6 +101,13 @@ export async function getRateLimitEventsHandler(auth: AuthContext, rawArgs: unkn
   const args = GetRateLimitEventsSchema.parse(rawArgs || {});
   const db = getFirestore();
 
+  // RD-5 PR-L row 27 (L-D1): the subject is the session's owner. With no sessionId the principal sees its own events unless it holds literal fleet.observe.
+  const scope = resolveReadScope(auth, args.sessionId ? sessionOwner(args.sessionId) : undefined);
+  if (!scope.allowed) {
+    logDenial({ principal: scope.principal, tool: "metrics_get_rate_limit_events", subject: scope.filter, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read rate-limit events for session "${args.sessionId}"` });
+  }
+
   const start = periodStart(args.period);
   const startTimestamp = Timestamp.fromDate(start);
 
@@ -110,7 +123,7 @@ export async function getRateLimitEventsHandler(auth: AuthContext, rawArgs: unkn
 
   const snapshot = await query.get();
 
-  const events = snapshot.docs.map((doc) => {
+  const events = snapshot.docs.filter((doc) => args.sessionId || !scope.filter || doc.data().programId === scope.filter).map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,

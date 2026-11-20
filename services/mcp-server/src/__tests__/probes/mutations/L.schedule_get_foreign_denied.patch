@@ -1,0 +1,13 @@
+# mutation for probe L.schedule_get_foreign_denied: any key reads any schedule
+diff --git a/src/modules/schedule.ts b/src/modules/schedule.ts
+--- a/src/modules/schedule.ts
++++ b/src/modules/schedule.ts
+@@ -117,7 +117,7 @@
+ const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
+ const mayListFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetObserveCapability(auth);
+ const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
+-  doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);
++  Boolean(auth && p && doc);
+ 
+ function denySchedule(p: string, tool: string, subject: string | null, verb: string, what: string, code: "FOREIGN_SUBJECT" | "NOT_OWNER" = "FOREIGN_SUBJECT"): ToolResult {
+   logDenial({ principal: p, tool, subject, code });

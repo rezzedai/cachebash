@@ -1,56 +1,4 @@
 {
-  "T2.pulse_create_session": {
-    "closes_in": "PR-L",
-    "hole": "creates a session under any program's id (recon row 11)"
-  },
-  "T2.pulse_list_sessions": {
-    "closes_in": "PR-L",
-    "hole": "lists any program's sessions (row 13)"
-  },
-  "T2.pulse_get_context_utilization": {
-    "closes_in": "PR-L",
-    "hole": "reads any session's context history (row 14)"
-  },
-  "T2.pulse_pause_program": {
-    "closes_in": "PR-L",
-    "hole": "pauses any program (row 15)"
-  },
-  "T2.pulse_resume_program": {
-    "closes_in": "PR-L",
-    "hole": "resumes any program (row 16)"
-  },
-  "T2.dispatch_reassign_task": {
-    "closes_in": "PR-L",
-    "hole": "moves a task to any program (row 30)"
-  },
-  "T2.dispatch_retry_task": {
-    "closes_in": "PR-L",
-    "hole": "re-targets a task to any program (row 29)"
-  },
-  "T2.dispatch_replay_task": {
-    "closes_in": "PR-L",
-    "hole": "clones a task onto any program (row 31)"
-  },
-  "T2.schedule_create": {
-    "closes_in": "PR-L",
-    "hole": "schedules work for any program (row 34)"
-  },
-  "T2.schedule_list": {
-    "closes_in": "PR-L",
-    "hole": "lists any program's schedules (row 35)"
-  },
-  "T2.schedule_update": {
-    "closes_in": "PR-L",
-    "hole": "re-targets a schedule to any program (row 36)"
-  },
-  "T2.audit_get_ack_compliance": {
-    "closes_in": "PR-L",
-    "hole": "reads any program's ack compliance (row 41)"
-  },
-  "T2.metrics_get_rate_limit_events": {
-    "closes_in": "PR-L",
-    "hole": "reads any session's rate-limit events (row 43)"
-  },
   "T2.rest_messages_unread": {
     "closes_in": "PR-M",
     "hole": "GET /v1/messages/unread?sessionId=<other> reads any program's pending messages (row 52)"
@@ -130,17 +78,5 @@
   "W.19": {
     "closes_in": "PR-N",
     "hole": "a bare [\"*\"] credential passes: gsp.ts:1213 gsp_seed"
-  },
-  "N.denials_name_the_principal": {
-    "closes_in": "PR-L",
-    "hole": "an anonymous denial (programs_update_program)"
-  },
-  "T6.admin_merge_accounts_legacy_cross_tenant": {
-    "closes_in": "PR-L",
-    "hole": "a legacy key in tenant B merges a uid into tenant A's canonical account: the gate checks programId == legacy and never compares canonicalUid to the caller's tenant (account-merge.ts)"
-  },
-  "T2.dispatch_get_tasks_sprint": {
-    "closes_in": "PR-L",
-    "hole": "type sprint or sprint-story skips the target filter, so any key reads any target's stories (K-D5 option 1, tasks.ts)"
   }
 }

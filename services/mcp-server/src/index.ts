@@ -43,6 +43,7 @@ import { handleServiceAccounts } from "./oauth/serviceAccounts.js";
 import { validateOidcToken } from "./auth/oidcValidator.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "./auth/denialLog.js";
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_BODY_BYTES = 64 * 1024; // 64KB body limit
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -206,6 +207,7 @@ async function main() {
     const capCheck = checkToolCapability(name, auth.capabilities);
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      logDenial({ principal: denialPrincipal(auth), tool: name, subject: null, code: "MISSING_CAPABILITY" });
       return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
     }
 

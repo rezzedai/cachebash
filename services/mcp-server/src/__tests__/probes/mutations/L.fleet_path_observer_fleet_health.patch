@@ -1,0 +1,13 @@
+# mutation for probe L.fleet_path_observer_fleet_health: the capability half of the fleet health gate is dropped
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -475,7 +475,7 @@
+ 
+ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   // Capability gate: fleet.read (the name-list admin path is gone, RD-5 PR-L)
+-  if (!hasCapability(auth, "fleet.read")) {
++  if (!auth.capabilities.includes("fleet.admin")) {
+     logDenial({ principal: denialPrincipal(auth), tool: "pulse_get_fleet_health", subject: null, code: "MISSING_CAPABILITY" });
+     return jsonResult({
+       success: false,

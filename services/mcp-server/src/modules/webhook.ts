@@ -8,6 +8,8 @@ import type { AuthContext } from "../auth/authValidator.js";
 import { getFirestore } from "../firebase/client.js";
 import { dispatchWebhook, type WebhookSubscription, type WebhookEvent } from "./webhookDispatcher.js";
 import { jsonResult } from "./dispatch/shared.js";
+import { credentialPrincipal, hasFleetAdminCapability } from "../auth/ownerAuthz.js";
+import { logDenial } from "../auth/denialLog.js";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -127,7 +129,7 @@ export async function webhookRegisterHandler(
     filter: parsed.filter || null,
     enabled: true,
     createdAt: new Date().toISOString(),
-    createdBy: auth.programId,
+    createdBy: credentialPrincipal(auth),
   };
 
   const ref = await db.collection(`tenants/${auth.userId}/webhooks`).add(webhookData);
@@ -182,6 +184,8 @@ export async function webhookListHandler(
   });
 }
 
+const mayDeleteWebhook = (auth: AuthContext, p: string, createdBy: unknown): boolean => (typeof createdBy === "string" && createdBy === p) || hasFleetAdminCapability(auth);
+
 /**
  * Delete a webhook registration.
  */
@@ -200,6 +204,13 @@ export async function webhookDeleteHandler(
       success: false,
       error: "Webhook not found",
     });
+  }
+
+  // RD-5 PR-L row 36: the registrant deletes its own webhook; a foreign one needs the literal fleet.admin capability.
+  const principal = credentialPrincipal(auth);
+  if (!mayDeleteWebhook(auth, principal, doc.data()?.createdBy)) {
+    logDenial({ principal, tool: "webhook_delete", subject: typeof doc.data()?.createdBy === "string" ? doc.data()?.createdBy : null, code: "NOT_OWNER" });
+    return jsonResult({ success: false, error: `Access denied: "${principal}" cannot delete webhook "${parsed.webhookId}"` });
   }
 
   await docRef.delete();

@@ -7,9 +7,11 @@ import { z } from "zod";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
-import { isAdmin, hasCapability } from "../middleware/gate.js";
+import { hasCapability } from "../middleware/gate.js";
+import { resolveReadScope } from "../auth/readScope.js";
 import { Timestamp, Query } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
 function jsonResult(data: unknown): ToolResult {
@@ -60,10 +62,11 @@ const CommsMetricsSchema = z.object({
 
 export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_comms_metrics", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
-      error: "get_comms_metrics requires metrics.read capability.",
+      error: `get_comms_metrics requires metrics.read capability (caller "${denialPrincipal(auth)}").`,
     });
   }
 
@@ -129,10 +132,11 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
 
 export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_cost_summary", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
-      error: "get_cost_summary requires metrics.read capability.",
+      error: `get_cost_summary requires metrics.read capability (caller "${denialPrincipal(auth)}").`,
     });
   }
 
@@ -216,8 +220,9 @@ const OperationalMetricsSchema = z.object({
 
 export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
-    return jsonResult({ success: false, error: "get_operational_metrics requires metrics.read capability." });
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_operational_metrics", subject: null, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `get_operational_metrics requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
 
   const args = OperationalMetricsSchema.parse(rawArgs || {});
@@ -620,8 +625,9 @@ const CostForecastSchema = z.object({
 
 export async function getCostForecastHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
-    return jsonResult({ success: false, error: "get_cost_forecast requires metrics.read capability." });
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_cost_forecast", subject: null, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `get_cost_forecast requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
 
   const args = CostForecastSchema.parse(rawArgs || {});
@@ -721,8 +727,9 @@ const SLA_TARGETS: Record<string, number> = {
 
 export async function getSlaComplianceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
-    return jsonResult({ success: false, error: "get_sla_compliance requires metrics.read capability." });
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_sla_compliance", subject: null, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `get_sla_compliance requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
 
   const args = SlaComplianceSchema.parse(rawArgs || {});
@@ -839,21 +846,29 @@ function generateRecommendation(components: {
 
 export async function getProgramHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!isAdmin(auth) && !hasCapability(auth, "metrics.read")) {
-    return jsonResult({ success: false, error: "get_program_health requires metrics.read capability." });
+  if (!hasCapability(auth, "metrics.read")) {
+    logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_program_health", subject: null, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `get_program_health requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
 
   const args = ProgramHealthSchema.parse(rawArgs || {});
   const db = getFirestore();
   const start = periodStart(args.period);
 
+  // RD-5 PR-L row 23 (L-D1): a foreign programId needs literal fleet.observe; no programId means the principal's own program.
+  const scope = resolveReadScope(auth, args.programId);
+  if (!scope.allowed) {
+    logDenial({ principal: scope.principal, tool: "metrics_get_program_health", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read health for "${args.programId}"` });
+  }
+
   // Query completed tasks
   let tasksQuery: Query = db.collection(`tenants/${auth.userId}/tasks`).where("status", "==", "done");
   if (start) {
     tasksQuery = tasksQuery.where("completedAt", ">=", Timestamp.fromDate(start));
   }
-  if (args.programId) {
-    tasksQuery = tasksQuery.where("target", "==", args.programId);
+  if (scope.filter) {
+    tasksQuery = tasksQuery.where("target", "==", scope.filter);
   }
 
   const tasksSnapshot = await tasksQuery.get();

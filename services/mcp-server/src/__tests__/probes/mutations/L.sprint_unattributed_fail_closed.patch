@@ -1,0 +1,13 @@
+# mutation for probe L.sprint_unattributed_fail_closed: a sprint with no createdBy is acted on by any key
+diff --git a/src/modules/sprint.ts b/src/modules/sprint.ts
+--- a/src/modules/sprint.ts
++++ b/src/modules/sprint.ts
+@@ -159,7 +159,7 @@
+ function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
+   if (!sprint) return false;
+   if (SPRINT_ALL.includes(p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return true;
+-  if (typeof sprint.createdBy !== "string" || sprint.createdBy === "") return false;
++  if (typeof sprint.createdBy !== "string" || sprint.createdBy === "") return true;
+   if (sprint.createdBy === p) return true;
+   return kind === "read" && (p === "dispatcher" || hasFleetObserveCapability(auth));
+ }

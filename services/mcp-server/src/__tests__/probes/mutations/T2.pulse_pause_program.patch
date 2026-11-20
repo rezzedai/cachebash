@@ -1,0 +1,13 @@
+# mutation for probe T2.pulse_pause_program: the self-or-fleet.admin check no longer runs, so a key pauses another program
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -949,7 +949,7 @@
+ 
+   // RD-5 PR-L row 7 (L-D3): the principal pauses itself; a foreign program needs the literal fleet.admin capability.
+   const pz = authorizePulseControl(auth, args.programId);
+-  if (!pz.allowed) {
++  if (false) {
+     logDenial({ principal: pz.principal, tool: "pulse_pause_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `Access denied: "${pz.principal}" cannot pause "${args.programId}"` });
+   }

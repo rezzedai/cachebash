@@ -15,6 +15,7 @@ import { credentialPrincipal } from "../../auth/ownerAuthz.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { FieldValue, Timestamp, Firestore } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../../auth/denialLog.js";
 const ClaimTaskSchema = z.object({
   taskId: z.string(),
   sessionId: z.string().optional(),
@@ -182,6 +183,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
 
       // Authorization (K-D1): the owner, or the iso and dispatcher keys.
       if (!isTaskOwner(data, principal) && !(TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(principal)) {
+        logDenial({ principal: denialPrincipal(auth), tool: "dispatch_unclaim_task", subject: data.claimedBy ?? null, code: "NOT_OWNER" });
         return { error: `Unauthorized: only the claiming owner, ISO, or admin can unclaim this task (caller "${principal}").` };
       }
 

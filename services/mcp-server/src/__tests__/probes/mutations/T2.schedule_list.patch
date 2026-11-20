@@ -1,0 +1,13 @@
+# mutation for probe T2.schedule_list: a foreign target is listed without the override or fleet.observe
+diff --git a/src/modules/schedule.ts b/src/modules/schedule.ts
+--- a/src/modules/schedule.ts
++++ b/src/modules/schedule.ts
+@@ -115,7 +115,7 @@
+ const isOverride = (p: string): boolean => (OVERRIDE as readonly string[]).includes(p);
+ const mayScheduleFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetAdminCapability(auth);
+ const mayManage = (auth: AuthContext, p: string, doc: { createdBy?: unknown }): boolean => doc.createdBy === p || isOverride(p) || hasFleetAdminCapability(auth);
+-const mayListFor = (auth: AuthContext, p: string, target: string): boolean => target === p || isOverride(p) || hasFleetObserveCapability(auth);
++const mayListFor = (auth: AuthContext, p: string, target: string): boolean => Boolean(auth && p && target);
+ const mayReadSchedule = (auth: AuthContext, p: string, doc: { createdBy?: unknown; target?: unknown }): boolean =>
+   doc.createdBy === p || doc.target === p || isOverride(p) || hasFleetObserveCapability(auth);
+ 

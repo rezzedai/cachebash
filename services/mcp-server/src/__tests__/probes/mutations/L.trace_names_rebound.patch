@@ -1,0 +1,13 @@
+# mutation for probe L.trace_names_rebound: legacy is a trace admin again
+diff --git a/src/modules/trace.ts b/src/modules/trace.ts
+--- a/src/modules/trace.ts
++++ b/src/modules/trace.ts
+@@ -10,7 +10,7 @@
+ import { credentialPrincipal } from "../auth/ownerAuthz.js";
+ 
+ /** Principals that read the trace ledger (amendment 3 ADMIN-PROGRAMS, trace). `legacy` and `orchestrator` are not members. */
+-const TRACE_ADMIN_PRINCIPALS: readonly string[] = ["mobile", "dispatcher"];
++const TRACE_ADMIN_PRINCIPALS: readonly string[] = ["mobile", "dispatcher", "legacy"];
+ import { z } from "zod";
+ import { Timestamp, Query } from "firebase-admin/firestore";
+ 

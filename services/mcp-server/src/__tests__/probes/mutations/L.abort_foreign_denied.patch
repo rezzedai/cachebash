@@ -1,0 +1,13 @@
+# mutation for probe L.abort_foreign_denied: the task-party, override and fleet.admin check no longer runs
+diff --git a/src/modules/dispatch/interventions.ts b/src/modules/dispatch/interventions.ts
+--- a/src/modules/dispatch/interventions.ts
++++ b/src/modules/dispatch/interventions.ts
+@@ -35,7 +35,7 @@
+  */
+ function authorizeTaskAct(auth: AuthContext, data: Record<string, unknown>, tool: string, verb: string, taskId: string): string | null {
+   const p = credentialPrincipal(auth);
+-  if (isTaskParty(data, p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return null;
++  if (Date.now() >= 0) return null;
+   logDenial({ principal: p, tool, subject: typeof data.source === "string" ? data.source : typeof data.target === "string" ? data.target : null, code: "NOT_OWNER" });
+   return `Access denied: "${p}" cannot ${verb} "${taskId}"`;
+ }

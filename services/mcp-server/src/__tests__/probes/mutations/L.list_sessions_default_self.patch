@@ -1,0 +1,13 @@
+# mutation for probe L.list_sessions_default_self: a list with no programId returns every session
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -750,8 +750,6 @@
+       logDenial({ principal: listPrincipal, tool: "pulse_list_sessions", subject: listProgram, code: "FOREIGN_SUBJECT" });
+       return jsonResult({ success: false, error: `Access denied: "${listPrincipal}" cannot read sessions for "${listProgram}"` });
+     }
+-  } else if (!inList(PULSE_PRIV, listPrincipal) && !hasFleetObserveCapability(auth)) {
+-    listProgram = listPrincipal;
+   }
+ 
+   if (args.state && args.state !== "all") {

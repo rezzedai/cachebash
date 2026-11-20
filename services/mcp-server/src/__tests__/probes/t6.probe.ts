@@ -121,7 +121,7 @@ describe("T6 tenant isolation", () => {
 
   // PR-B finding 2, pinned on VECTOR's review: the gate passes any legacy key, and nothing compares
   // canonicalUid to the caller's tenant, so tenant B's legacy seeder folds a uid into tenant A's account.
-  // Known-open: this probe asserts the DENIAL, so it fails today and runs as test.failing until the fix.
+  // Closed in PR-L (L-D10 option 2): the canonical account must be the caller's own tenant.
   probe("T6.admin_merge_accounts_legacy_cross_tenant", async () => {
     const w = world();
     const email = "t6-legacy-victim@example.invalid";

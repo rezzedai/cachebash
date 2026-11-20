@@ -15,6 +15,7 @@ import { TenantResolutionError, tenantUids } from "../auth/tenant-resolver.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 function generateApiKey(): string {
   return `cb_${crypto.randomBytes(32).toString("hex")}`;
 }
@@ -45,6 +46,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   // Checked before any side effect (e.g. program auto-registration) so a
   // non-provisioner cannot mutate state at all.
   if (!isKeyProvisioner(auth)) {
+    logDenial({ principal: denialPrincipal(auth), tool: "keys_create_key", subject: null, code: "MISSING_CAPABILITY" });
     return {
       content: [{ type: "text", text: JSON.stringify({
         success: false,
@@ -82,6 +84,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   // keys.provision can never launder a wildcard into a freshly minted key.
   const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities);
   if (disallowed.length > 0) {
+    logDenial({ principal: denialPrincipal(auth), tool: "keys_create_key", subject: null, code: "NOT_GRANTED" });
     return {
       content: [{ type: "text", text: JSON.stringify({
         success: false,
@@ -178,6 +181,7 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
   }
   if (!decision.allowed) {
     if (decision.reason === "tenant") return jsonResult({ success: false, error: "Key not found" });
+    logDenial({ principal: denialPrincipal(auth), tool: "keys_revoke_key", subject: decision.subject, code: "FOREIGN_SUBJECT" });
     return jsonResult({
       success: false,
       error: `Access denied: "${decision.principal}" cannot revoke a key belonging to "${decision.subject}"`,

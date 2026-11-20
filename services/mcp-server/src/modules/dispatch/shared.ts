@@ -106,5 +106,10 @@ export function isTaskOwner(data: { claimedBy?: unknown; sessionId?: unknown }, 
     (data.claimedBy === "dispatcher" && data.sessionId === p);
 }
 
+/** A principal is a party to a task when it sent it, is its target, or owns it (RD-5 PR-L, L-D2). */
+export function isTaskParty(data: { source?: unknown; target?: unknown; claimedBy?: unknown; sessionId?: unknown }, p: string): boolean {
+  return (data.source != null && data.source === p) || (data.target != null && data.target === p) || isTaskOwner(data, p);
+}
+
 /** Owner overrides for unclaim and complete (K-D1): the iso and dispatcher keys act on any task. */
 export const TASK_OVERRIDE_PRINCIPALS = ["iso", "dispatcher"] as const;

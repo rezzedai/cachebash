@@ -1,0 +1,22 @@
+# mutation for probe L.unquarantine_foreign_denied: neither the self-or-fleet.admin check nor the quarantinedBy check runs
+diff --git a/src/modules/dispatch/interventions.ts b/src/modules/dispatch/interventions.ts
+--- a/src/modules/dispatch/interventions.ts
++++ b/src/modules/dispatch/interventions.ts
+@@ -603,7 +603,7 @@
+   const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+ 
+   const up = credentialPrincipal(auth);
+-  if (!programControlAllowed(auth, args.programId)) {
++  if (Date.now() < 0) {
+     logDenial({ principal: up, tool: "dispatch_unquarantine_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `Access denied: "${up}" cannot unquarantine "${args.programId}"` });
+   }
+@@ -621,7 +621,7 @@
+       if (!doc.exists || !doc.data()?.quarantined) {
+         return { error: `Program "${args.programId}" is not quarantined.` };
+       }
+-      if (!hasFleetAdminCapability(auth) && doc.data()?.quarantinedBy !== up) {
++      if (Date.now() < 0) {
+         logDenial({ principal: up, tool: "dispatch_unquarantine_program", subject: args.programId, code: "NOT_OWNER" });
+         return { error: `Access denied: "${up}" cannot unquarantine "${args.programId}" (quarantined by "${doc.data()?.quarantinedBy}")` };
+       }

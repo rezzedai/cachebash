@@ -28,7 +28,7 @@ export interface Case {
 }
 
 export const seederCall = (c: Ctx, tool: string, args: Record<string, unknown> = {}) =>
-  callTool(c.w, tool.startsWith("state_") ? c.w.stateSeeders.A : c.w.seeders.A, tool, args);
+  callTool(c.w, tool.startsWith("state_") || (tool.startsWith("pulse_") && !/_(pause|resume)_/.test(tool)) ? c.w.stateSeeders.A : c.w.seeders.A, tool, args);
 const mk = (c: Ctx) => marker("A", c.subject);
 let counter = 0;
 export const nextN = (): string => `${Date.now().toString(36)}${(counter++).toString(36)}`;
@@ -110,9 +110,14 @@ export const CASES: Case[] = [
   },
   {
     id: "pulse_resume_program", tool: "pulse_resume_program",
-    prepare: async (c) => { await seederCall(c, "pulse_pause_program", { programId: c.subject, reason: "probe-setup" }); },
+    // PR-L L-D3: self-resume needs pausedBy === the caller, so alpha is paused by alpha; beta is paused by the fleet.admin seeder
+    prepare: async (c) => {
+      if (c.subject === "alpha") await callTool(c.w, c.w.creds.scoped, "pulse_pause_program", { programId: "alpha", reason: "probe-setup" });
+      else await seederCall(c, "pulse_pause_program", { programId: c.subject, reason: "probe-setup" });
+    },
     args: (c) => ({ programId: c.subject }),
     reached: async (c) => (await programDoc(c)).paused === false,
+    cleanup: async (c) => { await seederCall(c, "pulse_resume_program", { programId: c.subject }); },
   },
   // --- relay (rows 19-21)
   {
@@ -146,7 +151,8 @@ export const CASES: Case[] = [
   ...(["dispatch_reassign_task", "dispatch_retry_task", "dispatch_replay_task"] as const).map((tool): Case => ({
     id: tool, tool,
     prepare: async (c) => {
-      const t = await seederCall(c, "dispatch_create_task", { title: `mv-${c.n}`, target: "ops", source: "legacy", instructions: "x" });
+      // PR-L L-D2: the caller must be a party to its own subject's task, so the task is sent as the subject (mobile may name any source)
+      const t = await callTool(c.w, c.w.stateSeeders.A, "dispatch_create_task", { title: `mv-${c.n}`, target: "ops", source: c.subject, instructions: "x" });
       (c as any).taskId = t.json?.taskId;
       if (tool === "dispatch_retry_task") {
         await seederCall(c, "dispatch_claim_task", { taskId: (c as any).taskId });
@@ -169,14 +175,15 @@ export const CASES: Case[] = [
   readMarker("schedule_list", "target"),
   {
     id: "schedule_update", tool: "schedule_update",
+    // PR-L L-D5: the schedule is owned by the caller (`scoped`), so only the changed target and name are in question
     prepare: async (c) => {
-      const s = await seederCall(c, "schedule_create", { name: `su-${c.n}`, target: "ops", cron: "0 0 1 1 *", taskTemplate: { title: `su-${c.n}` } });
+      const s = await callTool(c.w, c.w.creds.scoped, "schedule_create", { name: `su0-${c.n}`, target: "alpha", cron: "0 0 1 1 *", taskTemplate: { title: `su-${c.n}` } });
       (c as any).scheduleId = s.json?.scheduleId;
     },
-    args: (c) => ({ scheduleId: (c as any).scheduleId, target: c.subject }),
+    args: (c) => ({ scheduleId: (c as any).scheduleId, target: c.subject, name: `su-${c.n}` }),
     reached: async (c) => {
       const g = await seederCall(c, "schedule_get", { scheduleId: (c as any).scheduleId });
-      return g.json?.schedule?.target === c.subject;
+      return g.json?.schedule?.target === c.subject && g.json?.schedule?.name === `su-${c.n}`;
     },
   },
   // --- programs / audit / metrics / trace (rows 37-43)

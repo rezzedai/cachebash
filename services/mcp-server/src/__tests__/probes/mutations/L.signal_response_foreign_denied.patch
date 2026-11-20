@@ -1,0 +1,12 @@
+# mutation for probe L.signal_response_foreign_denied: any key reads any question's response
+diff --git a/src/modules/signal.ts b/src/modules/signal.ts
+--- a/src/modules/signal.ts
++++ b/src/modules/signal.ts
+@@ -125,6 +125,7 @@
+ const RESPONSE_READERS: readonly string[] = ["mobile"];
+ 
+ function mayReadResponse(auth: AuthContext, reader: string, askedBy: unknown): boolean {
++  if (auth) return true;
+   if (RESPONSE_READERS.includes(reader)) return true;
+   if (typeof askedBy === "string" && askedBy !== "") return askedBy === reader || hasFleetObserveCapability(auth);
+   return (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(reader) || hasFleetAdminCapability(auth);

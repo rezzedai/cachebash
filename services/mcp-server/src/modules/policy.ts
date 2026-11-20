@@ -9,6 +9,8 @@ import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 import { gspWriteHandler, gspReadHandler } from "./gsp.js";
+import { hasFleetAdminCapability } from "../auth/ownerAuthz.js";
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -159,6 +161,17 @@ const GSP_NAMESPACE = "policies";
 // ─── POLICY CRUD ────────────────────────────────────────────────────────────
 
 /**
+ * RD-5 PR-L row 35 (L-D6 option 1): policy writes need the literal fleet.admin capability. The policy store is tenant-wide and
+ * policy_check evaluates it for every caller, so reads stay open (not an identity question). Returns the denial, or null when allowed.
+ */
+function denyUnlessPolicyAdmin(auth: AuthContext, tool: string, subject: string | null): ToolResult | null {
+  if (hasFleetAdminCapability(auth)) return null;
+  const caller = denialPrincipal(auth);
+  logDenial({ principal: caller, tool, subject, code: "MISSING_CAPABILITY" });
+  return jsonResult({ success: false, error: `Access denied: "${caller}" cannot write policy${subject ? ` "${subject}"` : ""} (literal fleet.admin required)` });
+}
+
+/**
  * Create a new policy.
  * Constitutional-tier policies can only be created via gsp_seed.
  * Architectural-tier policies require gsp_propose + gsp_resolve.
@@ -169,6 +182,8 @@ export async function createPolicy(
   rawArgs: unknown
 ): Promise<ToolResult> {
   const args = PolicyCreateSchema.parse(rawArgs);
+  const denied = denyUnlessPolicyAdmin(auth, "policy_create", args.id);
+  if (denied) return denied;
 
   // Enforce tier restrictions
   if (args.tier === "constitutional") {
@@ -239,6 +254,8 @@ export async function updatePolicy(
   rawArgs: unknown
 ): Promise<ToolResult> {
   const args = PolicyUpdateSchema.parse(rawArgs);
+  const denied = denyUnlessPolicyAdmin(auth, "policy_update", args.policyId);
+  if (denied) return denied;
 
   // Fetch existing policy
   const existingResult = await gspReadHandler(auth, {
@@ -315,6 +332,8 @@ export async function deletePolicy(
   rawArgs: unknown
 ): Promise<ToolResult> {
   const args = PolicyDeleteSchema.parse(rawArgs);
+  const denied = denyUnlessPolicyAdmin(auth, "policy_delete", args.policyId);
+  if (denied) return denied;
 
   // Fetch existing policy
   const existingResult = await gspReadHandler(auth, {

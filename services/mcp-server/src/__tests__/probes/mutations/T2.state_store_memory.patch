@@ -2,12 +2,12 @@
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -370,7 +370,7 @@
+@@ -373,7 +373,7 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
    }
  
    const wAuthz = authorizeStateWrite(auth, args.programId);
 -  if (!wAuthz.allowed) {
 +  if (false) {
+     logDenial({ principal: denialPrincipal(auth), tool: "state_store_memory", subject: args.programId, code: "FOREIGN_SUBJECT" });
      return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
    }
- 

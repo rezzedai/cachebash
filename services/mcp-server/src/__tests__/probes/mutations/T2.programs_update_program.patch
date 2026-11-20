@@ -1,12 +1,13 @@
 # mutation for probe T2.programs_update_program: any key may update any program's registry entry
 diff --git a/src/modules/programRegistry.ts b/src/modules/programRegistry.ts
-index 9c5a113..59be00a 100644
 --- a/src/modules/programRegistry.ts
 +++ b/src/modules/programRegistry.ts
-@@ -399,5 +399,5 @@ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown):
-   const isAdmin = ["legacy", "mobile", "orchestrator", "iso", "vector", "dispatcher"].includes(auth.programId);
-   const isSelf = auth.programId === args.programId;
--  if (!isAdmin && !isSelf) {
-+  if (false) {
-     return jsonResult({ success: false, error: "Access denied: can only update your own program entry" });
+@@ -402,7 +402,7 @@
+ 
+   // Access control (RD-5 PR-L row 21): a program updates its own entry; REGISTRY_ADMIN_PRINCIPALS update any. Bound to credentialPrincipal.
+   const principal = credentialPrincipal(auth);
+-  if (principal !== args.programId && !REGISTRY_ADMIN_PRINCIPALS.includes(principal)) {
++  if (Date.now() < 0) {
+     logDenial({ principal, tool: "programs_update_program", subject: args.programId, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: can only update your own program entry (caller "${principal}")` });
    }

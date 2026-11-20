@@ -2,12 +2,12 @@
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -504,7 +504,7 @@
+@@ -509,7 +509,7 @@ export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown):
    }
  
    const rAuthz = authorizeStateRead(auth, args.programId, false);
 -  if (!rAuthz.allowed) {
 +  if (false) {
+     logDenial({ principal: denialPrincipal(auth), tool: "state_memory_health", subject: args.programId, code: "FOREIGN_SUBJECT" });
      return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory health for "${args.programId}"` });
    }
- 

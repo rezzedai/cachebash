@@ -39,10 +39,11 @@ export function resetTransportCompliance(userId: string, sessionId: string): voi
   persistCompliance(userId, sessionId, freshState);
 }
 
-export const EXEMPT_PROGRAMS = new Set(["legacy", "mobile", "admin", "admin-mirror", "bit"]);
+// RD-5 PR-L (L-D11): names with no active key and no minting validator are dropped (orchestrator, auditor, admin, admin-mirror, bit, builder, able, beck, legacy).
+export const EXEMPT_PROGRAMS = new Set(["mobile"]);
 
-const ORCHESTRATOR_PROGRAMS = new Set(["orchestrator", "iso", "alan", "vector", "quorra", "radia", "casp", "sark"]);
-const BUILDER_PROGRAMS = new Set(["builder", "basher", "able", "beck"]);
+const ORCHESTRATOR_PROGRAMS = new Set(["iso", "alan", "vector", "quorra", "radia", "casp", "sark"]);
+const BUILDER_PROGRAMS = new Set(["basher"]);
 
 const BOOT_TOOLS = new Set(["get_program_state", "get_tasks", "get_messages"]);
 

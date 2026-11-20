@@ -28,6 +28,7 @@ import { enrollHandler } from "../modules/enrollment.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
 import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 export class ValidationError extends Error {
   issues: Array<{ path: string; message: string; code: string }>;
   constructor(message: string, issues: Array<{ path: string; message: string; code: string }>) {
@@ -133,6 +134,7 @@ function requireAdmin(auth: AuthContext, res: http.ServerResponse): boolean {
   if (auth.capabilities.includes("*") || (ADMIN_READERS as readonly string[]).includes(auth.programId)) {
     return true;
   }
+  logDenial({ principal: denialPrincipal(auth), tool: "rest_admin", subject: null, code: "MISSING_CAPABILITY" });
   restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
   return false;
 }
@@ -198,6 +200,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   const { checkToolCapability } = await import("../middleware/capabilities.js");
   const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);
   }
 
@@ -300,6 +303,7 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
   const { checkToolCapability } = await import("../middleware/capabilities.js");
   const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
+    logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);
   }
 
@@ -927,6 +931,7 @@ const routes: Route[] = [
   route("PUT", "/v1/budget", async (auth, req, res) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "set_budget", body);
+    logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
     restResponse(res, true, data);
   }),
 
