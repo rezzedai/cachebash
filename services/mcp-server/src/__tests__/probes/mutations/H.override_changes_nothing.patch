@@ -1,0 +1,57 @@
+# mutation for probe H.override_changes_nothing: a program-naming header recomputes the principal and capabilities
+diff --git a/src/auth/authValidator.ts b/src/auth/authValidator.ts
+index f06330f..0d66361 100644
+--- a/src/auth/authValidator.ts
++++ b/src/auth/authValidator.ts
+@@ -32,7 +32,7 @@ function hashApiKey(apiKey: string): string {
+   return crypto.createHash("sha256").update(apiKey).digest("hex");
+ }
+ 
+-export async function validateApiKey(apiKey: string): Promise<AuthContext | null> {
++export async function validateApiKey(apiKey: string, claimedProgram?: string): Promise<AuthContext | null> {
+   const keyHash = hashApiKey(apiKey);
+   const db = getFirestore();
+ 
+@@ -63,11 +63,11 @@ export async function validateApiKey(apiKey: string): Promise<AuthContext | null
+       console.warn("[Auth] keyIndex document has no programId; denying");
+       return null;
+     }
+-    const programId = data.programId as ValidProgramId;
++    const programId = (claimedProgram || data.programId) as ValidProgramId;
+     const keyProgramId: ValidProgramId = programId;
+ 
+     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
+-    const capabilities: string[] = data.capabilities && data.capabilities.length > 0
++    const capabilities: string[] = data.capabilities && data.capabilities.length > 0 && !claimedProgram
+       ? data.capabilities
+       : getDefaultCapabilities(programId);
+ 
+@@ -115,13 +115,13 @@ import { resolveTenant } from "./tenant-resolver.js";
+  * After auth succeeds, tenant resolution maps alternate UIDs to the
+  * canonical tenant ID so all downstream Firestore ops use a single path.
+  */
+-export async function validateAuth(token: string): Promise<AuthContext | null> {
++export async function validateAuth(token: string, claimedProgram?: string): Promise<AuthContext | null> {
+   let auth: AuthContext | null = null;
+ 
+   if (isFirebaseToken(token)) {
+     auth = await validateFirebaseToken(token);
+   } else if (token.startsWith("cb_")) {
+-    auth = await validateApiKey(token);
++    auth = await validateApiKey(token, claimedProgram);
+   } else if (isOAuthToken(token)) {
+     auth = await validateOAuthToken(token);
+   }
+diff --git a/src/index.ts b/src/index.ts
+index c805630..e02ddab 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -862,7 +862,7 @@ async function main() {
+         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
+         return;
+       }
+-      const auth = await validateAuth(token);
++      const auth = await validateAuth(token, req.headers[["x", "program", "id"].join("-")] as string | undefined);
+       if (!auth) {
+         if (!checkAuthRateLimit(clientIp)) {
+           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
