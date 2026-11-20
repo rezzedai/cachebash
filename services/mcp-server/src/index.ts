@@ -204,7 +204,7 @@ async function main() {
     }
     // Phase 4: Capability gate
     const { checkToolCapability } = await import("./middleware/capabilities.js");
-    const capCheck = checkToolCapability(name, auth.capabilities);
+    const capCheck = checkToolCapability(name, auth.capabilities, denialPrincipal(auth));
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       logDenial({ principal: denialPrincipal(auth), tool: name, subject: null, code: "MISSING_CAPABILITY" });

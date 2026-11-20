@@ -186,7 +186,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
 
   // Phase 4: Capability gate
   const { checkToolCapability } = await import("../middleware/capabilities.js");
-  const capCheck = checkToolCapability(toolName, auth.capabilities);
+  const capCheck = checkToolCapability(toolName, auth.capabilities, denialPrincipal(auth));
   if (!capCheck.allowed) {
     logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);
@@ -289,7 +289,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
  */
 async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void> {
   const { checkToolCapability } = await import("../middleware/capabilities.js");
-  const capCheck = checkToolCapability(toolName, auth.capabilities);
+  const capCheck = checkToolCapability(toolName, auth.capabilities, denialPrincipal(auth));
   if (!capCheck.allowed) {
     logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);

@@ -24,7 +24,7 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  if (!hasCapability(auth, "audit.read")) {
+  if (!hasCapability(auth, "audit.read", "audit_get_audit")) {
     logDenial({ principal: denialPrincipal(auth), tool: "audit_get_audit", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
