@@ -463,3 +463,38 @@ describe("M sprints active (row 6)", () => {
     expect((all.json?.data?.sprints ?? []).map((s: any) => s.id)).toContain(theirs);
   });
 });
+
+describe("M capability gates (rows 7 to 10)", () => {
+  const bare = (w: World, label: string) => mint(w, "alpha", `probe-m-${label}`, ["dispatch.read"]);
+  probe("M.budget_summary_needs_metrics_read", async () => {
+    const w = world();
+    const denied = await rest(w, await bare(w, "budget"), "GET", "/v1/budget/summary");
+    expect(denied.httpStatus).toBe(403);
+  });
+  test("M.budget_summary_needs_metrics_read control: a * key reads it", async () => {
+    const w = world();
+    expect((await rest(w, w.creds.wildcard, "GET", "/v1/budget/summary")).httpStatus).toBe(200);
+  });
+  probe("M.dreams_peek_needs_dream_read", async () => {
+    const w = world();
+    const key = await bare(w, "dreams");
+    expect((await rest(w, key, "GET", "/v1/dreams/peek")).httpStatus).toBe(403);
+    expect((await rest(w, key, "GET", "/v1/dreams")).httpStatus).toBe(403);
+  });
+  test("M.dreams_peek_needs_dream_read control: a * key reads both routes", async () => {
+    const w = world();
+    expect((await rest(w, w.creds.wildcard, "GET", "/v1/dreams/peek")).httpStatus).toBe(200);
+    expect((await rest(w, w.creds.wildcard, "GET", "/v1/dreams")).httpStatus).toBe(200);
+  });
+  probe("M.gsp_proposals_needs_gsp_read", async () => {
+    const w = world();
+    const key = await bare(w, "gsp");
+    expect((await rest(w, key, "GET", "/v1/gsp/proposals")).httpStatus).toBe(403);
+    expect((await rest(w, key, "GET", "/v1/gsp/namespaces")).httpStatus).toBe(403);
+  });
+  test("M.gsp_proposals_needs_gsp_read control: a * key reads both routes", async () => {
+    const w = world();
+    expect((await rest(w, w.creds.wildcard, "GET", "/v1/gsp/proposals")).httpStatus).toBe(200);
+    expect((await rest(w, w.creds.wildcard, "GET", "/v1/gsp/namespaces")).httpStatus).toBe(200);
+  });
+});

@@ -12,7 +12,6 @@ import { traceToolCall } from "../modules/trace.js";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
-import { dreamPeekHandler } from "../modules/dream.js";
 import { gspListNamespacesHandler } from "../modules/gsp.js";
 import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
 import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
@@ -667,6 +666,8 @@ const routes: Route[] = [
   }),
   // Budget
   route("GET", "/v1/budget/summary", async (auth, req, res) => {
+    // RD-5 PR-M row 8 (CAP metrics_get_cost_summary, M-D4): metrics.read; the summary is a tenant aggregate.
+    await enforceBreaker(auth, "metrics_get_cost_summary");
     const { budgetSummaryHandler } = await import("../modules/budget.js");
     const result = await budgetSummaryHandler(auth, {});
     const text = result?.content?.[0]?.text;
@@ -709,9 +710,9 @@ const routes: Route[] = [
   }),
   // Dream
   route("GET", "/v1/dreams", async (auth, req, res) => {
-    const result = await dreamPeekHandler(auth, {});
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+    const data = await callTool(auth, req, "dream_peek", {});
+    restResponse(res, true, data);
   }),
   route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
     const result = await callTool(auth, req, "dream_activate", { dreamId: p.id });
@@ -731,6 +732,8 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/gsp/namespaces", async (auth, req, res) => {
+    // RD-5 PR-M row 10 (CAP gsp_read): gsp.read; the namespace list is tenant-wide.
+    await enforceBreaker(auth, "gsp_read");
     const data = await gspListNamespacesHandler(auth);
     restResponse(res, true, data);
   }),
@@ -750,6 +753,8 @@ const routes: Route[] = [
   }),
   // GSP Proposals — list pending proposals for the authenticated tenant
   route("GET", "/v1/gsp/proposals", async (auth, req, res) => {
+    // RD-5 PR-M row 7 (CAP gsp_read, M-D3): gsp.read; proposals are tenant-wide governance records, gsp_resolve decides who acts (PR-N).
+    await enforceBreaker(auth, "gsp_read");
     const query = coerceQueryParams(parseQuery(req.url || ""));
     const db = getFirestore();
     const colRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
@@ -861,9 +866,9 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/dreams/peek", async (auth, req, res) => {
-    const result = await dreamPeekHandler(auth, {});
-    const text = result?.content?.[0]?.text;
-    restResponse(res, true, text ? JSON.parse(text) : result);
+    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+    const data = await callTool(auth, req, "dream_peek", {});
+    restResponse(res, true, data);
   }),
   route("POST", "/v1/dreams/activate", async (auth, req, res) => {
     const body = await readBody(req);
