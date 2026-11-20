@@ -1,6 +1,7 @@
 /**
  * Tool Registry — Merges all domain registries into unified TOOL_HANDLERS and TOOL_DEFINITIONS.
- * 73 handlers across 21 domain registries.
+ * 111 handlers across 22 domain registries: 108 tool definitions in 21 domains,
+ * plus 3 usage handlers with no definitions (tools/usage.ts).
  *
  * Deploy profiles (CACHEBASH_PROFILE env var):
  *   "full" (default) — all modules; Grid prod (cachebash-app)
