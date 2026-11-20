@@ -4,7 +4,7 @@
  */
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
-import { verifySource, isAdmin, logAudit, generateCorrelationId } from "../middleware/gate.js";
+import { verifySource, logAudit, generateCorrelationId } from "../middleware/gate.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
@@ -701,12 +701,13 @@ export async function getSentMessagesHandler(auth: AuthContext, rawArgs: unknown
 }
 
 export async function getDeadLettersHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin only (legacy/mobile keys)
-  if (!isAdmin(auth)) {
-    logDenial({ principal: denialPrincipal(auth), tool: "relay_get_dead_letters", subject: null, code: "NOT_GRANTED" });
+  // Admin only (RD-5 PR-L row 30, K-D3): RELAY_ADMIN_PRINCIPALS on credentialPrincipal. Dead letters carry message bodies.
+  const principal = credentialPrincipal(auth);
+  if (!inList(RELAY_ADMIN_PRINCIPALS, principal)) {
+    logDenial({ principal, tool: "relay_get_dead_letters", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
-      error: "Dead letter queue is only accessible by admin.",
+      error: `Access denied: "${principal}" cannot read dead letters (the dead letter queue is only accessible by admin principals).`,
     });
   }
 

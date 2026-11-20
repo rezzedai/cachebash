@@ -423,4 +423,17 @@ describe("L fleet paths", () => {
     expect((await callTool(w, dispatcher, "trace_query_trace", { traceId: "l-trace" })).json?.success).toBe(true);
     expect((await callTool(w, dispatcher, "trace_query_traces", {})).json?.success).toBe(true);
   });
+
+  // row 30 (K-D3): dead letters follow RELAY_ADMIN_PRINCIPALS (mobile, dispatcher). A bare "*" key named legacy no longer passes.
+  probe("L.dead_letters_names_rebound", async () => {
+    const w = world();
+    const legacy = await mint(w, "legacy", "probe-l-dead-legacy", ["*"]);
+    const r = await callTool(w, legacy, "relay_get_dead_letters", {});
+    expect(denialNames(r, "legacy")).toBe(true);
+  });
+  test("L.dead_letters_names_rebound control: a minted dispatcher key reads the queue", async () => {
+    const w = world();
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dead-dispatcher", ["*"]);
+    expect((await callTool(w, dispatcher, "relay_get_dead_letters", {})).json?.success).toBe(true);
+  });
 });

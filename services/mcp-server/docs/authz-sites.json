@@ -506,7 +506,7 @@
       "layer": "handler",
       "guard_sites": [
         "modules/relay.ts:654",
-        "modules/relay.ts:799"
+        "modules/relay.ts:800"
       ],
       "guards": [
         "relay_get_sent_messages",
@@ -4055,7 +4055,7 @@
       "expr": "args.source",
       "regex": "a",
       "occurrences": 8,
-      "line_at_base": 787,
+      "line_at_base": 788,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4083,7 +4083,7 @@
       "expr": "args.target",
       "regex": "a",
       "occurrences": 9,
-      "line_at_base": 787,
+      "line_at_base": 788,
       "tool": "relay_query_message_history",
       "transports": [
         "mcp",
@@ -4101,7 +4101,7 @@
         "NL-ADMIN-PROGRAMS",
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "relay.ts:761-767 same scoping.",
+      "evidence": "relay.ts:762-768 same scoping.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4111,7 +4111,7 @@
       "expr": "parsed.target",
       "regex": "b",
       "occurrences": 2,
-      "line_at_base": 1018,
+      "line_at_base": 1019,
       "tool": "relay_send_directive",
       "transports": [
         "mcp"
@@ -4124,7 +4124,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:977-982 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
+      "evidence": "relay.ts:978-983 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
     },
     {
       "id": "schedule.createScheduleHandler:args.target",
@@ -5727,7 +5727,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.source",
       "occurrences": 1,
-      "line_at_base": 802,
+      "line_at_base": 803,
       "status": "pending"
     },
     {
@@ -5736,7 +5736,7 @@
       "handler": "queryMessageHistoryHandler",
       "expr": "args.target",
       "occurrences": 1,
-      "line_at_base": 809,
+      "line_at_base": 810,
       "status": "pending"
     },
     {

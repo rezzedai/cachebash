@@ -349,7 +349,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.queryMessageHistoryHandler:args.source`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 787 at base, 8 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.source`, line 788 at base, 8 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: privileged is RELAY_ADMIN_PRINCIPALS (mobile, dispatcher); else self is credentialPrincipal (K-D3 option 1).
 - Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
@@ -358,11 +358,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `relay.queryMessageHistoryHandler:args.target`
 
-- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 787 at base, 9 occurrence(s).
+- Where: `modules/relay.ts`, handler `queryMessageHistoryHandler`, expression `args.target`, line 788 at base, 9 occurrence(s).
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: same as args.source record.
 - Name lists: NL-ADMIN-PROGRAMS, NL-RELAY-ADMIN.
-- Evidence: relay.ts:761-767 same scoping.
+- Evidence: relay.ts:762-768 same scoping.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `schedule.createScheduleHandler:args.target`
@@ -774,7 +774,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | dispatchHandler.dispatchHandler:args.target | dispatch_dispatch | target must be a registered program, group or @role; no caller binding | dispatchHandler.ts:783 onward validates the target and creates a task, a directive and a wake for it. The target is the recipient. It also returns target state (heartbeat) to the caller. |
 | tasks.createTaskHandler:args.target | dispatch_create_task | target must be a registered program, group or @role (tasks.ts:413-418) | The argument names the recipient of a new task. The sender is bound by verifySource. |
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191) | The argument names the recipient. The sender is bound by verifySource at relay.ts:141. |
-| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:977-982 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
+| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:978-983 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
 ## ATTRIBUTION (9)
 
@@ -945,9 +945,9 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | relay.getMessagesHandler:args.target | a | 2 | 481 | ESCALATE | C-5 | PR-K | false |
 | relay.getSentMessagesHandler:args.source | a | 1 | 653 | ESCALATE | C-5 | PR-K | false |
 | relay.getSentMessagesHandler:args.target | a | 2 | 669 | SELF-ONLY | ISO | n/a | false |
-| relay.queryMessageHistoryHandler:args.source | a | 8 | 787 | ESCALATE | C-5 | PR-K | false |
-| relay.queryMessageHistoryHandler:args.target | a | 9 | 787 | ESCALATE | C-5 | PR-K | false |
-| relay.sendDirectiveHandler:parsed.target | b | 2 | 1018 | ADDRESSED | ISO | PR-K | false |
+| relay.queryMessageHistoryHandler:args.source | a | 8 | 788 | ESCALATE | C-5 | PR-K | false |
+| relay.queryMessageHistoryHandler:args.target | a | 9 | 788 | ESCALATE | C-5 | PR-K | false |
+| relay.sendDirectiveHandler:parsed.target | b | 2 | 1019 | ADDRESSED | ISO | PR-K | false |
 | schedule.createScheduleHandler:args.target | a | 5 | 141 | ESCALATE | ISO | PR-L | false |
 | schedule.paginateAndFilter:args.target | a | 2 | 209 | ESCALATE | ISO | PR-L | false |
 | schedule.listSchedulesHandler:args.target | a | 8 | 224 | ESCALATE | ISO | PR-L | false |
@@ -1261,6 +1261,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 955 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 802 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 809 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 803 |
+| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 810 |
 | S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

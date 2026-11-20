@@ -83,7 +83,7 @@ describe("get_dead_letters", () => {
       ...pending61m, status: "dead_lettered", dead_letter_reason: "EXPIRED_TTL", dead_letter_class: "EXPIRED_TTL",
       deadLetteredAt: ts("2026-10-22T02:55:00.000Z"),
     };
-    const dl = JSON.parse((await getDeadLettersHandler(auth("owner"), {})).content[0].text);
+    const dl = JSON.parse((await getDeadLettersHandler(auth("mobile"), {})).content[0].text);
     expect(dl.deadLetters.map((d: any) => [d.id, d.legacy])).toEqual([["m1", false]]);
     const sent = JSON.parse((await getSentMessagesHandler(auth("vector"), {})).content[0].text);
     expect(sent.messages.map((m: any) => [m.id, m.status])).toEqual([["m1", "dead_lettered"]]);
@@ -96,7 +96,7 @@ describe("get_dead_letters", () => {
       createdAt: ts("2026-10-21T02:40:49.000Z"), deadLetteredAt: ts("2026-10-21T04:21:09.000Z"),
       originalPath: "tenants/u1/relay/ADMbKpD6AfANSdhYE9w2",
     };
-    const dl = JSON.parse((await getDeadLettersHandler(auth("owner"), {})).content[0].text);
+    const dl = JSON.parse((await getDeadLettersHandler(auth("mobile"), {})).content[0].text);
     expect(dl.deadLetters.map((d: any) => [d.id, d.legacy])).toEqual([["m2", false], ["ADMbKpD6AfANSdhYE9w2", true]]);
     expect(dl.deadLetters[1].dead_letter_reason).toBe("UNREAD_AFTER_1H_LEGACY");
     expect(dl.deadLetters[1].deliveryAttempts).toBe(3);
@@ -106,7 +106,7 @@ describe("get_dead_letters", () => {
     for (let i = 0; i < 3; i++) {
       STORE[`tenants/u1/dead_letters/l${i}`] = { ...pending61m, status: "dead_letter", deadLetteredAt: ts(`2026-10-21T0${i}:00:00.000Z`) };
     }
-    const dl = JSON.parse((await getDeadLettersHandler(auth("owner"), { limit: 2 })).content[0].text);
+    const dl = JSON.parse((await getDeadLettersHandler(auth("mobile"), { limit: 2 })).content[0].text);
     expect(dl.deadLetters.map((d: any) => d.id)).toEqual(["l2", "l1"]);
   });
 
