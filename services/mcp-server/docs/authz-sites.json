@@ -213,19 +213,16 @@
     {
       "id": "NL-REGISTRY-ADMIN",
       "file": "modules/programRegistry.ts",
-      "line": 400,
-      "name": "update_program inline admin list",
+      "line": 390,
+      "name": "REGISTRY_ADMIN_PRINCIPALS update_program admin list",
       "members": [
-        "legacy",
-        "mobile",
-        "orchestrator",
         "iso",
-        "vector",
+        "mobile",
         "dispatcher"
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/programRegistry.ts:400"
+        "modules/programRegistry.ts:405"
       ],
       "guards": [
         "programs_update_program"
@@ -3399,7 +3396,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 375,
+      "line_at_base": 376,
       "tool": "programs_list_programs",
       "transports": [
         "mcp"
@@ -3412,7 +3409,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "programRegistry.ts:375 is a map callback variable over registry rows."
+      "evidence": "programRegistry.ts:376 is a map callback variable over registry rows."
     },
     {
       "id": "programRegistry.updateProgramHandler:args.programId",
@@ -3421,13 +3418,13 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 7,
-      "line_at_base": 392,
+      "line_at_base": 396,
       "tool": "programs_update_program",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "inline name list on auth.programId, or self (programRegistry.ts:400-405)",
+      "binding_today": "inline name list on auth.programId, or self (programRegistry.ts:404-408)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -5623,8 +5620,8 @@
       "file": "modules/programRegistry.ts",
       "handler": "updateProgramHandler",
       "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 400,
+      "occurrences": 1,
+      "line_at_base": 417,
       "status": "pending"
     },
     {
@@ -5741,7 +5738,7 @@
       "handler": "updateProgramHandler",
       "expr": "args.programId",
       "occurrences": 1,
-      "line_at_base": 401,
+      "line_at_base": 405,
       "status": "pending"
     },
     {

@@ -1,0 +1,13 @@
+# mutation for probe N.denials_name_the_principal: the registry refusal no longer names the caller
+diff --git a/src/modules/programRegistry.ts b/src/modules/programRegistry.ts
+--- a/src/modules/programRegistry.ts
++++ b/src/modules/programRegistry.ts
+@@ -404,7 +404,7 @@
+   const principal = credentialPrincipal(auth);
+   if (principal !== args.programId && !REGISTRY_ADMIN_PRINCIPALS.includes(principal)) {
+     logDenial({ principal, tool: "programs_update_program", subject: args.programId, code: "FOREIGN_SUBJECT" });
+-    return jsonResult({ success: false, error: `Access denied: can only update your own program entry (caller "${principal}")` });
++    return jsonResult({ success: false, error: `Access denied: can only update your own program entry` });
+   }
+ 
+   const updates: Record<string, unknown> = {};

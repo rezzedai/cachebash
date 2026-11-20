@@ -348,4 +348,18 @@ describe("L fleet paths", () => {
     const r = await callTool(w, w.creds.scoped, "schedule_delete", { scheduleId: await ownSchedule(w) });
     expect(r.json?.success).toBe(true);
   });
+
+  // row 21: iso keeps the registry grant; a program key updates only its own entry.
+  probe("L.registry_iso_grant", async () => {
+    const w = world();
+    const iso = await mint(w, "iso", "probe-l-iso-registry", ["*"]);
+    const tag = `l-reg-${nextN()}`;
+    const r = await callTool(w, iso, "programs_update_program", { programId: "beta", displayName: tag });
+    expect(r.json?.success).toBe(true);
+  });
+  test("L.registry_iso_grant control: a program key is refused another program's entry", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "programs_update_program", { programId: "beta", displayName: `l-reg-${nextN()}` });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
 });

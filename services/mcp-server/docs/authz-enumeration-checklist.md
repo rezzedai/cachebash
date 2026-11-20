@@ -238,9 +238,9 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `programRegistry.updateProgramHandler:args.programId`
 
-- Where: `modules/programRegistry.ts`, handler `updateProgramHandler`, expression `args.programId`, line 392 at base, 7 occurrence(s).
+- Where: `modules/programRegistry.ts`, handler `updateProgramHandler`, expression `args.programId`, line 396 at base, 7 occurrence(s).
 - Tool: programs_update_program; transports mcp; effect write; decided by C-5; closes in PR-L.
-- Binding today: inline name list on auth.programId, or self (programRegistry.ts:400-405).
+- Binding today: inline name list on auth.programId, or self (programRegistry.ts:404-408).
 - Name lists: NL-REGISTRY-ADMIN.
 - Evidence: Six hardcoded names (legacy, mobile, orchestrator, iso, vector, dispatcher) may edit any program entry (role, groups, tags). auth.programId is the mutable field while the override path exists.
 - Recommendation: SELF-ONLY; FOREIGN-WRITE only on literal fleet.admin (D-d).
@@ -798,7 +798,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 |---|---|---|---|
 | suggestion.suggestTargetHandler:p.programId | dispatch_suggest_target | n/a | suggestion.ts:87 is a map callback variable over ranked program rows, not a request argument. |
 | patternConsolidation.consolidatePatternsHandler:p.programId | pattern_consolidate | n/a | patternConsolidation.ts:238 and :313 are loop variables over program documents, not request arguments (recon section 8). |
-| programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:375 is a map callback variable over registry rows. |
+| programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:376 is a map callback variable over registry rows. |
 | signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:274-280), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
 | callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
 
@@ -918,8 +918,8 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | keys.revokeKeyHandler:keyHash | c | 1 | 153 | ESCALATE | C-5 | PR-F | false |
 | metrics.getProgramHealthHandler:args.programId | a | 3 | 862 | ESCALATE | C-5 | PR-L | false |
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
-| programRegistry.listProgramsHandler:p.programId | b | 1 | 375 | NOT-IDENTITY | ISO | n/a | false |
-| programRegistry.updateProgramHandler:args.programId | a | 7 | 392 | ESCALATE | C-5 | PR-L | false |
+| programRegistry.listProgramsHandler:p.programId | b | 1 | 376 | NOT-IDENTITY | ISO | n/a | false |
+| programRegistry.updateProgramHandler:args.programId | a | 7 | 396 | ESCALATE | C-5 | PR-L | false |
 | programState.getProgramStateHandler:args.programId | a | 11 | 262 | FOREIGN-READ | C-4 | PR-J | false |
 | programState.storeMemoryHandler:args.programId | a | 9 | 371 | SELF-ONLY | C-4 | PR-J | false |
 | programState.recallMemoryHandler:args.programId | a | 10 | 433 | SELF-ONLY | C-4 | PR-J | false |
@@ -1182,7 +1182,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:115` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
 | NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:398` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
 | NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:137` [mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
-| NL-REGISTRY-ADMIN `modules/programRegistry.ts:400` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
+| NL-REGISTRY-ADMIN `modules/programRegistry.ts:390` [iso, mobile, dispatcher] (handler) | programs_update_program | members seen: none |
 | NL-PULSE-PRIV `modules/pulse.ts:87` [mobile, dispatcher] (handler) | pulse_create_session, pulse_update_session, pulse_list_sessions, pulse_get_context_utilization | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
 | NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:89` [mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
 | NL-RELAY-GETMSG `modules/relay.ts:84` [mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 27 | 114 |
+| S1 | 27 | 112 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1249,7 +1249,7 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1502 |
 | S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1664 |
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
-| S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 3 | 400 |
+| S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
 | S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
 | S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
@@ -1262,7 +1262,7 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | transport/rest.ts | route POST /v1/relay/messages | `auth.programId` | 1 | 476 |
 | S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 955 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
-| S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 401 |
+| S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 802 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 809 |
 | S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

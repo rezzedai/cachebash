@@ -5,6 +5,7 @@ import type { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 // === ProgramDoc Interface ===
 export interface ProgramDoc {
   programId: string;
@@ -385,6 +386,9 @@ export async function listProgramsHandler(auth: AuthContext, rawArgs: unknown): 
   });
 }
 
+/** Principals that update any program's registry entry (amendment 3 REGISTRY-ADMIN). No fleet.admin path: the entry is self-only otherwise. */
+const REGISTRY_ADMIN_PRINCIPALS: readonly string[] = ["iso", "mobile", "dispatcher"];
+
 export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UpdateProgramSchema.parse(rawArgs);
   const db = getFirestore();
@@ -396,12 +400,11 @@ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown):
     return jsonResult({ success: false, error: `Program not found: "${args.programId}"` });
   }
 
-  // Access control: programs can update their own entry, admin can update any
-  const isAdmin = ["legacy", "mobile", "orchestrator", "iso", "vector", "dispatcher"].includes(auth.programId);
-  const isSelf = auth.programId === args.programId;
-  if (!isAdmin && !isSelf) {
-    logDenial({ principal: denialPrincipal(auth), tool: "programs_update_program", subject: args.programId, code: "FOREIGN_SUBJECT" });
-    return jsonResult({ success: false, error: "Access denied: can only update your own program entry" });
+  // Access control (RD-5 PR-L row 21): a program updates its own entry; REGISTRY_ADMIN_PRINCIPALS update any. Bound to credentialPrincipal.
+  const principal = credentialPrincipal(auth);
+  if (principal !== args.programId && !REGISTRY_ADMIN_PRINCIPALS.includes(principal)) {
+    logDenial({ principal, tool: "programs_update_program", subject: args.programId, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: can only update your own program entry (caller "${principal}")` });
   }
 
   const updates: Record<string, unknown> = {};

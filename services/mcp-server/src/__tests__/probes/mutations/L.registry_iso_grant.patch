@@ -1,0 +1,13 @@
+# mutation for probe L.registry_iso_grant: iso is not in REGISTRY_ADMIN_PRINCIPALS
+diff --git a/src/modules/programRegistry.ts b/src/modules/programRegistry.ts
+--- a/src/modules/programRegistry.ts
++++ b/src/modules/programRegistry.ts
+@@ -387,7 +387,7 @@
+ }
+ 
+ /** Principals that update any program's registry entry (amendment 3 REGISTRY-ADMIN). No fleet.admin path: the entry is self-only otherwise. */
+-const REGISTRY_ADMIN_PRINCIPALS: readonly string[] = ["iso", "mobile", "dispatcher"];
++const REGISTRY_ADMIN_PRINCIPALS: readonly string[] = ["mobile", "dispatcher"];
+ 
+ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   const args = UpdateProgramSchema.parse(rawArgs);
