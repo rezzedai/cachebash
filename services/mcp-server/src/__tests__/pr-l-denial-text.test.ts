@@ -7,6 +7,9 @@ import type { AuthContext } from "../auth/authValidator.js";
 import { getCommsMetricsHandler, getCostSummaryHandler, getOperationalMetricsHandler, getCostForecastHandler, getSlaComplianceHandler, getProgramHealthHandler } from "../modules/metrics.js";
 import { getAuditHandler } from "../modules/audit.js";
 import { getFleetHealthHandler } from "../modules/pulse.js";
+import { queryTraceHandler, queryTracesHandler } from "../modules/trace.js";
+import { getDeadLettersHandler } from "../modules/relay.js";
+import { mergeAccountsHandler } from "../modules/account-merge.js";
 
 jest.mock("../firebase/client.js", () => ({ getFirestore: () => { throw new Error("no firestore before the gate"); }, serverTimestamp: () => "ts" }));
 
@@ -25,6 +28,10 @@ describe("PR-L denial text names the credentialPrincipal", () => {
     ["get_program_health", (a) => getProgramHealthHandler(a, {})],
     ["get_audit", (a) => getAuditHandler(a, {})],
     ["get_fleet_health", (a) => getFleetHealthHandler(a, {})],
+    ["query_trace", (a) => queryTraceHandler(a, { traceId: "t" })],
+    ["query_traces", (a) => queryTracesHandler(a, {})],
+    ["get_dead_letters", (a) => getDeadLettersHandler(a, {})],
+    ["merge_accounts", (a) => mergeAccountsHandler(a, { email: "a@example.invalid", canonicalUid: "u1", alternateUid: "u2" })],
   ];
   test.each(cases)("%s", async (_name, call) => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => {});

@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 25 AST baseline rows.
+116 site records, 111 handler entries, 25 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -22,10 +22,10 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | ADDRESSED | 5 |
 | ATTRIBUTION | 9 |
 | NOT-IDENTITY | 5 |
-| ESCALATE | 83 |
-| **Total** | **114** |
+| ESCALATE | 85 |
+| **Total** | **116** |
 
-Status: pending 84, done 30.
+Status: pending 43, done 73.
 
 ## Method
 
@@ -73,7 +73,7 @@ Sites are keyed by handler and expression, not by line. `line_at_base` is the fi
 | NOT-IDENTITY | regex hit that is not a caller argument, with the reason |
 | ESCALATE | disposition not readable from the code; evidence and a recommendation given, ISO and VECTOR decide |
 
-## ESCALATE (83)
+## ESCALATE (85)
 
 Each record gives the evidence and a recommendation. The builder picks nothing; ISO reviews every record and VECTOR reviews ESCALATE, ADDRESSED and ATTRIBUTION.
 
@@ -105,7 +105,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/clu.ts`, handler `cluIngestHandler`, expression `parsed.session_id`, line 92 at base, 1 occurrence(s).
 - Tool: clu_ingest; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none.
+- Binding today: none; session_id is stored on the clu report as a label (L-D9 option 2: ATTRIBUTION, no code).
 - Evidence: clu.ts:92 takes parsed.session_id or generates one and writes the ingestion under tenants/{auth.userId}/...; no owner field and no principal comparison.
 - Recommendation: ATTRIBUTION if ingestion documents carry no program ownership; otherwise SELF-ONLY. Evidence for ownership was not found in clu.ts.
 
@@ -113,7 +113,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/clu.ts`, handler `cluAnalyzeHandler`, expression `parsed.session_id`, line 137 at base, 3 occurrence(s).
 - Tool: clu_analyze; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none.
+- Binding today: none; session_id is stored on the clu report as a label (L-D9 option 2: ATTRIBUTION, no code).
 - Evidence: The handler reads nothing from the id (clu.ts:125-175). It writes caller data to clu_sessions/{id}/analyses (clu.ts:155-162) under a caller-chosen id; nothing compares the id to the caller.
 - Recommendation: Write family: FOREIGN-WRITE on literal fleet.admin for another principal's clu session; SELF-ONLY when unruled. No FOREIGN-READ applies because the handler reads no document by this id.
 
@@ -761,6 +761,22 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Evidence: getResponseHandler returns the answer to any question id; no asker comparison.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
 
+### `gsp.gspResolveHandler:proposal.proposedBy`
+
+- Where: `modules/gsp.ts`, handler `gspResolveHandler`, expression `proposal.proposedBy`, line n/a at base, 1 occurrence(s).
+- Tool: gsp_resolve; transports mcp, rest; effect write; decided by ISO; closes in PR-N.
+- Binding today: auth.programId is compared with the stored proposedBy before a withdrawal (gsp.ts, gspResolveHandler); not bound to credentialPrincipal.
+- Evidence: H5 (plan 20): the withdraw check reads auth.programId. Amendment 3 says GSP-REVIEWERS gates nothing, and this comparison had no site record or closing PR. PR-L logs the refusal (logDenial, tool gsp_resolve) and does not rebind it.
+- Recommendation: SELF-ONLY on proposedBy, bound to credentialPrincipal. Closes in PR-N with the literal per-tool gates.
+
+### `gsp.gspResolveHandler:proposal.reviewers`
+
+- Where: `modules/gsp.ts`, handler `gspResolveHandler`, expression `proposal.reviewers`, line n/a at base, 1 occurrence(s).
+- Tool: gsp_resolve; transports mcp, rest; effect write; decided by ISO; closes in PR-N.
+- Binding today: approve and reject are gated on proposal.reviewers.includes(auth.programId) (gsp.ts, gspResolveHandler); not bound to credentialPrincipal.
+- Evidence: H5 (plan 20): the reviewer-list gate on approve and reject. Amendment 3 ruled GSP-REVIEWERS NOT-IDENTITY, but the site reads auth.programId and gates a write. PR-L logs the refusal and does not rebind it.
+- Recommendation: Rebind to credentialPrincipal or move the gate to a literal capability. Closes in PR-N.
+
 ## ADDRESSED (5)
 
 Each label claims no gate is needed, so ISO reviews each one individually.
@@ -873,6 +889,8 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
 | sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
 | signal.getResponseHandler:args.questionId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| gsp.gspResolveHandler:proposal.proposedBy | n/a | ESCALATE | auth.programId is compared with the stored proposedBy before a withdrawal (gsp.ts, gspResolveHandler); not bound to credentialPrincipal |
+| gsp.gspResolveHandler:proposal.reviewers | n/a | ESCALATE | approve and reject are gated on proposal.reviewers.includes(auth.programId) (gsp.ts, gspResolveHandler); not bound to credentialPrincipal |
 
 ### 4. Memory fan-out in gsp_search (gsp.ts:1897-1901)
 
@@ -1000,6 +1018,8 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | sprint.getSprintHandler:args.sprintId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | signal.getResponseHandler:args.questionId | none | 1 | n/a | ESCALATE | ISO | PR-L | false |
 | gsp.gspSearchHandler:program_state-scan | none | 1 | 1904 | SELF-ONLY | C-4 | PR-J | false |
+| gsp.gspResolveHandler:proposal.proposedBy | none | 1 | n/a | ESCALATE | ISO | PR-N | false |
+| gsp.gspResolveHandler:proposal.reviewers | none | 1 | n/a | ESCALATE | ISO | PR-N | false |
 
 ## Handler entries (R6)
 
@@ -1045,7 +1065,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | gsp_seed | gspSeedHandler | mcp | write | 0 | 1 | false |
 | gsp_propose | gspProposeHandler | mcp | write | 0 | 1 | false |
 | gsp_subscribe | gspSubscribeHandler | mcp | write | 0 | 0 | false |
-| gsp_resolve | gspResolveHandler | mcp rest | write | 0 | 0 | false |
+| gsp_resolve | gspResolveHandler | mcp rest | write | 2 | 0 | false |
 | gsp_search | gspSearchHandler | mcp rest | read | 1 | 0 | false |
 | keys_create_key | createKeyHandler | mcp rest | write | 1 | 0 | false |
 | keys_revoke_key | revokeKeyHandler | mcp rest | write | 1 | 0 | false |
