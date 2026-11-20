@@ -9,6 +9,8 @@ import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
 import { Timestamp, Query } from "firebase-admin/firestore";
+import { resolveReadScope } from "../auth/readScope.js";
+import { logDenial } from "../auth/denialLog.js";
 
 type ToolResult = { content: Array<{ type: string; text: string }> };
 
@@ -101,6 +103,13 @@ export async function getAckComplianceHandler(auth: AuthContext, rawArgs: unknow
   const args = GetAckComplianceSchema.parse(rawArgs || {});
   const db = getFirestore();
 
+  // RD-5 PR-L row 25 (L-D1): a foreign programId needs literal fleet.observe; no programId means the principal's own directives.
+  const scope = resolveReadScope(auth, args.programId);
+  if (!scope.allowed) {
+    logDenial({ principal: scope.principal, tool: "audit_get_ack_compliance", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+    return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read ack compliance for "${args.programId}"` });
+  }
+
   let query: Query = db.collection(`tenants/${auth.userId}/directive_audit`);
 
   if (args.period !== "all") {
@@ -109,8 +118,8 @@ export async function getAckComplianceHandler(auth: AuthContext, rawArgs: unknow
     query = query.where("createdAt", ">=", startTimestamp);
   }
 
-  if (args.programId) {
-    query = query.where("source", "==", args.programId);
+  if (scope.filter) {
+    query = query.where("source", "==", scope.filter);
   }
 
   query = query.orderBy("createdAt", "desc");
@@ -143,7 +152,7 @@ export async function getAckComplianceHandler(auth: AuthContext, rawArgs: unknow
   return jsonResult({
     success: true,
     period: args.period,
-    programId: args.programId || "all",
+    programId: scope.filter || "all",
     totalDirectives,
     acknowledged,
     unacknowledged,

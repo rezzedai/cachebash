@@ -1,0 +1,13 @@
+# mutation for probe T2.metrics_get_rate_limit_events: a foreign session is read without fleet.observe
+diff --git a/src/modules/rate-limits.ts b/src/modules/rate-limits.ts
+--- a/src/modules/rate-limits.ts
++++ b/src/modules/rate-limits.ts
+@@ -103,7 +103,7 @@
+ 
+   // RD-5 PR-L row 27 (L-D1): the subject is the session's owner. With no sessionId the principal sees its own events unless it holds literal fleet.observe.
+   const scope = resolveReadScope(auth, args.sessionId ? sessionOwner(args.sessionId) : undefined);
+-  if (!scope.allowed) {
++  if (Date.now() < 0) {
+     logDenial({ principal: scope.principal, tool: "metrics_get_rate_limit_events", subject: scope.filter, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read rate-limit events for session "${args.sessionId}"` });
+   }

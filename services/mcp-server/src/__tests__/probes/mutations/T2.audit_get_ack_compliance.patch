@@ -1,0 +1,13 @@
+# mutation for probe T2.audit_get_ack_compliance: a foreign programId is read without fleet.observe
+diff --git a/src/modules/ack-compliance.ts b/src/modules/ack-compliance.ts
+--- a/src/modules/ack-compliance.ts
++++ b/src/modules/ack-compliance.ts
+@@ -105,7 +105,7 @@
+ 
+   // RD-5 PR-L row 25 (L-D1): a foreign programId needs literal fleet.observe; no programId means the principal's own directives.
+   const scope = resolveReadScope(auth, args.programId);
+-  if (!scope.allowed) {
++  if (Date.now() < 0) {
+     logDenial({ principal: scope.principal, tool: "audit_get_ack_compliance", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read ack compliance for "${args.programId}"` });
+   }

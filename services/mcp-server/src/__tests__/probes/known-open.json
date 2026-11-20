@@ -1,12 +1,4 @@
 {
-  "T2.audit_get_ack_compliance": {
-    "closes_in": "PR-L",
-    "hole": "reads any program's ack compliance (row 41)"
-  },
-  "T2.metrics_get_rate_limit_events": {
-    "closes_in": "PR-L",
-    "hole": "reads any session's rate-limit events (row 43)"
-  },
   "T2.rest_messages_unread": {
     "closes_in": "PR-M",
     "hole": "GET /v1/messages/unread?sessionId=<other> reads any program's pending messages (row 52)"

@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 31 AST baseline rows.
+114 site records, 111 handler entries, 30 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 317 |
-| (a) lines | 293 |
+| (a) occurrences | 321 |
+| (a) lines | 296 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -87,9 +87,9 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `ack-compliance.getAckComplianceHandler:args.programId`
 
-- Where: `modules/ack-compliance.ts`, handler `getAckComplianceHandler`, expression `args.programId`, line 112 at base, 3 occurrence(s).
+- Where: `modules/ack-compliance.ts`, handler `getAckComplianceHandler`, expression `args.programId`, line 107 at base, 3 occurrence(s).
 - Tool: audit_get_ack_compliance; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
-- Binding today: none: args.programId filters query on source (ack-compliance.ts:112-114).
+- Binding today: none: args.programId filters query on source (ack-compliance.ts:121-123).
 - Evidence: No comparison against auth.programId, credentialPrincipal or a capability inside the handler (guard grep, recon section 8). Any caller can filter the ledger to another program's source.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
@@ -305,10 +305,10 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rate-limits.getRateLimitEventsHandler:args.sessionId`
 
-- Where: `modules/rate-limits.ts`, handler `getRateLimitEventsHandler`, expression `args.sessionId`, line 105 at base, 2 occurrence(s).
+- Where: `modules/rate-limits.ts`, handler `getRateLimitEventsHandler`, expression `args.sessionId`, line 105 at base, 6 occurrence(s).
 - Tool: metrics_get_rate_limit_events; transports mcp, rest; effect read; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: rate-limits.ts:105-106 filters events by any session id; events carry the writing program.
+- Evidence: rate-limits.ts:118-119 filters events by any session id; events carry the writing program.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `relay.sendMessageHandler:args.source`
@@ -786,7 +786,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:164), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
 | analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:164), so the value is caller-controlled and must not be read as identity. |
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:535, :543 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
-| rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:78) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
+| rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:84) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:219) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:279) | Passed into writeAlertDocs as a stored label; selects nothing. |
@@ -891,7 +891,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 |---|---|---|---|---|---|---|---|
 | index.main:params.target | b | 2 | 631 | ESCALATE | ISO | ISO-assign | false |
 | index.main:params.callerSource | b | 1 | 648 | ATTRIBUTION | ISO | n/a | false |
-| ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 112 | ESCALATE | ISO | PR-L | false |
+| ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 107 | ESCALATE | ISO | PR-L | false |
 | analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | ATTRIBUTION | ISO | n/a | false |
 | analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | ATTRIBUTION | ISO | n/a | false |
 | audit.getAuditHandler:args.programId | a | 3 | 39 | ESCALATE | C-5 | PR-L | false |
@@ -936,8 +936,8 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | pulse.getContextUtilizationHandler:args.sessionId | a | 5 | 845 | ESCALATE | ISO | PR-L | false |
 | pulse.pauseProgramHandler:args.programId | a | 9 | 951 | ESCALATE | ISO | PR-L | false |
 | pulse.resumeProgramHandler:args.programId | a | 12 | 1021 | ESCALATE | ISO | PR-L | false |
-| rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 76 | ATTRIBUTION | ISO | n/a | false |
-| rate-limits.getRateLimitEventsHandler:args.sessionId | a | 2 | 105 | ESCALATE | ISO | PR-L | false |
+| rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 82 | ATTRIBUTION | ISO | n/a | false |
+| rate-limits.getRateLimitEventsHandler:args.sessionId | a | 6 | 105 | ESCALATE | ISO | PR-L | false |
 | relay.sendMessageHandler:args.target | a | 15 | 140 | ADDRESSED | ISO | PR-K | false |
 | relay.sendMessageHandler:args.source | a | 3 | 142 | ESCALATE | C-5 | PR-K | false |
 | relay.sendMessageHandler:args.sessionId | a | 2 | 241 | ATTRIBUTION | ISO | n/a | false |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 26 | 111 |
+| S1 | 25 | 110 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1249,7 +1249,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1664 |
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
-| S1 | modules/rate-limits.ts | logRateLimitEventHandler | `auth.programId` | 1 | 77 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
 | S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
 | S1 | modules/sprint.ts | updateStoryHandler | `auth.programId` | 2 | 331 |

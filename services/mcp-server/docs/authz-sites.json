@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 317,
-    "a_lines": 293,
+    "a_occurrences": 321,
+    "a_lines": 296,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -2752,14 +2752,14 @@
       "expr": "args.programId",
       "regex": "a",
       "occurrences": 3,
-      "line_at_base": 112,
+      "line_at_base": 107,
       "tool": "audit_get_ack_compliance",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none: args.programId filters query on source (ack-compliance.ts:112-114)",
+      "binding_today": "none: args.programId filters query on source (ack-compliance.ts:121-123)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -3827,14 +3827,14 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 2,
-      "line_at_base": 76,
+      "line_at_base": 82,
       "tool": "metrics_log_rate_limit_event",
       "transports": [
         "mcp",
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; programId written is auth.programId (rate-limits.ts:78)",
+      "binding_today": "none; programId written is auth.programId (rate-limits.ts:84)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
@@ -3849,7 +3849,7 @@
       "handler": "getRateLimitEventsHandler",
       "expr": "args.sessionId",
       "regex": "a",
-      "occurrences": 2,
+      "occurrences": 6,
       "line_at_base": 105,
       "tool": "metrics_get_rate_limit_events",
       "transports": [
@@ -3864,7 +3864,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "rate-limits.ts:105-106 filters events by any session id; events carry the writing program.",
+      "evidence": "rate-limits.ts:118-119 filters events by any session id; events carry the writing program.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -5611,15 +5611,6 @@
       "expr": "auth.programId",
       "occurrences": 1,
       "line_at_base": 417,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/rate-limits.ts",
-      "handler": "logRateLimitEventHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 77,
       "status": "pending"
     },
     {
