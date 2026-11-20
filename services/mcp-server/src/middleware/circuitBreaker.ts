@@ -24,6 +24,9 @@
  * mutating dispatch_* tools that start or move work (see isDispatchFamilyMutation)
  * with code DISPATCH_PAUSED, and leaves wind-down and containment tools open
  * (DISPATCH_PAUSE_EXEMPT), so builders can finish and quarantine still works.
+ * Two sprint tools that create task documents are also denied
+ * (DISPATCH_PAUSE_EXTRA_DENIED), and the schedule executor reads the flag through
+ * readDispatchPause and skips task schedules without advancing them.
  * Every other tool, including gsp_bootstrap (mapped to gsp.write, so the wider
  * `paused` switch denies it), state reads and relay messages, is unaffected, so
  * programs still boot while dispatch is refused. Nothing under src/ writes this
@@ -120,15 +123,43 @@ export const DISPATCH_PAUSE_EXEMPT: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Non-dispatch_ tools that also create task documents, so `dispatchPaused` denies them
+ * too (VECTOR ruling on PR-G): sprint_create_sprint and sprint_add_story_to_sprint.
+ */
+export const DISPATCH_PAUSE_EXTRA_DENIED: ReadonlySet<string> = new Set([
+  "sprint_create_sprint",
+  "sprint_add_story_to_sprint",
+]);
+
+/**
  * The tools denied by `dispatchPaused`: mutating tools whose canonical name starts with
- * `dispatch_`, minus DISPATCH_PAUSE_EXEMPT. Today that is create_task, claim_task,
- * batch_claim_tasks, dispatch, retry_task, replay_task, reassign_task, approve_task.
+ * `dispatch_`, minus DISPATCH_PAUSE_EXEMPT, plus DISPATCH_PAUSE_EXTRA_DENIED. Today that
+ * is create_task, claim_task, batch_claim_tasks, dispatch, retry_task, replay_task,
+ * reassign_task, approve_task, sprint_create_sprint, sprint_add_story_to_sprint.
  * Legacy aliases (create_task, ...) resolve to canonical first. Reads such as
  * dispatch_get_tasks stay allowed, and gsp_*, state_*, relay_* are not in it.
  */
 export function isDispatchFamilyMutation(toolName: string): boolean {
   const canonical = resolveToolAlias(toolName);
+  if (DISPATCH_PAUSE_EXTRA_DENIED.has(canonical)) return isMutatingTool(canonical);
   return canonical.startsWith("dispatch_") && isMutatingTool(canonical) && !DISPATCH_PAUSE_EXEMPT.has(canonical);
+}
+
+/**
+ * Read-only check of the tenant's dispatchPaused flag, for callers that create tasks
+ * outside a tool call (the schedule executor). "clear" when the document is missing or
+ * dispatchPaused is not literally true, "paused" when it is true, "unknown" when the
+ * read throws (the caller fails closed). Never writes.
+ */
+export async function readDispatchPause(org: string): Promise<"paused" | "clear" | "unknown"> {
+  try {
+    const snap = await getFirestore().doc(`tenants/${org}/_meta/ceilings`).get();
+    if (!snap.exists) return "clear";
+    return (snap.data() || {}).dispatchPaused === true ? "paused" : "clear";
+  } catch (err) {
+    console.error("[CircuitBreaker] dispatchPaused read failed:", err);
+    return "unknown";
+  }
 }
 
 // --- Rolling window math — pure, unit-tested independently of Firestore/state. ---

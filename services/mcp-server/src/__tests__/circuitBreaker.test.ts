@@ -13,6 +13,8 @@ import {
   isMutatingTool,
   isDispatchFamilyMutation,
   DISPATCH_PAUSE_EXEMPT,
+  DISPATCH_PAUSE_EXTRA_DENIED,
+  readDispatchPause,
   pruneWindow,
   countInWindow,
   resetCircuitBreakerState,
@@ -297,11 +299,14 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     "dispatch_record_task_telemetry", "dispatch_escalate_task",
     "dispatch_quarantine_program", "dispatch_unquarantine_program",
   ];
-  const DISPATCH_FAMILY = [...DISPATCH_DENIED, "create_task", "claim_task", "dispatch"]; // + legacy aliases
+  // VECTOR: sprint tools that create task documents are denied too.
+  const EXTRA_DENIED = ["sprint_create_sprint", "sprint_add_story_to_sprint"];
+  const DISPATCH_FAMILY = [...DISPATCH_DENIED, ...EXTRA_DENIED, "create_task", "claim_task", "dispatch"]; // + legacy aliases
   // Boot path and everything else: not dispatch family, so allowed under dispatchPaused.
   const BOOT_AND_OTHER = [
     "gsp_bootstrap", "gsp_read", "gsp_write",
     "state_get_program_state", "state_update_program_state", "state_store_memory",
+    "sprint_update_sprint_story", "sprint_get_sprint", "sprint_complete_sprint",
     "relay_get_messages", "relay_send_message", "pulse_create_session", "pulse_update_session",
     "dispatch_get_tasks", "dispatch_get_task_by_id", "get_tasks",
   ];
@@ -311,8 +316,13 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     expect(mutatingDispatch.filter((t) => isDispatchFamilyMutation(t)).sort()).toEqual([...DISPATCH_DENIED].sort());
     expect([...DISPATCH_PAUSE_EXEMPT].sort()).toEqual([...DISPATCH_EXEMPT].sort());
     expect(mutatingDispatch).toEqual([...DISPATCH_DENIED, ...DISPATCH_EXEMPT].sort());
+    expect([...DISPATCH_PAUSE_EXTRA_DENIED].sort()).toEqual([...EXTRA_DENIED].sort());
     expect(DISPATCH_DENIED).toHaveLength(8);
     expect(DISPATCH_EXEMPT).toHaveLength(8);
+    // the denied set is exactly 10: the 8 dispatch tools plus the 2 sprint tools
+    const denied = Object.keys(TOOL_CAPABILITIES).filter((t) => isDispatchFamilyMutation(t)).sort();
+    expect(denied).toEqual([...DISPATCH_DENIED, ...EXTRA_DENIED].sort());
+    expect(denied).toHaveLength(10);
   });
 
   it("classifies denied, exempt and other tools", () => {
@@ -374,5 +384,24 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     setCeilings("org-1", { dispatchPaused: true });
     setCeilings("org-2", {});
     expect((await checkCircuitBreaker(auth({ userId: "org-2" }), "dispatch_create_task")).allowed).toBe(true);
+  });
+});
+
+describe("readDispatchPause (RD-5 PR-G)", () => {
+  it("returns paused only for a literal true", async () => {
+    setCeilings("org-1", { dispatchPaused: true });
+    expect(await readDispatchPause("org-1")).toBe("paused");
+  });
+  it("returns clear for a missing document, false, absent or non-true values", async () => {
+    expect(await readDispatchPause("org-1")).toBe("clear");
+    setCeilings("org-1", { dispatchPaused: false });
+    expect(await readDispatchPause("org-1")).toBe("clear");
+    firestoreDocs.set("tenants/org-1/_meta/ceilings", { dispatchPaused: "true" });
+    expect(await readDispatchPause("org-1")).toBe("clear");
+  });
+  it("returns unknown when the read throws", async () => {
+    throwOnRead = true;
+    jest.spyOn(console, "error").mockImplementationOnce(() => {});
+    expect(await readDispatchPause("org-1")).toBe("unknown");
   });
 });

@@ -6,12 +6,13 @@
  * target, not open-ended state like a sprint or an unanswered question.
  */
 
+jest.mock("../middleware/circuitBreaker.js", () => ({ readDispatchPause: jest.fn(async () => "clear") })); // PR-G: flag read is not under test here
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 
 import { executeSchedulesForUser } from "../modules/schedule-executor.js";
 import { CONSTANTS } from "../config/constants.js";
 
-const scheduleDoc = { id: "sched-1", ref: { id: "sched-1" } };
+const scheduleDoc = { id: "sched-1", ref: { id: "sched-1" }, data: () => ({ name: "nightly" }) };
 const created: any[] = [];
 
 const txnStub = {
