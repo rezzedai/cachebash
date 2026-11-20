@@ -8,7 +8,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:163; gsp_write at modules/gsp.ts:435; gsp_diff at modules/gsp.ts:497; gsp_bootstrap at modules/gsp.ts:750; gsp_seed at modules/gsp.ts:1201; gsp_propose at modules/gsp.ts:1312, modules/gsp.ts:1350; gsp_subscribe at modules/gsp.ts:229, modules/gsp.ts:259; gsp_resolve at modules/gsp.ts:1590, modules/gsp.ts:1664; gsp_search at modules/gsp.ts:1791; state_update_program_state at modules/programState.ts:526.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:163; gsp_write at modules/gsp.ts:435; gsp_diff at modules/gsp.ts:497; gsp_bootstrap at modules/gsp.ts:757; gsp_seed at modules/gsp.ts:1224; gsp_propose at modules/gsp.ts:1335, modules/gsp.ts:1373; gsp_subscribe at modules/gsp.ts:229, modules/gsp.ts:259; gsp_resolve at modules/gsp.ts:1613, modules/gsp.ts:1687; gsp_search at modules/gsp.ts:1814; state_update_program_state at modules/programState.ts:526.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
@@ -848,8 +848,8 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/gsp.ts`, handler `gspSearchHandler`, expression `db.collection('tenants/${userId}/sessions/_meta/program_state').get()`, line 1897 at base, 1 occurrence(s).
 - Tool: gsp_search; transports mcp, rest; effect read; decided by C-4; closes in PR-J.
-- Binding today: none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1895-1901).
-- Evidence: gsp.ts:1897-1901 reads all programs' learnedPatterns when scope is not "gsp". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.
+- Binding today: none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924).
+- Evidence: gsp.ts:1920-1924 reads all programs' learnedPatterns when scope is not "gsp". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.
 - Recommendation: Restrict the scan to the caller's own program_state document (C-4: memory self-only).
 
 ## ADDRESSED (5)
@@ -900,7 +900,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:641-654); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
+| gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:647-660); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
 
 ## FOREIGN-WRITE (1)
 
@@ -960,7 +960,7 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 
 | Site | Line at base | Disposition | Binding today |
 |---|---|---|---|
-| gsp.gspSearchHandler:program_state-scan | 1897 | ESCALATE | none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1895-1901) |
+| gsp.gspSearchHandler:program_state-scan | 1897 | ESCALATE | none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924) |
 
 The AST rules also found a tenant-uid comparison outside the tool registry: `oauth/serviceAccounts.ts:100` (revokeServiceAccount). It is a baseline row, not a site record.
 
@@ -1235,12 +1235,12 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 | gsp_read | modules/gsp.ts:163 | ruled by ISO, upheld by VECTOR |
 | gsp_write | modules/gsp.ts:435 | ruled by ISO, upheld by VECTOR |
 | gsp_diff | modules/gsp.ts:497 | ruled by ISO, upheld by VECTOR |
-| gsp_bootstrap | modules/gsp.ts:750 | ruled by ISO, upheld by VECTOR |
-| gsp_seed | modules/gsp.ts:1201 | ruled by ISO, upheld by VECTOR |
-| gsp_propose | modules/gsp.ts:1312; modules/gsp.ts:1350 | ruled by ISO, upheld by VECTOR |
+| gsp_bootstrap | modules/gsp.ts:757 | ruled by ISO, upheld by VECTOR |
+| gsp_seed | modules/gsp.ts:1224 | ruled by ISO, upheld by VECTOR |
+| gsp_propose | modules/gsp.ts:1335; modules/gsp.ts:1373 | ruled by ISO, upheld by VECTOR |
 | gsp_subscribe | modules/gsp.ts:229; modules/gsp.ts:259 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:229 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
-| gsp_resolve | modules/gsp.ts:1590; modules/gsp.ts:1664 | ruled by ISO, upheld by VECTOR |
-| gsp_search | modules/gsp.ts:1791 | ruled by ISO, upheld by VECTOR |
+| gsp_resolve | modules/gsp.ts:1613; modules/gsp.ts:1687 | ruled by ISO, upheld by VECTOR |
+| gsp_search | modules/gsp.ts:1814 | ruled by ISO, upheld by VECTOR |
 | state_update_program_state | modules/programState.ts:526 | ruled by ISO, upheld by VECTOR |
 
 The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).
@@ -1270,10 +1270,10 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | members seen: none |
 | NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
 | NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
-| NL-GSP-SEED-AUTH `modules/gsp.ts:1189` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
+| NL-GSP-SEED-AUTH `modules/gsp.ts:1212` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
 | NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
 | NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
-| NL-GSP-REVIEWERS `modules/gsp.ts:609` [iso, vector] (routing) | gsp_propose | members seen: none |
+| NL-GSP-REVIEWERS `modules/gsp.ts:615` [iso, vector] (routing) | gsp_propose | members seen: none |
 | NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
 | NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | not measured (no tool_call rows exist for this path) |

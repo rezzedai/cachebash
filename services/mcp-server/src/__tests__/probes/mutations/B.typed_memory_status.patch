@@ -1,0 +1,13 @@
+# mutation for probe B.typed_memory_status: a self-read no longer sets payload.memory.status to "loaded"
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 389adf9..b4798e3 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1021,7 +1021,6 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown):
+         .get();
+ 
+       if (stateDoc.exists) {
+-        payload.memory.status = "loaded";
+         const stateData = stateDoc.data()!;
+ 
+         // Learned patterns - apply depth-based limits

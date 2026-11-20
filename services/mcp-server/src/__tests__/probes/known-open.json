@@ -133,15 +133,7 @@
   },
   "W.19": {
     "closes_in": "PR-N",
-    "hole": "a bare [\"*\"] credential passes: gsp.ts:1189 gsp_seed"
-  },
-  "B.typed_memory_status": {
-    "closes_in": "PR-I",
-    "hole": "payload.memory.status is not typed (loaded/empty/omitted/error)"
-  },
-  "M.unreadable_state_is_an_error": {
-    "closes_in": "PR-I",
-    "hole": "a failed self-read is swallowed; the caller sees an empty memory block"
+    "hole": "a bare [\"*\"] credential passes: gsp.ts:1212 gsp_seed"
   },
   "N.denials_name_the_principal": {
     "closes_in": "PR-K, PR-L",

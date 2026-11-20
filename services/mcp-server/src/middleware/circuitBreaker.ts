@@ -124,18 +124,20 @@ export const DISPATCH_PAUSE_EXEMPT: ReadonlySet<string> = new Set([
 
 /**
  * Non-dispatch_ tools that also create task documents, so `dispatchPaused` denies them
- * too (VECTOR ruling on PR-G): sprint_create_sprint and sprint_add_story_to_sprint.
+ * too (VECTOR ruling on PR-G): sprint_create_sprint and sprint_add_story_to_sprint. Also
+ * dream_activate (VECTOR, PR-G review): moving a queued dream to active starts autonomous work.
  */
 export const DISPATCH_PAUSE_EXTRA_DENIED: ReadonlySet<string> = new Set([
   "sprint_create_sprint",
   "sprint_add_story_to_sprint",
+  "dream_activate",
 ]);
 
 /**
  * The tools denied by `dispatchPaused`: mutating tools whose canonical name starts with
  * `dispatch_`, minus DISPATCH_PAUSE_EXEMPT, plus DISPATCH_PAUSE_EXTRA_DENIED. Today that
  * is create_task, claim_task, batch_claim_tasks, dispatch, retry_task, replay_task,
- * reassign_task, approve_task, sprint_create_sprint, sprint_add_story_to_sprint.
+ * reassign_task, approve_task, sprint_create_sprint, sprint_add_story_to_sprint, dream_activate.
  * Legacy aliases (create_task, ...) resolve to canonical first. Reads such as
  * dispatch_get_tasks stay allowed, and gsp_*, state_*, relay_* are not in it.
  */

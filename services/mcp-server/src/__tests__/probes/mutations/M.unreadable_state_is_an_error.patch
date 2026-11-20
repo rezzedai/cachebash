@@ -1,0 +1,25 @@
+# mutation for probe M.unreadable_state_is_an_error: the self-read catch swallows again (no error status, no loadError)
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+index 389adf9..1156c39 100644
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1059,18 +1059,7 @@ export async function gspBootstrapHandler(auth: AuthContext, rawArgs: unknown):
+         }
+       }
+     } catch (err) {
+-      // RD-5 PR-I: a failed self-read is visible. Every fleet boot protocol treats
+-      // payload.context.loadError as a warning, so the failure reaches the booting program
+-      // instead of reading as "this program has nothing stored yet".
+-      const msg = `memory: ${err instanceof Error ? err.message : String(err)}`;
+-      console.error("[GSP Bootstrap] Failed to load memory state:", err);
+-      payload.memory = {
+-        status: "error",
+-        error: msg,
+-        learnedPatterns: [],
+-        contextSummary: { lastTask: null, activeWorkItems: [], handoffNotes: "", openQuestions: [] },
+-      };
+-      payload.context.loadError = payload.context.loadError ? `${payload.context.loadError}; ${msg}` : msg;
++      console.warn("[GSP Bootstrap] Failed to load memory state:", err);
+     }
+ 
+     // 6. Context — Pending tasks and unread messages.
