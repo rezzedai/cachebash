@@ -379,4 +379,19 @@ describe("L fleet paths", () => {
     const r = await callTool(w, admin, "admin_merge_accounts", { email, canonicalUid: w.tenants.A, alternateUid: "l-merge-alt2" });
     expect(r.json?.success).toBe(true);
   });
+
+  // row 22: audit reads follow L-D1. A foreign programId needs fleet.observe; no programId means the principal's own entries.
+  probe("L.audit_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.wildcard, "audit_get_audit", { programId: "beta", limit: 5 });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
+  test("L.audit_foreign_denied control: an observer reads a foreign program, and the default is the caller's own", async () => {
+    const w = world();
+    const obs = await mint(w, "vector", "probe-l-audit-observer", ["*", "fleet.observe"]);
+    const foreign = await callTool(w, obs, "audit_get_audit", { programId: "beta", limit: 5 });
+    expect(foreign.json?.success).toBe(true);
+    const own = await callTool(w, w.creds.wildcard, "audit_get_audit", { limit: 5 });
+    expect(own.json?.success).toBe(true);
+  });
 });

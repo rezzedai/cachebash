@@ -1,0 +1,13 @@
+# mutation for probe L.audit_foreign_denied: a foreign programId is read without fleet.observe
+diff --git a/src/modules/audit.ts b/src/modules/audit.ts
+--- a/src/modules/audit.ts
++++ b/src/modules/audit.ts
+@@ -37,7 +37,7 @@
+ 
+   // RD-5 PR-L row 22: a foreign programId needs literal fleet.observe; no programId means the principal's own entries.
+   const scope = resolveReadScope(auth, args.programId);
+-  if (!scope.allowed) {
++  if (Date.now() < 0) {
+     logDenial({ principal: scope.principal, tool: "audit_get_audit", subject: args.programId ?? null, code: "FOREIGN_SUBJECT" });
+     return jsonResult({ success: false, error: `Access denied: "${scope.principal}" cannot read audit for "${args.programId}"` });
+   }

@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 315 |
-| (a) lines | 291 |
+| (a) occurrences | 316 |
+| (a) lines | 292 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -95,11 +95,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `audit.getAuditHandler:args.programId`
 
-- Where: `modules/audit.ts`, handler `getAuditHandler`, expression `args.programId`, line 46 at base, 2 occurrence(s).
+- Where: `modules/audit.ts`, handler `getAuditHandler`, expression `args.programId`, line 39 at base, 3 occurrence(s).
 - Tool: audit_get_audit; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-L.
-- Binding today: isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:26.
+- Binding today: isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:27.
 - Name lists: NL-ADMIN-PROGRAMS.
-- Evidence: Gate at audit.ts:26 passes for the five isAdmin names or any key with audit.read or "*". Once past the gate, args.programId filters any program's ledger rows.
+- Evidence: Gate at audit.ts:27 passes for the five isAdmin names or any key with audit.read or "*". Once past the gate, args.programId filters any program's ledger rows.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N.
 
 ### `clu.cluIngestHandler:parsed.session_id`
@@ -894,7 +894,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 112 | ESCALATE | ISO | PR-L | false |
 | analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | ATTRIBUTION | ISO | n/a | false |
 | analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | ATTRIBUTION | ISO | n/a | false |
-| audit.getAuditHandler:args.programId | a | 2 | 46 | ESCALATE | C-5 | PR-L | false |
+| audit.getAuditHandler:args.programId | a | 3 | 39 | ESCALATE | C-5 | PR-L | false |
 | clu.cluIngestHandler:parsed.session_id | b | 1 | 92 | ESCALATE | ISO | PR-L | false |
 | clu.cluAnalyzeHandler:parsed.session_id | b | 3 | 137 | ESCALATE | ISO | PR-L | false |
 | claims.claimTaskHandler:args.sessionId | a | 5 | 96 | ESCALATE | ISO | PR-K | false |

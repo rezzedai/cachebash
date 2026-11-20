@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 315,
-    "a_lines": 291,
+    "a_occurrences": 316,
+    "a_lines": 292,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -2817,8 +2817,8 @@
       "handler": "getAuditHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 2,
-      "line_at_base": 46,
+      "occurrences": 3,
+      "line_at_base": 39,
       "tool": "audit_get_audit",
       "transports": [
         "mcp",
@@ -2826,7 +2826,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:26",
+      "binding_today": "isAdmin(auth) (name list) or hasCapability audit.read (wildcard-satisfiable), audit.ts:27",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -2835,7 +2835,7 @@
       "name_lists": [
         "NL-ADMIN-PROGRAMS"
       ],
-      "evidence": "Gate at audit.ts:26 passes for the five isAdmin names or any key with audit.read or \"*\". Once past the gate, args.programId filters any program's ledger rows.",
+      "evidence": "Gate at audit.ts:27 passes for the five isAdmin names or any key with audit.read or \"*\". Once past the gate, args.programId filters any program's ledger rows.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled. Literal membership in PR-N."
     },
     {
