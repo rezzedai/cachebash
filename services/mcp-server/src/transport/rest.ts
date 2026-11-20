@@ -931,13 +931,13 @@ const routes: Route[] = [
   route("PUT", "/v1/budget", async (auth, req, res) => {
     const body = await readBody(req);
     const data = await callTool(auth, req, "set_budget", body);
-    logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
     restResponse(res, true, data);
   }),
 
   // Admin
   route("POST", "/admin/reset-program-cache", async (auth, req, res) => {
     if (!auth.capabilities.includes("*")) {
+      logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
       return restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
     }
     const body = await readBody(req);
