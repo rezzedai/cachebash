@@ -22,19 +22,28 @@ function hashEmail(email: string): string {
   return crypto.createHash("sha256").update(email.toLowerCase().trim()).digest("hex");
 }
 
+/** Thrown when the canonical_accounts lookup fails. Callers deny the request; none may fall back to the raw uid. */
+export class TenantResolutionError extends Error {
+  readonly retryable = true;
+  constructor(uid: string, cause: unknown) {
+    super(`tenant resolution failed for uid ${uid}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = "TenantResolutionError";
+  }
+}
+
 /**
  * Resolve a UID to the canonical tenant ID.
  *
- * Queries Firestore directly — no in-memory cache.
- * Uses array-contains query on alternateUids for efficient lookup.
- * Unknown UIDs pass through as-is (don't break new signups).
+ * Queries Firestore directly, no in-memory cache. Uses array-contains on alternateUids.
+ * An unknown uid (no canonical_accounts row lists it) resolves to itself, so new signups work.
+ * A failed lookup throws TenantResolutionError: returning the raw uid on error would silently
+ * move a caller into a different, empty tenant (RD-5 amendment 4, ruling 2).
  */
 export async function resolveTenant(
   uid: string,
   db: Firestore,
 ): Promise<TenantResolution> {
   try {
-    // Check if this UID is an alternate for a canonical account
     const snapshot = await db
       .collection("canonical_accounts")
       .where("alternateUids", "array-contains", uid)
@@ -46,11 +55,28 @@ export async function resolveTenant(
       return { tenantId: canonicalUid, canonical: false, mergedFrom: uid };
     }
   } catch (err) {
-    console.error("[TenantResolver] Failed to resolve tenant:", err);
+    throw new TenantResolutionError(uid, err);
   }
 
-  // Not an alternate UID (or query failed) — pass through as-is
   return { tenantId: uid, canonical: true };
+}
+
+/**
+ * Every uid that resolves to `tenantId`: the canonical uid plus its alternates.
+ * Throws TenantResolutionError on a failed lookup.
+ */
+export async function tenantUids(tenantId: string, db: Firestore): Promise<string[]> {
+  const uids = new Set<string>([tenantId]);
+  try {
+    const snapshot = await db.collection("canonical_accounts").where("canonicalUid", "==", tenantId).get();
+    for (const doc of snapshot.docs) {
+      const alternates = doc.data().alternateUids;
+      if (Array.isArray(alternates)) for (const a of alternates) if (typeof a === "string" && a) uids.add(a);
+    }
+  } catch (err) {
+    throw new TenantResolutionError(tenantId, err);
+  }
+  return [...uids];
 }
 
 /**

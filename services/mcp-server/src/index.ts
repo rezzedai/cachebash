@@ -10,7 +10,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { CustomHTTPTransport } from "./transport/CustomHTTPTransport.js";
 import { initializeFirebase, getFirestore } from "./firebase/client.js";
-import { validateAuth, type AuthContext } from "./auth/authValidator.js";
+import { validateAuth, TenantResolutionError, type AuthContext } from "./auth/authValidator.js";
 import { generateCorrelationId, createAuditLogger } from "./middleware/gate.js";
 import { enforceRateLimit, checkAuthRateLimit, cleanupRateLimits, setRateLimitResult, consumeRateLimitResult, loadAuthCounters } from "./middleware/rateLimiter.js";
 import { cleanupExpiredRelayMessages } from "./modules/relay.js";
@@ -57,6 +57,21 @@ function extractBearerToken(header: string | undefined): string | null {
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
+}
+
+/**
+ * validateAuth that answers a failed tenant lookup itself: 503 "tenant resolution failed", retryable.
+ * Returns `denied: true` when the response is already sent. Never falls back to the raw uid.
+ */
+async function authenticate(token: string, res: http.ServerResponse): Promise<{ auth: AuthContext | null; denied: boolean }> {
+  try {
+    return { auth: await validateAuth(token), denied: false };
+  } catch (err) {
+    if (!(err instanceof TenantResolutionError)) throw err;
+    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "5" });
+    res.end(JSON.stringify({ error: "tenant resolution failed", retryable: true }));
+    return { auth: null, denied: true };
+  }
 }
 
 async function nodeToWebRequest(req: http.IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<Request> {
@@ -434,7 +449,9 @@ async function main() {
       // Public DCR (RFC 7591). If a Bearer token is presented, resolve it so
       // service-account registration stays tenant-scoped.
       const dcrToken = extractBearerToken(req.headers.authorization);
-      const dcrAuth = dcrToken ? await validateAuth(dcrToken) : null;
+      const dcr = dcrToken ? await authenticate(dcrToken, res) : { auth: null, denied: false };
+      if (dcr.denied) return;
+      const dcrAuth = dcr.auth;
       return handleOAuthRegister(req, res, dcrAuth?.userId);
     }
     if (url === "/revoke" && req.method === "POST") {
@@ -452,7 +469,9 @@ async function main() {
     if (url?.startsWith("/oauth/service-accounts")) {
       const saToken = extractBearerToken(req.headers.authorization);
       if (!saToken) return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required" });
-      const saAuth = await validateAuth(saToken);
+      const sa = await authenticate(saToken, res);
+      if (sa.denied) return;
+      const saAuth = sa.auth;
       if (!saAuth) return sendJson(res, 401, { error: "unauthorized", error_description: "Invalid token" });
       return handleServiceAccounts(req, res, saAuth);
     }
@@ -463,7 +482,9 @@ async function main() {
     if (url === "/v1/mcp/heartbeat" && req.method === "POST") {
       const token = extractBearerToken(req.headers.authorization);
       if (!token) return sendJson(res, 401, { error: "Missing Authorization header" });
-      const auth = await validateAuth(token);
+      const authn = await authenticate(token, res);
+      if (authn.denied) return;
+      const auth = authn.auth;
       if (!auth) return sendJson(res, 401, { error: "Invalid API key" });
 
       const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -691,7 +712,9 @@ async function main() {
         checkAuthRateLimit(clientIp);
         return sendJson(res, 401, { error: "Missing Authorization header" });
       }
-      const auth = await validateAuth(token);
+      const authn = await authenticate(token, res);
+      if (authn.denied) return;
+      const auth = authn.auth;
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });
@@ -862,7 +885,9 @@ async function main() {
         res.end(JSON.stringify({ error: "unauthorized", error_description: "Bearer token required" }));
         return;
       }
-      const auth = await validateAuth(token);
+      const authn = await authenticate(token, res);
+      if (authn.denied) return;
+      const auth = authn.auth;
       if (!auth) {
         if (!checkAuthRateLimit(clientIp)) {
           return sendJson(res, 429, { error: "Too many authentication attempts. Try again later." });

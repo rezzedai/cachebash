@@ -46,9 +46,26 @@ jest.mock("../auth/ownerAuthz", () => ({
   isKeyAdmin: (auth: any) => {
     const principal = auth.keyProgramId ?? auth.programId;
     if (["vector", "sark"].includes(principal)) return true;
-    return Array.isArray(auth.capabilities) && auth.capabilities.includes("keys.admin");
+    return Array.isArray(auth.capabilities) && (auth.capabilities.includes("keys.admin") || auth.capabilities.includes("fleet.admin"));
   },
 }));
+
+// Tenant resolution: alternate uid -> canonical uid, set per test. Identity by default.
+const mockAlternates: Record<string, string> = {};
+jest.mock("../auth/tenant-resolver", () => {
+  const actual = jest.requireActual("../auth/tenant-resolver");
+  return {
+    ...actual,
+    resolveTenant: jest.fn(async (uid: string) => {
+      const canonical = mockAlternates[uid];
+      return canonical ? { tenantId: canonical, canonical: false, mergedFrom: uid } : { tenantId: uid, canonical: true };
+    }),
+    tenantUids: jest.fn(async (tenantId: string) => [
+      tenantId,
+      ...Object.entries(mockAlternates).filter(([, c]) => c === tenantId).map(([a]) => a),
+    ]),
+  };
+});
 
 // Mock Firestore
 const mockDb = {
@@ -150,6 +167,7 @@ describe("Keys Module Unit Tests", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     Object.keys(mockKeyDocs).forEach((key) => delete mockKeyDocs[key]);
+    Object.keys(mockAlternates).forEach((key) => delete mockAlternates[key]);
   });
 
   describe("createKeyHandler", () => {
@@ -397,7 +415,8 @@ describe("Keys Module Unit Tests", () => {
 
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(false);
-      expect(data.error).toContain("different user");
+      expect(data.error).toBe("Key not found"); // a tenant mismatch is indistinguishable from a missing key
+      expect(mockKeyDocs["def456"].active).toBe(true);
     });
 
     it("BUG-009: DENIES revoking another program's key, naming the true principal", async () => {
@@ -532,6 +551,64 @@ describe("Keys Module Unit Tests", () => {
     it("fails if current key not found", async () => {
       // Don't seed any key
       await expect(rotateKeyHandler(mockAuth, {})).rejects.toThrow("Current key not found");
+    });
+  });
+
+  describe("RD-5 PR-E tenant resolution on the key path", () => {
+    // mockAuth: tenant "test-user-123", program "orchestrator", wildcard (not fleet admin)
+    const seed = (hash: string, userId: string, programId: string) => {
+      mockKeyDocs[hash] = { userId, programId, label: hash, active: true, capabilities: ["x"], createdAt: { toDate: () => new Date() } };
+    };
+
+    it("lists and revokes a same-program key whose raw userId is an alternate of the caller's tenant", async () => {
+      mockAlternates["alt-uid"] = "test-user-123";
+      seed("alt-key", "alt-uid", "orchestrator");
+      const list = JSON.parse((await listKeysHandler(mockAuth, {})).content[0].text);
+      expect(list.keys.map((k: any) => k.keyHash)).toEqual(["alt-key"]);
+      const rev = JSON.parse((await revokeKeyHandler(mockAuth, { keyHash: "alt-key" })).content[0].text);
+      expect(rev.success).toBe(true);
+      expect(mockKeyDocs["alt-key"].active).toBe(false);
+    });
+
+    it("never lists another tenant's keys, even for a key admin, and answers revoke with Key not found", async () => {
+      seed("own", "test-user-123", "vector");
+      seed("foreign-same-program", "other-tenant", "vector");
+      const admin = { ...mockAuth, programId: "vector", keyProgramId: "vector" } as AuthContext;
+      const list = JSON.parse((await listKeysHandler(admin, {})).content[0].text);
+      expect(list.keys.map((k: any) => k.keyHash)).toEqual(["own"]);
+      const rev = JSON.parse((await revokeKeyHandler(admin, { keyHash: "foreign-same-program" })).content[0].text);
+      expect(rev).toEqual({ success: false, error: "Key not found" });
+      expect(mockKeyDocs["foreign-same-program"].active).toBe(true);
+    });
+
+    it("a fleet.admin holder lists the whole resolved tenant including alternate-uid keys", async () => {
+      mockAlternates["alt-uid"] = "test-user-123";
+      seed("a", "test-user-123", "iso");
+      seed("b", "alt-uid", "dispatcher");
+      seed("c", "other-tenant", "iso");
+      const admin = { ...mockAuth, capabilities: ["fleet.admin"] } as AuthContext;
+      const list = JSON.parse((await listKeysHandler(admin, {})).content[0].text);
+      expect(list.keys.map((k: any) => k.keyHash).sort()).toEqual(["a", "b"]);
+    });
+
+    it("a failed tenant lookup returns a retryable error and changes nothing", async () => {
+      const { resolveTenant } = jest.requireMock("../auth/tenant-resolver");
+      const { TenantResolutionError } = jest.requireActual("../auth/tenant-resolver");
+      seed("own", "test-user-123", "orchestrator");
+      const original = (resolveTenant as jest.Mock).getMockImplementation()!;
+      (resolveTenant as jest.Mock).mockRejectedValue(new TenantResolutionError("test-user-123", new Error("unavailable")));
+      const err = jest.spyOn(console, "error").mockImplementation(() => {});
+      let rev, list;
+      try {
+        rev = JSON.parse((await revokeKeyHandler(mockAuth, { keyHash: "own" })).content[0].text);
+        list = JSON.parse((await listKeysHandler(mockAuth, {})).content[0].text);
+      } finally {
+        err.mockRestore();
+        (resolveTenant as jest.Mock).mockImplementation(original);
+      }
+      expect(rev).toEqual({ success: false, error: "tenant resolution failed", retryable: true });
+      expect(list).toEqual({ success: false, error: "tenant resolution failed", retryable: true });
+      expect(mockKeyDocs["own"].active).toBe(true);
     });
   });
 

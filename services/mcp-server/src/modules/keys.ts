@@ -9,7 +9,9 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
-import { isKeyProvisioner, disallowedMintCapabilities, isKeyAdmin, credentialPrincipal } from "../auth/ownerAuthz.js";
+import { isKeyProvisioner, disallowedMintCapabilities } from "../auth/ownerAuthz.js";
+import { authorizeKeySubject, tenantResolver } from "../auth/authorize.js";
+import { TenantResolutionError, tenantUids } from "../auth/tenant-resolver.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
 
@@ -19,6 +21,15 @@ function generateApiKey(): string {
 
 function hashKey(key: string): string {
   return crypto.createHash("sha256").update(key).digest("hex");
+}
+
+function jsonResult(body: Record<string, unknown>) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(body) }] };
+}
+
+function tenantResolutionFailed(err: unknown) {
+  console.error(JSON.stringify({ event: "TENANT_RESOLUTION_FAILED", path: "keys", error: err instanceof Error ? err.message : String(err) }));
+  return jsonResult({ success: false, error: "tenant resolution failed", retryable: true });
 }
 
 /**
@@ -154,25 +165,23 @@ export async function revokeKeyHandler(auth: AuthContext, args: any) {
     };
   }
 
+  // RD-5 C-2: one function decides. A tenant mismatch answers like a missing key, so the hash
+  // is no existence oracle across tenants. Program names repeat across tenants, so the program
+  // comparison alone never authorizes.
   const data = keyDoc.data();
-  if (data?.userId !== auth.userId) {
-    return {
-      content: [{ type: "text", text: JSON.stringify({ success: false, error: "Key belongs to a different user" }) }],
-    };
+  let decision;
+  try {
+    decision = await authorizeKeySubject(auth, data ?? {}, tenantResolver(db));
+  } catch (err) {
+    if (err instanceof TenantResolutionError) return tenantResolutionFailed(err);
+    throw err;
   }
-
-  // BUG-009: tenant-uid equality above is NOT authorization — the whole fleet is
-  // one tenant, so it is satisfied by every cb_ key. Authorize on the PRINCIPAL:
-  // a program may revoke only its own keys, unless it is an explicit key admin.
-  const principal = credentialPrincipal(auth);
-  const targetProgramId = data?.programId;
-  if (targetProgramId !== principal && !isKeyAdmin(auth)) {
-    return {
-      content: [{ type: "text", text: JSON.stringify({
-        success: false,
-        error: `Access denied: "${principal}" cannot revoke a key belonging to "${targetProgramId}"`,
-      }) }],
-    };
+  if (!decision.allowed) {
+    if (decision.reason === "tenant") return jsonResult({ success: false, error: "Key not found" });
+    return jsonResult({
+      success: false,
+      error: `Access denied: "${decision.principal}" cannot revoke a key belonging to "${decision.subject}"`,
+    });
   }
 
   await keyRef.update({
@@ -261,20 +270,32 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
   const db = getFirestore();
   const { includeRevoked } = args || {};
 
-  // Query all apiKeys docs for this user
-  let query = db.collection("keyIndex").where("userId", "==", auth.userId);
+  // Candidates: every keyIndex row whose raw userId is the caller's tenant OR an alternate uid of it
+  // (the old dispatcher key lives in an alternate). authorizeKeySubject then decides each row;
+  // the query only bounds the read to this tenant.
+  const tenantOf = tenantResolver(db);
+  let docs: any[];
+  let decisions: Map<string, boolean>;
+  try {
+    const uids = await tenantUids(await tenantOf(auth.userId), db);
+    const byId = new Map<string, any>();
+    for (const uid of uids) {
+      const snapshot = await db.collection("keyIndex").where("userId", "==", uid).get();
+      for (const doc of snapshot.docs) byId.set(doc.id, doc);
+    }
+    docs = [...byId.values()];
+    decisions = new Map();
+    for (const doc of docs) {
+      decisions.set(doc.id, (await authorizeKeySubject(auth, doc.data(), tenantOf)).allowed);
+    }
+  } catch (err) {
+    if (err instanceof TenantResolutionError) return tenantResolutionFailed(err);
+    throw err;
+  }
 
-  const snapshot = await query.get();
-
-  // BUG-009: an ordinary program key must not receive a fleet keyHash inventory
-  // (keyHash is exactly the argument keys_revoke_key takes). Own keys only,
-  // unless the caller is an explicit key admin.
-  const principal = credentialPrincipal(auth);
-  const fleetWide = isKeyAdmin(auth);
-
-  const keys = snapshot.docs
-    .filter((doc: any) => fleetWide || (doc.data().programId || "legacy") === principal)
-    .map((doc) => {
+  const keys = docs
+    .filter((doc: any) => decisions.get(doc.id) === true)
+    .map((doc: any) => {
       const data = doc.data();
       return {
         keyHash: doc.id,

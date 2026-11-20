@@ -5,7 +5,7 @@
 
 import http from "http";
 import { ZodError } from "zod";
-import { validateAuth, type AuthContext } from "../auth/authValidator.js";
+import { validateAuth, TenantResolutionError, type AuthContext } from "../auth/authValidator.js";
 import { TOOL_HANDLERS } from "../tools.js";
 import { logToolCall } from "../modules/ledger.js";
 import { traceToolCall } from "../modules/trace.js";
@@ -1000,7 +1000,14 @@ export function createRestRouter(): (req: http.IncomingMessage, res: http.Server
       checkAuthRateLimit(clientIp);
       return restResponse(res, false, { code: "UNAUTHORIZED", message: "Missing Authorization header" }, 401);
     }
-    const auth = await validateAuth(token);
+    let auth: AuthContext | null;
+    try {
+      auth = await validateAuth(token);
+    } catch (err) {
+      if (!(err instanceof TenantResolutionError)) throw err;
+      res.setHeader("Retry-After", "5");
+      return restResponse(res, false, { code: "TENANT_RESOLUTION_FAILED", message: "tenant resolution failed", retryable: true }, 503);
+    }
     if (!auth) {
       // Only count FAILED auth attempts against IP rate limit
       if (!checkAuthRateLimit(clientIp)) {

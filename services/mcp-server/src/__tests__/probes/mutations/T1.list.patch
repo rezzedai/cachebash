@@ -1,12 +1,12 @@
-# mutation for probe T1.list: every caller lists the whole tenant's keys
-diff --git a/src/modules/keys.ts b/src/modules/keys.ts
-index 3965e25..236267c 100644
+# mutation for probe T1.list: every caller lists the whole tenant's keys (the per-row authorization result is ignored)
 --- a/src/modules/keys.ts
 +++ b/src/modules/keys.ts
-@@ -271,5 +271,5 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
-   // unless the caller is an explicit key admin.
-   const principal = credentialPrincipal(auth);
--  const fleetWide = isKeyAdmin(auth);
-+  const fleetWide = true;
- 
-   const keys = snapshot.docs
+@@ -286,7 +286,7 @@
+     docs = [...byId.values()];
+     decisions = new Map();
+     for (const doc of docs) {
+-      decisions.set(doc.id, (await authorizeKeySubject(auth, doc.data(), tenantOf)).allowed);
++      decisions.set(doc.id, (await authorizeKeySubject(auth, doc.data(), tenantOf), true));
+     }
+   } catch (err) {
+     if (err instanceof TenantResolutionError) return tenantResolutionFailed(err);

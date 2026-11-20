@@ -1,0 +1,12 @@
+# mutation for probe T6.alt_uid_keys: the key document's userId is compared raw, so an alternate-uid key falls outside the tenant
+--- a/src/auth/authorize.ts
++++ b/src/auth/authorize.ts
+@@ -57,7 +57,7 @@
+   const docUid = typeof keyDoc.userId === "string" ? keyDoc.userId : "";
+   if (!docUid) return { allowed: false, reason: "tenant", principal, subject };
+ 
+-  const [callerTenant, docTenant] = await Promise.all([tenantOf(auth.userId), tenantOf(docUid)]);
++  const [callerTenant, docTenant] = await Promise.all([tenantOf(auth.userId), Promise.resolve(docUid)]);
+   if (callerTenant !== docTenant) return { allowed: false, reason: "tenant", principal, subject };
+ 
+   if (subject === principal) return { allowed: true, via: "self", principal, subject };
