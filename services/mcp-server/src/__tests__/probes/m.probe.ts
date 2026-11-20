@@ -434,3 +434,32 @@ describe("M sessions routes (rows 4 and 5)", () => {
     expect(r.text).not.toContain(marker("A", "beta"));
   });
 });
+
+describe("M sprints active (row 6)", () => {
+  const newSprint = async (w: World, cred: WorldCredential): Promise<string> => {
+    const r = await callTool(w, cred, "sprint_create_sprint", { projectName: `m-${nextN()}`, branch: "m", stories: [{ id: "s1", title: "m-story" }] });
+    const id = (r.json?.sprintId ?? r.json?.id) as string | undefined;
+    if (!id) throw new Error(`sprint setup failed: ${r.text.slice(0, 300)}`);
+    return id;
+  };
+  probe("M.sprints_active_filtered", async () => {
+    const w = world();
+    const beta = await mint(w, "beta", "probe-m-beta-sprint", ["*"]);
+    const theirs = await newSprint(w, beta);
+    const mine = await newSprint(w, w.creds.scoped);
+    const r = await rest(w, w.creds.scoped, "GET", "/v1/sprints/active");
+    expect(r.httpStatus).toBe(200);
+    const ids = (r.json?.data?.sprints ?? []).map((s: any) => s.id);
+    expect(ids).toContain(mine);
+    expect(ids).not.toContain(theirs);
+  });
+  test("M.sprints_active_filtered control: the creator sees its sprint and the phone sees both", async () => {
+    const w = world();
+    const beta = await mint(w, "beta", "probe-m-beta-sprint-ctl", ["*"]);
+    const theirs = await newSprint(w, beta);
+    const own = await rest(w, beta, "GET", "/v1/sprints/active");
+    expect((own.json?.data?.sprints ?? []).map((s: any) => s.id)).toContain(theirs);
+    const all = await rest(w, phone(w), "GET", "/v1/sprints/active");
+    expect((all.json?.data?.sprints ?? []).map((s: any) => s.id)).toContain(theirs);
+  });
+});

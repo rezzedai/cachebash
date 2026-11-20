@@ -26,6 +26,7 @@ import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { generateOpenApiSpec } from "../modules/openapi.js";
 import { enrollHandler } from "../modules/enrollment.js";
 import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { mayActOnSprint } from "../modules/sprint.js";
 import { authorizeTasksRead } from "../modules/dispatch/tasks.js";
 import { FieldValue, Timestamp, Query } from "firebase-admin/firestore";
 
@@ -599,7 +600,10 @@ const routes: Route[] = [
     restResponse(res, true, data);
   }),
   route("GET", "/v1/sprints/active", async (auth, req, res) => {
-    if (!requireAdmin(auth, res)) return;
+    // RD-5 PR-M row 6 (GATE sprint_get_sprint): the capability gate, then each sprint must pass mayActOnSprint(read) on
+    // credentialPrincipal(auth). A sprint the caller may not read is dropped from the list; there is no per-item denial.
+    await enforceBreaker(auth, "sprint_get_sprint");
+    const principal = credentialPrincipal(auth);
     const db = getFirestore();
     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
     const snap = await tasksRef
@@ -609,7 +613,8 @@ const routes: Route[] = [
       .limit(10)
       .get();
 
-    const sprints = await Promise.all(snap.docs.map(async (doc: any) => {
+    const readable = snap.docs.filter((doc: any) => mayActOnSprint(auth, principal, doc.data(), "read"));
+    const sprints = await Promise.all(readable.map(async (doc: any) => {
       const data = doc.data();
       // Fetch stories for this sprint
       const storiesSnap = await tasksRef
