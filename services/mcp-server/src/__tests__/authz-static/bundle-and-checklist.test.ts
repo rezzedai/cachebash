@@ -110,9 +110,11 @@ describe("authz-static: records are well-formed", () => {
     expect(problems).toEqual([]);
   });
 
-  test("the C-5 table third column is left for ISO", () => {
+  test("the C-5 table third column carries ISO's measurement for every list", () => {
     const md = renderChecklist(doc);
-    expect(md).toContain("| pending ISO |");
+    expect(md).not.toContain("pending ISO");
+    expect(md).toContain("EVIDENCE-rd5-c5-usage.md");
+    for (const n of doc.name_lists) expect(n.usage_30d.length).toBeGreaterThan(0);
   });
 });
 

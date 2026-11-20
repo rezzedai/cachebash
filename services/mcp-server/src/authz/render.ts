@@ -203,13 +203,13 @@ export function renderChecklist(doc: AuthzSites): string {
   // C-5
   L.push("## C-5 table: hardcoded name lists");
   L.push("");
-  L.push("Columns 1 and 2 come from code. Column 3 is filled by ISO from the audit ledger. No list is deleted before VECTOR rules per identity.");
+  L.push(`Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measurement (source: \`${doc.c5_usage_source.file}\` in ${doc.c5_usage_source.repo}, merged ${doc.c5_usage_source.merged}). ${doc.c5_usage_source.caveat} No list is deleted before VECTOR rules per identity.`);
   L.push("");
   L.push("| Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |");
   L.push("|---|---|---|");
   for (const n of doc.name_lists) {
     const members = n.members.length ? n.members.join(", ") : "env-driven";
-    L.push(`| ${cell(n.id)} ${code(n.file + ":" + n.line)} [${cell(members)}] (${n.layer}) | ${cell(n.guards.join(", "))} | pending ISO |`);
+    L.push(`| ${cell(n.id)} ${code(n.file + ":" + n.line)} [${cell(members)}] (${n.layer}) | ${cell(n.guards.join(", "))} | ${cell(n.usage_30d)} |`);
   }
   L.push("");
   L.push("### Name list notes");

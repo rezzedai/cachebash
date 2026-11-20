@@ -20,9 +20,9 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | FOREIGN-READ | 1 |
 | FOREIGN-WRITE | 1 |
 | ADDRESSED | 5 |
-| ATTRIBUTION | 8 |
-| NOT-IDENTITY | 7 |
-| ESCALATE | 91 |
+| ATTRIBUTION | 9 |
+| NOT-IDENTITY | 5 |
+| ESCALATE | 92 |
 | **Total** | **114** |
 
 Status: pending 114.
@@ -73,7 +73,7 @@ Sites are keyed by handler and expression, not by line. `line_at_base` is the fi
 | NOT-IDENTITY | regex hit that is not a caller argument, with the reason |
 | ESCALATE | disposition not readable from the code; evidence and a recommendation given, ISO and VECTOR decide |
 
-## ESCALATE (91)
+## ESCALATE (92)
 
 Each record gives the evidence and a recommendation. The builder picks nothing; ISO reviews every record and VECTOR reviews ESCALATE, ADDRESSED and ATTRIBUTION.
 
@@ -115,15 +115,15 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/clu.ts`, handler `cluAnalyzeHandler`, expression `parsed.session_id`, line 137 at base, 3 occurrence(s).
 - Tool: clu_analyze; transports mcp; effect read; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: clu.ts:137, :159, :166 select the ingestion document by parsed.session_id inside the tenant; nothing compares it to the caller.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
+- Evidence: The handler reads nothing from the id (clu.ts:125-175). It writes caller data to clu_sessions/{id}/analyses (clu.ts:155-162) under a caller-chosen id; nothing compares the id to the caller.
+- Recommendation: Write family: FOREIGN-WRITE on literal fleet.admin for another principal's clu session; SELF-ONLY when unruled. No FOREIGN-READ applies because the handler reads no document by this id.
 
 ### `claims.claimTaskHandler:args.sessionId`
 
 - Where: `modules/dispatch/claims.ts`, handler `claimTaskHandler`, expression `args.sessionId`, line 76 at base, 6 occurrence(s).
 - Tool: dispatch_claim_task; transports mcp, rest, iso; effect write; decided by ISO; closes in PR-K.
 - Binding today: claimedBy === auth.programId for re-claim; sessionId unbound (claims.ts:75-80).
-- Evidence: args.sessionId is stored on the claim (claims.ts:99) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
+- Evidence: args.sessionId is stored on the claim (claims.ts:96 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
 - Recommendation: Remove sessionId from every authorization comparison; claimedBy is the owner. Label sessionId ATTRIBUTION after that.
 
 ### `claims.batchClaimTasksHandler:args.sessionId`
@@ -131,7 +131,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/dispatch/claims.ts`, handler `batchClaimTasksHandler`, expression `args.sessionId`, line 292 at base, 4 occurrence(s).
 - Tool: dispatch_batch_claim_tasks; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
 - Binding today: same as dispatch_claim_task (claims.ts:293).
-- Evidence: args.sessionId is stored on the claim (claims.ts:99) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
+- Evidence: args.sessionId is stored on the claim (claims.ts:311 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.
 - Recommendation: Same as dispatch_claim_task.
 
 ### `dispatchHandler.dispatchHandler:args.source`
@@ -195,11 +195,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 ### `tasks.getTasksHandler:args.target`
 
 - Where: `modules/dispatch/tasks.ts`, handler `getTasksHandler`, expression `args.target`, line 154 at base, 3 occurrence(s).
-- Tool: dispatch_get_tasks; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
+- Tool: dispatch_get_tasks; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K (after iso and the dispatcher hold fleet.observe).
 - Binding today: none when target is supplied; self-default when absent unless legacy, mobile or dispatcher (tasks.ts:154-160).
 - Name lists: NL-GETTASKS-DEFAULT.
 - Evidence: tasks.ts:154 filters by any target without comparison. tasks.ts:157-158 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.
-- Recommendation: FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. The dispatcher's use needs the C-5 table.
+- Recommendation: FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. Order matters: the flip lands only after iso and the dispatcher hold literal fleet.observe. Today only vector and sark hold it (ownerAuthz.ts:149-152), so an earlier flip denies the dispatcher poll and iso. The dispatcher's use also needs the C-5 ruling.
 
 ### `tasks.createTaskHandler:args.source`
 
@@ -323,7 +323,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/pulse.ts`, handler `createSessionHandler`, expression `args.sessionId`, line 86 at base, 1 occurrence(s).
 - Tool: pulse_create_session; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
 - Binding today: none.
-- Evidence: pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller.
+- Evidence: pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:133), so it overwrites any program's existing session document.
 - Recommendation: Require the session id prefix to equal the principal, as update_session does (SELF-ONLY).
 
 ### `pulse.createSessionHandler:args.programId`
@@ -400,7 +400,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Binding today: post-query filter t === auth.programId or "all" unless legacy, mobile or dispatcher (relay.ts:472-480); silent empty, no denial.
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: args.sessionId is the fallback requestedTarget (relay.ts:474). Reads and, by default, marks messages delivered.
-- Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a).
+- Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:477): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows.
 
 ### `relay.getMessagesHandler:args.target`
 
@@ -409,7 +409,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Binding today: same as args.sessionId record.
 - Name lists: NL-RELAY-GETMSG.
 - Evidence: relay.ts:474, same filter. For the three named credentials the filter honours the requested target.
-- Recommendation: Same as the args.sessionId record.
+- Recommendation: Same as the args.sessionId record, including the dispatcher exemption (relay.ts:477, C-5 rule 1).
 
 ### `relay.getSentMessagesHandler:args.source`
 
@@ -470,13 +470,13 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Evidence: schedule.ts:296 re-targets a schedule found by id. No createdBy comparison.
 - Recommendation: SELF-ONLY on createdBy; FOREIGN-WRITE on literal fleet.admin.
 
-### `signal.writeAlertDocs:input.source`
+### `sprint.createSprintHandler:args.sessionId`
 
-- Where: `modules/signal.ts`, handler `writeAlertDocs`, expression `input.source`, line 213 at base, 2 occurrence(s).
-- Tool: signal_send_alert; transports mcp, rest, iso; effect write; decided by ISO; closes in PR-L.
-- Binding today: none.
-- Evidence: signal.ts:213 stores input.source (default "program") as the relay source. sendAlertHandler (signal.ts:274) was read for the value passed; the source it passes was not established.
-- Recommendation: Bind to credentialPrincipal (ADDRESSED-style sender binding) once the caller value is confirmed.
+- Where: `modules/sprint.ts`, handler `createSprintHandler`, expression `args.sessionId`, line 183 at base, 1 occurrence(s).
+- Tool: sprint_create_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
+- Binding today: none; stored on the active sprint task (sprint.ts:183) and read as claim ownership.
+- Evidence: sprint.ts:183 stores args.sessionId on a task with status "active". completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.
+- Recommendation: Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164), so no owner check can substitute.
 
 ### `trace.queryTracesHandler:args.programId`
 
@@ -494,6 +494,14 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Binding today: none in function; callers: relay.ts:302, dispatch, index.ts:623.
 - Evidence: wakeTarget takes a tenant userId, a target and a callerSource label and has no principal parameter. Callers pass a validated target (ADDRESSED) or a service-account request (index.ts:611).
 - Recommendation: ADDRESSED for target, ATTRIBUTION for callerSource; the open item is the internal route's lack of a principal (see the index.ts record).
+
+### `CustomHTTPTransport.(module):parsed.sessionId`
+
+- Where: `transport/CustomHTTPTransport.ts`, handler `(module)`, expression `parsed.sessionId`, line 130 at base, 9 occurrence(s).
+- Tool: none; transports none; effect read; decided by ISO; closes in ISO-assign.
+- Binding today: none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:147-150).
+- Evidence: parsed.sessionId comes from a caller-chosen header. An invalid id proceeds under Bearer auth (:147-150). A heartbeat updates sessions/{header}.lastHeartbeat for any program in the tenant (:159). DELETE removes any mcp_sessions document in the tenant (:230). It is an identity-selecting argument, not protocol framing alone.
+- Recommendation: Bind the header id to the principal that created the MCP session (SELF-ONLY on session ownership) before the heartbeat write and the DELETE. ISO to assign the PR.
 
 ### `rest.route GET /v1/tasks/stats:query.target`
 
@@ -753,81 +761,81 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/policy.ts`, handler `createPolicy`, expression `args.id`, line n/a at base, 1 occurrence(s).
 - Tool: policy_create; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:96-107).
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.updatePolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `updatePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_update; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: updatePolicy edits any policy by id; no owner comparison.
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.deletePolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `deletePolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_delete; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: deletePolicy removes any policy by id; no owner comparison.
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy.
 
 ### `policy.getPolicy:args.policyId`
 
 - Where: `modules/policy.ts`, handler `getPolicy`, expression `args.policyId`, line n/a at base, 1 occurrence(s).
 - Tool: policy_get; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: getPolicy returns any policy by id.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `policy.listPolicies:(tenant-wide)`
 
 - Where: `modules/policy.ts`, handler `listPolicies`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
 - Tool: policy_list; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: listPolicies returns every policy in the tenant; no identifier argument.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `policy.policyCheck:(tenant-wide)`
 
 - Where: `modules/policy.ts`, handler `policyCheck`, expression `(tenant-wide)`, line n/a at base, 1 occurrence(s).
 - Tool: policy_check; transports mcp; effect read; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the stored creator is the tenant uid (policy.ts:208, :285), not a program.
 - Evidence: policyCheck evaluates caller-supplied action fields against every tenant policy; no identifier selects data.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+- Recommendation: No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy.
 
 ### `sprint.updateStoryHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `updateStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_update_sprint_story; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
-- Evidence: updateStoryHandler mutates a story in any sprint id; programId is recorded (sprint.ts:331) but not compared.
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Evidence: updateStoryHandler mutates a story in any sprint id. The sprint document stores source "orchestrator" (sprint.ts:164) and no creator; sprint.ts:331 is a TASK_RETRIED event that carries auth.programId, not a stored owner.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.addStoryHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `addStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_add_story_to_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
 - Evidence: addStoryHandler adds a story to any sprint id; no owner comparison.
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.completeSprintHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `completeSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_complete_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
 - Evidence: completeSprintHandler completes any sprint id; no owner comparison.
-- Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.getSprintHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `getSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_get_sprint; transports mcp, rest, iso; effect read; decided by ISO; closes in PR-L.
-- Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
 - Evidence: getSprintHandler returns any sprint by id; reachable on the ISO transport.
-- Recommendation: FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first.
 
 ### `signal.getResponseHandler:args.questionId`
 
@@ -857,32 +865,31 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:172-190) | The argument names the recipient. The sender is bound by verifySource at relay.ts:140. |
 | relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:971-976 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
-## ATTRIBUTION (8)
+## ATTRIBUTION (9)
 
 Each label claims no gate is needed, so ISO reviews each one individually.
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| index.main:params.callerSource | none | none; stored as caller_source (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286). It selects no document. |
+| index.main:params.callerSource | none | none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document. |
+| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity. |
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:530, :538 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
 | rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:78) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
-| relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:233) | relay.ts:233 stores sessionId on the message; relay.ts:368 passes it to the Slack bridge call. It selects no existing document. |
+| relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:233) | relay.ts:233 stores sessionId on the message. relay.ts:368 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:219) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:279) | Passed into writeAlertDocs as a stored label; selects nothing. |
-| sprint.createSprintHandler:args.sessionId | sprint_create_sprint | none; stored on sprint (sprint.ts:183) | Stored as a label on the sprint document; selects nothing. |
 | rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:937) | rest.ts:939 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
-## NOT-IDENTITY (7)
+## NOT-IDENTITY (5)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| analytics.emitAnalyticsEvent:params.programId | none | n/a: internal emit helper | emitAnalyticsEvent is a server-internal helper. Its callers build params from AuthContext and task data; no transport passes request arguments in as params. |
-| analytics.emitAnalyticsEvent:params.sessionId | none | n/a: internal emit helper | emitAnalyticsEvent is a server-internal helper. Its callers build params from AuthContext and task data; no transport passes request arguments in as params. |
 | suggestion.suggestTargetHandler:p.programId | dispatch_suggest_target | n/a | suggestion.ts:87 is a map callback variable over ranked program rows, not a request argument. |
 | patternConsolidation.consolidatePatternsHandler:p.programId | pattern_consolidate | n/a | patternConsolidation.ts:238 and :313 are loop variables over program documents, not request arguments (recon section 8). |
 | programRegistry.listProgramsHandler:p.programId | programs_list_programs | n/a | programRegistry.ts:374 is a map callback variable over registry rows. |
+| signal.writeAlertDocs:input.source | signal_send_alert | n/a: sendAlertHandler passes no source; the schedule executor passes a literal | sendAlertHandler passes no source (signal.ts:274-280), so the default "program" applies. schedule-executor.ts:199 and :208 pass the literal "watchdog". No caller-chosen value reaches input.source. |
 | callback.isAllowedPrincipal:p.uid | none | n/a | p is the OAuth principal under test, compared to an env allowlist (callback.ts:48). The list gates OAuth sign-in, not a tool handler. |
-| CustomHTTPTransport.(module):parsed.sessionId | none | n/a | parsed.sessionId is the MCP protocol session id in transport framing, not a program or session argument (recon section 8). |
 
 ## SELF-ONLY (1)
 
@@ -894,13 +901,13 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:640-653); memory omitted cross-program (:678) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
+| gsp.gspBootstrapHandler:args.agentId | gsp_bootstrap | authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:641-654); memory omitted cross-program (:679) | Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status. |
 
 ## FOREIGN-WRITE (1)
 
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
-| keys.createKeyHandler:programId | keys_create_key | literal keys.provision via isKeyProvisioner (keys.ts:36) | keys.ts:36 is a literal capability gate, not a name list. The handler mints a key for any programId. createKey defaults capabilities to ["*"] at keys.ts:64 (amendment 2). |
+| keys.createKeyHandler:programId | keys_create_key | literal keys.provision via isKeyProvisioner (keys.ts:36; KEY_PROVISION_CAPABILITY, ownerAuthz.ts:51-53); a "*" key fails the literal includes and cannot mint | The real gate is the literal keys.provision capability (keys.ts:36, ownerAuthz.ts:51-53), not a name list and not fleet.admin. The handler mints a key for any programId. FOREIGN-WRITE in the vocabulary names fleet.admin as its widening capability, so this record is FOREIGN-WRITE with a different literal capability; the PR that closes it decides whether keys.provision is renamed or kept. createKey defaults capabilities to ["*"] at keys.ts:64 (amendment 2). |
 
 ## Sites the regexes cannot see
 
@@ -938,16 +945,16 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | schedule.getScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 | schedule.deleteScheduleHandler:args.scheduleId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 | webhook.webhookDeleteHandler:args.webhookId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.createPolicy:args.id | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.updatePolicy:args.policyId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.deletePolicy:args.policyId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.getPolicy:args.policyId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
-| sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
+| policy.createPolicy:args.id | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.updatePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.deletePolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.getPolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
+| sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
 | signal.getResponseHandler:args.questionId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 
 ### 4. Memory fan-out in gsp_search (gsp.ts:1897-1901)
@@ -965,8 +972,8 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | index.main:params.target | b | 2 | 613 | ESCALATE | ISO | ISO-assign | false |
 | index.main:params.callerSource | b | 1 | 630 | ATTRIBUTION | ISO | n/a | false |
 | ack-compliance.getAckComplianceHandler:args.programId | a | 3 | 112 | ESCALATE | ISO | PR-L | false |
-| analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | NOT-IDENTITY | ISO | n/a | false |
-| analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | NOT-IDENTITY | ISO | n/a | false |
+| analytics.emitAnalyticsEvent:params.programId | b | 2 | 78 | ATTRIBUTION | ISO | n/a | false |
+| analytics.emitAnalyticsEvent:params.sessionId | b | 2 | 79 | ATTRIBUTION | ISO | n/a | false |
 | audit.getAuditHandler:args.programId | a | 2 | 44 | ESCALATE | C-5 | PR-L | false |
 | clu.cluIngestHandler:parsed.session_id | b | 1 | 92 | ESCALATE | ISO | PR-L | false |
 | clu.cluAnalyzeHandler:parsed.session_id | b | 3 | 137 | ESCALATE | ISO | PR-L | false |
@@ -982,7 +989,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | interventions.unquarantineProgramHandler:args.programId | a | 7 | 571 | ESCALATE | ISO | PR-L | false |
 | interventions.replayTaskHandler:args.newTarget | b | 7 | 639 | ESCALATE | ISO | PR-L | false |
 | suggestion.suggestTargetHandler:p.programId | b | 1 | 87 | NOT-IDENTITY | ISO | n/a | false |
-| tasks.getTasksHandler:args.target | a | 3 | 154 | ESCALATE | C-5 | PR-K | false |
+| tasks.getTasksHandler:args.target | a | 3 | 154 | ESCALATE | C-5 | PR-K (after iso and the dispatcher hold fleet.observe) | false |
 | tasks.createTaskHandler:args.source | a | 1 | 408 | ESCALATE | C-5 | PR-K | false |
 | tasks.createTaskHandler:args.target | a | 10 | 411 | ADDRESSED | ISO | PR-K | false |
 | gsp.gspWriteHandler:args.source | a | 1 | 432 | ESCALATE | C-5 | PR-L | false |
@@ -1025,14 +1032,14 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | schedule.paginateAndFilter:args.target | a | 2 | 186 | ESCALATE | ISO | PR-L | false |
 | schedule.listSchedulesHandler:args.target | a | 3 | 200 | ESCALATE | ISO | PR-L | false |
 | schedule.updateScheduleHandler:args.target | a | 2 | 296 | ESCALATE | ISO | PR-L | false |
-| signal.writeAlertDocs:input.source | b | 2 | 213 | ESCALATE | ISO | PR-L | false |
+| signal.writeAlertDocs:input.source | b | 2 | 213 | NOT-IDENTITY | ISO | n/a | false |
 | signal.writeAlertDocs:input.sessionId | b | 1 | 219 | ATTRIBUTION | ISO | n/a | false |
 | signal.sendAlertHandler:args.sessionId | a | 1 | 279 | ATTRIBUTION | ISO | n/a | false |
-| sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ATTRIBUTION | ISO | n/a | false |
+| sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ESCALATE | ISO | PR-K | false |
 | trace.queryTracesHandler:args.programId | a | 2 | 215 | ESCALATE | C-5 | PR-L | false |
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
 | callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
-| CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | NOT-IDENTITY | ISO | n/a | false |
+| CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
 | rest.route GET /v1/tasks/stats:query.target | a | 1 | 323 | ESCALATE | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:query.sessionId | a | 2 | 422 | ESCALATE | ISO | PR-M | false |
 | rest.route GET /v1/messages:query.sessionId | a | 1 | 449 | ESCALATE | C-5 | PR-K | false |
@@ -1245,33 +1252,33 @@ Namespace and key authority inside the tenant is an authorization question and h
 
 ## C-5 table: hardcoded name lists
 
-Columns 1 and 2 come from code. Column 3 is filled by ISO from the audit ledger. No list is deleted before VECTOR rules per identity.
+Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measurement (source: `grid/specs/EVIDENCE-rd5-c5-usage.md` in rezzedai/grid, merged f98406ff). The ledger records only calls through callTool. The dispatcher, legacy and mobile show 0 rows because the direct REST routes write no ledger row, so a zero does not show a principal never calls the path. programId is auth.programId, mutable while the override path exists (PR-H). Counts are even, so compare ratios. VECTOR rules per identity in grid plan amendment 3; no name list changes here. No list is deleted before VECTOR rules per identity.
 
 | Name list (file:line, members) | Handlers it guards | Principals that called it in the last 30 days |
 |---|---|---|
-| NL-STATE-READERS `config/access-tiers.ts:9` [orchestrator, vector, iso, auditor, dispatcher] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history | pending ISO |
-| NL-STATE-WRITERS `config/access-tiers.ts:12` [legacy, mobile] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history, state_store_memory, state_update_program_state, state_delete_memory, state_reinforce_memory | pending ISO |
-| NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | pending ISO |
-| NL-ADMIN-PROGRAMS `middleware/gate.ts:131` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | pending ISO |
-| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:163` [legacy, mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | pending ISO |
-| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/completion.ts:537` [iso, orchestrator, legacy, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | pending ISO |
-| NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | pending ISO |
-| NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:157` [legacy, mobile, dispatcher] (handler) | dispatch_get_tasks | pending ISO |
-| NL-REGISTRY-ADMIN `modules/programRegistry.ts:399` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | pending ISO |
-| NL-PULSE-PRIV `modules/pulse.ts:210` [legacy, mobile, dispatcher] (handler) | pulse_update_session | pending ISO |
-| NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:144` [legacy, mobile] (routing) | pulse_create_session, pulse_update_session | pending ISO |
-| NL-RELAY-GETMSG `modules/relay.ts:477` [legacy, mobile, dispatcher] (handler) | relay_get_messages | pending ISO |
-| NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | pending ISO |
-| NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | pending ISO |
-| NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | pending ISO |
-| NL-GSP-SEED-AUTH `modules/gsp.ts:1189` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | pending ISO |
-| NL-KEY-ADMIN `auth/ownerAuthz.ts:114` [vector, sark] (handler) | keys_list_keys, keys_revoke_key | pending ISO |
-| NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | pending ISO |
-| NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | pending ISO |
-| NL-GSP-REVIEWERS `modules/gsp.ts:609` [iso, vector] (routing) | gsp_propose | pending ISO |
-| NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | pending ISO |
-| NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | pending ISO |
-| NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | pending ISO |
+| NL-STATE-READERS `config/access-tiers.ts:9` [orchestrator, vector, iso, auditor, dispatcher] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history | members seen: vector 18, iso 76; non-members: basher 178, vector_datatrue 4, tensor 2 |
+| NL-STATE-WRITERS `config/access-tiers.ts:12` [legacy, mobile] (handler) | state_get_program_state, state_recall_memory, state_memory_health, state_get_context_history, state_store_memory, state_update_program_state, state_delete_memory, state_reinforce_memory | members seen: none; non-members: iso 930, basher 312, vector 306, vector_datatrue 78, tensor 2 |
+| NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
+| NL-ADMIN-PROGRAMS `middleware/gate.ts:131` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
+| NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:163` [legacy, mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
+| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/completion.ts:537` [iso, orchestrator, legacy, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
+| NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
+| NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:157` [legacy, mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
+| NL-REGISTRY-ADMIN `modules/programRegistry.ts:399` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
+| NL-PULSE-PRIV `modules/pulse.ts:210` [legacy, mobile, dispatcher] (handler) | pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
+| NL-PULSE-REGISTRY-SKIP `modules/pulse.ts:144` [legacy, mobile] (routing) | pulse_create_session, pulse_update_session | members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2 |
+| NL-RELAY-GETMSG `modules/relay.ts:477` [legacy, mobile, dispatcher] (handler) | relay_get_messages | members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38 |
+| NL-ACCOUNT-MERGE `modules/account-merge.ts:25` [legacy] (handler) | admin_merge_accounts | members seen: none |
+| NL-BACKFILL-AUTH `modules/dispatch/backfillExpiresAt.ts:43` [basher, iso, vector] (handler) | dispatch_backfill_task_expires_at | members seen: none |
+| NL-REAP-AUTH `modules/dispatch/reapExpiredTasks.ts:98` [basher, iso, vector] (handler) | dispatch_reap_expired_tasks | members seen: none |
+| NL-GSP-SEED-AUTH `modules/gsp.ts:1189` [vector, iso, admin, dispatcher, gsp-sync] (handler) | gsp_seed | members seen: gsp-sync 56 |
+| NL-KEY-ADMIN `auth/ownerAuthz.ts:114` [vector, sark] (handler) | keys_list_keys, keys_revoke_key | members seen: vector 2; non-members: iso 2 |
+| NL-REST-RELAY-MOBILE `transport/rest.ts:472` [mobile] (rest) | route POST /v1/relay/messages | not measured (no tool_call rows exist for this path) |
+| NL-SESSION-COMPLIANCE `middleware/sessionCompliance.ts:42` [legacy, mobile, admin, admin-mirror, bit, orchestrator, iso, alan, vector, quorra, radia, casp, sark, builder, basher, able, beck] (middleware) | every tool via checkSessionCompliance (MCP and REST) | not measured (no tool_call rows exist for this path) |
+| NL-GSP-REVIEWERS `modules/gsp.ts:609` [iso, vector] (routing) | gsp_propose | members seen: none |
+| NL-OAUTH-ALLOWLIST `oauth/callback.ts:48` [env-driven] (auth) | (OAuth sign-in; no tool handler) | not measured (no tool_call rows exist for this path) |
+| NL-OAUTH-BINDABLE `auth/oauthTokenValidator.ts:54` [scalar, oauth, oauth-service] (auth) | (OAuth token validation; no tool handler) | not measured (no tool_call rows exist for this path) |
+| NL-FIREBASE-MOBILE `auth/firebaseAuthValidator.ts:58` [mobile] (auth) | (Firebase ID-token auth; no tool handler) | not measured (no tool_call rows exist for this path) |
 
 ### Name list notes
 

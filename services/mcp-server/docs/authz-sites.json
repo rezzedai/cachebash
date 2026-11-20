@@ -85,7 +85,8 @@
         "state_memory_health",
         "state_get_context_history"
       ],
-      "note": "canRead; a member reads any program's state."
+      "note": "canRead; a member reads any program's state.",
+      "usage_30d": "members seen: vector 18, iso 76; non-members: basher 178, vector_datatrue 4, tensor 2"
     },
     {
       "id": "NL-STATE-WRITERS",
@@ -111,7 +112,8 @@
         "state_delete_memory",
         "state_reinforce_memory"
       ],
-      "note": "canRead and canWrite; a member reads and writes any program's state."
+      "note": "canRead and canWrite; a member reads and writes any program's state.",
+      "usage_30d": "members seen: none; non-members: iso 930, basher 312, vector 306, vector_datatrue 78, tensor 2"
     },
     {
       "id": "NL-ADMIN-READERS",
@@ -136,7 +138,8 @@
         "route GET /v1/sessions/history",
         "route GET /v1/sprints/active"
       ],
-      "note": "requireAdmin also passes any key holding \"*\"."
+      "note": "requireAdmin also passes any key holding \"*\".",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
       "id": "NL-ADMIN-PROGRAMS",
@@ -170,7 +173,8 @@
         "trace_query_traces",
         "dispatch_record_task_telemetry"
       ],
-      "note": "isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read)."
+      "note": "isAdmin; several of these also pass on a wildcard-satisfiable capability (metrics.read, audit.read, fleet.read).",
+      "usage_30d": "members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2"
     },
     {
       "id": "NL-VERIFYSOURCE-ADMIN",
@@ -192,7 +196,8 @@
         "gsp_write",
         "relay_send_directive"
       ],
-      "note": "These credentials may claim any source."
+      "note": "These credentials may claim any source.",
+      "usage_30d": "members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116"
     },
     {
       "id": "NL-CLAIM-OWNER-OVERRIDE",
@@ -216,7 +221,8 @@
         "dispatch_complete_task",
         "dispatch_batch_complete_tasks"
       ],
-      "note": "These names may unclaim or complete a task they do not own."
+      "note": "These names may unclaim or complete a task they do not own.",
+      "usage_30d": "members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26"
     },
     {
       "id": "NL-ESCALATION-CHAIN",
@@ -237,7 +243,8 @@
       "guards": [
         "dispatch_escalate_task"
       ],
-      "note": "Picks the default escalation recipient. It gates nothing."
+      "note": "Picks the default escalation recipient. It gates nothing.",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-GETTASKS-DEFAULT",
@@ -256,7 +263,8 @@
       "guards": [
         "dispatch_get_tasks"
       ],
-      "note": "These names see every task when no target is given."
+      "note": "These names see every task when no target is given.",
+      "usage_30d": "members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10"
     },
     {
       "id": "NL-REGISTRY-ADMIN",
@@ -278,7 +286,8 @@
       "guards": [
         "programs_update_program"
       ],
-      "note": "These names may edit any program entry."
+      "note": "These names may edit any program entry.",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-PULSE-PRIV",
@@ -297,7 +306,8 @@
       "guards": [
         "pulse_update_session"
       ],
-      "note": "These names may write any session."
+      "note": "These names may write any session.",
+      "usage_30d": "members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2"
     },
     {
       "id": "NL-PULSE-REGISTRY-SKIP",
@@ -318,7 +328,8 @@
         "pulse_create_session",
         "pulse_update_session"
       ],
-      "note": "Skips the program-registry write for these names. It gates nothing."
+      "note": "Skips the program-registry write for these names. It gates nothing.",
+      "usage_30d": "members seen: none; non-members: iso 356, basher 146, vector 118, tensor 2, vector_datatrue 2, sark 2"
     },
     {
       "id": "NL-RELAY-GETMSG",
@@ -337,7 +348,8 @@
       "guards": [
         "relay_get_messages"
       ],
-      "note": "These names read messages for any requested target."
+      "note": "These names read messages for any requested target.",
+      "usage_30d": "members seen: none; non-members: iso 772, vector_datatrue 244, vector 64, tensor 46, basher 38"
     },
     {
       "id": "NL-ACCOUNT-MERGE",
@@ -354,7 +366,8 @@
       "guards": [
         "admin_merge_accounts"
       ],
-      "note": "Only this name may merge accounts."
+      "note": "Only this name may merge accounts.",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-BACKFILL-AUTH",
@@ -373,7 +386,8 @@
       "guards": [
         "dispatch_backfill_task_expires_at"
       ],
-      "note": "Also passes on \"*\"."
+      "note": "Also passes on \"*\".",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-REAP-AUTH",
@@ -392,7 +406,8 @@
       "guards": [
         "dispatch_reap_expired_tasks"
       ],
-      "note": "Also passes on \"*\"."
+      "note": "Also passes on \"*\".",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-GSP-SEED-AUTH",
@@ -413,7 +428,8 @@
       "guards": [
         "gsp_seed"
       ],
-      "note": "Also passes on \"*\"."
+      "note": "Also passes on \"*\".",
+      "usage_30d": "members seen: gsp-sync 56"
     },
     {
       "id": "NL-KEY-ADMIN",
@@ -432,7 +448,8 @@
         "keys_list_keys",
         "keys_revoke_key"
       ],
-      "note": "Also passes on literal keys.admin. Deleted in PR-F (D-b)."
+      "note": "Also passes on literal keys.admin. Deleted in PR-F (D-b).",
+      "usage_30d": "members seen: vector 2; non-members: iso 2"
     },
     {
       "id": "NL-REST-RELAY-MOBILE",
@@ -449,7 +466,8 @@
       "guards": [
         "route POST /v1/relay/messages"
       ],
-      "note": "Branches the source on the mobile name before credentialPrincipal."
+      "note": "Branches the source on the mobile name before credentialPrincipal.",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
       "id": "NL-SESSION-COMPLIANCE",
@@ -484,7 +502,8 @@
       "guards": [
         "every tool via checkSessionCompliance (MCP and REST)"
       ],
-      "note": "Exempts or classifies callers for the session-boot rule. It is not an identity gate on data."
+      "note": "Exempts or classifies callers for the session-boot rule. It is not an identity gate on data.",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
       "id": "NL-GSP-REVIEWERS",
@@ -503,7 +522,8 @@
       "guards": [
         "gsp_propose"
       ],
-      "note": "Chooses proposal reviewers. It gates nothing."
+      "note": "Chooses proposal reviewers. It gates nothing.",
+      "usage_30d": "members seen: none"
     },
     {
       "id": "NL-OAUTH-ALLOWLIST",
@@ -518,7 +538,8 @@
       "guards": [
         "(OAuth sign-in; no tool handler)"
       ],
-      "note": "Read from OAUTH_ALLOWED_UIDS; the default list is in the same file."
+      "note": "Read from OAUTH_ALLOWED_UIDS; the default list is in the same file.",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
       "id": "NL-OAUTH-BINDABLE",
@@ -537,7 +558,8 @@
       "guards": [
         "(OAuth token validation; no tool handler)"
       ],
-      "note": "Programs an OAuth token may bind to."
+      "note": "Programs an OAuth token may bind to.",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     },
     {
       "id": "NL-FIREBASE-MOBILE",
@@ -554,7 +576,8 @@
       "guards": [
         "(Firebase ID-token auth; no tool handler)"
       ],
-      "note": "A Firebase user without a program mapping authenticates as mobile."
+      "note": "A Firebase user without a program mapping authenticates as mobile.",
+      "usage_30d": "not measured (no tool_call rows exist for this path)"
     }
   ],
   "handlers": [
@@ -2801,14 +2824,14 @@
         "internal"
       ],
       "effect": "write",
-      "binding_today": "none; stored as caller_source (wake/onDemandWake.ts:263, :286)",
+      "binding_today": "none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286)",
       "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286). It selects no document."
+      "evidence": "params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document."
     },
     {
       "id": "ack-compliance.getAckComplianceHandler:args.programId",
@@ -2845,14 +2868,15 @@
       "tool": null,
       "transports": [],
       "effect": "write",
-      "binding_today": "n/a: internal emit helper",
-      "disposition": "NOT-IDENTITY",
+      "binding_today": "none; label on an analytics event",
+      "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "emitAnalyticsEvent is a server-internal helper. Its callers build params from AuthContext and task data; no transport passes request arguments in as params."
+      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity.",
+      "recommendation": null
     },
     {
       "id": "analytics.emitAnalyticsEvent:params.sessionId",
@@ -2865,14 +2889,15 @@
       "tool": null,
       "transports": [],
       "effect": "write",
-      "binding_today": "n/a: internal emit helper",
-      "disposition": "NOT-IDENTITY",
+      "binding_today": "none; label on an analytics event",
+      "disposition": "ATTRIBUTION",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "emitAnalyticsEvent is a server-internal helper. Its callers build params from AuthContext and task data; no transport passes request arguments in as params."
+      "evidence": "Written to the analytics event as a label; it selects no document. claims.ts:136 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:163), so the value is caller-controlled and must not be read as identity.",
+      "recommendation": null
     },
     {
       "id": "audit.getAuditHandler:args.programId",
@@ -2944,8 +2969,8 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "clu.ts:137, :159, :166 select the ingestion document by parsed.session_id inside the tenant; nothing compares it to the caller.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
+      "evidence": "The handler reads nothing from the id (clu.ts:125-175). It writes caller data to clu_sessions/{id}/analyses (clu.ts:155-162) under a caller-chosen id; nothing compares the id to the caller.",
+      "recommendation": "Write family: FOREIGN-WRITE on literal fleet.admin for another principal's clu session; SELF-ONLY when unruled. No FOREIGN-READ applies because the handler reads no document by this id."
     },
     {
       "id": "claims.claimTaskHandler:args.sessionId",
@@ -2969,7 +2994,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "args.sessionId is stored on the claim (claims.ts:99) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
+      "evidence": "args.sessionId is stored on the claim (claims.ts:96 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
       "recommendation": "Remove sessionId from every authorization comparison; claimedBy is the owner. Label sessionId ATTRIBUTION after that."
     },
     {
@@ -2993,7 +3018,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "args.sessionId is stored on the claim (claims.ts:99) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
+      "evidence": "args.sessionId is stored on the claim (claims.ts:311 (single claim at :96, batch at :311)) and compared by later calls: claims.ts:75 treats an equal sessionId as an idempotent re-claim and returns the task data to a different program, and completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership. A caller-chosen value therefore enters two authorization comparisons.",
       "recommendation": "Same as dispatch_claim_task."
     },
     {
@@ -3249,13 +3274,13 @@
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
-      "closes_in": "PR-K",
+      "closes_in": "PR-K (after iso and the dispatcher hold fleet.observe)",
       "serves_bundle_data": false,
       "name_lists": [
         "NL-GETTASKS-DEFAULT"
       ],
       "evidence": "tasks.ts:154 filters by any target without comparison. tasks.ts:157-158 skips the own-queue default for three names. Dispatch polling by the dispatcher depends on the unscoped read.",
-      "recommendation": "FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. The dispatcher's use needs the C-5 table."
+      "recommendation": "FOREIGN-READ on literal fleet.observe for an explicit foreign target; SELF-ONLY default. Order matters: the flip lands only after iso and the dispatcher hold literal fleet.observe. Today only vector and sark hold it (ownerAuthz.ts:149-152), so an earlier flip denies the dispatcher poll and iso. The dispatcher's use also needs the C-5 ruling."
     },
     {
       "id": "tasks.createTaskHandler:args.source",
@@ -3347,7 +3372,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:640-653); memory omitted cross-program (:678)",
+      "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:641-654); memory omitted cross-program (:679)",
       "disposition": "FOREIGN-READ",
       "disposition_by": "C-4",
       "status": "pending",
@@ -3370,14 +3395,14 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "literal keys.provision via isKeyProvisioner (keys.ts:36)",
+      "binding_today": "literal keys.provision via isKeyProvisioner (keys.ts:36; KEY_PROVISION_CAPABILITY, ownerAuthz.ts:51-53); a \"*\" key fails the literal includes and cannot mint",
       "disposition": "FOREIGN-WRITE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "keys.ts:36 is a literal capability gate, not a name list. The handler mints a key for any programId. createKey defaults capabilities to [\"*\"] at keys.ts:64 (amendment 2)."
+      "evidence": "The real gate is the literal keys.provision capability (keys.ts:36, ownerAuthz.ts:51-53), not a name list and not fleet.admin. The handler mints a key for any programId. FOREIGN-WRITE in the vocabulary names fleet.admin as its widening capability, so this record is FOREIGN-WRITE with a different literal capability; the PR that closes it decides whether keys.provision is renamed or kept. createKey defaults capabilities to [\"*\"] at keys.ts:64 (amendment 2)."
     },
     {
       "id": "keys.revokeKeyHandler:keyHash",
@@ -3755,7 +3780,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller.",
+      "evidence": "pulse.ts:86 creates a session document under a caller-chosen id. update_session binds writes by id prefix; create does not bind the prefix to the caller. The write is .set() without merge (pulse.ts:133), so it overwrites any program's existing session document.",
       "recommendation": "Require the session id prefix to equal the principal, as update_session does (SELF-ONLY)."
     },
     {
@@ -4025,7 +4050,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:233 stores sessionId on the message; relay.ts:368 passes it to the Slack bridge call. It selects no existing document."
+      "evidence": "relay.ts:233 stores sessionId on the message. relay.ts:368 passes it to logDirective. It selects no existing document."
     },
     {
       "id": "relay.getMessagesHandler:args.sessionId",
@@ -4052,7 +4077,7 @@
         "NL-RELAY-GETMSG"
       ],
       "evidence": "args.sessionId is the fallback requestedTarget (relay.ts:474). Reads and, by default, marks messages delivered.",
-      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a)."
+      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:477): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows."
     },
     {
       "id": "relay.getMessagesHandler:args.target",
@@ -4079,7 +4104,7 @@
         "NL-RELAY-GETMSG"
       ],
       "evidence": "relay.ts:474, same filter. For the three named credentials the filter honours the requested target.",
-      "recommendation": "Same as the args.sessionId record."
+      "recommendation": "Same as the args.sessionId record, including the dispatcher exemption (relay.ts:477, C-5 rule 1)."
     },
     {
       "id": "relay.getSentMessagesHandler:args.source",
@@ -4315,15 +4340,15 @@
         "iso"
       ],
       "effect": "write",
-      "binding_today": "none",
-      "disposition": "ESCALATE",
+      "binding_today": "n/a: sendAlertHandler passes no source; the schedule executor passes a literal",
+      "disposition": "NOT-IDENTITY",
       "disposition_by": "ISO",
       "status": "pending",
-      "closes_in": "PR-L",
+      "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "signal.ts:213 stores input.source (default \"program\") as the relay source. sendAlertHandler (signal.ts:274) was read for the value passed; the source it passes was not established.",
-      "recommendation": "Bind to credentialPrincipal (ADDRESSED-style sender binding) once the caller value is confirmed."
+      "evidence": "sendAlertHandler passes no source (signal.ts:274-280), so the default \"program\" applies. schedule-executor.ts:199 and :208 pass the literal \"watchdog\". No caller-chosen value reaches input.source.",
+      "recommendation": null
     },
     {
       "id": "signal.writeAlertDocs:input.sessionId",
@@ -4387,14 +4412,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; stored on sprint (sprint.ts:183)",
-      "disposition": "ATTRIBUTION",
+      "binding_today": "none; stored on the active sprint task (sprint.ts:183) and read as claim ownership",
+      "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
-      "closes_in": "n/a",
+      "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Stored as a label on the sprint document; selects nothing."
+      "evidence": "sprint.ts:183 stores args.sessionId on a task with status \"active\". completion.ts:536, completion.ts:869 and claims.ts:188 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.",
+      "recommendation": "Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can substitute."
     },
     {
       "id": "trace.queryTracesHandler:args.programId",
@@ -4479,14 +4505,15 @@
       "tool": null,
       "transports": [],
       "effect": "read",
-      "binding_today": "n/a",
-      "disposition": "NOT-IDENTITY",
+      "binding_today": "none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:147-150)",
+      "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
-      "closes_in": "n/a",
+      "closes_in": "ISO-assign",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "parsed.sessionId is the MCP protocol session id in transport framing, not a program or session argument (recon section 8)."
+      "evidence": "parsed.sessionId comes from a caller-chosen header. An invalid id proceeds under Bearer auth (:147-150). A heartbeat updates sessions/{header}.lastHeartbeat for any program in the tenant (:159). DELETE removes any mcp_sessions document in the tenant (:230). It is an identity-selecting argument, not protocol framing alone.",
+      "recommendation": "Bind the header id to the principal that created the MCP session (SELF-ONLY on session ownership) before the heartbeat write and the DELETE. ISO to assign the PR."
     },
     {
       "id": "rest.route GET /v1/tasks/stats:query.target",
@@ -5284,7 +5311,7 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5292,7 +5319,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "createPolicy stores a policy under a caller-chosen id (PolicySchema, policy.ts:96-107).",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.updatePolicy:args.policyId",
@@ -5309,7 +5336,7 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5317,7 +5344,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "updatePolicy edits any policy by id; no owner comparison.",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.deletePolicy:args.policyId",
@@ -5334,7 +5361,7 @@
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5342,7 +5369,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "deletePolicy removes any policy by id; no owner comparison.",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: either PR-L adds a creator-program field written from credentialPrincipal (then SELF-ONLY on that field, existing policies need a backfill rule), or writes gate on literal fleet.admin alone. Do not build a check on createdBy."
     },
     {
       "id": "policy.getPolicy:args.policyId",
@@ -5359,7 +5386,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5367,7 +5394,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "getPolicy returns any policy by id.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "policy.listPolicies:(tenant-wide)",
@@ -5384,7 +5411,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5392,7 +5419,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "listPolicies returns every policy in the tenant; no identifier argument.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "policy.policyCheck:(tenant-wide)",
@@ -5409,7 +5436,7 @@
         "mcp"
       ],
       "effect": "read",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the stored creator is the tenant uid (policy.ts:208, :285), not a program",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5417,7 +5444,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "policyCheck evaluates caller-supplied action fields against every tenant policy; no identifier selects data.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
+      "recommendation": "No owner field exists: createdBy and updatedBy hold auth.userId, the shared tenant uid (policy.ts:208, :285), so a creator check passes every caller. ESCALATE to ISO: reads gate on literal fleet.observe, with a SELF-ONLY scope only after a creator-program field exists. Do not build a check on createdBy."
     },
     {
       "id": "sprint.updateStoryHandler:args.sprintId",
@@ -5435,15 +5462,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "updateStoryHandler mutates a story in any sprint id; programId is recorded (sprint.ts:331) but not compared.",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "evidence": "updateStoryHandler mutates a story in any sprint id. The sprint document stores source \"orchestrator\" (sprint.ts:164) and no creator; sprint.ts:331 is a TASK_RETRIED event that carries auth.programId, not a stored owner.",
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.addStoryHandler:args.sprintId",
@@ -5461,7 +5488,7 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5469,7 +5496,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "addStoryHandler adds a story to any sprint id; no owner comparison.",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.completeSprintHandler:args.sprintId",
@@ -5487,7 +5514,7 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5495,7 +5522,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "completeSprintHandler completes any sprint id; no owner comparison.",
-      "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.getSprintHandler:args.sprintId",
@@ -5514,7 +5541,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5522,7 +5549,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "getSprintHandler returns any sprint by id; reachable on the ISO transport.",
-      "recommendation": "FOREIGN-READ gated on literal fleet.observe; SELF-ONLY on object ownership when unruled."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first."
     },
     {
       "id": "signal.getResponseHandler:args.questionId",
@@ -6154,5 +6181,12 @@
       "line_at_base": 186,
       "status": "pending"
     }
-  ]
+  ],
+  "c5_usage_source": {
+    "file": "grid/specs/EVIDENCE-rd5-c5-usage.md",
+    "repo": "rezzedai/grid",
+    "merged": "f98406ff",
+    "measured": "2026-11-20T06:19Z",
+    "caveat": "The ledger records only calls through callTool. The dispatcher, legacy and mobile show 0 rows because the direct REST routes write no ledger row, so a zero does not show a principal never calls the path. programId is auth.programId, mutable while the override path exists (PR-H). Counts are even, so compare ratios. VECTOR rules per identity in grid plan amendment 3; no name list changes here."
+  }
 }

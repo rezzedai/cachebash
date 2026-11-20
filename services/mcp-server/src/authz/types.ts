@@ -74,6 +74,7 @@ export interface NameList {
   guard_sites: string[];
   guards: string[];
   note: string;
+  usage_30d: string;
 }
 
 export interface AstBaselineRow {
@@ -111,6 +112,7 @@ export interface AuthzSites {
   bundle_greps: BundleGrep[];
   bundle_statement_basis: string;
   name_lists: NameList[];
+  c5_usage_source: { file: string; repo: string; merged: string; measured: string; caveat: string };
   handlers: HandlerEntry[];
   sites: SiteRecord[];
   ast_baseline: AstBaselineRow[];
