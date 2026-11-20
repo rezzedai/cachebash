@@ -1,0 +1,13 @@
+# mutation for probe J.foreign_state_denied: any caller, a bare wildcard included, reads a foreign program's state
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -140,7 +140,7 @@
+   const principal = credentialPrincipal(auth);
+   const isSelf = principal === target;
+   if (isSelf || isStateAdminPrincipal(principal)) return { allowed: true, principal, isSelf, full: true };
+-  const widened = allowForeignObserve && hasFleetObserveCapability(auth);
++  const widened = allowForeignObserve;
+   return { allowed: widened, principal, isSelf: false, full: false };
+ }
+ 

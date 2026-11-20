@@ -1,12 +1,13 @@
-# mutation for probe T2.state_memory_health: the canRead check in this handler no longer runs, so another program's state is readable
+# mutation for probe T2.state_memory_health: the access check in this handler no longer runs, so another program's state is readable
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
-index 68cbd9a..093acb9 100644
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -456,5 +456,5 @@ export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown):
+@@ -504,7 +504,7 @@
    }
  
--  if (!canRead(auth, args.programId)) {
+   const rAuthz = authorizeStateRead(auth, args.programId, false);
+-  if (!rAuthz.allowed) {
 +  if (false) {
-     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory health for "${args.programId}"` });
+     return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory health for "${args.programId}"` });
    }
+ 

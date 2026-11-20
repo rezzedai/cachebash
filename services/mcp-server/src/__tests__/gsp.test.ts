@@ -1443,7 +1443,7 @@ describe("gspSearchHandler", () => {
 
   // #50
   it("searches memory scope", async () => {
-    seedDoc("tenants/test-user-123/sessions/_meta/program_state/basher", {
+    seedDoc("tenants/test-user-123/sessions/_meta/program_state/vector", {
       learnedPatterns: [
         {
           id: "p1",
@@ -1464,9 +1464,25 @@ describe("gspSearchHandler", () => {
     expect(data.results[0].source).toBe("memory");
   });
 
+  // RD-5 PR-J: memory scope is self-only (fleet.observe and "*" never widen it)
+  it("memory scope returns no foreign program's patterns, even with fleet.observe", async () => {
+    const pat = { id: "p1", domain: "security", pattern: "Always validate auth tokens", confidence: 0.9, evidence: "e", discoveredAt: "2026-01-01T00:00:00Z", stale: false };
+    seedDoc("tenants/test-user-123/sessions/_meta/program_state/basher", { learnedPatterns: [pat] });
+    const data = parse(await gspSearchHandler(mockAuth, { query: "auth", scope: "memory" }));
+    expect(data.results.length).toBe(0);
+  });
+
+  it("memory scope returns every program's patterns to the mobile principal", async () => {
+    const pat = { id: "p1", domain: "security", pattern: "Always validate auth tokens", confidence: 0.9, evidence: "e", discoveredAt: "2026-01-01T00:00:00Z", stale: false };
+    seedDoc("tenants/test-user-123/sessions/_meta/program_state/basher", { learnedPatterns: [pat] });
+    const mobile = { ...mockAuth, programId: "mobile", keyProgramId: "mobile" } as any;
+    const data = parse(await gspSearchHandler(mobile, { query: "auth", scope: "memory" }));
+    expect(data.results.length).toBe(1);
+  });
+
   // #51
   it("searches all scope (gsp + memory)", async () => {
-    seedDoc("tenants/test-user-123/sessions/_meta/program_state/basher", {
+    seedDoc("tenants/test-user-123/sessions/_meta/program_state/vector", {
       learnedPatterns: [
         {
           id: "p1",

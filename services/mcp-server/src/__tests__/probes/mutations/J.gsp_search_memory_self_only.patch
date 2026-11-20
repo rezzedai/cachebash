@@ -1,0 +1,13 @@
+# mutation for probe J.gsp_search_memory_self_only: gsp_search scope memory scans every program's learned patterns
+diff --git a/src/modules/gsp.ts b/src/modules/gsp.ts
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1922,7 +1922,7 @@
+         // C-5 rule 1) keeps every doc. fleet.observe never widens this.
+         const memPrincipal = credentialPrincipal(auth);
+         const memCollection = db.collection(`tenants/${userId}/sessions/_meta/program_state`);
+-        const memDocs = isStateAdminPrincipal(memPrincipal)
++        const memDocs = true
+           ? (await memCollection.get()).docs
+           : [await memCollection.doc(memPrincipal).get()].filter((d) => d.exists);
+ 

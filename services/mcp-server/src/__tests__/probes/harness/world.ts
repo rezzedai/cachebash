@@ -23,6 +23,8 @@ export interface World {
   creds: Record<CredentialName, WorldCredential>;
   /** setup-only credentials, one per tenant, program "legacy" with ["*"]; used to seed through the real handlers */
   seeders: { A: WorldCredential; B: WorldCredential };
+  /** setup-only credentials, program "mobile" with ["*"]: the only seeders that may write program state (PR-J) */
+  stateSeeders: { A: WorldCredential; B: WorldCredential };
   /** ids of the rows seeded through the real handlers, per tenant and program */
   seed: SeedData;
 }

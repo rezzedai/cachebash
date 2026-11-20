@@ -7,7 +7,7 @@ import { getFirestore } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { isProgramRegistered } from "./programRegistry.js";
 import { verifySource } from "../middleware/gate.js";
-import { STATE_READERS, STATE_WRITERS } from "../config/access-tiers.js";
+import { credentialPrincipal, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { z } from "zod";
 import type { ProgramState } from "../types/programState.js";
 
@@ -110,27 +110,51 @@ function defaultState(programId: string, sessionId: string): ProgramState {
 }
 
 /**
- * Access control:
- * - Programs can read their own state
- * - Auditor can read any program's state (audit)
- * - Admin (legacy/mobile) can read any program's state
+ * Principals that keep full read and write on every program's state. "mobile" is
+ * minted by Firebase sign-in, whose REST routes write no ledger rows (plan
+ * amendment 3, C-5 rule 1). Matched on credentialPrincipal(auth), never on
+ * auth.programId. "legacy" is not listed: the legacy fallback denies (PR-H).
  */
-function canRead(auth: AuthContext, targetProgramId: string): boolean {
-  if ((STATE_WRITERS as readonly string[]).includes(auth.programId)) return true;
-  if ((STATE_READERS as readonly string[]).includes(auth.programId)) return true;
-  return auth.programId === targetProgramId;
+export const STATE_ADMIN_PRINCIPALS = ["mobile"] as const;
+
+interface StateAccess {
+  allowed: boolean;
+  principal: string;
+  isSelf: boolean;
+  /** true for a self read or a STATE_ADMIN_PRINCIPALS read: full document, decay write-back allowed */
+  full: boolean;
+}
+
+export function isStateAdminPrincipal(principal: string): boolean {
+  return (STATE_ADMIN_PRINCIPALS as readonly string[]).includes(principal);
 }
 
 /**
- * Access control:
- * - Programs can only write their own state
- * - Admin (legacy/mobile) can write any state
+ * Read access, bound to credentialPrincipal(auth) first (same order as
+ * authorizeGspBootstrapRead in gsp.ts). Self and STATE_ADMIN_PRINCIPALS read
+ * the full document. A foreign read is allowed only for get_program_state
+ * (`allowForeignObserve`) and only through the literal fleet.observe
+ * capability, never hasCapability ("*" does not satisfy it).
  */
-function canWrite(auth: AuthContext, targetProgramId: string): boolean {
-  if ((STATE_WRITERS as readonly string[]).includes(auth.programId)) return true;
-  return auth.programId === targetProgramId;
+function authorizeStateRead(auth: AuthContext, target: string, allowForeignObserve: boolean): StateAccess {
+  const principal = credentialPrincipal(auth);
+  const isSelf = principal === target;
+  if (isSelf || isStateAdminPrincipal(principal)) return { allowed: true, principal, isSelf, full: true };
+  const widened = allowForeignObserve && hasFleetObserveCapability(auth);
+  return { allowed: widened, principal, isSelf: false, full: false };
 }
 
+/** Write access: self or STATE_ADMIN_PRINCIPALS. fleet.observe never grants it. */
+function authorizeStateWrite(auth: AuthContext, target: string): { allowed: boolean; principal: string } {
+  const principal = credentialPrincipal(auth);
+  return { allowed: principal === target || isStateAdminPrincipal(principal), principal };
+}
+
+/** The lastUpdatedBy value: mobile acts on behalf of the target, everyone else is their principal. */
+function stateWriter(auth: AuthContext, target: string): string {
+  const principal = credentialPrincipal(auth);
+  return isStateAdminPrincipal(principal) ? target : principal;
+}
 
 interface DecayResult {
   state: any;
@@ -231,30 +255,50 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canRead(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read state for "${args.programId}"` });
+  // Bound to credentialPrincipal(auth). A foreign read needs the literal fleet.observe
+  // capability and gets the document without memory (RD-5 C-4, PDR 4.3).
+  const authz = authorizeStateRead(auth, args.programId, true);
+  if (!authz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${authz.principal}" cannot read state for "${args.programId}"` });
   }
 
   // Audit cross-program state reads (transparency on state access)
-  if (auth.programId !== args.programId) {
+  if (!authz.isSelf) {
     const { emitEvent } = await import("./events.js");
     emitEvent(auth.userId, {
       event_type: "STATE_CROSS_READ" as any,
-      program_id: auth.programId,
+      program_id: authz.principal,
       target_program: args.programId,
-      reader_role: auth.programId,
+      reader_role: authz.principal,
     });
   }
+
+  const omitted = !authz.full;
+  const omittedMemory = {
+    status: "omitted",
+    omitted: true,
+    omittedReason:
+      `cross-program read: "${authz.principal}" read this via the fleet.observe capability, `
+      + `which grants state visibility, not another program's private memory `
+      + `(learned patterns, context summary).`,
+  };
+  /** A foreign reader gets the document minus its memory fields. */
+  const withoutMemory = (state: any) => {
+    const { learnedPatterns: _lp, contextSummary: _cs, ...rest } = state;
+    return rest;
+  };
 
   const db = getFirestore();
   const docRef = db.doc(`tenants/${auth.userId}/sessions/_meta/program_state/${args.programId}`);
   const doc = await docRef.get();
 
   if (!doc.exists) {
+    const defaults = defaultState(args.programId, "none");
     return jsonResult({
       success: true,
       exists: false,
-      state: defaultState(args.programId, "none"),
+      state: omitted ? withoutMemory(defaults) : defaults,
+      memory: omitted ? omittedMemory : { status: "empty" },
       message: `No persisted state for "${args.programId}". Returning defaults.`,
     });
   }
@@ -264,8 +308,9 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   // Apply decay before returning state
   const { state: decayedState, decayed, patternsMarkedStale, contextCleared } = applyDecay({ ...data });
 
-  // Write decayed state back to Firestore if anything changed (merge update)
-  if (decayed) {
+  // Write decayed state back to Firestore if anything changed (merge update).
+  // A foreign read NEVER writes: only self and STATE_ADMIN_PRINCIPALS persist decay.
+  if (decayed && authz.full) {
     const { emitEvent } = await import("./events.js");
     
     // Merge update — only write changed fields
@@ -287,8 +332,9 @@ export async function getProgramStateHandler(auth: AuthContext, rawArgs: unknown
   return jsonResult({
     success: true,
     exists: true,
-    state: decayedState,
-    message: `State loaded for "${args.programId}".${decayed ? ` Decay applied: ${patternsMarkedStale} patterns marked stale${contextCleared ? ', context cleared' : ''}.` : ''}`,
+    state: omitted ? withoutMemory(decayedState) : decayedState,
+    memory: omitted ? omittedMemory : { status: "loaded" },
+    message: `State loaded for "${args.programId}".${!omitted && decayed ? ` Decay applied: ${patternsMarkedStale} patterns marked stale${contextCleared ? ', context cleared' : ''}.` : ''}`,
   });
 }
 
@@ -323,8 +369,9 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canWrite(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  const wAuthz = authorizeStateWrite(auth, args.programId);
+  if (!wAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -357,7 +404,7 @@ export async function storeMemoryHandler(auth: AuthContext, rawArgs: unknown): P
   await docRef.set({
     ...base,
     learnedPatterns: patterns,
-    lastUpdatedBy: auth.programId,
+    lastUpdatedBy: credentialPrincipal(auth),
     lastUpdatedAt: now,
     version: (base.version || 0) + 1,
   });
@@ -383,8 +430,9 @@ export async function recallMemoryHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canRead(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory for "${args.programId}"` });
+  const rAuthz = authorizeStateRead(auth, args.programId, false);
+  if (!rAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -455,8 +503,9 @@ export async function memoryHealthHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canRead(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read memory health for "${args.programId}"` });
+  const rAuthz = authorizeStateRead(auth, args.programId, false);
+  if (!rAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read memory health for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -518,8 +567,9 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canWrite(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write state for "${args.programId}"` });
+  const wAuthz = authorizeStateWrite(auth, args.programId);
+  if (!wAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write state for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -533,7 +583,7 @@ export async function updateProgramStateHandler(auth: AuthContext, rawArgs: unkn
   const updated: Record<string, unknown> = {
     programId: args.programId,
     version: (base.version || 0) + 1,
-    lastUpdatedBy: auth.programId === "legacy" || auth.programId === "mobile" ? args.programId : auth.programId,
+    lastUpdatedBy: stateWriter(auth, args.programId),
     lastUpdatedAt: now,
     sessionId: args.sessionId || base.sessionId || "unknown",
   };
@@ -671,8 +721,9 @@ export async function deleteMemoryHandler(auth: AuthContext, rawArgs: unknown): 
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canWrite(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  const wAuthz = authorizeStateWrite(auth, args.programId);
+  if (!wAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -695,7 +746,7 @@ export async function deleteMemoryHandler(auth: AuthContext, rawArgs: unknown): 
   const now = new Date().toISOString();
   await docRef.update({
     learnedPatterns: filtered,
-    lastUpdatedBy: auth.programId,
+    lastUpdatedBy: credentialPrincipal(auth),
     lastUpdatedAt: now,
     version: (data.version || 0) + 1,
   });
@@ -728,8 +779,9 @@ export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canWrite(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot write memory for "${args.programId}"` });
+  const wAuthz = authorizeStateWrite(auth, args.programId);
+  if (!wAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${wAuthz.principal}" cannot write memory for "${args.programId}"` });
   }
 
   const db = getFirestore();
@@ -758,7 +810,7 @@ export async function reinforceMemoryHandler(auth: AuthContext, rawArgs: unknown
 
   await docRef.update({
     learnedPatterns: patterns,
-    lastUpdatedBy: auth.programId,
+    lastUpdatedBy: credentialPrincipal(auth),
     lastUpdatedAt: now,
     version: (data.version || 0) + 1,
   });
@@ -788,8 +840,9 @@ export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unkno
     return jsonResult({ success: false, error: `Unknown program: "${args.programId}"` });
   }
 
-  if (!canRead(auth, args.programId)) {
-    return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read context history for "${args.programId}"` });
+  const rAuthz = authorizeStateRead(auth, args.programId, false);
+  if (!rAuthz.allowed) {
+    return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read context history for "${args.programId}"` });
   }
 
   const db = getFirestore();

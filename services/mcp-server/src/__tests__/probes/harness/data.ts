@@ -30,18 +30,19 @@ async function must(label: string, p: ReturnType<typeof callTool>): Promise<any>
  * Seeds every row through the real handlers, as the per-tenant `legacy` wildcard seeder
  * (never directly into Firestore), so the rows have exactly the shape the server reads back.
  */
-export async function seedData(world: { baseUrl: string }, seeders: Record<TenantLetter, WorldCredential>): Promise<SeedData> {
+export async function seedData(world: { baseUrl: string }, seeders: Record<TenantLetter, WorldCredential>, stateSeeders: Record<TenantLetter, WorldCredential>): Promise<SeedData> {
   const w = world as any;
   const out = {} as SeedData;
   for (const t of ["A", "B"] as const) {
     const S = seeders[t];
+    const SS = stateSeeders[t]; // program state is written as mobile (PR-J)
     out[t] = {} as Record<ProgramName, SeededProgram>;
     for (const p of ["alpha", "beta"] as const) {
       const mk = marker(t, p);
-      await must(`state ${t}/${p}`, callTool(w, S, "state_update_program_state", { programId: p, contextSummary: { handoffNotes: mk, activeWorkItems: [] } }));
+      await must(`state ${t}/${p}`, callTool(w, SS, "state_update_program_state", { programId: p, contextSummary: { handoffNotes: mk, activeWorkItems: [] } }));
       const patternId = `pat-${t}-${p}`;
       const now = new Date().toISOString();
-      await must(`memory ${t}/${p}`, callTool(w, S, "state_store_memory", {
+      await must(`memory ${t}/${p}`, callTool(w, SS, "state_store_memory", {
         programId: p,
         pattern: { id: patternId, domain: "probe", pattern: mk, confidence: 0.9, evidence: mk, discoveredAt: now, lastReinforced: now },
       }));

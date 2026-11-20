@@ -26,7 +26,8 @@ export interface Case {
   cleanup?: (c: Ctx) => Promise<void>;
 }
 
-export const seederCall = (c: Ctx, tool: string, args: Record<string, unknown> = {}) => callTool(c.w, c.w.seeders.A, tool, args);
+export const seederCall = (c: Ctx, tool: string, args: Record<string, unknown> = {}) =>
+  callTool(c.w, tool.startsWith("state_") ? c.w.stateSeeders.A : c.w.seeders.A, tool, args);
 const mk = (c: Ctx) => marker("A", c.subject);
 let counter = 0;
 export const nextN = (): string => `${Date.now().toString(36)}${(counter++).toString(36)}`;

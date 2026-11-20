@@ -1,0 +1,21 @@
+# mutation for probe J.memory_tools_self_only: fleet.observe widens the memory tools and the writers to a foreign program
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -140,14 +140,14 @@
+   const principal = credentialPrincipal(auth);
+   const isSelf = principal === target;
+   if (isSelf || isStateAdminPrincipal(principal)) return { allowed: true, principal, isSelf, full: true };
+-  const widened = allowForeignObserve && hasFleetObserveCapability(auth);
++  const widened = hasFleetObserveCapability(auth);
+   return { allowed: widened, principal, isSelf: false, full: false };
+ }
+ 
+ /** Write access: self or STATE_ADMIN_PRINCIPALS. fleet.observe never grants it. */
+ function authorizeStateWrite(auth: AuthContext, target: string): { allowed: boolean; principal: string } {
+   const principal = credentialPrincipal(auth);
+-  return { allowed: principal === target || isStateAdminPrincipal(principal), principal };
++  return { allowed: principal === target || isStateAdminPrincipal(principal) || hasFleetObserveCapability(auth), principal };
+ }
+ 
+ /** The lastUpdatedBy value: mobile acts on behalf of the target, everyone else is their principal. */

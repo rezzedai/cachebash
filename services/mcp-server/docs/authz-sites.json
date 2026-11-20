@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 271,
-    "a_lines": 255,
+    "a_occurrences": 270,
+    "a_lines": 254,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -63,58 +63,6 @@
   ],
   "bundle_statement_basis": "N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile \"lite\"; it is not in the 110.",
   "name_lists": [
-    {
-      "id": "NL-STATE-READERS",
-      "file": "config/access-tiers.ts",
-      "line": 9,
-      "name": "STATE_READERS",
-      "members": [
-        "orchestrator",
-        "vector",
-        "iso",
-        "auditor",
-        "dispatcher"
-      ],
-      "layer": "handler",
-      "guard_sites": [
-        "modules/programState.ts:120"
-      ],
-      "guards": [
-        "state_get_program_state",
-        "state_recall_memory",
-        "state_memory_health",
-        "state_get_context_history"
-      ],
-      "note": "canRead; a member reads any program's state.",
-      "usage_30d": "members seen: vector 18, iso 76; non-members: basher 178, vector_datatrue 4, tensor 2"
-    },
-    {
-      "id": "NL-STATE-WRITERS",
-      "file": "config/access-tiers.ts",
-      "line": 12,
-      "name": "STATE_WRITERS",
-      "members": [
-        "legacy",
-        "mobile"
-      ],
-      "layer": "handler",
-      "guard_sites": [
-        "modules/programState.ts:119",
-        "modules/programState.ts:130"
-      ],
-      "guards": [
-        "state_get_program_state",
-        "state_recall_memory",
-        "state_memory_health",
-        "state_get_context_history",
-        "state_store_memory",
-        "state_update_program_state",
-        "state_delete_memory",
-        "state_reinforce_memory"
-      ],
-      "note": "canRead and canWrite; a member reads and writes any program's state.",
-      "usage_30d": "members seen: none; non-members: iso 930, basher 312, vector 306, vector_datatrue 78, tensor 2"
-    },
     {
       "id": "NL-ADMIN-READERS",
       "file": "config/access-tiers.ts",
@@ -412,7 +360,7 @@
     {
       "id": "NL-GSP-SEED-AUTH",
       "file": "modules/gsp.ts",
-      "line": 1212,
+      "line": 1213,
       "name": "gsp_seed authorizedPrograms",
       "members": [
         "vector",
@@ -423,7 +371,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1212"
+        "modules/gsp.ts:1213"
       ],
       "guards": [
         "gsp_seed"
@@ -488,7 +436,7 @@
     {
       "id": "NL-GSP-REVIEWERS",
       "file": "modules/gsp.ts",
-      "line": 615,
+      "line": 616,
       "name": "proposal reviewer map",
       "members": [
         "iso",
@@ -496,8 +444,8 @@
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/gsp.ts:615",
-        "modules/gsp.ts:1405"
+        "modules/gsp.ts:616",
+        "modules/gsp.ts:1406"
       ],
       "guards": [
         "gsp_propose"
@@ -1191,7 +1139,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:163"
+        "modules/gsp.ts:164"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1217,7 +1165,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:435"
+        "modules/gsp.ts:436"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1246,7 +1194,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:497"
+        "modules/gsp.ts:498"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1271,7 +1219,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:757"
+        "modules/gsp.ts:758"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1298,7 +1246,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1224"
+        "modules/gsp.ts:1225"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1325,8 +1273,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1335",
-        "modules/gsp.ts:1373"
+        "modules/gsp.ts:1336",
+        "modules/gsp.ts:1374"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1353,8 +1301,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:229",
-        "modules/gsp.ts:259"
+        "modules/gsp.ts:230",
+        "modules/gsp.ts:260"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1381,8 +1329,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1613",
-        "modules/gsp.ts:1687"
+        "modules/gsp.ts:1614",
+        "modules/gsp.ts:1688"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1408,7 +1356,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1814"
+        "modules/gsp.ts:1815"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1808,10 +1756,7 @@
         "programState.getProgramStateHandler:args.programId",
         "rest.route GET /v1/program-state/:programId:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_update_program_state",
@@ -1828,7 +1773,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/programState.ts:526"
+        "modules/programState.ts:576"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1841,9 +1786,7 @@
         "programState.updateProgramStateHandler:args.sessionId",
         "rest.route PATCH /v1/program-state/:programId:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_get_context_history",
@@ -1863,10 +1806,7 @@
         "programState.getContextHistoryHandler:args.programId",
         "rest.route GET /v1/program-state/:programId/context-history:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_store_memory",
@@ -1886,9 +1826,7 @@
         "programState.storeMemoryHandler:args.programId",
         "rest.route POST /v1/memory/:programId/patterns:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_recall_memory",
@@ -1908,10 +1846,7 @@
         "programState.recallMemoryHandler:args.programId",
         "rest.route GET /v1/memory/:programId/patterns:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_memory_health",
@@ -1931,10 +1866,7 @@
         "programState.memoryHealthHandler:args.programId",
         "rest.route GET /v1/memory/:programId/health:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_delete_memory",
@@ -1954,9 +1886,7 @@
         "programState.deleteMemoryHandler:args.programId",
         "rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "state_reinforce_memory",
@@ -1976,9 +1906,7 @@
         "programState.reinforceMemoryHandler:args.programId",
         "rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId"
       ],
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ]
+      "name_lists": []
     },
     {
       "tool": "programs_list_programs",
@@ -3504,7 +3432,7 @@
       "handler": "getProgramStateHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 11,
+      "occurrences": 10,
       "line_at_base": 230,
       "tool": "state_get_program_state",
       "transports": [
@@ -3512,18 +3440,15 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "canRead: auth.programId in STATE_READERS or STATE_WRITERS, or self",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self and mobile read the full document; a foreign read needs literal fleet.observe and gets the document minus learnedPatterns and contextSummary with memory.status \"omitted\" (PR-J).",
+      "disposition": "FOREIGN-READ",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "A foreign read returns the whole state document including contextSummary and learnedPatterns (programState.ts:250). The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: FOREIGN-READ on literal fleet.observe, document minus memory fields with memory.status \"omitted\"."
+      "name_lists": [],
+      "evidence": "PR-J: the name lists STATE_READERS and STATE_WRITERS are deleted. A foreign fleet.observe read returns no memory and never writes (decay write-back runs only for self and mobile). Self and mobile reads return memory.status \"loaded\" or \"empty\".",
+      "recommendation": "C-4: FOREIGN-READ on literal fleet.observe, document minus memory fields with memory.status \"omitted\". Done in PR-J."
     },
     {
       "id": "programState.storeMemoryHandler:args.programId",
@@ -3539,17 +3464,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "canWrite: auth.programId in STATE_WRITERS (legacy, mobile) or self",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Writes a pattern into the subject's state document. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY, all writers."
+      "name_lists": [],
+      "evidence": "PR-J: state_store_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.recallMemoryHandler:args.programId",
@@ -3565,18 +3488,15 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "canRead",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Reads the subject's learned patterns. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_recall_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.memoryHealthHandler:args.programId",
@@ -3592,18 +3512,15 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "canRead",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Reads the subject's memory health. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_memory_health is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.updateProgramStateHandler:args.programId",
@@ -3619,17 +3536,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "canWrite",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Writes state and history for the subject. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_update_program_state is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.updateProgramStateHandler:args.sessionId",
@@ -3668,17 +3583,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "canWrite",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Deletes a pattern from the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_delete_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.reinforceMemoryHandler:args.programId",
@@ -3694,17 +3607,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "canWrite",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Mutates a pattern in the subject's state. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_reinforce_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "programState.getContextHistoryHandler:args.programId",
@@ -3720,18 +3631,15 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "canRead",
-      "disposition": "ESCALATE",
-      "disposition_by": "C-5",
-      "status": "pending",
+      "binding_today": "authorizeStateRead/authorizeStateWrite (programState.ts:118-158): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller.",
+      "disposition": "SELF-ONLY",
+      "disposition_by": "C-4",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
-      "evidence": "Reads the subject's context history. The gate is canRead/canWrite (programState.ts:118-132), built on auth.programId and the lists STATE_READERS and STATE_WRITERS. C-4 is ruled; the site is ESCALATE only because the name lists wait on C-5.",
-      "recommendation": "C-4: SELF-ONLY."
+      "name_lists": [],
+      "evidence": "PR-J: state_get_context_history is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal.",
+      "recommendation": "C-4: SELF-ONLY. Done in PR-J."
     },
     {
       "id": "pulse.createSessionHandler:args.sessionId",
@@ -4581,10 +4489,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_get_program_state; the gate is in the handler.",
       "recommendation": "Disposition follows the state_get_program_state record."
     },
@@ -4607,9 +4512,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_update_program_state; the gate is in the handler.",
       "recommendation": "Disposition follows the state_update_program_state record."
     },
@@ -4632,10 +4535,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_get_context_history; the gate is in the handler.",
       "recommendation": "Disposition follows the state_get_context_history record."
     },
@@ -4658,9 +4558,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_store_memory; the gate is in the handler.",
       "recommendation": "Disposition follows the state_store_memory record."
     },
@@ -4683,10 +4581,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_recall_memory; the gate is in the handler.",
       "recommendation": "Disposition follows the state_recall_memory record."
     },
@@ -4709,9 +4604,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_delete_memory; the gate is in the handler.",
       "recommendation": "Disposition follows the state_delete_memory record."
     },
@@ -4734,9 +4627,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.",
       "recommendation": "Disposition follows the state_reinforce_memory record."
     },
@@ -4759,10 +4650,7 @@
       "status": "pending",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
-      "name_lists": [
-        "NL-STATE-READERS",
-        "NL-STATE-WRITERS"
-      ],
+      "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_memory_health; the gate is in the handler.",
       "recommendation": "Disposition follows the state_memory_health record."
     },
@@ -5567,15 +5455,15 @@
         "rest"
       ],
       "effect": "read",
-      "binding_today": "none: iterates every program's program_state and scores learnedPatterns (gsp.ts:1918-1924)",
-      "disposition": "ESCALATE",
+      "binding_today": "credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS [\"mobile\"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J).",
+      "disposition": "SELF-ONLY",
       "disposition_by": "C-4",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "gsp.ts:1920-1924 reads all programs' learnedPatterns when scope is not \"gsp\". C-4 ruled memory is never served cross-program for the program-state family; this path returns pattern text from every program to any gsp.read caller.",
-      "recommendation": "Restrict the scan to the caller's own program_state document (C-4: memory self-only)."
+      "evidence": "PR-J: the memory scan no longer lists the whole program_state collection. A foreign program's learnedPatterns are never returned through gsp_search.",
+      "recommendation": "C-4: memory self-only. Done in PR-J."
     }
   ],
   "ast_baseline": [
@@ -5842,96 +5730,6 @@
     },
     {
       "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "canRead",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 119,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "canWrite",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 130,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "getProgramStateHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 235,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "storeMemoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 327,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "recallMemoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 387,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "memoryHealthHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 459,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "updateProgramStateHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 522,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "deleteMemoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 675,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "reinforceMemoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 732,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programState.ts",
-      "handler": "getContextHistoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 792,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
       "file": "modules/pulse.ts",
       "handler": "updateSessionHandler",
       "expr": "auth.programId",
@@ -6108,15 +5906,6 @@
       "expr": "args.programId",
       "occurrences": 1,
       "line_at_base": 400,
-      "status": "pending"
-    },
-    {
-      "rule": "S3",
-      "file": "modules/programState.ts",
-      "handler": "getProgramStateHandler",
-      "expr": "args.programId",
-      "occurrences": 1,
-      "line_at_base": 239,
       "status": "pending"
     },
     {

@@ -1,0 +1,13 @@
+# mutation for probe J.foreign_read_never_writes: a foreign read writes the decay back to the peer's document
+diff --git a/src/modules/programState.ts b/src/modules/programState.ts
+--- a/src/modules/programState.ts
++++ b/src/modules/programState.ts
+@@ -310,7 +310,7 @@
+ 
+   // Write decayed state back to Firestore if anything changed (merge update).
+   // A foreign read NEVER writes: only self and STATE_ADMIN_PRINCIPALS persist decay.
+-  if (decayed && authz.full) {
++  if (decayed) {
+     const { emitEvent } = await import("./events.js");
+     
+     // Merge update — only write changed fields

@@ -1,12 +1,13 @@
-# mutation for probe T2.state_get_context_history: the canRead check in this handler no longer runs, so another program's state is readable
+# mutation for probe T2.state_get_context_history: the access check in this handler no longer runs, so another program's state is readable
 diff --git a/src/modules/programState.ts b/src/modules/programState.ts
-index 68cbd9a..0aaa294 100644
 --- a/src/modules/programState.ts
 +++ b/src/modules/programState.ts
-@@ -789,5 +789,5 @@ export async function getContextHistoryHandler(auth: AuthContext, rawArgs: unkno
+@@ -841,7 +841,7 @@
    }
  
--  if (!canRead(auth, args.programId)) {
+   const rAuthz = authorizeStateRead(auth, args.programId, false);
+-  if (!rAuthz.allowed) {
 +  if (false) {
-     return jsonResult({ success: false, error: `Access denied: "${auth.programId}" cannot read context history for "${args.programId}"` });
+     return jsonResult({ success: false, error: `Access denied: "${rAuthz.principal}" cannot read context history for "${args.programId}"` });
    }
+ 
