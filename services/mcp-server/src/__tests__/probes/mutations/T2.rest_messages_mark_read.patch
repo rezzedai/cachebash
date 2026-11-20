@@ -1,0 +1,27 @@
+# mutation for probe T2.rest_messages_mark_read: mark_read marks every supplied id read again, with no per-id check
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -436,12 +436,16 @@
+     if (!Array.isArray(messageIds) || messageIds.length === 0) {
+       return restResponse(res, false, { code: "VALIDATION_ERROR", message: "messageIds must be a non-empty array" }, 400);
+     }
+-    const { markReadHandler } = await import("../modules/relay.js");
+-    const out = await markReadHandler(auth, messageIds.filter((id) => typeof id === "string" && id !== ""));
+-    if (out.denied.length > 0 && out.updated === 0) {
+-      return restResponse(res, false, { code: "FORBIDDEN", message: out.denied[0].error, denied: out.denied }, 403);
+-    }
+-    restResponse(res, true, out);
++    const db = getFirestore();
++    const batch = db.batch();
++    for (const id of messageIds.slice(0, 100)) {
++      batch.update(db.doc(`tenants/${auth.userId}/relay/${id}`), {
++        status: "read",
++        readAt: FieldValue.serverTimestamp(),
++      });
++    }
++    await batch.commit();
++    restResponse(res, true, { updated: Math.min(messageIds.length, 100) });
+   }),
+   route("GET", "/v1/messages", async (auth, req, res) => {
+     const query = coerceQueryParams(parseQuery(req.url || ""));

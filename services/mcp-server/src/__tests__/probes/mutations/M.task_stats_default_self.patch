@@ -1,0 +1,37 @@
+# mutation for probe M.task_stats_default_self: tasks/stats counts the whole tenant again for any caller
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -308,21 +308,10 @@
+ const routes: Route[] = [
+   // Dispatch
+   route("GET", "/v1/tasks/stats", async (auth, req, res) => {
+-    // RD-5 PR-M row 3 (GATE get_tasks): the capability gate, then the get_tasks rule on credentialPrincipal(auth). A named target needs
+-    // authorizeTasksRead; no target counts the principal's own queue unless it is a TASKS_ALL principal or holds fleet.observe (L-D1).
+-    await enforceBreaker(auth, "get_tasks");
+-    const query = coerceQueryParams(parseQuery(req.url || ""));
+-    const principal = credentialPrincipal(auth);
+-    const queryTarget = query.target as string | undefined || undefined;
+-    const { authorizeTasksRead } = await import("../modules/dispatch/tasks.js"); // lazy, as markReadHandler: the module graph pulls the ESM-only octokit
+-    const { allowed, seesAll } = authorizeTasksRead(auth, queryTarget);
+-    if (!allowed) {
+-      logDenial({ principal: denialPrincipal(auth), tool: "dispatch_get_tasks", subject: queryTarget ?? null, code: "FOREIGN_SUBJECT" });
+-      return restResponse(res, false, { code: "FORBIDDEN", message: `Access denied: "${principal}" cannot read tasks for "${queryTarget}"` }, 403);
+-    }
+-    const target = queryTarget ?? (seesAll || hasFleetObserveCapability(auth) ? undefined : principal);
++    const query = coerceQueryParams(parseQuery(req.url || ""));
+     const db = getFirestore();
+     const tasksRef = db.collection(`tenants/${auth.userId}/tasks`);
++    const target = query.target as string | undefined;
+     const period = query.period as string | undefined;
+ 
+     if (target || (period && period !== "all")) {
+@@ -345,7 +334,7 @@
+       restResponse(res, true, {
+         ...counts,
+         total: counts.created + counts.active + counts.done + counts.failed,
+-        ...(queryTarget ? { target: queryTarget } : {}),
++        ...(target ? { target } : {}),
+         ...(period ? { period } : {}),
+       });
+     } else {

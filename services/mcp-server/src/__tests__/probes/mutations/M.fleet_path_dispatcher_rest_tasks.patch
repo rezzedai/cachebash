@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_dispatcher_rest_tasks: a foreign target needs neither TASKS_ALL_PRINCIPALS nor fleet.observe, so the dispatcher's target read is refused
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -143,7 +143,7 @@
+ export function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
+   const principal = credentialPrincipal(auth);
+   const seesAll = (TASKS_ALL_PRINCIPALS as readonly string[]).includes(principal);
+-  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth);
++  const allowed = target === undefined || target === principal || target === "all";
+   return { allowed, principal, seesAll };
+ }
+ 

@@ -1,0 +1,38 @@
+# mutation for probe M.dreams_peek_needs_dream_read: the dream routes call the handler directly again, with no capability gate
+diff --git a/src/transport/rest.ts b/src/transport/rest.ts
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
+@@ -12,6 +12,7 @@
+ import { getFirestore } from "../firebase/client.js";
+ import * as admin from "firebase-admin";
+ import { generateCorrelationId, createAuditLogger } from "../middleware/gate.js";
++import { dreamPeekHandler } from "../modules/dream.js";
+ import { gspListNamespacesHandler } from "../modules/gsp.js";
+ import { enforceRateLimit, checkAuthRateLimit } from "../middleware/rateLimiter.js";
+ import { checkSessionCompliance, resetTransportCompliance } from "../middleware/sessionCompliance.js";
+@@ -702,9 +703,9 @@
+   }),
+   // Dream
+   route("GET", "/v1/dreams", async (auth, req, res) => {
+-    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+-    const data = await callTool(auth, req, "dream_peek", {});
+-    restResponse(res, true, data);
++    const result = await dreamPeekHandler(auth, {});
++    const text = result?.content?.[0]?.text;
++    restResponse(res, true, text ? JSON.parse(text) : result);
+   }),
+   route("POST", "/v1/dreams/:id/activate", async (auth, req, res, p) => {
+     const result = await callTool(auth, req, "dream_activate", { dreamId: p.id });
+@@ -858,9 +859,9 @@
+     restResponse(res, true, data);
+   }),
+   route("GET", "/v1/dreams/peek", async (auth, req, res) => {
+-    // RD-5 PR-M row 9 (CALL dream_peek): dream.read through callTool; the handler is unchanged.
+-    const data = await callTool(auth, req, "dream_peek", {});
+-    restResponse(res, true, data);
++    const result = await dreamPeekHandler(auth, {});
++    const text = result?.content?.[0]?.text;
++    restResponse(res, true, text ? JSON.parse(text) : result);
+   }),
+   route("POST", "/v1/dreams/activate", async (auth, req, res) => {
+     const body = await readBody(req);

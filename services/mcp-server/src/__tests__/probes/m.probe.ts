@@ -164,17 +164,19 @@ describe("M fleet paths (REST)", () => {
   probe("M.fleet_path_mobile_unread", async () => {
     const w = world();
     const target = `m-unread-${nextN()}`;
+    await emulatorDb().doc(`tenants/${w.tenants.A}/programs/${target}`).set({ // a relay target must be a registered program
+      programId: target, displayName: target, role: "custom", color: "#808080", groups: [], tags: [],
+      createdAt: Timestamp.now(), createdBy: "probe-m", active: true,
+    });
     const ids: string[] = [];
-    for (const n of ["first", "second", "third"]) {
-      const sent = await callTool(w, w.seeders.A, "relay_send_message", { message: `m-${n}`, source: "legacy", target, message_type: "DIRECTIVE" });
-      ids.push(sent.json.messageId as string);
-    }
+    for (const n of ["first", "second", "third"]) ids.push(await sendTo(w, target, `unread-${n}`));
     const r = await rest(w, phone(w), "GET", `/v1/messages/unread?sessionId=${target}`);
     expect(`${r.httpStatus} ${r.text.slice(0, 240)}`).toMatch(/^200 /);
     const data = r.json?.data;
     expect(Array.isArray(data?.messages)).toBe(true);
     expect(data.count).toBe(data.messages.length);
-    expect(data.messages.map((m: any) => m.id)).toEqual([...ids].reverse());
+    // get_messages also returns the tenant's broadcasts (target "all"), which the phone cannot clear; the three sent here keep their newest-first order
+    expect(data.messages.map((m: any) => m.id).filter((id: string) => ids.includes(id))).toEqual([...ids].reverse());
   });
 
   // api.ts:227 markMessagesRead on a message addressed to a program (the phone reads every inbox)

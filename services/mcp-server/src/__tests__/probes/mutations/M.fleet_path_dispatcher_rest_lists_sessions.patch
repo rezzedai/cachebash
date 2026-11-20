@@ -1,0 +1,13 @@
+# mutation for probe M.fleet_path_dispatcher_rest_lists_sessions: a no-program list is scoped to the principal even for the dispatcher
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -750,7 +750,7 @@
+       logDenial({ principal: listPrincipal, tool: "pulse_list_sessions", subject: listProgram, code: "FOREIGN_SUBJECT" });
+       return jsonResult({ success: false, error: `Access denied: "${listPrincipal}" cannot read sessions for "${listProgram}"` });
+     }
+-  } else if (!inList(PULSE_PRIV, listPrincipal) && !hasFleetObserveCapability(auth)) {
++  } else {
+     listProgram = listPrincipal;
+   }
+ 
