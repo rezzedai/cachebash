@@ -1,0 +1,13 @@
+# mutation for probe L.fleet_path_dispatcher_updates_session: dispatcher is dropped from the update_session privilege list
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -208,7 +208,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
+   // Admin keys (legacy/mobile/dispatcher) retain full access for supervision.
+   const callerProgramId = auth.programId;
+   const isPrivileged = !callerProgramId || callerProgramId === "legacy"
+-    || callerProgramId === "mobile" || callerProgramId === "dispatcher";
++    || callerProgramId === "mobile";
+   if (!isPrivileged) {
+     const sessionPrefix = sessionOwnerProgramId(sessionId);
+     if (sessionPrefix !== callerProgramId) {

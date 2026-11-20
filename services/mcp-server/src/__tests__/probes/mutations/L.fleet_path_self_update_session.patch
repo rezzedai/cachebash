@@ -1,0 +1,13 @@
+# mutation for probe L.fleet_path_self_update_session: a program no longer owns its own session prefix
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -211,7 +211,7 @@ export async function updateSessionHandler(auth: AuthContext, rawArgs: unknown):
+     || callerProgramId === "mobile" || callerProgramId === "dispatcher";
+   if (!isPrivileged) {
+     const sessionPrefix = sessionOwnerProgramId(sessionId);
+-    if (sessionPrefix !== callerProgramId) {
++    if (sessionPrefix !== `${callerProgramId}-mutated`) {
+       console.warn(`[C2] Cross-session write rejected: caller="${callerProgramId}" session="${sessionId}"`);
+       return jsonResult({
+         success: false,

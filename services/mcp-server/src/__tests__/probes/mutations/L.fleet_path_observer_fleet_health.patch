@@ -1,0 +1,13 @@
+# mutation for probe L.fleet_path_observer_fleet_health: the capability half of the fleet health gate is dropped
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -437,7 +437,7 @@ const GetFleetHealthSchema = z.object({
+ 
+ export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   // Capability gate: fleet.read OR admin
+-  if (!isAdmin(auth) && !hasCapability(auth, "fleet.read")) {
++  if (!auth.capabilities.includes("fleet.admin")) {
+     return jsonResult({
+       success: false,
+       error: "get_fleet_health requires fleet.read capability.",

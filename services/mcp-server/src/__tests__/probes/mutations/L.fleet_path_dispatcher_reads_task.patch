@@ -1,0 +1,12 @@
+# mutation for probe L.fleet_path_dispatcher_reads_task: the dispatcher is not in the get_task_by_id grant
+diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+--- a/src/modules/dispatch/tasks.ts
++++ b/src/modules/dispatch/tasks.ts
+@@ -589,6 +589,7 @@ export async function getTaskByIdHandler(auth: AuthContext, rawArgs: unknown): P
+   }
+ 
+   const data = doc.data()!;
++  if (data.source !== auth.programId && data.target !== auth.programId && auth.programId !== "mobile") return jsonResult({ success: false, error: "mutation: dispatcher dropped from the get_task_by_id grant" });
+   const decrypted = decryptTaskFields(data, auth.encryptionKey);
+ 
+   return jsonResult({

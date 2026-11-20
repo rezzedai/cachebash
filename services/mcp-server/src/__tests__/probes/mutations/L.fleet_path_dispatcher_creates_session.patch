@@ -1,0 +1,12 @@
+# mutation for probe L.fleet_path_dispatcher_creates_session: the dispatcher is not in the create_session grant
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -84,6 +84,7 @@ export async function createSessionHandler(auth: AuthContext, rawArgs: unknown):
+   const db = getFirestore();
+ 
+   const sessionId = args.sessionId || `session_${Date.now()}`;
++  if (auth.programId === "dispatcher") return jsonResult({ success: false, error: "mutation: dispatcher dropped from the create_session grant", sessionId });
+ 
+   // W1.2.1: Session ID format validation
+   const complianceConfig = getComplianceConfig(auth.userId);

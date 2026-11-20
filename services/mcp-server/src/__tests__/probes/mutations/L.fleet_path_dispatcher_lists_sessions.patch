@@ -1,0 +1,12 @@
+# mutation for probe L.fleet_path_dispatcher_lists_sessions: the dispatcher is not in the list_sessions grant
+diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/modules/pulse.ts
++++ b/src/modules/pulse.ts
+@@ -710,6 +710,7 @@ export async function listSessionsHandler(auth: AuthContext, rawArgs: unknown):
+   if (!args.includeArchived) {
+     query = query.where("archived", "==", false);
+   }
++  if (auth.programId !== "mobile" && args.programId !== auth.programId) return jsonResult({ success: false, error: "mutation: dispatcher dropped from the list_sessions grant" });
+   if (args.programId) {
+     query = query.where("programId", "==", args.programId);
+   }
