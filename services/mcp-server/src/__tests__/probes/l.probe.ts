@@ -510,4 +510,58 @@ describe("L fleet paths", () => {
     expect(dry.lines.join("\n")).toContain("DRY RUN");
     expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${questionId}`).get()).data()?.askedBy).toBeUndefined();
   });
+
+  // row 33 (L-D7 option 2): a sprint is written by its creator, the override principals, fleet.admin or mobile; read adds fleet.observe and the dispatcher.
+  const newSprint = async (w: World, cred: WorldCredential): Promise<string> => {
+    const r = await callTool(w, cred, "sprint_create_sprint", { projectName: `l-${nextN()}`, branch: "l", stories: [{ id: "s1", title: "l-story" }] });
+    const id = (r.json?.sprintId ?? r.json?.id) as string | undefined;
+    if (!id) throw new Error(`sprint setup failed: ${r.text.slice(0, 300)}`);
+    return id;
+  };
+  probe("L.sprint_write_foreign_denied", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-sprint-beta", ["*"]);
+    const sprintId = await newSprint(w, alpha);
+    const add = await callTool(w, beta, "sprint_add_story_to_sprint", { sprintId, story: { id: "s2", title: "l-foreign" } });
+    expect(denialNames(add, "beta")).toBe(true);
+    const done = await callTool(w, beta, "sprint_complete_sprint", { sprintId });
+    expect(denialNames(done, "beta")).toBe(true);
+    const upd = await callTool(w, beta, "sprint_update_sprint_story", { sprintId, storyId: "s1", status: "active" });
+    expect(denialNames(upd, "beta")).toBe(true);
+    const read = await callTool(w, beta, "sprint_get_sprint", { sprintId });
+    expect(denialNames(read, "beta")).toBe(true);
+  });
+  test("L.sprint_write_foreign_denied control: the creator writes, and an observer reads", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha2", ["*"]);
+    const sprintId = await newSprint(w, alpha);
+    expect((await callTool(w, alpha, "sprint_add_story_to_sprint", { sprintId, story: { id: "s2", title: "l-own" } })).json?.success).toBe(true);
+    const obs = await mint(w, "vector", "probe-l-sprint-observer", ["*", "fleet.observe"]);
+    expect((await callTool(w, obs, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
+  });
+
+  const unattributedSprint = async (w: World): Promise<string> => {
+    const ref = await emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({
+      type: "sprint", title: "Sprint: l-old", instructions: "", source: "orchestrator", target: null, status: "active", encrypted: false, archived: false,
+      sprint: { projectName: "l-old", branch: "l", config: {} }, createdAt: Timestamp.now(),
+    });
+    return ref.id;
+  };
+  probe("L.sprint_unattributed_fail_closed", async () => {
+    const w = world();
+    const sprintId = await unattributedSprint(w);
+    const alpha = await mint(w, "alpha", "probe-l-sprint-unattr", ["*"]);
+    const r = await callTool(w, alpha, "sprint_get_sprint", { sprintId });
+    expect(denialNames(r, "alpha")).toBe(true);
+    const w2 = await callTool(w, alpha, "sprint_complete_sprint", { sprintId });
+    expect(denialNames(w2, "alpha")).toBe(true);
+  });
+  test("L.sprint_unattributed_fail_closed control: mobile and iso act on it", async () => {
+    const w = world();
+    const sprintId = await unattributedSprint(w);
+    const iso = await mint(w, "iso", "probe-l-sprint-iso", ["*"]);
+    expect((await callTool(w, w.stateSeeders.A, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
+    expect((await callTool(w, iso, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
+  });
 });

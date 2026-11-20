@@ -31,6 +31,8 @@ const escalatingStoryData = {
 const escalatingStoryRef = { update: jest.fn(() => Promise.resolve()) };
 
 const mockFirestore = {
+  // PR-L: sprint writes read the sprint doc first; the fixture sprint was created by iso (the mockAuth principal)
+  doc: jest.fn(() => ({ get: () => Promise.resolve({ exists: true, data: () => ({ type: "sprint", createdBy: "iso" }) }) })),
   collection: jest.fn((path: string) => ({
     add: jest.fn((data: any) => {
       const id = `doc_${Date.now()}_${Math.random().toString(36).slice(2)}`;

@@ -4298,7 +4298,7 @@
       "expr": "args.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 183,
+      "line_at_base": 213,
       "tool": "sprint_create_sprint",
       "transports": [
         "mcp",
@@ -4312,8 +4312,8 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "sprint.ts:183 stores args.sessionId on a task with status \"active\". completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.",
-      "recommendation": "Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can substitute."
+      "evidence": "sprint.ts:213 stores args.sessionId on a task with status \"active\". completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.",
+      "recommendation": "Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:193), so no owner check can substitute."
     },
     {
       "id": "trace.queryTracesHandler:args.programId",
@@ -5335,15 +5335,15 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:193)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "updateStoryHandler mutates a story in any sprint id. The sprint document stores source \"orchestrator\" (sprint.ts:164) and no creator; sprint.ts:331 is a TASK_RETRIED event that carries auth.programId, not a stored owner.",
-      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
+      "evidence": "updateStoryHandler mutates a story in any sprint id. The sprint document stores source \"orchestrator\" (sprint.ts:193) and no creator; sprint.ts:363 is a TASK_RETRIED event that carries auth.programId, not a stored owner.",
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.addStoryHandler:args.sprintId",
@@ -5361,7 +5361,7 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:193)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5369,7 +5369,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "addStoryHandler adds a story to any sprint id; no owner comparison.",
-      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.completeSprintHandler:args.sprintId",
@@ -5387,7 +5387,7 @@
         "rest"
       ],
       "effect": "write",
-      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:193)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5395,7 +5395,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "completeSprintHandler completes any sprint id; no owner comparison.",
-      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first."
     },
     {
       "id": "sprint.getSprintHandler:args.sprintId",
@@ -5414,7 +5414,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:164)",
+      "binding_today": "none; the sprint task stores no creator (source is the literal \"orchestrator\", sprint.ts:193)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -5422,7 +5422,7 @@
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "getSprintHandler returns any sprint by id; reachable on the ISO transport.",
-      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first."
+      "recommendation": "No owner field exists on the sprint document (source is the literal \"orchestrator\", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first."
     },
     {
       "id": "signal.getResponseHandler:args.questionId",
@@ -5620,33 +5620,6 @@
       "expr": "auth.programId",
       "occurrences": 1,
       "line_at_base": 119,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/sprint.ts",
-      "handler": "createSprintHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 251,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/sprint.ts",
-      "handler": "updateStoryHandler",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 331,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/sprint.ts",
-      "handler": "completeSprintHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 456,
       "status": "pending"
     },
     {

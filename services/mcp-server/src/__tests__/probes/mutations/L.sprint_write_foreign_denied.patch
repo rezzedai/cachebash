@@ -1,0 +1,12 @@
+# mutation for probe L.sprint_write_foreign_denied: any key writes any sprint
+diff --git a/src/modules/sprint.ts b/src/modules/sprint.ts
+--- a/src/modules/sprint.ts
++++ b/src/modules/sprint.ts
+@@ -158,6 +158,7 @@
+ 
+ function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
+   if (!sprint) return false;
++  if (auth) return true;
+   if (SPRINT_ALL.includes(p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return true;
+   if (typeof sprint.createdBy !== "string" || sprint.createdBy === "") return false;
+   if (sprint.createdBy === p) return true;

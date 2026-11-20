@@ -12,6 +12,9 @@ import { emitAnalyticsEvent } from "./analytics.js";
 import { generateSpanId } from "../utils/trace.js";
 import { CONSTANTS } from "../config/constants.js";
 import { Timestamp } from "firebase-admin/firestore";
+import { credentialPrincipal, hasFleetAdminCapability, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
+import { logDenial } from "../auth/denialLog.js";
+import { TASK_OVERRIDE_PRINCIPALS } from "./dispatch/shared.js";
 
 // W2e: sprints, sprint-stories, and the escalation-failure fallback task are all
 // open work with no natural expiry of their own — same "everything else -> sentinel"
@@ -147,6 +150,32 @@ export function storyStatusToLifecycle(status: string): string {
   }
 }
 
+// ── Authorization (RD-5 PR-L row 33, L-D7 option 2 with 20.1 item 3) ───────
+// A sprint records its creator (`createdBy`). Writes need the creator, the iso and dispatcher override, the literal fleet.admin capability, or mobile.
+// Reads add TASKS_ALL_PRINCIPALS and literal fleet.observe. A sprint with no createdBy fails closed: override, fleet.admin or mobile only.
+
+const SPRINT_ALL: readonly string[] = ["mobile"];
+
+function mayActOnSprint(auth: AuthContext, p: string, sprint: { createdBy?: unknown } | undefined, kind: "read" | "write"): boolean {
+  if (!sprint) return false;
+  if (SPRINT_ALL.includes(p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return true;
+  if (typeof sprint.createdBy !== "string" || sprint.createdBy === "") return false;
+  if (sprint.createdBy === p) return true;
+  return kind === "read" && (p === "dispatcher" || hasFleetObserveCapability(auth));
+}
+
+/** Reads the sprint parent and decides. Returns the denial result, or null when allowed. */
+async function authorizeSprint(auth: AuthContext, sprintId: string, kind: "read" | "write", tool: string, verb: string): Promise<ToolResult | null> {
+  const p = credentialPrincipal(auth);
+  const doc = await getFirestore().doc(`tenants/${auth.userId}/tasks/${sprintId}`).get();
+  const data = doc.exists ? doc.data() : undefined;
+  if (data && data.type !== "sprint") return jsonResult({ success: false, error: "Document is not a sprint" });
+  if (!data) return jsonResult({ success: false, error: "Sprint not found" });
+  if (mayActOnSprint(auth, p, data, kind)) return null;
+  logDenial({ principal: p, tool, subject: typeof data.createdBy === "string" ? data.createdBy : null, code: "NOT_OWNER" });
+  return jsonResult({ success: false, error: `Access denied: "${p}" cannot ${verb} "${sprintId}"` });
+}
+
 export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CreateSprintSchema.parse(rawArgs);
   const db = getFirestore();
@@ -162,6 +191,7 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
     title: `Sprint: ${args.projectName}`,
     instructions: "",
     source: "orchestrator",
+    createdBy: credentialPrincipal(auth), // RD-5 PR-L L-D7
     target: null,
     priority: "high",
     action: "sprint",
@@ -248,7 +278,7 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
   // Analytics: sprint_lifecycle create
   emitAnalyticsEvent(auth.userId, {
     eventType: "sprint_lifecycle",
-    programId: auth.programId,
+    programId: credentialPrincipal(auth),
     toolName: "create_sprint",
     success: true,
   });
@@ -264,6 +294,8 @@ export async function createSprintHandler(auth: AuthContext, rawArgs: unknown): 
 export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = UpdateStorySchema.parse(rawArgs);
   const db = getFirestore();
+  const denied = await authorizeSprint(auth, args.sprintId, "write", "sprint_update_story", "update sprint");
+  if (denied) return denied;
 
   // Find the story by looking for sprint-story tasks with matching sprint.parentId
   const snapshot = await db
@@ -328,7 +360,7 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
       emitEvent(auth.userId, {
         event_type: "TASK_RETRIED",
         task_id: args.storyId,
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         attempt: retry.retryCount + 1,
         max_retries: retry.maxRetries,
         sprint_id: args.sprintId,
@@ -342,7 +374,7 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
       emitEvent(auth.userId, {
         event_type: "TASK_RETRY_EXHAUSTED",
         task_id: args.storyId,
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         total_attempts: retry.retryCount,
         sprint_id: args.sprintId,
       });
@@ -371,6 +403,8 @@ export async function updateStoryHandler(auth: AuthContext, rawArgs: unknown): P
 export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = AddStorySchema.parse(rawArgs);
   const db = getFirestore();
+  const denied = await authorizeSprint(auth, args.sprintId, "write", "sprint_add_story_to_sprint", "update sprint");
+  if (denied) return denied;
 
   const storyRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
 
@@ -420,6 +454,8 @@ export async function addStoryHandler(auth: AuthContext, rawArgs: unknown): Prom
 export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   const args = CompleteSprintSchema.parse(rawArgs);
   const db = getFirestore();
+  const denied = await authorizeSprint(auth, args.sprintId, "write", "sprint_complete_sprint", "update sprint");
+  if (denied) return denied;
   const sprintRef = db.doc(`tenants/${auth.userId}/tasks/${args.sprintId}`);
 
   // Auto-calculate summary if not provided
@@ -453,7 +489,7 @@ export async function completeSprintHandler(auth: AuthContext, rawArgs: unknown)
   // Analytics: sprint_lifecycle complete
   emitAnalyticsEvent(auth.userId, {
     eventType: "sprint_lifecycle",
-    programId: auth.programId,
+    programId: credentialPrincipal(auth),
     toolName: "complete_sprint",
     success: true,
   });
@@ -483,6 +519,11 @@ export async function getSprintHandler(auth: AuthContext, rawArgs: unknown): Pro
   const sprintData = sprintDoc.data()!;
   if (sprintData.type !== "sprint") {
     return jsonResult({ success: false, error: "Document is not a sprint" });
+  }
+  const getPrincipal = credentialPrincipal(auth);
+  if (!mayActOnSprint(auth, getPrincipal, sprintData, "read")) {
+    logDenial({ principal: getPrincipal, tool: "sprint_get_sprint", subject: typeof sprintData.createdBy === "string" ? sprintData.createdBy : null, code: "NOT_OWNER" });
+    return jsonResult({ success: false, error: `Access denied: "${getPrincipal}" cannot read sprint "${args.sprintId}"` });
   }
 
   // Fetch all child stories

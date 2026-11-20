@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 30 AST baseline rows.
+114 site records, 111 handler entries, 27 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -399,11 +399,11 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `sprint.createSprintHandler:args.sessionId`
 
-- Where: `modules/sprint.ts`, handler `createSprintHandler`, expression `args.sessionId`, line 183 at base, 1 occurrence(s).
+- Where: `modules/sprint.ts`, handler `createSprintHandler`, expression `args.sessionId`, line 213 at base, 1 occurrence(s).
 - Tool: sprint_create_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-K.
 - Binding today: stored as attribution only; ownership is isTaskOwner, which needs claimedBy, and a sprint parent has none (K-D1).
-- Evidence: sprint.ts:183 stores args.sessionId on a task with status "active". completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.
-- Recommendation: Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164), so no owner check can substitute.
+- Evidence: sprint.ts:213 stores args.sessionId on a task with status "active". completion.ts:537, completion.ts:870 and claims.ts:190 accept data.sessionId === auth.programId as ownership, so the program a caller names in sessionId can complete or unclaim the sprint task.
+- Recommendation: Remove sessionId from every ownership comparison (same change as hole a, dispatch_claim_task). Label ATTRIBUTION only after that. The sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193), so no owner check can substitute.
 
 ### `trace.queryTracesHandler:args.programId`
 
@@ -728,33 +728,33 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 - Where: `modules/sprint.ts`, handler `updateStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_update_sprint_story; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
-- Evidence: updateStoryHandler mutates a story in any sprint id. The sprint document stores source "orchestrator" (sprint.ts:164) and no creator; sprint.ts:331 is a TASK_RETRIED event that carries auth.programId, not a stored owner.
-- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193).
+- Evidence: updateStoryHandler mutates a story in any sprint id. The sprint document stores source "orchestrator" (sprint.ts:193) and no creator; sprint.ts:363 is a TASK_RETRIED event that carries auth.programId, not a stored owner.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.addStoryHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `addStoryHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_add_story_to_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193).
 - Evidence: addStoryHandler adds a story to any sprint id; no owner comparison.
-- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.completeSprintHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `completeSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_complete_sprint; transports mcp, rest; effect write; decided by ISO; closes in PR-L.
-- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193).
 - Evidence: completeSprintHandler completes any sprint id; no owner comparison.
-- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: writes gate on literal fleet.admin, or PR-L adds a creator-program field first.
 
 ### `sprint.getSprintHandler:args.sprintId`
 
 - Where: `modules/sprint.ts`, handler `getSprintHandler`, expression `args.sprintId`, line n/a at base, 1 occurrence(s).
 - Tool: sprint_get_sprint; transports mcp, rest, iso; effect read; decided by ISO; closes in PR-L.
-- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164).
+- Binding today: none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193).
 - Evidence: getSprintHandler returns any sprint by id; reachable on the ISO transport.
-- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:164), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first.
+- Recommendation: No owner field exists on the sprint document (source is the literal "orchestrator", sprint.ts:193), so no owner check can be built. ESCALATE to ISO: reads gate on literal fleet.observe, or PR-L adds a creator-program field first.
 
 ### `signal.getResponseHandler:args.questionId`
 
@@ -871,10 +871,10 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | policy.getPolicy:args.policyId | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
 | policy.listPolicies:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
 | policy.policyCheck:(tenant-wide) | n/a | ESCALATE | none; the stored creator is the tenant uid (policy.ts:208, :285), not a program |
-| sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
-| sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
-| sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
-| sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:164) |
+| sprint.updateStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
+| sprint.addStoryHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
+| sprint.completeSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
+| sprint.getSprintHandler:args.sprintId | n/a | ESCALATE | none; the sprint task stores no creator (source is the literal "orchestrator", sprint.ts:193) |
 | signal.getResponseHandler:args.questionId | n/a | ESCALATE | none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body |
 
 ### 4. Memory fan-out in gsp_search (gsp.ts:1897-1901)
@@ -955,7 +955,7 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | signal.writeAlertDocs:input.source | b | 2 | 235 | NOT-IDENTITY | ISO | n/a | false |
 | signal.writeAlertDocs:input.sessionId | b | 1 | 241 | ATTRIBUTION | ISO | n/a | false |
 | signal.sendAlertHandler:args.sessionId | a | 1 | 301 | ATTRIBUTION | ISO | n/a | false |
-| sprint.createSprintHandler:args.sessionId | a | 1 | 183 | ESCALATE | ISO | PR-K | false |
+| sprint.createSprintHandler:args.sessionId | a | 1 | 213 | ESCALATE | ISO | PR-K | false |
 | trace.queryTracesHandler:args.programId | a | 2 | 223 | ESCALATE | C-5 | PR-L | false |
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
 | callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 25 | 110 |
+| S1 | 22 | 106 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1250,9 +1250,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
 | S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
-| S1 | modules/sprint.ts | createSprintHandler | `auth.programId` | 1 | 251 |
-| S1 | modules/sprint.ts | updateStoryHandler | `auth.programId` | 2 | 331 |
-| S1 | modules/sprint.ts | completeSprintHandler | `auth.programId` | 1 | 456 |
 | S1 | modules/webhook.ts | webhookRegisterHandler | `auth.programId` | 1 | 130 |
 | S1 | transport/rest.ts | requireAdmin | `auth.programId` | 1 | 134 |
 | S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 192 |
