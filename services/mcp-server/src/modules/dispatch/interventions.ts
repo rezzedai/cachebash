@@ -16,11 +16,29 @@ import { transition } from "../../lifecycle/engine.js";
 import { z } from "zod";
 import { emitEvent } from "../events.js";
 import { emitAnalyticsEvent } from "../analytics.js";
+import { logDenial } from "../../auth/denialLog.js";
 import { isProgramRegistered } from "../programRegistry.js";
-import { type ToolResult, jsonResult, buildTransition, appendTransition } from "./shared.js";
+import { type ToolResult, jsonResult, buildTransition, appendTransition, isTaskParty, TASK_OVERRIDE_PRINCIPALS } from "./shared.js";
+import { credentialPrincipal, hasFleetAdminCapability } from "../../auth/ownerAuthz.js";
 import { dispatchTaskWebhooks } from "../webhook.js";
 import { CONSTANTS } from "../../config/constants.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+
+/** Program control (RD-5 PR-L row 13, L-D3): the principal itself, or the literal fleet.admin capability. */
+function programControlAllowed(auth: AuthContext, subject: string): boolean {
+  return subject === credentialPrincipal(auth) || hasFleetAdminCapability(auth);
+}
+
+/**
+ * RD-5 PR-L rows 9 to 12 (L-D2): acting on a task needs a party to it (sender, target or owner), the iso or dispatcher override,
+ * or the literal fleet.admin capability. Returns the denial text, or null when allowed. Decided after the read, before any write.
+ */
+function authorizeTaskAct(auth: AuthContext, data: Record<string, unknown>, tool: string, verb: string, taskId: string): string | null {
+  const p = credentialPrincipal(auth);
+  if (isTaskParty(data, p) || (TASK_OVERRIDE_PRINCIPALS as readonly string[]).includes(p) || hasFleetAdminCapability(auth)) return null;
+  logDenial({ principal: p, tool, subject: typeof data.source === "string" ? data.source : typeof data.target === "string" ? data.target : null, code: "NOT_OWNER" });
+  return `Access denied: "${p}" cannot ${verb} "${taskId}"`;
+}
 
 // ─── SCHEMAS ──────────────────────────────────────────────────────────────────
 
@@ -91,6 +109,8 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       if (!doc.exists) return { error: "Task not found" };
 
       const data = doc.data()!;
+      const denied = authorizeTaskAct(auth, data, "dispatch_retry_task", "retry task", args.taskId);
+      if (denied) return { error: denied };
 
       // Only retry tasks in terminal states
       if (data.status !== "done" && data.status !== "failed") {
@@ -104,7 +124,7 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       const newRetryCount = currentRetryCount + 1;
 
       // Build state transition
-      const transitionEntry = buildTransition(data.status, "created", auth.programId, "retry");
+      const transitionEntry = buildTransition(data.status, "created", credentialPrincipal(auth), "retry");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       const updateFields: Record<string, unknown> = {
@@ -148,7 +168,7 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_RETRIED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       previous_status: result.previousStatus as string,
       retry_count: result.newRetryCount,
@@ -158,7 +178,7 @@ export async function retryTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "retry_task",
       success: true,
     });
@@ -202,6 +222,8 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       if (!doc.exists) return { error: "Task not found" };
 
       const data = doc.data()!;
+      const denied = authorizeTaskAct(auth, data, "dispatch_abort_task", "abort task", args.taskId);
+      if (denied) return { error: denied };
 
       // Only abort tasks that are in progress or pending
       if (data.status !== "created" && data.status !== "active") {
@@ -212,7 +234,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       transition("task", data.status, "done");
 
       // Build state transition
-      const transitionEntry = buildTransition(data.status, "done", auth.programId, "abort");
+      const transitionEntry = buildTransition(data.status, "done", credentialPrincipal(auth), "abort");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       tx.update(taskRef, {
@@ -220,7 +242,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
         completed_status: "CANCELLED",
         result: args.reason,
         completedAt: FieldValue.serverTimestamp(),
-        abortedBy: auth.programId,
+        abortedBy: credentialPrincipal(auth),
         abortedAt: FieldValue.serverTimestamp(),
         stateTransitions: updatedTransitions,
       });
@@ -236,7 +258,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_ABORTED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       previous_status: result.previousStatus as string,
       reason: args.reason,
@@ -244,7 +266,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "abort_task",
       success: true,
     });
@@ -253,7 +275,7 @@ export async function abortTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     dispatchTaskWebhooks(auth.userId, {
       event: "task.aborted",
       taskId: args.taskId,
-      task: { id: args.taskId, previousStatus: result.previousStatus, reason: args.reason, abortedBy: auth.programId },
+      task: { id: args.taskId, previousStatus: result.previousStatus, reason: args.reason, abortedBy: credentialPrincipal(auth) },
       timestamp: new Date().toISOString(),
       tenantId: auth.userId,
     }).catch((err) => console.error("[TaskWebhook] Failed:", err));
@@ -291,6 +313,8 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (!doc.exists) return { error: "Task not found" };
 
       const data = doc.data()!;
+      const denied = authorizeTaskAct(auth, data, "dispatch_reassign_task", "reassign task", args.taskId);
+      if (denied) return { error: denied };
 
       // Only reassign tasks that aren't completed
       if (data.status !== "created" && data.status !== "active") {
@@ -299,7 +323,7 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       const updateFields: Record<string, unknown> = {
         target: args.newTarget,
-        reassignedBy: auth.programId,
+        reassignedBy: credentialPrincipal(auth),
         reassignedAt: FieldValue.serverTimestamp(),
         reassignReason: args.reason,
         previousTarget: data.target,
@@ -318,7 +342,7 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       // Build state transition
       const newStatus = data.status === "active" ? "created" : data.status;
-      const transitionEntry = buildTransition(data.status, newStatus, auth.programId, "reassign");
+      const transitionEntry = buildTransition(data.status, newStatus, credentialPrincipal(auth), "reassign");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
       updateFields.stateTransitions = updatedTransitions;
 
@@ -337,7 +361,7 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_REASSIGNED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       previous_target: result.previousTarget as string,
       new_target: args.newTarget,
@@ -346,7 +370,7 @@ export async function reassignTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "reassign_task",
       success: true,
     });
@@ -405,6 +429,8 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
       if (!doc.exists) return { error: "Task not found" };
 
       const data = doc.data()!;
+      const denied = authorizeTaskAct(auth, data, "dispatch_escalate_task", "escalate task", args.taskId);
+      if (denied) return { error: denied };
 
       // Don't escalate completed/archived tasks
       if (data.status === "done" || data.status === "archived") {
@@ -416,7 +442,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       const updateFields: Record<string, unknown> = {
         priority: args.newPriority || "high",
-        escalatedBy: auth.programId,
+        escalatedBy: credentialPrincipal(auth),
         escalatedAt: FieldValue.serverTimestamp(),
         escalationReason: args.reason,
         previousPriority: data.priority,
@@ -441,7 +467,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
       // Build state transition
       const newStatus = (data.status === "active" && escalationTarget) ? "created" : data.status;
-      const transitionEntry = buildTransition(data.status, newStatus, auth.programId, "escalate");
+      const transitionEntry = buildTransition(data.status, newStatus, credentialPrincipal(auth), "escalate");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
       updateFields.stateTransitions = updatedTransitions;
 
@@ -461,7 +487,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_ESCALATED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       previous_priority: result.previousPriority as string,
       new_priority: result.newPriority as string,
@@ -473,7 +499,7 @@ export async function escalateTaskHandler(auth: AuthContext, rawArgs: unknown): 
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "escalate_task",
       success: true,
     });
@@ -506,6 +532,12 @@ export async function quarantineProgramHandler(auth: AuthContext, rawArgs: unkno
   const db = getFirestore();
   const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
 
+  const qp = credentialPrincipal(auth);
+  if (!programControlAllowed(auth, args.programId)) {
+    logDenial({ principal: qp, tool: "dispatch_quarantine_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `Access denied: "${qp}" cannot quarantine "${args.programId}"` });
+  }
+
   // Validate program exists
   const isKnown = await isProgramRegistered(auth.userId, args.programId);
   if (!isKnown) {
@@ -521,7 +553,7 @@ export async function quarantineProgramHandler(auth: AuthContext, rawArgs: unkno
         quarantined: true,
         quarantinedAt: FieldValue.serverTimestamp(),
         quarantineReason: args.reason,
-        quarantinedBy: auth.programId,
+        quarantinedBy: credentialPrincipal(auth),
       };
 
       tx.set(programRef, updateFields, { merge: true });
@@ -535,13 +567,13 @@ export async function quarantineProgramHandler(auth: AuthContext, rawArgs: unkno
     emitEvent(auth.userId, {
       event_type: "PROGRAM_QUARANTINED",
       program_id: args.programId,
-      quarantined_by: auth.programId,
+      quarantined_by: credentialPrincipal(auth),
       reason: args.reason,
     });
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "program_control",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "quarantine_program",
       success: true,
     });
@@ -570,6 +602,12 @@ export async function unquarantineProgramHandler(auth: AuthContext, rawArgs: unk
   const db = getFirestore();
   const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
 
+  const up = credentialPrincipal(auth);
+  if (!programControlAllowed(auth, args.programId)) {
+    logDenial({ principal: up, tool: "dispatch_unquarantine_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+    return jsonResult({ success: false, error: `Access denied: "${up}" cannot unquarantine "${args.programId}"` });
+  }
+
   // Validate program exists
   const isKnown = await isProgramRegistered(auth.userId, args.programId);
   if (!isKnown) {
@@ -583,11 +621,15 @@ export async function unquarantineProgramHandler(auth: AuthContext, rawArgs: unk
       if (!doc.exists || !doc.data()?.quarantined) {
         return { error: `Program "${args.programId}" is not quarantined.` };
       }
+      if (!hasFleetAdminCapability(auth) && doc.data()?.quarantinedBy !== up) {
+        logDenial({ principal: up, tool: "dispatch_unquarantine_program", subject: args.programId, code: "NOT_OWNER" });
+        return { error: `Access denied: "${up}" cannot unquarantine "${args.programId}" (quarantined by "${doc.data()?.quarantinedBy}")` };
+      }
 
       tx.update(programRef, {
         quarantined: false,
         unquarantinedAt: FieldValue.serverTimestamp(),
-        unquarantinedBy: auth.programId,
+        unquarantinedBy: credentialPrincipal(auth),
         failureCount: 0,
         lastFailureAt: null,
         quarantineReason: FieldValue.delete(),
@@ -604,12 +646,12 @@ export async function unquarantineProgramHandler(auth: AuthContext, rawArgs: unk
     emitEvent(auth.userId, {
       event_type: "PROGRAM_UNQUARANTINED",
       program_id: args.programId,
-      unquarantined_by: auth.programId,
+      unquarantined_by: credentialPrincipal(auth),
     });
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "program_control",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "unquarantine_program",
       success: true,
     });
@@ -651,6 +693,8 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     }
 
     const originalData = originalDoc.data()!;
+    const replayDenied = authorizeTaskAct(auth, originalData, "dispatch_replay_task", "replay task", args.taskId);
+    if (replayDenied) return jsonResult({ success: false, error: replayDenied });
     const newType = (originalData.type as string) || "task";
 
     // W2d: resolve effectiveTtl once, explicit undefined/null check (never truthiness --
@@ -715,7 +759,7 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_REPLAYED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       new_task_id: newTaskRef.id,
       original_target: originalData.target as string,
@@ -726,7 +770,7 @@ export async function replayTaskHandler(auth: AuthContext, rawArgs: unknown): Pr
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "replay_task",
       success: true,
     });
@@ -764,6 +808,8 @@ export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): P
       if (!doc.exists) return { error: "Task not found" };
 
       const data = doc.data()!;
+      const denied = authorizeTaskAct(auth, data, "dispatch_approve_task", "approve task", args.taskId);
+      if (denied) return { error: denied };
 
       // Validate task is in completing status and awaiting approval
       if (data.status !== "completing") {
@@ -778,14 +824,14 @@ export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): P
       transition("task", "completing", "done");
 
       // Build state transition
-      const transitionEntry = buildTransition("completing", "done", auth.programId, "approve");
+      const transitionEntry = buildTransition("completing", "done", credentialPrincipal(auth), "approve");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       tx.update(taskRef, {
         status: "done",
         awaitingApproval: false,
         approvedAt: FieldValue.serverTimestamp(),
-        approvedBy: auth.programId,
+        approvedBy: credentialPrincipal(auth),
         stateTransitions: updatedTransitions,
       });
 
@@ -800,14 +846,14 @@ export async function approveTaskHandler(auth: AuthContext, rawArgs: unknown): P
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_APPROVED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       policy_mode: result.policyMode as string,
     });
 
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_intervention",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "approve_task",
       success: true,
     });

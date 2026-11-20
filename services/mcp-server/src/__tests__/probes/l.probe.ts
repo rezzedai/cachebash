@@ -5,6 +5,7 @@ import { mint } from "./harness/mint";
 import { CASES, nextN, Ctx } from "./harness/cases";
 import { knownOpen } from "./harness/registry";
 import * as fs from "fs";
+import { emulatorDb } from "./harness/emulator";
 import { marker } from "./harness/data";
 import { denialNames, sees } from "./harness/judge";
 import type { World, WorldCredential } from "./harness/world";
@@ -127,6 +128,7 @@ describe("L fleet paths", () => {
       await k.prepare?.(c);
       const from = logSize(w);
       await callTool(w, w.creds[k.cred ?? "scoped"], k.tool, k.args(c));
+      await k.cleanup?.(c);
       checked++;
       const lines = denialLines(w, from);
       const mine = lines.filter((d) => d.principal === "alpha" && d.tool === k.tool && d.subject === "beta" && typeof d.code === "string");
@@ -187,5 +189,94 @@ describe("L fleet paths", () => {
     const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-empty-ctl", ["*"]);
     const r = await callTool(w, dispatcher, "pulse_update_session", { sessionId, status: "l-empty-ctl", lastHeartbeat: true });
     expect(r.json?.success).toBe(true);
+  });
+
+  /** A task sent by `source` to `target`, created as the mobile seeder (the only principal that may name another source). */
+  const sentTask = async (w: World, source: string, target: string): Promise<string> => {
+    const t = await callTool(w, w.stateSeeders.A, "dispatch_create_task", { title: `l-act-${nextN()}`, target, source, instructions: "l-act" });
+    if (!t.json?.taskId) throw new Error(`task setup failed: ${t.text.slice(0, 300)}`);
+    return t.json.taskId as string;
+  };
+
+  // L-D2: acting on a task needs a party to it, the iso or dispatcher override, or fleet.admin.
+  probe("L.abort_foreign_denied", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "beta", "beta");
+    const r = await callTool(w, w.creds.scoped, "dispatch_abort_task", { taskId, reason: "l" });
+    expect(denialNames(r, "alpha")).toBe(true);
+    const row = await callTool(w, w.seeders.A, "dispatch_get_task_by_id", { taskId });
+    expect(row.json?.task?.status).toBe("created");
+  });
+  test("L.abort_foreign_denied control: the sender aborts its own task", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "alpha", "beta");
+    const beta = await mint(w, "beta", "probe-l-beta-claim", ["*"]);
+    expect((await callTool(w, beta, "dispatch_claim_task", { taskId })).json?.success).toBe(true); // abort needs an active task
+    const r = await callTool(w, w.creds.scoped, "dispatch_abort_task", { taskId, reason: "l" });
+    expect(r.json?.success).toBe(true);
+  });
+
+  probe("L.approve_foreign_denied", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "beta", "beta");
+    const r = await callTool(w, w.creds.scoped, "dispatch_approve_task", { taskId });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
+  test("L.approve_foreign_denied control: a party gets past the check to the status rule", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "alpha", "beta");
+    const r = await callTool(w, w.creds.scoped, "dispatch_approve_task", { taskId });
+    expect(r.text).not.toMatch(/access denied/i);
+    expect(r.text).toMatch(/cannot be approved|not awaiting/);
+  });
+
+  probe("L.escalate_foreign_denied", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "beta", "beta");
+    const r = await callTool(w, w.creds.scoped, "dispatch_escalate_task", { taskId, escalateTo: "beta", reason: "l" });
+    expect(denialNames(r, "alpha")).toBe(true);
+  });
+  test("L.escalate_foreign_denied control: the sender escalates its own task", async () => {
+    const w = world();
+    const taskId = await sentTask(w, "alpha", "beta");
+    const r = await callTool(w, w.creds.scoped, "dispatch_escalate_task", { taskId, escalateTo: "beta", reason: "l" });
+    expect(r.json?.success).toBe(true);
+  });
+
+  const fleetAdmin = (w: World) => mint(w, "beta", "probe-l-fleet-admin", ["*", "fleet.admin"]);
+  const programDoc = async (w: World, p: string) => (await emulatorDb().doc(`tenants/${w.tenants.A}/programs/${p}`).get()).data() ?? {};
+
+  // L-D3: a foreign quarantine or release needs the literal fleet.admin capability.
+  probe("L.quarantine_foreign_denied", async () => {
+    const w = world();
+    const r = await callTool(w, w.creds.scoped, "dispatch_quarantine_program", { programId: "beta", reason: "l" });
+    expect(denialNames(r, "alpha")).toBe(true);
+    expect((await programDoc(w, "beta")).quarantined).not.toBe(true);
+  });
+  test("L.quarantine_foreign_denied control: a fleet.admin key quarantines, then releases", async () => {
+    const w = world();
+    const q = await callTool(w, await fleetAdmin(w), "dispatch_quarantine_program", { programId: "alpha", reason: "l" });
+    expect(q.json?.success).toBe(true);
+    const u = await callTool(w, await fleetAdmin(w), "dispatch_unquarantine_program", { programId: "alpha" });
+    expect(u.json?.success).toBe(true);
+  });
+
+  probe("L.unquarantine_foreign_denied", async () => {
+    const w = world();
+    const q = await callTool(w, await fleetAdmin(w), "dispatch_quarantine_program", { programId: "beta", reason: "l" });
+    expect(q.json?.success).toBe(true);
+    try {
+      const r = await callTool(w, w.creds.scoped, "dispatch_unquarantine_program", { programId: "beta" });
+      expect(denialNames(r, "alpha")).toBe(true);
+      expect((await programDoc(w, "beta")).quarantined).toBe(true);
+    } finally {
+      await callTool(w, await fleetAdmin(w), "dispatch_unquarantine_program", { programId: "beta" });
+    }
+  });
+  test("L.unquarantine_foreign_denied control: the fleet.admin key releases", async () => {
+    const w = world();
+    await callTool(w, await fleetAdmin(w), "dispatch_quarantine_program", { programId: "beta", reason: "l" });
+    const u = await callTool(w, await fleetAdmin(w), "dispatch_unquarantine_program", { programId: "beta" });
+    expect(u.json?.success).toBe(true);
   });
 });

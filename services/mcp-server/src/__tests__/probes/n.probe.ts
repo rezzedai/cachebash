@@ -20,6 +20,7 @@ describe("N denials name the principal", () => {
       const c: Ctx = { w, subject: "beta", n: nextN() };
       await k.prepare?.(c);
       const r = await callTool(w, w.creds[k.cred ?? "scoped"], k.tool, k.args(c));
+      await k.cleanup?.(c);
       checked++;
       if (!denialNames(r, "alpha")) bad.push(`${k.id}: ${denied(r) ? "denial does not name the principal" : "silent (no denial)"}`);
     }

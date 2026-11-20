@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 295,
-    "a_lines": 278,
+    "a_occurrences": 303,
+    "a_lines": 286,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -149,7 +149,7 @@
     {
       "id": "NL-CLAIM-OWNER-OVERRIDE",
       "file": "modules/dispatch/shared.ts",
-      "line": 110,
+      "line": 115,
       "name": "TASK_OVERRIDE_PRINCIPALS task owner override",
       "members": [
         "iso",
@@ -172,7 +172,7 @@
     {
       "id": "NL-ESCALATION-CHAIN",
       "file": "modules/dispatch/interventions.ts",
-      "line": 374,
+      "line": 398,
       "name": "getDefaultEscalationTarget chain",
       "members": [
         "iso",
@@ -183,7 +183,7 @@
       ],
       "layer": "routing",
       "guard_sites": [
-        "modules/dispatch/interventions.ts:374"
+        "modules/dispatch/interventions.ts:398"
       ],
       "guards": [
         "dispatch_escalate_task"
@@ -3021,13 +3021,13 @@
       "expr": "args.newTarget",
       "regex": "b",
       "occurrences": 6,
-      "line_at_base": 81,
+      "line_at_base": 99,
       "tool": "dispatch_retry_task",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none: newTarget only checked against the program registry (interventions.ts:81-86)",
+      "binding_today": "none: newTarget only checked against the program registry (interventions.ts:99-104)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -3044,13 +3044,13 @@
       "expr": "args.newTarget",
       "regex": "b",
       "occurrences": 7,
-      "line_at_base": 283,
+      "line_at_base": 305,
       "tool": "dispatch_reassign_task",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none beyond registry check (interventions.ts:283-286)",
+      "binding_today": "none beyond registry check (interventions.ts:305-308)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -3067,13 +3067,13 @@
       "expr": "args.escalateTo",
       "regex": "b",
       "occurrences": 4,
-      "line_at_base": 395,
+      "line_at_base": 419,
       "tool": "dispatch_escalate_task",
       "transports": [
         "mcp"
       ],
       "effect": "write",
-      "binding_today": "none beyond registry check; default target from a name list (interventions.ts:374-385)",
+      "binding_today": "none beyond registry check; default target from a name list (interventions.ts:398-409)",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
       "status": "pending",
@@ -3082,7 +3082,7 @@
       "name_lists": [
         "NL-ESCALATION-CHAIN"
       ],
-      "evidence": "escalateTo is registry-validated at interventions.ts:395-399. When absent, getDefaultEscalationTarget picks from a hardcoded chain (iso, orchestrator, vector, dispatcher, legacy).",
+      "evidence": "escalateTo is registry-validated at interventions.ts:419-423. When absent, getDefaultEscalationTarget picks from a hardcoded chain (iso, orchestrator, vector, dispatcher, legacy).",
       "recommendation": "ADDRESSED for escalateTo; the chain is routing, not a gate. Task ownership is the open question (see the args.taskId record)."
     },
     {
@@ -3091,8 +3091,8 @@
       "handler": "quarantineProgramHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 7,
-      "line_at_base": 507,
+      "occurrences": 10,
+      "line_at_base": 533,
       "tool": "dispatch_quarantine_program",
       "transports": [
         "mcp"
@@ -3105,7 +3105,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "interventions.ts:507-512 checks only that the program exists, then sets quarantine on programs/{id}. Any key with fleet.control or \"*\" can stop any program's intake.",
+      "evidence": "interventions.ts:533-544 checks only that the program exists, then sets quarantine on programs/{id}. Any key with fleet.control or \"*\" can stop any program's intake.",
       "recommendation": "FOREIGN-WRITE on literal fleet.admin. A wrong SELF-ONLY here removes the dispatcher's quarantine path; hold for C-5 if the dispatcher uses it."
     },
     {
@@ -3114,8 +3114,8 @@
       "handler": "unquarantineProgramHandler",
       "expr": "args.programId",
       "regex": "a",
-      "occurrences": 7,
-      "line_at_base": 571,
+      "occurrences": 12,
+      "line_at_base": 603,
       "tool": "dispatch_unquarantine_program",
       "transports": [
         "mcp"
@@ -3128,7 +3128,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "interventions.ts:571-576, same shape as quarantine.",
+      "evidence": "interventions.ts:603-614, same shape as quarantine.",
       "recommendation": "Same as dispatch_quarantine_program."
     },
     {
@@ -3138,7 +3138,7 @@
       "expr": "args.newTarget",
       "regex": "b",
       "occurrences": 7,
-      "line_at_base": 639,
+      "line_at_base": 681,
       "tool": "dispatch_replay_task",
       "transports": [
         "mcp"
@@ -3151,7 +3151,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "interventions.ts:639-642 reads any task by id and clones it to newTarget. No owner comparison.",
+      "evidence": "interventions.ts:681-684 reads any task by id and clones it to newTarget. No owner comparison.",
       "recommendation": "SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED."
     },
     {
@@ -5024,7 +5024,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "abortTaskHandler (interventions.ts:195) aborts any task id in the tenant; it records abortedBy: auth.programId but compares nothing to the task owner.",
+      "evidence": "abortTaskHandler (interventions.ts:215) aborts any task id in the tenant; it records abortedBy: auth.programId but compares nothing to the task owner.",
       "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
     },
     {
@@ -5049,7 +5049,7 @@
       "closes_in": "PR-L",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "escalateTaskHandler (interventions.ts:390) re-routes any task id; escalatedBy is recorded, not compared.",
+      "evidence": "escalateTaskHandler (interventions.ts:414) re-routes any task id; escalatedBy is recorded, not compared.",
       "recommendation": "SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin."
     },
     {
@@ -5593,78 +5593,6 @@
       "expr": "auth.programId",
       "occurrences": 1,
       "line_at_base": 1026,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "retryTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 107,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "abortTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 5,
-      "line_at_base": 215,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "reassignTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 302,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "escalateTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 419,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "quarantineProgramHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 524,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "unquarantineProgramHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 590,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "replayTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 718,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/interventions.ts",
-      "handler": "approveTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 4,
-      "line_at_base": 781,
       "status": "pending"
     },
     {

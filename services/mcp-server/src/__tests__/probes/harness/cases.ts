@@ -117,6 +117,7 @@ export const CASES: Case[] = [
     },
     args: (c) => ({ programId: c.subject }),
     reached: async (c) => (await programDoc(c)).paused === false,
+    cleanup: async (c) => { await seederCall(c, "pulse_resume_program", { programId: c.subject }); },
   },
   // --- relay (rows 19-21)
   {
@@ -150,7 +151,8 @@ export const CASES: Case[] = [
   ...(["dispatch_reassign_task", "dispatch_retry_task", "dispatch_replay_task"] as const).map((tool): Case => ({
     id: tool, tool,
     prepare: async (c) => {
-      const t = await seederCall(c, "dispatch_create_task", { title: `mv-${c.n}`, target: "ops", source: "legacy", instructions: "x" });
+      // PR-L L-D2: the caller must be a party to its own subject's task, so the task is sent as the subject (mobile may name any source)
+      const t = await callTool(c.w, c.w.stateSeeders.A, "dispatch_create_task", { title: `mv-${c.n}`, target: "ops", source: c.subject, instructions: "x" });
       (c as any).taskId = t.json?.taskId;
       if (tool === "dispatch_retry_task") {
         await seederCall(c, "dispatch_claim_task", { taskId: (c as any).taskId });

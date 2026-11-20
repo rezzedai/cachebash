@@ -1,16 +1,4 @@
 {
-  "T2.dispatch_reassign_task": {
-    "closes_in": "PR-L",
-    "hole": "moves a task to any program (row 30)"
-  },
-  "T2.dispatch_retry_task": {
-    "closes_in": "PR-L",
-    "hole": "re-targets a task to any program (row 29)"
-  },
-  "T2.dispatch_replay_task": {
-    "closes_in": "PR-L",
-    "hole": "clones a task onto any program (row 31)"
-  },
   "T2.schedule_create": {
     "closes_in": "PR-L",
     "hole": "schedules work for any program (row 34)"

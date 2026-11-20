@@ -187,7 +187,7 @@ const mockAuth: AuthContext = {
   programId: "iso",
   keyProgramId: "iso",
   apiKeyHash: "test-hash",
-  capabilities: ["dispatch.write"],
+  capabilities: ["dispatch.write", "fleet.admin"],
   encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
   rateLimitTier: "internal",
 };

@@ -1,0 +1,13 @@
+# mutation for probe L.quarantine_foreign_denied: the self-or-fleet.admin check no longer runs
+diff --git a/src/modules/dispatch/interventions.ts b/src/modules/dispatch/interventions.ts
+--- a/src/modules/dispatch/interventions.ts
++++ b/src/modules/dispatch/interventions.ts
+@@ -533,7 +533,7 @@
+   const programRef = db.doc(`tenants/${auth.userId}/programs/${args.programId}`);
+ 
+   const qp = credentialPrincipal(auth);
+-  if (!programControlAllowed(auth, args.programId)) {
++  if (Date.now() < 0) {
+     logDenial({ principal: qp, tool: "dispatch_quarantine_program", subject: args.programId, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `Access denied: "${qp}" cannot quarantine "${args.programId}"` });
+   }

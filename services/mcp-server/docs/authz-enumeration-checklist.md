@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-114 site records, 111 handler entries, 44 AST baseline rows.
+114 site records, 111 handler entries, 36 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 295 |
-| (a) lines | 278 |
+| (a) occurrences | 303 |
+| (a) lines | 286 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:213, modules/signal.ts:219, modules/signal.ts:240) |
 | (c) lines | 3 |
@@ -145,51 +145,51 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `interventions.retryTaskHandler:args.newTarget`
 
-- Where: `modules/dispatch/interventions.ts`, handler `retryTaskHandler`, expression `args.newTarget`, line 81 at base, 6 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `retryTaskHandler`, expression `args.newTarget`, line 99 at base, 6 occurrence(s).
 - Tool: dispatch_retry_task; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none: newTarget only checked against the program registry (interventions.ts:81-86).
+- Binding today: none: newTarget only checked against the program registry (interventions.ts:99-104).
 - Evidence: The handler re-targets any task id in the tenant. No comparison of the task owner to the caller.
 - Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
 
 ### `interventions.reassignTaskHandler:args.newTarget`
 
-- Where: `modules/dispatch/interventions.ts`, handler `reassignTaskHandler`, expression `args.newTarget`, line 283 at base, 7 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `reassignTaskHandler`, expression `args.newTarget`, line 305 at base, 7 occurrence(s).
 - Tool: dispatch_reassign_task; transports mcp; effect write; decided by ISO; closes in PR-L.
-- Binding today: none beyond registry check (interventions.ts:283-286).
+- Binding today: none beyond registry check (interventions.ts:305-308).
 - Evidence: Moves any task in the tenant to another program. No owner or principal comparison (zero === or !== on auth.programId in the file, recon section 8).
 - Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
 
 ### `interventions.escalateTaskHandler:args.escalateTo`
 
-- Where: `modules/dispatch/interventions.ts`, handler `escalateTaskHandler`, expression `args.escalateTo`, line 395 at base, 4 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `escalateTaskHandler`, expression `args.escalateTo`, line 419 at base, 4 occurrence(s).
 - Tool: dispatch_escalate_task; transports mcp; effect write; decided by C-5; closes in PR-L.
-- Binding today: none beyond registry check; default target from a name list (interventions.ts:374-385).
+- Binding today: none beyond registry check; default target from a name list (interventions.ts:398-409).
 - Name lists: NL-ESCALATION-CHAIN.
-- Evidence: escalateTo is registry-validated at interventions.ts:395-399. When absent, getDefaultEscalationTarget picks from a hardcoded chain (iso, orchestrator, vector, dispatcher, legacy).
+- Evidence: escalateTo is registry-validated at interventions.ts:419-423. When absent, getDefaultEscalationTarget picks from a hardcoded chain (iso, orchestrator, vector, dispatcher, legacy).
 - Recommendation: ADDRESSED for escalateTo; the chain is routing, not a gate. Task ownership is the open question (see the args.taskId record).
 
 ### `interventions.quarantineProgramHandler:args.programId`
 
-- Where: `modules/dispatch/interventions.ts`, handler `quarantineProgramHandler`, expression `args.programId`, line 507 at base, 7 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `quarantineProgramHandler`, expression `args.programId`, line 533 at base, 10 occurrence(s).
 - Tool: dispatch_quarantine_program; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none in handler; tool capability fleet.control, wildcard-satisfiable.
-- Evidence: interventions.ts:507-512 checks only that the program exists, then sets quarantine on programs/{id}. Any key with fleet.control or "*" can stop any program's intake.
+- Evidence: interventions.ts:533-544 checks only that the program exists, then sets quarantine on programs/{id}. Any key with fleet.control or "*" can stop any program's intake.
 - Recommendation: FOREIGN-WRITE on literal fleet.admin. A wrong SELF-ONLY here removes the dispatcher's quarantine path; hold for C-5 if the dispatcher uses it.
 
 ### `interventions.unquarantineProgramHandler:args.programId`
 
-- Where: `modules/dispatch/interventions.ts`, handler `unquarantineProgramHandler`, expression `args.programId`, line 571 at base, 7 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `unquarantineProgramHandler`, expression `args.programId`, line 603 at base, 12 occurrence(s).
 - Tool: dispatch_unquarantine_program; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: same as dispatch_quarantine_program.
-- Evidence: interventions.ts:571-576, same shape as quarantine.
+- Evidence: interventions.ts:603-614, same shape as quarantine.
 - Recommendation: Same as dispatch_quarantine_program.
 
 ### `interventions.replayTaskHandler:args.newTarget`
 
-- Where: `modules/dispatch/interventions.ts`, handler `replayTaskHandler`, expression `args.newTarget`, line 639 at base, 7 occurrence(s).
+- Where: `modules/dispatch/interventions.ts`, handler `replayTaskHandler`, expression `args.newTarget`, line 681 at base, 7 occurrence(s).
 - Tool: dispatch_replay_task; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none beyond registry check.
-- Evidence: interventions.ts:639-642 reads any task by id and clones it to newTarget. No owner comparison.
+- Evidence: interventions.ts:681-684 reads any task by id and clones it to newTarget. No owner comparison.
 - Recommendation: SELF-ONLY on task ownership (source or claimedBy equals the principal); FOREIGN-WRITE only on literal fleet.admin. The new target itself is ADDRESSED.
 
 ### `tasks.getTasksHandler:args.target`
@@ -625,7 +625,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/dispatch/interventions.ts`, handler `abortTaskHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
 - Tool: dispatch_abort_task; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
-- Evidence: abortTaskHandler (interventions.ts:195) aborts any task id in the tenant; it records abortedBy: auth.programId but compares nothing to the task owner.
+- Evidence: abortTaskHandler (interventions.ts:215) aborts any task id in the tenant; it records abortedBy: auth.programId but compares nothing to the task owner.
 - Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
 
 ### `interventions.escalateTaskHandler:args.taskId`
@@ -633,7 +633,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Where: `modules/dispatch/interventions.ts`, handler `escalateTaskHandler`, expression `args.taskId`, line n/a at base, 1 occurrence(s).
 - Tool: dispatch_escalate_task; transports mcp; effect write; decided by ISO; closes in PR-L.
 - Binding today: none found: no comparison of auth.programId, credentialPrincipal or a capability to the object's owner in the handler body.
-- Evidence: escalateTaskHandler (interventions.ts:390) re-routes any task id; escalatedBy is recorded, not compared.
+- Evidence: escalateTaskHandler (interventions.ts:414) re-routes any task id; escalatedBy is recorded, not compared.
 - Recommendation: SELF-ONLY on object ownership (creator or claimant equals the principal); FOREIGN-WRITE only on literal fleet.admin.
 
 ### `interventions.approveTaskHandler:args.taskId`
@@ -902,12 +902,12 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | dispatchHandler.sendTaskAndDirective:args.target | a | 7 | 234 | ADDRESSED | ISO | PR-K | false |
 | dispatchHandler.dispatchHandler:args.source | a | 1 | 780 | ESCALATE | C-5 | PR-K | false |
 | dispatchHandler.dispatchHandler:args.target | a | 40 | 783 | ADDRESSED | ISO | PR-K | false |
-| interventions.retryTaskHandler:args.newTarget | b | 6 | 81 | ESCALATE | ISO | PR-L | false |
-| interventions.reassignTaskHandler:args.newTarget | b | 7 | 283 | ESCALATE | ISO | PR-L | false |
-| interventions.escalateTaskHandler:args.escalateTo | b | 4 | 395 | ESCALATE | C-5 | PR-L | false |
-| interventions.quarantineProgramHandler:args.programId | a | 7 | 507 | ESCALATE | ISO | PR-L | false |
-| interventions.unquarantineProgramHandler:args.programId | a | 7 | 571 | ESCALATE | ISO | PR-L | false |
-| interventions.replayTaskHandler:args.newTarget | b | 7 | 639 | ESCALATE | ISO | PR-L | false |
+| interventions.retryTaskHandler:args.newTarget | b | 6 | 99 | ESCALATE | ISO | PR-L | false |
+| interventions.reassignTaskHandler:args.newTarget | b | 7 | 305 | ESCALATE | ISO | PR-L | false |
+| interventions.escalateTaskHandler:args.escalateTo | b | 4 | 419 | ESCALATE | C-5 | PR-L | false |
+| interventions.quarantineProgramHandler:args.programId | a | 10 | 533 | ESCALATE | ISO | PR-L | false |
+| interventions.unquarantineProgramHandler:args.programId | a | 12 | 603 | ESCALATE | ISO | PR-L | false |
+| interventions.replayTaskHandler:args.newTarget | b | 7 | 681 | ESCALATE | ISO | PR-L | false |
 | suggestion.suggestTargetHandler:p.programId | b | 1 | 87 | NOT-IDENTITY | ISO | n/a | false |
 | tasks.getTasksHandler:args.target | a | 6 | 168 | ESCALATE | C-5 | PR-K | false |
 | tasks.createTaskHandler:args.source | a | 1 | 428 | ESCALATE | C-5 | PR-K | false |
@@ -1179,8 +1179,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 | NL-ADMIN-READERS `config/access-tiers.ts:6` [admin, legacy, mobile, orchestrator, vector, iso] (rest) | route GET /v1/tasks/stats, route GET /v1/sessions, route GET /v1/sessions/history, route GET /v1/sprints/active | not measured (no tool_call rows exist for this path) |
 | NL-ADMIN-PROGRAMS `middleware/gate.ts:133` [legacy, mobile, orchestrator, admin, dispatcher] (handler) | audit_get_audit, metrics_get_comms_metrics, metrics_get_cost_summary, metrics_get_operational_metrics, metrics_get_cost_forecast, metrics_get_sla_compliance, metrics_get_program_health, pulse_get_fleet_health, relay_get_sent_messages, relay_get_dead_letters, relay_query_message_history, trace_query_trace, trace_query_traces, dispatch_record_task_telemetry | members seen: none; non-members: iso 1648, vector 1606, tensor 12, basher 8, vector_datatrue 2 |
 | NL-VERIFYSOURCE-ADMIN `middleware/gate.ts:148` [mobile] (handler) | relay_send_message, dispatch_create_task, dispatch_dispatch, gsp_write, relay_send_directive | members seen: none; non-members: iso 1280, vector 658, basher 194, tensor 182, vector_datatrue 116 |
-| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:110` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
-| NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:374` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
+| NL-CLAIM-OWNER-OVERRIDE `modules/dispatch/shared.ts:115` [iso, dispatcher] (handler) | dispatch_unclaim_task, dispatch_complete_task, dispatch_batch_complete_tasks | members seen: iso 588; non-members: basher 408, vector 208, vector_datatrue 26 |
+| NL-ESCALATION-CHAIN `modules/dispatch/interventions.ts:398` [iso, orchestrator, vector, dispatcher, legacy] (routing) | dispatch_escalate_task | members seen: none |
 | NL-GETTASKS-DEFAULT `modules/dispatch/tasks.ts:137` [mobile, dispatcher] (handler) | dispatch_get_tasks | members seen: none; non-members: iso 928, vector 386, basher 64, vector_datatrue 36, tensor 10 |
 | NL-REGISTRY-ADMIN `modules/programRegistry.ts:400` [legacy, mobile, orchestrator, iso, vector, dispatcher] (handler) | programs_update_program | members seen: none |
 | NL-PULSE-PRIV `modules/pulse.ts:87` [mobile, dispatcher] (handler) | pulse_create_session, pulse_update_session, pulse_list_sessions, pulse_get_context_utilization | members seen: none; non-members: iso 356, basher 146, vector 118, vector_datatrue 2, sark 2 |
@@ -1226,7 +1226,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 39 | 148 |
+| S1 | 31 | 120 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1246,14 +1246,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 9 | 511 |
 | S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 6 | 845 |
 | S1 | modules/dispatch/completion.ts | recordTaskTelemetryHandler | `auth.programId` | 1 | 1026 |
-| S1 | modules/dispatch/interventions.ts | retryTaskHandler | `auth.programId` | 3 | 107 |
-| S1 | modules/dispatch/interventions.ts | abortTaskHandler | `auth.programId` | 5 | 215 |
-| S1 | modules/dispatch/interventions.ts | reassignTaskHandler | `auth.programId` | 4 | 302 |
-| S1 | modules/dispatch/interventions.ts | escalateTaskHandler | `auth.programId` | 4 | 419 |
-| S1 | modules/dispatch/interventions.ts | quarantineProgramHandler | `auth.programId` | 3 | 524 |
-| S1 | modules/dispatch/interventions.ts | unquarantineProgramHandler | `auth.programId` | 3 | 590 |
-| S1 | modules/dispatch/interventions.ts | replayTaskHandler | `auth.programId` | 2 | 718 |
-| S1 | modules/dispatch/interventions.ts | approveTaskHandler | `auth.programId` | 4 | 781 |
 | S1 | modules/dispatch/reapExpiredTasks.ts | reapExpiredTasksHandler | `auth.programId` | 2 | 221 |
 | S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 3 | 1218 |
 | S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1379 |
