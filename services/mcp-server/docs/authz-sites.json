@@ -296,7 +296,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1220"
+        "modules/gsp.ts:1219"
       ],
       "guards": [
         "gsp_seed"
@@ -362,7 +362,7 @@
       "layer": "routing",
       "guard_sites": [
         "modules/gsp.ts:617",
-        "modules/gsp.ts:1411"
+        "modules/gsp.ts:1410"
       ],
       "guards": [
         "gsp_propose"
@@ -1180,7 +1180,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1230"
+        "modules/gsp.ts:1229"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1207,8 +1207,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1341",
-        "modules/gsp.ts:1379"
+        "modules/gsp.ts:1340",
+        "modules/gsp.ts:1378"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1263,8 +1263,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1619",
-        "modules/gsp.ts:1696"
+        "modules/gsp.ts:1618",
+        "modules/gsp.ts:1695"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1293,7 +1293,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1823"
+        "modules/gsp.ts:1822"
       ],
       "bundle_ruling": {
         "by": "ISO",

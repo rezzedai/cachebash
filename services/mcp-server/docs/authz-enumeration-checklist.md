@@ -8,7 +8,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1230; gsp_propose at modules/gsp.ts:1341, modules/gsp.ts:1379; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1619, modules/gsp.ts:1696; gsp_search at modules/gsp.ts:1823; state_update_program_state at modules/programState.ts:583.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1229; gsp_propose at modules/gsp.ts:1340, modules/gsp.ts:1378; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1618, modules/gsp.ts:1695; gsp_search at modules/gsp.ts:1822; state_update_program_state at modules/programState.ts:583.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
@@ -1079,11 +1079,11 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 | gsp_write | modules/gsp.ts:437 | ruled by ISO, upheld by VECTOR |
 | gsp_diff | modules/gsp.ts:499 | ruled by ISO, upheld by VECTOR |
 | gsp_bootstrap | modules/gsp.ts:760 | ruled by ISO, upheld by VECTOR |
-| gsp_seed | modules/gsp.ts:1230 | ruled by ISO, upheld by VECTOR |
-| gsp_propose | modules/gsp.ts:1341; modules/gsp.ts:1379 | ruled by ISO, upheld by VECTOR |
+| gsp_seed | modules/gsp.ts:1229 | ruled by ISO, upheld by VECTOR |
+| gsp_propose | modules/gsp.ts:1340; modules/gsp.ts:1378 | ruled by ISO, upheld by VECTOR |
 | gsp_subscribe | modules/gsp.ts:231; modules/gsp.ts:261 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:230 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
-| gsp_resolve | modules/gsp.ts:1619; modules/gsp.ts:1696 | ruled by ISO, upheld by VECTOR |
-| gsp_search | modules/gsp.ts:1823 | ruled by ISO, upheld by VECTOR |
+| gsp_resolve | modules/gsp.ts:1618; modules/gsp.ts:1695 | ruled by ISO, upheld by VECTOR |
+| gsp_search | modules/gsp.ts:1822 | ruled by ISO, upheld by VECTOR |
 | state_update_program_state | modules/programState.ts:583 | ruled by ISO, upheld by VECTOR |
 
 The shared path builder is gspCollectionPath at gsp.ts:66-67, which takes the tenant from its caller. gspListNamespacesHandler builds its own tenant segment at gsp.ts:123-124 (REST direct call, see the invisible-class table).

@@ -97,7 +97,7 @@ const BATCH_WRITE_MAX = 400;
 // Same "admin/orchestrator only" gate as backfillExpiresAt.ts / gsp.ts's
 // gspSeedHandler -- a bulk delete across the tenant's tasks collection is not
 // something an ordinary tenant role should be able to trigger.
-const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; the "*" capability still passes until PR-N
+const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; RD-5 PR-N: no wildcard branch, the list is the gate
 
 const ReapSchema = z.object({
   execute: z.boolean().default(false),
@@ -218,9 +218,8 @@ async function reapByIds(
 }
 
 export async function reapExpiredTasksHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  const hasWildcard = auth.capabilities.includes("*");
   const principal = credentialPrincipal(auth);
-  if (!AUTHORIZED_PROGRAMS.includes(principal) && !hasWildcard) {
+  if (!AUTHORIZED_PROGRAMS.includes(principal)) {
     logDenial({ principal, tool: "dispatch_reap_expired_tasks", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,

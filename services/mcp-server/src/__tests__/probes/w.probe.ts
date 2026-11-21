@@ -1,6 +1,7 @@
 import { world } from "./harness/load";
 import { callTool, rest, ToolResult } from "./harness/client";
-import { writeKey } from "./harness/seed";
+import { writeKey, FULL } from "./harness/seed";
+import { mint } from "./harness/mint";
 import { denied } from "./harness/judge";
 import { probe } from "./harness/registry";
 import type { World } from "./harness/world";
@@ -24,6 +25,13 @@ const viaTool = (tool: string, args: Record<string, unknown>, control: "scoped" 
     const r: ToolResult = await callTool(w, cred, tool, args, { transport });
     return { denied: denied(r), ok: !denied(r) };
   };
+
+/** PR-N: the entitled twin of a program-list gate is a key whose principal is on the list (iso) and that holds the capability by name. */
+const viaIsoTool = (tool: string, args: Record<string, unknown>) => async (w: World, who: "wildcard" | "control") => {
+  const cred = who === "wildcard" ? w.creds.bare : await mint(w, "iso", `probe-w-iso-${tool}`, FULL());
+  const r: ToolResult = await callTool(w, cred, tool, args);
+  return { denied: denied(r), ok: !denied(r) };
+};
 
 const viaRest = (method: string, path: string, body: unknown, control: "scoped" | "seeder") => async (w: World, who: "wildcard" | "control") => {
   const cred = who === "wildcard" ? w.creds.bare : control === "scoped" ? w.creds.scoped : w.seeders.A;
@@ -66,9 +74,9 @@ const SITES: Site[] = [
   { id: "W.13", gate: "modules/metrics.ts:841 program health", attempt: viaTool("metrics_get_program_health", {}, "scoped") },
   { id: "W.14", gate: "modules/pulse.ts:401 fleet health", attempt: viaTool("pulse_get_fleet_health", { detail: "summary" }, "scoped") },
   { id: "W.15", gate: "transport/rest.ts enforceBreaker(get_tasks) on /v1/tasks/stats", attempt: viaRest("GET", "/v1/tasks/stats", undefined, "seeder") },
-  { id: "W.17", gate: "dispatch/backfillExpiresAt.ts:61", attempt: viaTool("dispatch_backfill_task_expires_at", { dryRun: true }, "seeder") },
-  { id: "W.18", gate: "dispatch/reapExpiredTasks.ts:219", attempt: viaTool("dispatch_reap_expired_tasks", { dryRun: true }, "seeder") },
-  { id: "W.19", gate: "gsp.ts:1189 gsp_seed", attempt: viaTool("gsp_seed", { namespace: "w19-probe", entries: [{ key: "k", value: 1, tier: "architectural" }] }, "seeder") },
+  { id: "W.17", gate: "dispatch/backfillExpiresAt.ts program list", attempt: viaIsoTool("dispatch_backfill_task_expires_at", { dryRun: true }) },
+  { id: "W.18", gate: "dispatch/reapExpiredTasks.ts program list", attempt: viaIsoTool("dispatch_reap_expired_tasks", { dryRun: true }) },
+  { id: "W.19", gate: "gsp.ts gsp_seed program list", attempt: viaIsoTool("gsp_seed", { namespace: "w19-probe", entries: [{ key: "k", value: 1, tier: "architectural" }] }) },
 ];
 
 // W.16 (transport/rest.ts:937 POST /admin/reset-program-cache) is not probed: index.ts forwards only /v1/* to the REST router,

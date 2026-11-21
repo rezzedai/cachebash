@@ -1212,12 +1212,11 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   // so the capability gate still denies it dispatch/state/keys/etc. Listing it
   // here rather than widening its capabilities to "*" keeps a CI-resident
   // credential scoped to governance-state writes and nothing else.
-  // RD-5 PR-L row 37 (L-D11): `admin` is dropped, and the list is compared with credentialPrincipal. The "*" capability still passes until PR-N.
+  // RD-5 PR-L row 37 (L-D11): `admin` is dropped, and the list is compared with credentialPrincipal. RD-5 PR-N: no wildcard branch.
   const authorizedPrograms = ["vector", "iso", "dispatcher", "gsp-sync"];
-  const hasWildcard = auth.capabilities.includes("*");
   const seedPrincipal = credentialPrincipal(auth);
 
-  if (!authorizedPrograms.includes(seedPrincipal) && !hasWildcard) {
+  if (!authorizedPrograms.includes(seedPrincipal)) {
     logDenial({ principal: seedPrincipal, tool: "gsp_seed", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,

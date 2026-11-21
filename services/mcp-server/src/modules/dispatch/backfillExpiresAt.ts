@@ -42,7 +42,7 @@ const BATCH_WRITE_MAX = 400;
 // gsp.ts's gspSeedHandler -- a bulk write across the whole tenant's tasks
 // collection is not something an ordinary tenant role should be able to
 // trigger, even though it is additive-only.
-const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; the "*" capability still passes until PR-N
+const AUTHORIZED_PROGRAMS = ["iso"]; // RD-5 PR-L L-D11: compared with credentialPrincipal; RD-5 PR-N: no wildcard branch, the list is the gate
 
 const BackfillSchema = z.object({
   execute: z.boolean().default(false),
@@ -60,9 +60,8 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function backfillTaskExpiresAtHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  const hasWildcard = auth.capabilities.includes("*");
   const principal = credentialPrincipal(auth);
-  if (!AUTHORIZED_PROGRAMS.includes(principal) && !hasWildcard) {
+  if (!AUTHORIZED_PROGRAMS.includes(principal)) {
     logDenial({ principal, tool: "dispatch_backfill_task_expires_at", subject: null, code: "NOT_GRANTED" });
     return jsonResult({
       success: false,
