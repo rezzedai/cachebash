@@ -1,0 +1,14 @@
+# mutation for probe SA.token_without_creator_list_has_none: token without a stored list gets the role default
+diff --git a/src/auth/oauthTokenValidator.ts b/src/auth/oauthTokenValidator.ts
+index 6aa08ed..e8e2e64 100644
+--- a/src/auth/oauthTokenValidator.ts
++++ b/src/auth/oauthTokenValidator.ts
+@@ -62,7 +62,7 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
+     // Never wider than the role default; a doc without the list gets none (fail closed).
+     const roleCaps = getDefaultCapabilities(programId);
+     const capabilities = programId === "oauth-service"
+-      ? (Array.isArray(data.capabilities) ? roleCaps.filter((c) => data.capabilities.includes(c)) : [])
++      ? roleCaps
+       : roleCaps;
+ 
+     const resolvedProgramId = programId as import("../config/programs.js").ValidProgramId;

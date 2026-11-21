@@ -1,0 +1,14 @@
+# mutation for probe SA.register_wildcard_not_enough: "*" satisfies the fleet.admin gate
+diff --git a/src/oauth/register.ts b/src/oauth/register.ts
+index 6a0388a..258984a 100644
+--- a/src/oauth/register.ts
++++ b/src/oauth/register.ts
+@@ -113,7 +113,7 @@ export async function handleOAuthRegister(req: http.IncomingMessage, res: http.S
+ 
+   // A service account mints tokens with the oauth-service capability set. Only a credential that
+   // literally holds fleet.admin may create one ("*" does not satisfy it).
+-  if (isServiceAccount && authenticated && !hasFleetAdminCapability(authenticated)) {
++  if (isServiceAccount && authenticated && !(hasFleetAdminCapability(authenticated) || authenticated.capabilities.includes("*"))) {
+     logDenial({ principal: denialPrincipal(authenticated), tool: "oauth_register_service_account", subject: null, code: "MISSING_CAPABILITY" });
+     return sendJson(res, 403, { error: "insufficient_scope", error_description: "fleet.admin capability required to register service accounts" });
+   }
