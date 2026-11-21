@@ -177,7 +177,7 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 
 async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: string, args: unknown): Promise<unknown> {
   // Per-key + per-tenant + per-tool rate limiting (tier-aware sliding window)
-  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName, auth.rateLimitTier, auth.programId);
+  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName, auth.rateLimitTier, credentialPrincipal(auth));
   if (!rateResult.allowed) {
     const err = new Error(`Rate limit exceeded. Retry after ${rateResult.retryAfter} seconds.`);
     (err as any).rateLimitResult = rateResult;
@@ -198,7 +198,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   if (!breakerResult.allowed) {
     createAuditLogger(generateCorrelationId(), auth.userId).error(
       toolName, `${breakerResult.code}: ${breakerResult.message}`,
-      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+      { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" }
     );
     throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }
@@ -234,10 +234,10 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   const audit = createAuditLogger(correlationId, auth.userId);
   try {
     const result = await handler(auth, args);
-    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, true);
-    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+    logToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, Date.now() - start, true);
+    traceToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, args,
       JSON.stringify(result).substring(0, 500), Date.now() - start, true);
-    audit.log(toolName, { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
+    audit.log(toolName, { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" });
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
     if (!text) return result;
@@ -268,11 +268,11 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
         issues
       );
     }
-    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
+    logToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
-    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+    traceToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, args,
       "", Date.now() - start, false, err instanceof Error ? err.message : String(err));
-    audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
+    audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" });
     throw err;
   }
 }
@@ -299,7 +299,7 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
   if (!breakerResult.allowed) {
     createAuditLogger(generateCorrelationId(), auth.userId).error(
       toolName, `${breakerResult.code}: ${breakerResult.message}`,
-      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+      { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" }
     );
     throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }

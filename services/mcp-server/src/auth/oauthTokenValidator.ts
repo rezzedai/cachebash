@@ -63,7 +63,6 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
-      programId: resolvedProgramId,
       keyProgramId: resolvedProgramId,
       capabilities: getDefaultCapabilities(programId),
       oauthScopes: grantedScopes,

@@ -26,7 +26,7 @@ jest.mock("../firebase/client.js", () => ({
   serverTimestamp: jest.fn(() => "MOCK_TIMESTAMP"),
 }));
 jest.mock("../middleware/gate.js", () => ({
-  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.programId),
+  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.keyProgramId),
   isAdmin: jest.fn(() => false),
   logAudit: jest.fn(),
   generateCorrelationId: jest.fn(() => "mock-corr-id"),
@@ -63,7 +63,6 @@ function authWith(capabilities: string[]): AuthContext {
     userId: "uid-1",
     apiKeyHash: "cb_abc123",
     encryptionKey: Buffer.from("abc"),
-    programId: "scalar" as any,
     keyProgramId: "scalar" as any,
     capabilities,
     rateLimitTier: "paid",

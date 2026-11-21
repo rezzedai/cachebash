@@ -21,7 +21,6 @@ function makeAuth(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: "test-user",
     apiKeyHash: "hash",
     encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
-    programId: "basher" as ValidProgramId,
     keyProgramId: "basher" as ValidProgramId,
     capabilities: ["*"],
     rateLimitTier: "internal",
@@ -47,7 +46,6 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
       //   MUST throw — keyProgramId "basher" does not own source "iso"
       const auth = makeAuth({
         keyProgramId: "basher" as ValidProgramId,
-        programId: "iso" as ValidProgramId,
       });
 
       expect(() => verifySource("iso", auth, "mcp")).toThrow(
@@ -59,7 +57,6 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
       // Same auth context (programId differs) but caller claims own identity.
       const auth = makeAuth({
         keyProgramId: "basher" as ValidProgramId,
-        programId: "iso" as ValidProgramId,
       });
 
       expect(verifySource("basher", auth, "mcp")).toBe("basher");
@@ -73,48 +70,48 @@ describe("verifySource — BUG-005 regression (F-360-1)", () => {
     });
 
     it("returns claimed source when it matches keyProgramId", () => {
-      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, programId: "basher" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, });
       expect(verifySource("basher", auth, "mcp")).toBe("basher");
     });
 
     it("throws when claimed source mismatches keyProgramId", () => {
-      const auth = makeAuth({ keyProgramId: "sark" as ValidProgramId, programId: "sark" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "sark" as ValidProgramId, });
       expect(() => verifySource("basher", auth, "mcp")).toThrow(/Source mismatch/);
     });
   });
 
   describe("source exemption (RD-5 PR-K: mobile only)", () => {
     it("rejects a legacy key claiming another source, naming legacy", () => {
-      const auth = makeAuth({ keyProgramId: "legacy" as ValidProgramId, programId: "legacy" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "legacy" as ValidProgramId, });
       expect(() => verifySource("iso", auth, "mcp")).toThrow(/key belongs to "legacy", claimed "iso"/);
     });
 
     it("allows mobile key to claim any source", () => {
-      const auth = makeAuth({ keyProgramId: "mobile" as ValidProgramId, programId: "mobile" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "mobile" as ValidProgramId, });
       expect(verifySource("basher", auth, "mcp")).toBe("basher");
     });
 
     it("legacy with undefined source returns 'legacy'", () => {
-      const auth = makeAuth({ keyProgramId: "legacy" as ValidProgramId, programId: "legacy" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "legacy" as ValidProgramId, });
       expect(verifySource(undefined, auth, "mcp")).toBe("legacy");
     });
   });
 
   describe("keyProgramId absent", () => {
     it("throws: a missing credential identity never reads as a principal, and programId is not a fallback", () => {
-      const auth = makeAuth({ keyProgramId: undefined, programId: "vector" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: undefined, });
       expect(() => verifySource("vector", auth, "mcp")).toThrow(/keyProgramId is empty/);
     });
   });
 
   describe("endpoint parameter is passed through to error message context", () => {
     it("throws on admin endpoint with same mismatch", () => {
-      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, programId: "basher" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, });
       expect(() => verifySource("iso", auth, "admin")).toThrow(/Source mismatch/);
     });
 
     it("throws on rest endpoint with same mismatch", () => {
-      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, programId: "basher" as ValidProgramId });
+      const auth = makeAuth({ keyProgramId: "basher" as ValidProgramId, });
       expect(() => verifySource("iso", auth, "rest")).toThrow(/Source mismatch/);
     });
   });

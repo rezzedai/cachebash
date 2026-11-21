@@ -41,7 +41,8 @@ describe("authz-static (c): AST rules", () => {
     expect(doc.ast_baseline.filter((r) => r.status !== "pending")).toEqual([]);
   });
 
-  test("rules cover all three kinds at the base", () => {
-    expect(new Set(doc.ast_baseline.map((r) => r.rule))).toEqual(new Set(["S1", "S2", "S3"]));
+  // RD-5 PR-N N-D4: the S1 rows are gone with the field. The S1 rule stays as a backstop: the fixture above still trips it.
+  test("no S1 row remains in the baseline", () => {
+    expect(doc.ast_baseline.filter((r) => r.rule === "S1")).toEqual([]);
   });
 });

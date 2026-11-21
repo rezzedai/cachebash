@@ -152,7 +152,7 @@ describe("R4/PR-3: hasFleetObserveCapability (gsp_bootstrap foreign-read gate)",
     return {
       userId: "shared-tenant-uid",
       apiKeyHash: "hash",
-      programId: "vector",
+      keyProgramId: "vector",
       encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
       capabilities,
       rateLimitTier: "internal",

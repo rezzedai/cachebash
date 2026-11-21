@@ -17,6 +17,7 @@ import type { ApiKeyDoc } from "../types/apiKey.js";
 import { getDefaultCapabilities, WILDCARD_EQUIVALENT } from "../middleware/capabilities.js";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 function generateApiKey(): string {
   return `cb_${crypto.randomBytes(32).toString("hex")}`;
 }
@@ -103,7 +104,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
       color: "#808080",
       groups: [],
       tags: [],
-      createdBy: auth.programId,
+      createdBy: credentialPrincipal(auth),
     });
     registered = true;
   }

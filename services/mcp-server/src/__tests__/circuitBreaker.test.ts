@@ -51,7 +51,6 @@ function auth(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: "org-1",
     apiKeyHash: "key-1",
     encryptionKey: Buffer.from("0123456789abcdef0123456789abcdef", "utf-8"),
-    programId: "wingman" as any,
     keyProgramId: "wingman" as any,
     capabilities: ["dispatch.read", "dispatch.write"],
     rateLimitTier: "free",

@@ -109,7 +109,7 @@ describe("PLAN-W1 EXECUTE: dispatch_backfill_task_expires_at", () => {
   it("rejects a caller without a fleet-internal role", async () => {
     activeDb = makeFixture([fieldLessSentinelDoc("a")]).db;
     const result = await backfillTaskExpiresAtHandler(
-      baseAuth({ programId: "builder", keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
+      baseAuth({ keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
       {}
     );
     const parsed = JSON.parse(result.content[0].text);

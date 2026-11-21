@@ -44,6 +44,7 @@ import { validateOidcToken } from "./auth/oidcValidator.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { logDenial, denialPrincipal } from "./auth/denialLog.js";
+import { credentialPrincipal } from "./auth/ownerAuthz.js";
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_BODY_BYTES = 64 * 1024; // 64KB body limit
 const PORT = parseInt(process.env.PORT || "3001", 10);
@@ -178,10 +179,10 @@ async function main() {
       return { content: [{ type: "text", text: "Error: Not authenticated." }], isError: true };
     }
 
-    console.log(`[TENANT] Tool=${name} userId=${auth.userId} programId=${auth.programId}`);
+    console.log(`[TENANT] Tool=${name} userId=${auth.userId} programId=${auth.keyProgramId}`);
 
     // Per-key + per-tenant + per-tool rate limiting (tier-aware sliding window)
-    const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, name, auth.rateLimitTier, auth.programId);
+    const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, name, auth.rateLimitTier, credentialPrincipal(auth));
     if (sessionId) setRateLimitResult(sessionId, rateResult);
     if (!rateResult.allowed) {
       return {
@@ -205,7 +206,7 @@ async function main() {
     const { checkToolCapability } = await import("./middleware/capabilities.js");
     const capCheck = checkToolCapability(name, auth.capabilities);
     if (!capCheck.allowed) {
-      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "mcp" });
       logDenial({ principal: denialPrincipal(auth), tool: name, subject: null, code: "MISSING_CAPABILITY" });
       return { content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${auth.capabilities.join(", ")}]` }], isError: true };
     }
@@ -214,7 +215,7 @@ async function main() {
     // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
     const breakerResult = await checkCircuitBreaker(auth, name);
     if (!breakerResult.allowed) {
-      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "mcp" });
       return {
         content: [{
           type: "text",
@@ -233,7 +234,7 @@ async function main() {
       const { checkToolScope } = await import("./oauth/scopes.js");
       const scopeError = checkToolScope(name, auth.oauthScopes);
       if (scopeError) {
-        audit.error(name, scopeError, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+        audit.error(name, scopeError, { tool: name, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "mcp" });
         return { content: [{ type: "text", text: JSON.stringify({ error: "insufficient_scope", error_description: scopeError }) }], isError: true };
       }
     }
@@ -319,17 +320,17 @@ async function main() {
         if (sessionId) resetTransportCompliance(auth.userId, sessionId);
       }
 
-      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, true);
-      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, tracedArgs,
+      logToolCall(auth.userId, name, credentialPrincipal(auth), "mcp", sessionId, Date.now() - startTime, true);
+      traceToolCall(auth.userId, name, credentialPrincipal(auth), "mcp", sessionId, tracedArgs,
         JSON.stringify(result).substring(0, 500), Date.now() - startTime, true);
-      audit.log(name, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      audit.log(name, { tool: name, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "mcp" });
       return result;
     } catch (err) {
-      logToolCall(auth.userId, name, auth.programId, "mcp", sessionId, Date.now() - startTime, false,
+      logToolCall(auth.userId, name, credentialPrincipal(auth), "mcp", sessionId, Date.now() - startTime, false,
         err instanceof Error ? err.message : String(err));
-      traceToolCall(auth.userId, name, auth.programId, "mcp", sessionId, tracedArgs,
+      traceToolCall(auth.userId, name, credentialPrincipal(auth), "mcp", sessionId, tracedArgs,
         "", Date.now() - startTime, false, err instanceof Error ? err.message : String(err));
-      audit.error(name, err instanceof Error ? err.message : String(err), { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
+      audit.error(name, err instanceof Error ? err.message : String(err), { tool: name, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "mcp" });
       return { content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
     }
   });
@@ -496,7 +497,7 @@ async function main() {
         emitEvent(auth.userId, {
           event_type: "SESSION_DEATH",
           session_id: mcpSessionId,
-          program_id: auth.programId || "unknown",
+          program_id: credentialPrincipal(auth) || "unknown",
         });
         return sendJson(res, 410, {
           error: "Session expired or invalid",

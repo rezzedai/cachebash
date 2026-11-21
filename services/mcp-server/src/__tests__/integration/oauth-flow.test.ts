@@ -335,7 +335,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       const authContext = await validateAuth(tokenResponse.access_token);
       expect(authContext).not.toBeNull();
       expect(authContext!.userId).toBe(userId);
-      expect(authContext!.programId).toBe("oauth");
+      expect(authContext!.keyProgramId).toBe("oauth");
 
       // Verify tokens are in Firestore
       const accessHash = crypto
@@ -423,7 +423,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       // Auth context resolves to SCALAR with its explicit capability set
       const authContext = await validateAuth(tokenResponse.access_token);
       expect(authContext).not.toBeNull();
-      expect(authContext!.programId).toBe("scalar");
+      expect(authContext!.keyProgramId).toBe("scalar");
       expect(authContext!.capabilities).toContain("dispatch.write");
       expect(authContext!.capabilities).toContain("gsp.write");
       expect(authContext!.capabilities).not.toContain("*");
@@ -443,7 +443,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
       expect(refreshMock.getStatus()).toBe(200);
       const refreshed = JSON.parse(refreshMock.getBody());
       const refreshedContext = await validateAuth(refreshed.access_token);
-      expect(refreshedContext!.programId).toBe("scalar");
+      expect(refreshedContext!.keyProgramId).toBe("scalar");
     });
 
     it("should reject unknown, generic, or missing program selection (no fallback identity)", async () => {
@@ -973,7 +973,7 @@ describe("OAuth 2.1 End-to-End Flow", () => {
 
       expect(authContext).not.toBeNull();
       expect(authContext!.userId).toBe(userId);
-      expect(authContext!.programId).toBe("oauth");
+      expect(authContext!.keyProgramId).toBe("oauth");
       expect(authContext!.encryptionKey).toBeDefined();
       expect(authContext!.capabilities.length).toBeGreaterThan(0); // OAuth gets granular capabilities
     });

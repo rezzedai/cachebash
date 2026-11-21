@@ -29,7 +29,6 @@ describe("Metrics Endpoints - Capability Gates", () => {
 
   const adminAuth: AuthContext = {
     userId: "test-user",
-    programId: "orchestrator",
     keyProgramId: "orchestrator",
     apiKeyHash: "test-hash",
     encryptionKey: mockEncryptionKey,
@@ -39,7 +38,6 @@ describe("Metrics Endpoints - Capability Gates", () => {
 
   const vectorAuth: AuthContext = {
     userId: "test-user",
-    programId: "vector",
     keyProgramId: "vector",
     apiKeyHash: "test-hash-vector",
     encryptionKey: mockEncryptionKey,
@@ -49,7 +47,6 @@ describe("Metrics Endpoints - Capability Gates", () => {
 
   const restrictedAuth: AuthContext = {
     userId: "test-user",
-    programId: "builder",
     keyProgramId: "builder",
     apiKeyHash: "test-hash-builder",
     encryptionKey: mockEncryptionKey,

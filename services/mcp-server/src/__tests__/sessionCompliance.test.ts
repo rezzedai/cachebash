@@ -39,7 +39,6 @@ function auth(programId: string): AuthContext {
     userId: "u1",
     apiKeyHash: "k1",
     encryptionKey: Buffer.from("abc"),
-    programId: programId as any,
     keyProgramId: programId as any,
     capabilities: ["*"],
     rateLimitTier: "internal",

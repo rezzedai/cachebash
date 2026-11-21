@@ -1261,7 +1261,7 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
         syncedFrom: {
           source: "seed",
           seededAt: now,
-          seededBy: auth.programId,
+          seededBy: credentialPrincipal(auth),
         },
         createdAt: existing.exists ? existing.data()!.createdAt : now,
         updatedAt: now,
@@ -1377,7 +1377,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
     // Step 2: Check proposer's pending proposal quota (max 5)
     const proposalsRef = db.collection(`tenants/${auth.userId}/gsp_proposals`);
     const pendingQuery = proposalsRef
-      .where("proposedBy", "==", auth.programId)
+      .where("proposedBy", "==", credentialPrincipal(auth))
       .where("status", "==", "pending");
     
     const pendingSnap = await pendingQuery.get();
@@ -1385,7 +1385,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
       return jsonResult({
         success: false,
         error: "QUOTA_EXCEEDED",
-        message: `Proposal quota exceeded. Program "${auth.programId}" has ${pendingSnap.size} pending proposals (max 5).`,
+        message: `Proposal quota exceeded. Program "${auth.keyProgramId}" has ${pendingSnap.size} pending proposals (max 5).`,
       });
     }
 
@@ -1393,7 +1393,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
     const duplicateQuery = proposalsRef
       .where("namespace", "==", args.namespace)
       .where("key", "==", args.key)
-      .where("proposedBy", "==", auth.programId)
+      .where("proposedBy", "==", credentialPrincipal(auth))
       .where("status", "==", "pending");
     
     const duplicateSnap = await duplicateQuery.get();
@@ -1402,7 +1402,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
       return jsonResult({
         success: false,
         error: "DUPLICATE_PROPOSAL",
-        message: `A pending proposal already exists for ${args.namespace}/${args.key} by ${auth.programId}. Proposal ID: ${existingProposalId}`,
+        message: `A pending proposal already exists for ${args.namespace}/${args.key} by ${auth.keyProgramId}. Proposal ID: ${existingProposalId}`,
       });
     }
 
@@ -1425,7 +1425,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
       proposedValue: args.proposedValue,
       rationale: args.rationale,
       evidence: args.evidence || null,
-      proposedBy: auth.programId,
+      proposedBy: credentialPrincipal(auth),
       status: "pending",
       reviewers,
       createdAt,
@@ -1443,7 +1443,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
         source: "gsp",
         target: reviewer,
         message_type: "DIRECTIVE" as const,
-        message: `[GSP] New proposal: ${args.namespace}/${args.key} by ${auth.programId}. Rationale: ${args.rationale}. Use gsp_resolve(proposalId: '${proposalId}') to review.`,
+        message: `[GSP] New proposal: ${args.namespace}/${args.key} by ${auth.keyProgramId}. Rationale: ${args.rationale}. Use gsp_resolve(proposalId: '${proposalId}') to review.`,
         priority: "normal" as const,
         action: "queue" as const,
       };
@@ -1457,7 +1457,7 @@ export async function gspProposeHandler(auth: AuthContext, rawArgs: unknown): Pr
     }
 
     // Step 7b: Notify subscribers of proposal creation
-    const proposalCreationMessage = `[GSP_PROPOSAL] New proposal for ${args.namespace}/${args.key} by ${auth.programId}: ${args.rationale}. ProposalId: ${proposalId}. Status: pending.`;
+    const proposalCreationMessage = `[GSP_PROPOSAL] New proposal for ${args.namespace}/${args.key} by ${auth.keyProgramId}: ${args.rationale}. ProposalId: ${proposalId}. Status: pending.`;
     await notifyProposalSubscribers(auth, args.namespace, args.key, proposalCreationMessage);
 
     // Step 8: Return success
@@ -1500,7 +1500,7 @@ export async function gspSubscribeHandler(auth: AuthContext, rawArgs: unknown): 
     }
 
     // Step 2: Get subscriber identity
-    const programId = auth.programId;
+    const programId = credentialPrincipal(auth);
 
     // Step 3: If unsubscribe === true, deactivate subscription
     if (args.unsubscribe) {
@@ -1728,7 +1728,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         // Update the proposal document
         txn.update(proposalRef, {
           status: args.decision,
-          resolvedBy: auth.programId,
+          resolvedBy: credentialPrincipal(auth),
           resolvedAt: now,
           resolution: args.reasoning || "",
           version: proposal.version + 1,
@@ -1740,7 +1740,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
       // For rejected or withdrawn, just update the proposal
       await proposalRef.update({
         status: args.decision,
-        resolvedBy: auth.programId,
+        resolvedBy: credentialPrincipal(auth),
         resolvedAt: now,
         resolution: args.reasoning || "",
         version: proposal.version + 1,
@@ -1778,8 +1778,8 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
 
     // Step 6b: Notify subscribers of proposal resolution
     const resolutionMessage = args.reasoning
-      ? `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}. ${args.reasoning}`
-      : `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.programId}.`;
+      ? `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.keyProgramId}. ${args.reasoning}`
+      : `[GSP_PROPOSAL] Proposal ${args.proposalId} for ${proposal.namespace}/${proposal.key} ${args.decision} by ${auth.keyProgramId}.`;
     await notifyProposalSubscribers(auth, proposal.namespace, proposal.key, resolutionMessage);
 
     // Step 7: Return success

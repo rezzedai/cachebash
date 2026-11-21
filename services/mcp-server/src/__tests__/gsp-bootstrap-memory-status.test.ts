@@ -43,7 +43,6 @@ const STATE_PATH = `tenants/${USER_ID}/sessions/_meta/program_state/iso`;
 const authFor = (programId: string, capabilities: string[]): AuthContext => ({
   userId: USER_ID,
   apiKeyHash: "test-key-hash",
-  programId: programId as any,
   keyProgramId: programId as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities,

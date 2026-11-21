@@ -56,7 +56,7 @@ jest.mock("../firebase/client.js", () => ({
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
 jest.mock("../middleware/gate.js", () => ({
-  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.programId),
+  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.keyProgramId),
   isAdmin: jest.fn(() => false),
   logAudit: jest.fn(),
   generateCorrelationId: jest.fn(() => "mock-corr-id"),

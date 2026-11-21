@@ -8,11 +8,11 @@ export interface AuthContext {
   userId: string;
   apiKeyHash: string;
   encryptionKey: Buffer;
-  programId: ValidProgramId;
   /** The programId bound to the AUTHENTICATING credential (cb_ key, Firebase token, OAuth token).
    * Used by verifySource to enforce Identity Sovereignty inv.6:
    * claimed source must match the credential's own identity.
-   * Set by every auth validator. */
+   * Set by every auth validator. RD-5 PR-N N-D4: the only program identity on the context; decisions and stored
+   * attribution read it through credentialPrincipal(auth), log text reads it directly. */
   keyProgramId: ValidProgramId;
   capabilities: string[];
   /** OAuth granted scopes — only present for OAuth tokens */
@@ -87,7 +87,6 @@ export async function validateApiKey(apiKey: string): Promise<AuthContext | null
       userId,
       apiKeyHash: keyHash,
       encryptionKey: deriveEncryptionKey(apiKey),
-      programId,
       keyProgramId,
       capabilities,
       rateLimitTier: data.rateLimitTier || "free",

@@ -126,7 +126,7 @@ describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
   it("rejects a caller without a fleet-internal role", async () => {
     activeDb = makeFixture([expiredDoc("a")]).db;
     const result = await reapExpiredTasksHandler(
-      baseAuth({ programId: "builder", keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
+      baseAuth({ keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
       {}
     );
     const parsed = JSON.parse(result.content[0].text);
