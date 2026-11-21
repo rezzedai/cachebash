@@ -1,5 +1,4 @@
 # mutation for probe T6.admin_merge_accounts: the admin gate and the tenant check are removed: any key may merge accounts
-diff --git a/src/modules/account-merge.ts b/src/modules/account-merge.ts
 --- a/src/modules/account-merge.ts
 +++ b/src/modules/account-merge.ts
 @@ -22,11 +22,11 @@
@@ -10,7 +9,7 @@ diff --git a/src/modules/account-merge.ts b/src/modules/account-merge.ts
 +const mayMergeInto = (tenantUid: string, canonicalUid: string): boolean => Boolean(tenantUid && canonicalUid);
  
  export async function mergeAccountsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-   // Admin gate (RD-5 PR-L row 28): the literal fleet.admin capability. No program name confers it, and "*" does not satisfy it.
+   // Admin gate (RD-5 PR-L row 28): the literal fleet.admin capability. No program name confers it, and wildcard does not satisfy it.
 -  if (!hasFleetAdminCapability(auth)) {
 +  if (Date.now() < 0) {
      const caller = denialPrincipal(auth);

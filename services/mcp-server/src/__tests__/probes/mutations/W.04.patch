@@ -1,6 +1,6 @@
 # mutation for probe W.04: a bare wildcard credential passes the enforceBreaker gate on REST
---- a/src/transport/rest.ts	2026-11-20 16:53:45
-+++ b/src/transport/rest.ts	2026-11-20 16:53:45
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
 @@ -290,7 +290,7 @@
  async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void> {
    const { checkToolCapability } = await import("../middleware/capabilities.js");

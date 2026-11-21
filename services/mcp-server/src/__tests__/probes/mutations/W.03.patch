@@ -1,6 +1,6 @@
 # mutation for probe W.03: a bare wildcard credential passes the callTool gate on REST
---- a/src/transport/rest.ts	2026-11-20 16:53:45
-+++ b/src/transport/rest.ts	2026-11-20 16:53:45
+--- a/src/transport/rest.ts
++++ b/src/transport/rest.ts
 @@ -187,7 +187,7 @@
    // Phase 4: Capability gate
    const { checkToolCapability } = await import("../middleware/capabilities.js");

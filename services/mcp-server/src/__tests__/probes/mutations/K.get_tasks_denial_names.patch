@@ -1,13 +1,12 @@
-# mutation for probe K.get_tasks_denial_names: the foreign-target check expands the wildcard, so a bare "*" key reads another program's tasks
-diff --git a/src/modules/dispatch/tasks.ts b/src/modules/dispatch/tasks.ts
+# mutation for probe K.get_tasks_denial_names: the foreign-target check admits any key holding dispatch.read, so a key reads another program's tasks
 --- a/src/modules/dispatch/tasks.ts
 +++ b/src/modules/dispatch/tasks.ts
-@@ -142,7 +142,7 @@
- function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
+@@ -143,7 +143,7 @@
+ export function authorizeTasksRead(auth: AuthContext, target: string | undefined): { allowed: boolean; principal: string; seesAll: boolean } {
    const principal = credentialPrincipal(auth);
    const seesAll = (TASKS_ALL_PRINCIPALS as readonly string[]).includes(principal);
 -  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth);
-+  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth) || auth.capabilities.includes("*");
++  const allowed = target === undefined || target === principal || target === "all" || seesAll || hasFleetObserveCapability(auth) || auth.capabilities.includes("dispatch.read");
    return { allowed, principal, seesAll };
  }
  
