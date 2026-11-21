@@ -100,7 +100,7 @@ export async function createIsoServer(): Promise<{
     // main /v1/mcp CallToolRequestSchema handler. Always uses authContext.capabilities
     // from the validated key only.
     const { checkToolCapability } = await import("../middleware/capabilities.js");
-    const capCheck = checkToolCapability(name, authContext.capabilities, denialPrincipal(authContext));
+    const capCheck = checkToolCapability(name, authContext.capabilities);
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
       logDenial({ principal: denialPrincipal(authContext), tool: name, subject: null, code: "MISSING_CAPABILITY" });

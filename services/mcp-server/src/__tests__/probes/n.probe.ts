@@ -1,5 +1,5 @@
 import { world } from "./harness/load";
-import { callTool } from "./harness/client";
+import { callTool, listTools } from "./harness/client";
 import { CASES, nextN, Ctx } from "./harness/cases";
 import { denialNames, denied } from "./harness/judge";
 import { knownOpen, probe } from "./harness/registry";
@@ -155,5 +155,44 @@ describe("N fleet paths (table B, no wildcard)", () => {
     const r = await callTool(w, iso, "keys_create_key", { programId: "builder", label: `n-mint-ctl-${nextN()}` });
     expect(r.json?.success).toBe(false);
     expect(r.text).toContain("programs.write");
+  });
+});
+
+/** What a wildcard key was granted at the per-tool gate before PR-N: every capability a tool maps to, named. */
+const EVERY_MAPPED_CAPABILITY = [...new Set(Object.values(TOOL_CAPABILITIES))].sort();
+
+describe("N literal gates", () => {
+  // plan 22 D: tools/list shows a key exactly the tools whose capability it holds by name
+  probe("N.tools_list_literal", async () => {
+    const w = world();
+    const wild = await mint(w, "alpha", "probe-n-list-wild", ["*"]);
+    expect(await listTools(w, wild)).toEqual([]);
+    const relay = await mint(w, "alpha", "probe-n-list-relay", ["relay.read"]);
+    const listed = await listTools(w, relay);
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.filter((t) => TOOL_CAPABILITIES[t] !== "relay.read")).toEqual([]);
+    // control: a key naming every mapped capability sees every defined tool
+    const all = await mint(w, "alpha", "probe-n-list-all", EVERY_MAPPED_CAPABILITY);
+    expect((await listTools(w, all)).length).toBeGreaterThanOrEqual(100);
+  });
+
+  // plan 22 D: a tool with no TOOL_CAPABILITIES entry is denied for every key
+  probe("N.unmapped_denied", async () => {
+    const w = world();
+    const wild = await mint(w, "alpha", "probe-n-unmapped-wild", ["*"]);
+    const all = await mint(w, "alpha", "probe-n-unmapped-all", EVERY_MAPPED_CAPABILITY);
+    for (const cred of [wild, all]) {
+      const r = await callTool(w, cred, "n_unmapped_probe_tool", {});
+      expect(capabilityText(r)).toBe(true);
+      expect(r.text).toContain("unmapped");
+    }
+  });
+
+  test("N.unmapped_denied control: a mapped tool passes for a key holding its capability", async () => {
+    const w = world();
+    const all = await mint(w, "alpha", "probe-n-unmapped-ctl", EVERY_MAPPED_CAPABILITY);
+    const r = await callTool(w, all, "dispatch_get_tasks", { requires_action: null });
+    expect(capabilityText(r)).toBe(false);
+    expect(r.isError).toBe(false);
   });
 });

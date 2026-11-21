@@ -16,6 +16,7 @@ import { spawnSync } from "child_process";
 import { assertEmulatorOnly } from "./harness/guard";
 import { MCP_SERVER_DIR } from "./harness/server";
 import type { World, WorldCredential } from "./harness/world";
+import { FULL } from "./harness/seed";
 
 /** M (R5): a self-read whose state document cannot be read must say so, not return an empty memory block. */
 describe("M bootstrap self-read failure", () => {
@@ -64,7 +65,7 @@ describe("M fleet paths (REST)", () => {
   // grid dispatcher cachebash-client.ts:316 GET /v1/sessions, key holds * and fleet.observe
   probe("M.fleet_path_dispatcher_rest_lists_sessions", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-list", ["*", "fleet.observe"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-list", [...FULL(), "fleet.observe"]);
     const r = await rest(w, dispatcher, "GET", "/v1/sessions?limit=50");
     expect(`${r.httpStatus} ${r.text.slice(0, 240)}`).toMatch(/^200 /);
     expect(r.text).toContain(marker("A", "alpha"));
@@ -74,7 +75,7 @@ describe("M fleet paths (REST)", () => {
   // cachebash-client.ts:301 POST /v1/sessions, :331 PATCH /v1/sessions/:id
   probe("M.fleet_path_dispatcher_rest_session_writes", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-writes", ["*", "fleet.observe"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-writes", [...FULL(), "fleet.observe"]);
     await emulatorDb().doc(`tenants/${w.tenants.A}/config/billing`).set({ tier: "team" }); // REST create_session is pricing-checked; a fresh tenant is on the free tier (1 concurrent session)
     const sessionId = `beta-g${nextN()}`;
     const made = await rest(w, dispatcher, "POST", "/v1/sessions", { sessionId, programId: "beta", name: `m-${sessionId}`, status: "m-spawn" });
@@ -87,7 +88,7 @@ describe("M fleet paths (REST)", () => {
   // cachebash-client.ts:207 to :256 tasks GET, claim, complete, unclaim
   probe("M.fleet_path_dispatcher_rest_tasks", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-tasks", ["*", "fleet.observe"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-tasks", [...FULL(), "fleet.observe"]);
     const list = await rest(w, dispatcher, "GET", "/v1/tasks?target=beta&limit=50");
     expect(`${list.httpStatus} ${list.text.slice(0, 240)}`).toMatch(/^200 /);
     expect(list.text).toContain(marker("A", "beta"));
@@ -105,7 +106,7 @@ describe("M fleet paths (REST)", () => {
   // cachebash-context-reporter.sh:75 PATCH /v1/sessions/:id on the program's own session
   probe("M.fleet_path_self_rest_update_session", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-m-alpha-self", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-m-alpha-self", FULL());
     const sessionId = await sessionOf(w, "alpha");
     const r = await rest(w, alpha, "PATCH", `/v1/sessions/${sessionId}`, { status: "m-self-update", contextUsedPct: 41, lastHeartbeat: true });
     expect(`${r.httpStatus} ${r.text.slice(0, 240)}`).toMatch(/^200 /);
@@ -115,7 +116,7 @@ describe("M fleet paths (REST)", () => {
   // cachebash-check-interrupts.sh:31 GET /v1/interrupts/peek
   probe("M.fleet_path_self_interrupts_peek", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-m-alpha-peek", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-m-alpha-peek", FULL());
     const r = await rest(w, alpha, "GET", "/v1/interrupts/peek?sessionId=alpha");
     expect(`${r.httpStatus} ${r.text.slice(0, 240)}`).toMatch(/^200 /);
     expect(r.json?.data?.success).toBe(true);
@@ -134,7 +135,7 @@ describe("M fleet paths (REST)", () => {
   // telemetry-capture.sh:118 POST /v1/tasks/:id/telemetry by the program that completed the task
   probe("M.fleet_path_self_rest_telemetry", async () => {
     const w = world();
-    const beta = await mint(w, "beta", "probe-m-beta-telemetry", ["*"]);
+    const beta = await mint(w, "beta", "probe-m-beta-telemetry", FULL());
     const taskId = await taskFor(w, "beta");
     expect((await callTool(w, beta, "dispatch_claim_task", { taskId })).json?.success).toBe(true);
     expect((await callTool(w, beta, "dispatch_complete_task", { taskId, completed_status: "SUCCESS", model: "probe", provider: "probe", result: "m" })).json?.success).toBe(true);
@@ -192,7 +193,7 @@ describe("M fleet paths (REST)", () => {
   // api.ts:337 getActiveSprints: a sprint another program created
   probe("M.fleet_path_mobile_sprints_active", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-m-alpha-sprint", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-m-alpha-sprint", FULL());
     const made = await callTool(w, alpha, "sprint_create_sprint", { projectName: `m-${nextN()}`, branch: "m", stories: [{ id: "s1", title: "m-story" }] });
     const sprintId = (made.json?.sprintId ?? made.json?.id) as string;
     expect(sprintId).toBeTruthy();
@@ -262,7 +263,7 @@ describe("M D-1 denial metric", () => {
   });
   test("M.reset_cache_denial_logged control: a * key passes the route and a successful set_budget adds no denial line", async () => {
     const w = world();
-    const ok = adminResetCache(w.creds.wildcard.key);
+    const ok = adminResetCache(w.creds.bare.key); // the route gate is the bare wildcard; PR-N deletes the route
     expect(ok.status).toBe(200);
     expect(ok.denials).toEqual([]);
     const from = logSize(w);
@@ -317,7 +318,7 @@ describe("M relay routes (rows 1 and 2)", () => {
   test("M.unread_foreign_denied control: the dispatcher reads beta's inbox", async () => {
     const w = world();
     const beta = await sendTo(w, "beta", "unread-foreign-ctl");
-    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-unread", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-m-dispatcher-unread", FULL());
     const r = await rest(w, dispatcher, "GET", "/v1/messages/unread?sessionId=beta");
     expect(r.json?.data?.messages?.map((m: any) => m.id)).toContain(beta);
   });
@@ -333,7 +334,7 @@ describe("M relay routes (rows 1 and 2)", () => {
   test("M.mark_read_foreign_denied control: beta marks its own message", async () => {
     const w = world();
     const id = await sendTo(w, "beta", "mr-own");
-    const beta = await mint(w, "beta", "probe-m-beta-markread", ["*"]);
+    const beta = await mint(w, "beta", "probe-m-beta-markread", FULL());
     const r = await rest(w, beta, "POST", "/v1/messages/mark_read", { messageIds: [id] });
     expect(r.httpStatus).toBe(200);
     expect((await relayDoc(w, id)).status).toBe("read");
@@ -461,7 +462,7 @@ describe("M sprints active (row 6)", () => {
   };
   probe("M.sprints_active_filtered", async () => {
     const w = world();
-    const beta = await mint(w, "beta", "probe-m-beta-sprint", ["*"]);
+    const beta = await mint(w, "beta", "probe-m-beta-sprint", FULL());
     const theirs = await newSprint(w, beta);
     const mine = await newSprint(w, w.creds.scoped);
     const r = await rest(w, w.creds.scoped, "GET", "/v1/sprints/active");
@@ -472,7 +473,7 @@ describe("M sprints active (row 6)", () => {
   });
   test("M.sprints_active_filtered control: the creator sees its sprint and the phone sees both", async () => {
     const w = world();
-    const beta = await mint(w, "beta", "probe-m-beta-sprint-ctl", ["*"]);
+    const beta = await mint(w, "beta", "probe-m-beta-sprint-ctl", FULL());
     const theirs = await newSprint(w, beta);
     const own = await rest(w, beta, "GET", "/v1/sprints/active");
     expect((own.json?.data?.sprints ?? []).map((s: any) => s.id)).toContain(theirs);

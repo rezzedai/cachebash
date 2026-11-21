@@ -289,18 +289,15 @@ describe('G-2 — tools/list topology hiding (a)', () => {
 });
 
 describe('G-2 — full/lite tiers unaffected (c)', () => {
-  it('wildcard ["*"] sees all tools', () => {
-    const result = filterToolsByCapabilities(ALL_TOOLS, ['*']);
-    expect(result).toHaveLength(ALL_TOOLS.length);
+  // RD-5 PR-N: every mapped capability, named. What the wildcard granted at the per-tool gate before PR-N.
+  const EVERY_MAPPED_CAPABILITY = [...new Set(Object.values(TOOL_CAPABILITIES))];
+
+  it('wildcard ["*"] sees no tools', () => {
+    expect(filterToolsByCapabilities(ALL_TOOLS, ['*'])).toHaveLength(0);
   });
 
-  it('full Grid programs (iso, basher) see all tools via wildcard', () => {
-    for (const program of ['iso', 'basher', 'vector', 'sark']) {
-      const caps = DEFAULT_CAPABILITIES[program];
-      expect(caps).toContain('*');
-      const result = filterToolsByCapabilities(ALL_TOOLS, caps);
-      expect(result).toHaveLength(ALL_TOOLS.length);
-    }
+  it('a key holding every mapped capability by name sees all tools', () => {
+    expect(filterToolsByCapabilities(ALL_TOOLS, EVERY_MAPPED_CAPABILITY)).toHaveLength(ALL_TOOLS.length);
   });
 
   it('admin_merge_accounts still requires admin.write (not dispatch.write)', () => {
@@ -318,9 +315,8 @@ describe('G-2 — full/lite tiers unaffected (c)', () => {
     expect(checkToolCapability('relay_send_message', builderCaps).allowed).toBe(true);
   });
 
-  it('filterToolsByCapabilities with wildcard is identity', () => {
-    const result = filterToolsByCapabilities(ALL_TOOLS, ['*']);
-    expect(result).toBe(ALL_TOOLS); // same reference, no copy
+  it('filterToolsByCapabilities with every mapped capability keeps every tool', () => {
+    expect(filterToolsByCapabilities(ALL_TOOLS, EVERY_MAPPED_CAPABILITY)).toEqual(ALL_TOOLS);
   });
 });
 
@@ -354,15 +350,15 @@ describe('Fail-closed — unmapped tools are denied for restricted callers', () 
     if (!r.allowed) expect(r.required).toBe('unmapped');
   });
 
-  it('an unmapped tool is allowed for a wildcard caller', () => {
+  it('an unmapped tool is denied for a wildcard caller (RD-5 PR-N N-D2)', () => {
     const r = checkToolCapability('__hypothetical_future_tool__', ['*']);
-    expect(r.allowed).toBe(true);
+    expect(r.allowed).toBe(false);
   });
 
   it('filterToolsByCapabilities hides unmapped tools from restricted callers', () => {
     const tools = [makeTool('__hypothetical_future_tool__')];
     expect(filterToolsByCapabilities(tools, WINGMAN_CAPS)).toHaveLength(0);
-    expect(filterToolsByCapabilities(tools, ['*'])).toHaveLength(1);
+    expect(filterToolsByCapabilities(tools, ['*'])).toHaveLength(0);
   });
 });
 

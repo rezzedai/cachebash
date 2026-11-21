@@ -12,6 +12,7 @@ import type { AuthContext } from "../auth/authValidator";
 import { sendMessageHandler } from "../modules/relay";
 import * as http from "http";
 import { createRestRouter } from "../transport/rest";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 // --- Module mocks ---
 
@@ -155,7 +156,7 @@ function ownerAuth(): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId: "owner" as any,
     keyProgramId: "owner" as any,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   };
 }
@@ -179,7 +180,7 @@ function apiKeyAuth(): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId: "owner" as any,
     keyProgramId: "owner" as any,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   };
 }
@@ -226,7 +227,7 @@ describe("portal owner send-message — handler level", () => {
       encryptionKey: Buffer.from("abc"),
       programId: "basher" as any,
       keyProgramId: "basher" as any,
-      capabilities: ["*"],
+      capabilities: ALL_MAPPED_CAPABILITIES,
       rateLimitTier: "paid",
     };
 

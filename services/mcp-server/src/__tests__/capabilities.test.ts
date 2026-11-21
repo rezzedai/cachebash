@@ -48,15 +48,14 @@ describe('Capability System', () => {
       if (!result.allowed) expect(result.required).toBe('unmapped');
     });
 
-    it('allows unknown tools for wildcard callers (fail-closed exception)', () => {
-      const result = checkToolCapability('nonexistent_tool', ['*']);
-      expect(result.allowed).toBe(true);
+    it('denies unknown tools for wildcard callers (RD-5 PR-N N-D2)', () => {
+      expect(checkToolCapability('nonexistent_tool', ['*']).allowed).toBe(false);
     });
 
-    it('wildcard allows all tools', () => {
-      expect(checkToolCapability('get_tasks', ['*']).allowed).toBe(true);
-      expect(checkToolCapability('create_key', ['*']).allowed).toBe(true);
-      expect(checkToolCapability('get_audit', ['*']).allowed).toBe(true);
+    it('wildcard allows no tool (RD-5 PR-N N-D1)', () => {
+      expect(checkToolCapability('get_tasks', ['*']).allowed).toBe(false);
+      expect(checkToolCapability('create_key', ['*']).allowed).toBe(false);
+      expect(checkToolCapability('get_audit', ['*']).allowed).toBe(false);
     });
   });
 

@@ -13,6 +13,7 @@ import type { AuthContext } from "../auth/authValidator";
 import { createRestRouter } from "../transport/rest";
 import { updateSessionHandler } from "../modules/pulse.js";
 import { validateAuth } from "../auth/authValidator.js";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 type Write = { path: string; data: Record<string, unknown>; opts?: Record<string, unknown> };
 
@@ -97,7 +98,7 @@ function auth(programId = "basher"): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId,
     keyProgramId: programId,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   } as unknown as AuthContext;
 }

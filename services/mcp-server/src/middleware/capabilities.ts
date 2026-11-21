@@ -312,6 +312,14 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "webhooks.read", "webhooks.write"],
 };
 
+/**
+ * RD-5 PR-N N-D1: literal membership. A key holds a capability only if the list names it.
+ * The wildcard string grants nothing here, so a key holding only the wildcard fails every gate that calls this.
+ */
+export function holdsCapability(capabilities: readonly string[], cap: Capability): boolean {
+  return capabilities.includes(cap);
+}
+
 /** RD-5 PR-N1: who and where, for the `authz_would_deny` line. Absent means no line. */
 export interface WouldDenyContext {
   principal: string;
@@ -352,30 +360,20 @@ export class CapabilityError extends Error {
 export function checkToolCapability(
   toolName: string,
   capabilities: string[],
-  principal?: string,
 ): { allowed: true } | { allowed: false; required: string; held: string[] } {
   // Resolve alias to canonical name before lookup
   const canonical = resolveToolAlias(toolName);
   const required = TOOL_CAPABILITIES[canonical];
-  if (!required) {
-    // Unknown/unmapped tool — fail-CLOSED for restricted profiles; wildcard holders pass through.
-    // This prevents a future unmapped tool from silently granting access to wingman-tier callers.
-    if (capabilities.includes("*")) {
-      logWouldDeny({ principal: principal ?? "(none)", tool: toolName, capability: "unmapped", site: "capabilities.checkToolCapability:unmapped" });
-      return { allowed: true };
-    }
-    return { allowed: false, required: "unmapped", held: capabilities };
-  }
-  if (hasCapability(capabilities, required, { principal: principal ?? "(none)", tool: toolName, site: "capabilities.checkToolCapability:per_tool" })) {
-    return { allowed: true };
-  }
+  // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+  if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+  if (holdsCapability(capabilities, required)) return { allowed: true };
   return { allowed: false, required, held: capabilities };
 }
 
 /**
  * G-2: Filter tool definitions to only those the caller's capabilities entitle them to see.
  * Tools in TOOL_CAPABILITIES are filtered by their required capability.
- * Wildcard ["*"] holders see all tools unfiltered.
+ * RD-5 PR-N: literal membership only; a key holding only the wildcard sees no tools.
  * Tools NOT mapped in TOOL_CAPABILITIES are HIDDEN from restricted callers (fail-CLOSED)
  * so a future unmapped tool cannot silently appear in a wingman-tier tools/list.
  */
@@ -383,11 +381,10 @@ export function filterToolsByCapabilities<T extends { name: string }>(
   toolDefs: T[],
   capabilities: string[]
 ): T[] {
-  if (capabilities.includes("*")) return toolDefs;
   return toolDefs.filter(tool => {
     const required = TOOL_CAPABILITIES[tool.name];
-    if (!required) return false; // unmapped tool — fail-closed for restricted profiles
-    return capabilities.includes(required);
+    if (!required) return false; // unmapped tool: hidden from every key
+    return holdsCapability(capabilities, required);
   });
 }
 

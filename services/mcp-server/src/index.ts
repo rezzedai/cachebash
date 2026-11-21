@@ -156,11 +156,10 @@ async function main() {
   );
 
   // G-2: Per-tier tools/list topology hiding.
-  // Wildcard holders (full Grid programs) see all tools.
-  // Restricted tiers (wingman, oauth, etc.) see only their entitled tools.
+  // Every key sees only the tools whose capability it holds by name (RD-5 PR-N).
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const auth = transport.currentAuth as AuthContext | null;
-    if (!auth || auth.capabilities.includes("*")) {
+    if (!auth) {
       return { tools: TOOL_DEFINITIONS };
     }
     const { filterToolsByCapabilities } = await import("./middleware/capabilities.js");
@@ -204,7 +203,7 @@ async function main() {
     }
     // Phase 4: Capability gate
     const { checkToolCapability } = await import("./middleware/capabilities.js");
-    const capCheck = checkToolCapability(name, auth.capabilities, denialPrincipal(auth));
+    const capCheck = checkToolCapability(name, auth.capabilities);
     if (!capCheck.allowed) {
       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: auth.programId, source: auth.programId, endpoint: "mcp" });
       logDenial({ principal: denialPrincipal(auth), tool: name, subject: null, code: "MISSING_CAPABILITY" });

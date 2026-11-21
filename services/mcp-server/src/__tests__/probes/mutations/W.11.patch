@@ -1,0 +1,23 @@
+# mutation for probe W.11: a bare wildcard credential passes the metrics.read handler gate (metrics.ts), with the per-tool gate also open (the per-tool gate runs first and would otherwise deny)
+--- a/src/middleware/capabilities.ts
++++ b/src/middleware/capabilities.ts
+@@ -366,7 +366,7 @@
+   const required = TOOL_CAPABILITIES[canonical];
+   // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+   if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+-  if (holdsCapability(capabilities, required)) return { allowed: true };
++  if (holdsCapability(capabilities, required) || capabilities.includes("*")) return { allowed: true };
+   return { allowed: false, required, held: capabilities };
+ }
+ 
+--- a/src/modules/metrics.ts
++++ b/src/modules/metrics.ts
+@@ -625,7 +625,7 @@
+ 
+ export async function getCostForecastHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   // Capability gate: metrics.read OR admin
+-  if (!hasCapability(auth, "metrics.read", "metrics_get_cost_forecast")) {
++  if (!hasCapability(auth, "metrics.read", "metrics_get_cost_forecast") && !auth.capabilities.includes("*")) {
+     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_cost_forecast", subject: null, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `get_cost_forecast requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
+   }

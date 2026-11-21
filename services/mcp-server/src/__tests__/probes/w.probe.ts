@@ -7,7 +7,7 @@ import type { World } from "./harness/world";
 
 /**
  * W (A-2): a credential holding only `["*"]` must be denied at each of the 19 wildcard-satisfiable gates
- * (recon section 5). The deny assertion is on `wildcard` (tenant A, program alpha, ["*"]).
+ * (recon section 5). The deny assertion is on `bare` (tenant A, program alpha, ["*"]).
  * The allow twin is a credential that is entitled to the same call: `scoped` (holds the literal capability)
  * or the `legacy` seeder (an admin-class program name), so a denial cannot be an empty-database or bad-request artefact.
  */
@@ -20,13 +20,13 @@ interface Site {
 
 const viaTool = (tool: string, args: Record<string, unknown>, control: "scoped" | "seeder", transport: "mcp" | "iso" = "mcp") =>
   async (w: World, who: "wildcard" | "control") => {
-    const cred = who === "wildcard" ? w.creds.wildcard : control === "scoped" ? w.creds.scoped : w.seeders.A;
+    const cred = who === "wildcard" ? w.creds.bare : control === "scoped" ? w.creds.scoped : w.seeders.A;
     const r: ToolResult = await callTool(w, cred, tool, args, { transport });
     return { denied: denied(r), ok: !denied(r) };
   };
 
 const viaRest = (method: string, path: string, body: unknown, control: "scoped" | "seeder") => async (w: World, who: "wildcard" | "control") => {
-  const cred = who === "wildcard" ? w.creds.wildcard : control === "scoped" ? w.creds.scoped : w.seeders.A;
+  const cred = who === "wildcard" ? w.creds.bare : control === "scoped" ? w.creds.scoped : w.seeders.A;
   const r = await rest(w, cred, method, path, body);
   const bad = r.httpStatus >= 400 || r.json?.success === false;
   return { denied: bad, ok: !bad };
@@ -44,7 +44,19 @@ const SITES: Site[] = [
       return viaRest("POST", "/v1/messages/mark_read", { messageIds: [sent.json.messageId] }, "scoped")(w, who);
     },
   },
-  { id: "W.05", gate: "middleware/capabilities.ts:318 unmapped tool passes for *", attempt: viaTool("dispatch_reap_expired_tasks", { dryRun: true }, "seeder") },
+  {
+    id: "W.05", gate: "middleware/capabilities.ts unmapped tool passes for *",
+    // PR-N: no tool is unmapped any more, so the entitled twin calls a mapped tool and the bare wildcard calls a tool with no entry
+    attempt: async (w, who) => {
+      if (who === "wildcard") {
+        // a capability refusal, not an unknown-tool answer: an unknown tool is refused later whether or not the gate passes
+        const r = await callTool(w, w.creds.bare, "w05_unmapped_probe_tool", {});
+        return { denied: /insufficient capability/i.test(r.text), ok: false };
+      }
+      const r = await callTool(w, w.seeders.A, "dispatch_get_tasks", { requires_action: null });
+      return { denied: denied(r), ok: !denied(r) };
+    },
+  },
   { id: "W.07", gate: "modules/audit.ts:25", attempt: viaTool("audit_get_audit", {}, "scoped") },
   { id: "W.08", gate: "modules/metrics.ts:62 comms metrics", attempt: viaTool("metrics_get_comms_metrics", {}, "scoped") },
   { id: "W.09", gate: "modules/metrics.ts:131 cost summary", attempt: viaTool("metrics_get_cost_summary", {}, "scoped") },

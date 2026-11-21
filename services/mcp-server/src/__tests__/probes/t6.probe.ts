@@ -3,6 +3,7 @@ import { callTool } from "./harness/client";
 import { emulatorDb } from "./harness/emulator";
 import { writeKey } from "./harness/seed";
 import { probe } from "./harness/registry";
+import { FULL } from "./harness/seed";
 
 /**
  * T6: tenant B's wildcard credential, program name `alpha` (the same name as tenant A's on purpose),
@@ -71,7 +72,7 @@ describe("T6 tenant isolation", () => {
     expect(missing.json).toEqual(r.json);
     expect((await emulatorDb().doc(`keyIndex/${target.keyHash}`).get()).data()?.active).toBe(true);
     // control: the same call on tenant B's own (spare) key works
-    const spare = await writeKey(w.tenants.B, "alpha", "probe-b-spare", ["*"]);
+    const spare = await writeKey(w.tenants.B, "alpha", "probe-b-spare", FULL());
     const own = await callTool(w, w.creds.tenantB, "keys_revoke_key", { keyHash: spare.keyHash });
     expect(own.json?.success).toBe(true);
     expect((await emulatorDb().doc(`keyIndex/${spare.keyHash}`).get()).data()?.active).toBe(false);
@@ -84,8 +85,8 @@ describe("T6 tenant isolation", () => {
     const alt = `probe-alt-${w.tenants.A}`;
     const db = emulatorDb();
     await db.doc(`canonical_accounts/t6-alt-${w.tenants.A}`).set({ email: "t6-alt@example.invalid", canonicalUid: w.tenants.A, alternateUids: [alt] });
-    const mine = await writeKey(alt, "alpha", "probe-alt-alpha", ["*"]);
-    const theirs = await writeKey(alt, "beta", "probe-alt-beta", ["*"]);
+    const mine = await writeKey(alt, "alpha", "probe-alt-alpha", FULL());
+    const theirs = await writeKey(alt, "beta", "probe-alt-beta", FULL());
     // control: the same program, same tenant, sees and revokes the alternate-uid key
     const list = await callTool(w, w.creds.scoped, "keys_list_keys", {});
     expect(list.json?.success).toBe(true);
