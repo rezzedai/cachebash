@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-115 site records, 111 handler entries, 5 AST baseline rows.
+115 site records, 111 handler entries, 0 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -25,7 +25,7 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | ESCALATE | 72 |
 | **Total** | **115** |
 
-Status: pending 29, done 86.
+Status: pending 18, done 97.
 
 ## Method
 
@@ -802,8 +802,6 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 |---|---|---|---|
 | gsp.gspSearchHandler:program_state-scan | 1904 | SELF-ONLY | credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS ["mobile"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J). |
 
-The AST rules also found a tenant-uid comparison outside the tool registry: `oauth/serviceAccounts.ts:100` (revokeServiceAccount). It is a baseline row, not a site record.
-
 ## All site records
 
 | Site | Regex | Occ. | Line | Disposition | By | Closes in | Bundle |
@@ -1142,15 +1140,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S2 | 1 | 1 |
-| S3 | 4 | 4 |
 
 The test fails on a violation with no row and on a row that no longer matches. The baseline only shrinks.
 
 | Rule | File | Handler | Expression | Occ. | Line at base |
 |---|---|---|---|---|---|
-| S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
-| S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 835 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 842 |
-| S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

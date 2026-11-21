@@ -38,6 +38,8 @@ export interface SiteRecord {
   disposition_by: string;
   status: "pending" | "done" | "exempt";
   closes_in: string;
+  /** RD-5 PR-N N-D8: the commit that closed a stale pending record. */
+  closed_by_sha?: string;
   serves_bundle_data: boolean;
   name_lists: string[];
   evidence: string;
@@ -93,6 +95,15 @@ export interface BundleGrep {
   verdict: string;
 }
 
+export interface AstReviewedRow {
+  rule: "S1" | "S2" | "S3";
+  file: string;
+  handler: string;
+  expr: string;
+  pr: string;
+  reason: string;
+}
+
 export interface AuthzSites {
   schema_version: number;
   generated_by: string;
@@ -116,4 +127,6 @@ export interface AuthzSites {
   handlers: HandlerEntry[];
   sites: SiteRecord[];
   ast_baseline: AstBaselineRow[];
+  /** RD-5 PR-N N-D7: rows the baseline held, reviewed and moved out, each naming the PR and a one-line reason. */
+  ast_reviewed: AstReviewedRow[];
 }

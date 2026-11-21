@@ -24,21 +24,23 @@ describe("authz-static (c): AST rules", () => {
   const current = groupViolations(checkProgram(program, files, rel));
   const key = (r: { rule: string; file: string; handler: string; expr: string }): string => [r.rule, r.file, r.handler, r.expr].join("|");
 
-  test("every violation is recorded in the baseline with the same occurrence count", () => {
-    const recorded = new Map(doc.ast_baseline.map((r) => [key(r), r]));
-    const problems = current
-      .filter((c) => recorded.get(key(c))?.occurrences !== c.occurrences)
-      .map((c) => `${key(c)} x${c.occurrences} (baseline ${recorded.get(key(c))?.occurrences ?? "none"})`);
-    expect(problems).toEqual([]);
+  // RD-5 PR-N N-D7: the baseline is empty. Every S1 to S3 violation must be in ast_reviewed, which names a PR and a reason.
+  const reviewed = (doc as unknown as { ast_reviewed: { rule: string; file: string; handler: string; expr: string; pr: string; reason: string }[] }).ast_reviewed;
+
+  test("the baseline is empty", () => {
+    expect(doc.ast_baseline).toEqual([]);
   });
 
-  test("every baseline row still matches a violation (the baseline only shrinks)", () => {
+  test("every violation is a reviewed row with the same key", () => {
+    const rev = new Set(reviewed.map(key));
+    expect(current.filter((c) => !rev.has(key(c))).map(key)).toEqual([]);
+  });
+
+  test("every reviewed row still matches a violation and names a PR and a reason", () => {
     const live = new Set(current.map(key));
-    expect(doc.ast_baseline.filter((r) => !live.has(key(r))).map(key)).toEqual([]);
-  });
-
-  test("baseline rows are pending", () => {
-    expect(doc.ast_baseline.filter((r) => r.status !== "pending")).toEqual([]);
+    expect(reviewed.filter((r) => !live.has(key(r))).map(key)).toEqual([]);
+    for (const r of reviewed) expect({ key: key(r), pr: r.pr.length > 0, reason: r.reason.length > 10 }).toEqual({ key: key(r), pr: true, reason: true });
+    expect(reviewed).toHaveLength(5);
   });
 
   // RD-5 PR-N N-D4: the S1 rows are gone with the field. The S1 rule stays as a backstop: the fixture above still trips it.
