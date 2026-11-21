@@ -40,7 +40,7 @@ jest.mock("firebase-admin/firestore", () => {
 });
 jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() })); // the route lazily imports modules/dispatch/tasks.js, which pulls the ESM-only octokit
 jest.mock("../middleware/gate.js", () => ({
-  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.programId),
+  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.keyProgramId),
   isAdmin: jest.fn(() => false),
   logAudit: jest.fn(),
   generateCorrelationId: jest.fn(() => "mock-corr-id"),
