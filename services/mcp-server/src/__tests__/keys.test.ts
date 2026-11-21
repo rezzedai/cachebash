@@ -26,7 +26,8 @@ jest.mock("../modules/programRegistry", () => ({
 }));
 
 jest.mock("../middleware/capabilities", () => ({
-  getDefaultCapabilities: jest.fn(() => ["*"]),
+  getDefaultCapabilities: jest.fn(() => ["dispatch.read", "dispatch.write"]),
+  WILDCARD_EQUIVALENT: ["dispatch.read", "dispatch.write", "keys.write"],
 }));
 
 // Owner-authz gate: default-allow so the existing create tests exercise the
@@ -143,7 +144,6 @@ const mockDb = {
 const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "existing-key-hash-abc",
-  programId: "orchestrator",
   keyProgramId: "orchestrator",
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*"],
@@ -153,7 +153,6 @@ const mockAuth: AuthContext = {
 // BUG-009 / RD-5 PR-F: a key-admin caller (literal fleet.admin on the credential; the program name confers nothing) — the only kind that may see or revoke other programs' keys.
 const adminAuth: AuthContext = {
   ...mockAuth,
-  programId: "vector" as any,
   keyProgramId: "vector" as any,
   capabilities: ["*", "fleet.admin"],
 };
@@ -236,7 +235,7 @@ describe("Keys Module Unit Tests", () => {
       expect(data.capabilities).toEqual(["dispatch.read"]);
     });
 
-    it("falls back to ['*'] when no defaults and no capabilities provided", async () => {
+    it("falls back to WILDCARD_EQUIVALENT (named, no wildcard) when no defaults and no capabilities provided", async () => {
       const { getDefaultCapabilities } = require("../middleware/capabilities");
       (getDefaultCapabilities as jest.Mock).mockReturnValueOnce([]);
 
@@ -247,7 +246,8 @@ describe("Keys Module Unit Tests", () => {
 
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(true);
-      expect(data.capabilities).toEqual(["*"]);
+      expect(data.capabilities).toEqual(["dispatch.read", "dispatch.write", "keys.write"]);
+      expect(data.capabilities).not.toContain("*");
     });
 
     it("rejects missing programId", async () => {
@@ -443,7 +443,6 @@ describe("Keys Module Unit Tests", () => {
       // Credential is radia; auth.programId reads vector. The principal is keyProgramId.
       const forged: AuthContext = {
         ...mockAuth,
-        programId: "vector" as any,
         keyProgramId: "radia" as any,
         capabilities: ["*"],
       };

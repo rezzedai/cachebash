@@ -12,6 +12,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { marker } from "./harness/data";
 import { denialNames, sees } from "./harness/judge";
 import type { World, WorldCredential } from "./harness/world";
+import { FULL } from "./harness/seed";
 
 /**
  * L (RD-5 PR-L, plan section 20 G): the live fleet paths. Each caller below exists in grid today (spawner, task-poll,
@@ -44,7 +45,7 @@ describe("L fleet paths", () => {
   // grid dispatcher/src/spawner.ts:670 create_session `<prog>-g<n>`
   probe("L.fleet_path_dispatcher_creates_session", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-create", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-create", FULL());
     const id = `beta-g${nextN()}`;
     const r = await callTool(w, dispatcher, "pulse_create_session", { name: `l-${id}`, sessionId: id, programId: "beta", status: "l-spawn" });
     expect(r.json?.success).toBe(true);
@@ -54,7 +55,7 @@ describe("L fleet paths", () => {
   // task-poll.ts:581, fleet-watch.ts:608, reconciliation.ts:188-300 update_session on a builder's session
   probe("L.fleet_path_dispatcher_updates_session", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-update", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-update", FULL());
     const sessionId = await freshSession(w, "beta"); // a fresh row: the seeded sessions keep their marker for the other probes
     const r = await callTool(w, dispatcher, "pulse_update_session", { sessionId, status: "l-dispatcher-update", lastHeartbeat: true });
     expect(r.json?.success).toBe(true);
@@ -63,7 +64,7 @@ describe("L fleet paths", () => {
   // task-poll.ts:575, fleet-watch.ts:402, reconciliation.ts:130, recycle-manager.ts:876 list_sessions
   probe("L.fleet_path_dispatcher_lists_sessions", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-list", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-list", FULL());
     const foreign = await callTool(w, dispatcher, "pulse_list_sessions", { programId: "beta", includeArchived: true, limit: 50 });
     expect(foreign.json?.success).not.toBe(false);
     expect(foreign.text).toContain(marker("A", "beta"));
@@ -75,7 +76,7 @@ describe("L fleet paths", () => {
   // spawner.ts:417, fleet-watch.ts:2470 get_task_by_id on a task the dispatcher neither sent nor owns
   probe("L.fleet_path_dispatcher_reads_task", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-task", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-task", FULL());
     const r = await callTool(w, dispatcher, "dispatch_get_task_by_id", { taskId: w.seed.A.beta.taskId });
     expect(r.json?.success).toBe(true);
     expect(r.text).toContain(marker("A", "beta"));
@@ -84,8 +85,8 @@ describe("L fleet paths", () => {
   // CLAUDE.md:24 and recognizer-host host_common.py:175 get_fleet_health as vector and as iso: the capability half decides
   probe("L.fleet_path_observer_fleet_health", async () => {
     const w = world();
-    const vector = await mint(w, "vector", "probe-l-vector-health", ["*", "fleet.observe"]);
-    const iso = await mint(w, "iso", "probe-l-iso-health", ["*"]);
+    const vector = await mint(w, "vector", "probe-l-vector-health", [...FULL(), "fleet.observe"]);
+    const iso = await mint(w, "iso", "probe-l-iso-health", FULL());
     for (const cred of [vector, iso]) {
       const r = await callTool(w, cred, "pulse_get_fleet_health", { detail: "summary" });
       expect(r.json?.success).not.toBe(false);
@@ -107,7 +108,7 @@ describe("L fleet paths", () => {
   probe("L.fleet_path_orchestrator_reads_sent_task", async () => {
     const w = world();
     for (const program of ["iso", "vector"]) {
-      const cred = await mint(w, program, `probe-l-${program}-sent`, ["*"]);
+      const cred = await mint(w, program, `probe-l-${program}-sent`, FULL());
       const n = nextN();
       const made = await callTool(w, cred, "dispatch_create_task", { title: `l-sent-${n}`, target: "beta", source: program, instructions: `l-sent-i-${n}` });
       expect(made.json?.taskId).toBeTruthy();
@@ -120,7 +121,7 @@ describe("L fleet paths", () => {
   // cachebash-context-reporter.sh:75, rotation-enforcer.sh:75, tools/cb:190: each program updates its own session
   probe("L.fleet_path_self_update_session", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-alpha-self", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-alpha-self", FULL());
     const sessionId = await freshSession(w, "alpha");
     const r = await callTool(w, alpha, "pulse_update_session", { sessionId, status: "l-self-update", contextUsedPct: 41, lastHeartbeat: true });
     expect(r.json?.success).toBe(true);
@@ -128,7 +129,7 @@ describe("L fleet paths", () => {
 
   test("L.fleet_path_self_update_session control: a program is refused another program's session", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-alpha-ctl", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-alpha-ctl", FULL());
     const sessionId = await freshSession(w, "beta");
     const r = await callTool(w, alpha, "pulse_update_session", { sessionId, status: "l-ctl", lastHeartbeat: true });
     expect(r.json?.success).toBe(false);
@@ -137,7 +138,7 @@ describe("L fleet paths", () => {
   // table A row 2: a program creating its own env-suffixed session with no programId stores programId = principal (tensor, 11-04)
   probe("L.self_create_session_env_suffix", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate", FULL());
     const id = `alpha-g${nextN()}.t1`;
     const r = await callTool(w, alpha, "pulse_create_session", { name: `l-${id}`, sessionId: id, status: "l-self-create" });
     expect(r.json?.success).toBe(true);
@@ -148,7 +149,7 @@ describe("L fleet paths", () => {
 
   test("L.self_create_session_env_suffix control: alpha creating a beta-prefixed session is refused", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate-ctl", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-alpha-selfcreate-ctl", FULL());
     const id = `beta-g${nextN()}`;
     const r = await callTool(w, alpha, "pulse_create_session", { name: `l-${id}`, sessionId: id, status: "l-self-create-ctl" });
     expect(r.json?.success).toBe(false);
@@ -205,7 +206,7 @@ describe("L fleet paths", () => {
   });
   test("L.list_sessions_default_self control: a minted dispatcher sees both programs", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-default", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-default", FULL());
     const r = await callTool(w, dispatcher, "pulse_list_sessions", { includeArchived: true, limit: 50 });
     expect(r.text).toContain(marker("A", "alpha"));
     expect(r.text).toContain(marker("A", "beta"));
@@ -215,7 +216,7 @@ describe("L fleet paths", () => {
   probe("L.empty_principal_not_privileged", async () => {
     const w = world();
     const sessionId = await freshSession(w, "beta");
-    const empty = await mint(w, "", "probe-l-empty-principal", ["*"]);
+    const empty = await mint(w, "", "probe-l-empty-principal", FULL());
     const r = await callTool(w, empty, "pulse_update_session", { sessionId, status: "l-empty-principal", lastHeartbeat: true });
     expect(r.json?.success).not.toBe(true);
     const list = await callTool(w, empty, "pulse_list_sessions", { programId: "beta", includeArchived: true, limit: 50 });
@@ -224,7 +225,7 @@ describe("L fleet paths", () => {
   test("L.empty_principal_not_privileged control: a minted dispatcher updates the same session", async () => {
     const w = world();
     const sessionId = await freshSession(w, "beta");
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-empty-ctl", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-empty-ctl", FULL());
     const r = await callTool(w, dispatcher, "pulse_update_session", { sessionId, status: "l-empty-ctl", lastHeartbeat: true });
     expect(r.json?.success).toBe(true);
   });
@@ -248,7 +249,7 @@ describe("L fleet paths", () => {
   test("L.abort_foreign_denied control: the sender aborts its own task", async () => {
     const w = world();
     const taskId = await sentTask(w, "alpha", "beta");
-    const beta = await mint(w, "beta", "probe-l-beta-claim", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-beta-claim", FULL());
     expect((await callTool(w, beta, "dispatch_claim_task", { taskId })).json?.success).toBe(true); // abort needs an active task
     const r = await callTool(w, w.creds.scoped, "dispatch_abort_task", { taskId, reason: "l" });
     expect(r.json?.success).toBe(true);
@@ -281,7 +282,7 @@ describe("L fleet paths", () => {
     expect(r.json?.success).toBe(true);
   });
 
-  const fleetAdmin = (w: World) => mint(w, "beta", "probe-l-fleet-admin", ["*", "fleet.admin"]);
+  const fleetAdmin = (w: World) => mint(w, "beta", "probe-l-fleet-admin", [...FULL(), "fleet.admin"]);
   const programDoc = async (w: World, p: string) => (await emulatorDb().doc(`tenants/${w.tenants.A}/programs/${p}`).get()).data() ?? {};
 
   // L-D3: a foreign quarantine or release needs the literal fleet.admin capability.
@@ -335,8 +336,8 @@ describe("L fleet paths", () => {
 
   // row 16 (K-D1): the dispatcher claims for a builder; the builder completes and records telemetry. Another program may not.
   const completedByDelegation = async (w: World): Promise<{ taskId: string; beta: WorldCredential }> => {
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-telemetry", ["*"]);
-    const beta = await mint(w, "beta", "probe-l-beta-telemetry", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dispatcher-telemetry", FULL());
+    const beta = await mint(w, "beta", "probe-l-beta-telemetry", FULL());
     const made = await callTool(w, w.stateSeeders.A, "dispatch_create_task", { title: `l-tel-${nextN()}`, target: "beta", source: "legacy", instructions: "l-tel" });
     const taskId = made.json?.taskId as string;
     expect((await callTool(w, dispatcher, "dispatch_claim_task", { taskId, sessionId: "beta" })).json?.success).toBe(true);
@@ -390,7 +391,7 @@ describe("L fleet paths", () => {
   // row 21: iso keeps the registry grant; a program key updates only its own entry.
   probe("L.registry_iso_grant", async () => {
     const w = world();
-    const iso = await mint(w, "iso", "probe-l-iso-registry", ["*"]);
+    const iso = await mint(w, "iso", "probe-l-iso-registry", FULL());
     const tag = `l-reg-${nextN()}`;
     const r = await callTool(w, iso, "programs_update_program", { programId: "beta", displayName: tag });
     expect(r.json?.success).toBe(true);
@@ -404,7 +405,7 @@ describe("L fleet paths", () => {
   // L-D10: a fleet.admin key merges into its own tenant only.
   probe("L.merge_cross_tenant_denied", async () => {
     const w = world();
-    const admin = await mint(w, "beta", "probe-l-merge-admin", ["*", "fleet.admin"]);
+    const admin = await mint(w, "beta", "probe-l-merge-admin", [...FULL(), "fleet.admin"]);
     const email = `l-merge-${nextN()}@example.invalid`;
     const r = await callTool(w, admin, "admin_merge_accounts", { email, canonicalUid: w.tenants.B, alternateUid: "l-merge-alt" });
     expect(denialNames(r, "beta")).toBe(true);
@@ -412,7 +413,7 @@ describe("L fleet paths", () => {
   });
   test("L.merge_cross_tenant_denied control: the same key merges into its own tenant", async () => {
     const w = world();
-    const admin = await mint(w, "beta", "probe-l-merge-admin-ctl", ["*", "fleet.admin"]);
+    const admin = await mint(w, "beta", "probe-l-merge-admin-ctl", [...FULL(), "fleet.admin"]);
     const email = `l-merge-ok-${nextN()}@example.invalid`;
     const r = await callTool(w, admin, "admin_merge_accounts", { email, canonicalUid: w.tenants.A, alternateUid: "l-merge-alt2" });
     expect(r.json?.success).toBe(true);
@@ -426,7 +427,7 @@ describe("L fleet paths", () => {
   });
   test("L.audit_foreign_denied control: an observer reads a foreign program, and the default is the caller's own", async () => {
     const w = world();
-    const obs = await mint(w, "vector", "probe-l-audit-observer", ["*", "fleet.observe"]);
+    const obs = await mint(w, "vector", "probe-l-audit-observer", [...FULL(), "fleet.observe"]);
     const foreign = await callTool(w, obs, "audit_get_audit", { programId: "beta", limit: 5 });
     expect(foreign.json?.success).toBe(true);
     const own = await callTool(w, w.creds.wildcard, "audit_get_audit", { limit: 5 });
@@ -441,7 +442,7 @@ describe("L fleet paths", () => {
   });
   test("L.metrics_health_foreign_denied control: an observer reads a foreign program, the default is the caller's own", async () => {
     const w = world();
-    const obs = await mint(w, "vector", "probe-l-health-observer", ["*", "fleet.observe"]);
+    const obs = await mint(w, "vector", "probe-l-health-observer", [...FULL(), "fleet.observe"]);
     expect((await callTool(w, obs, "metrics_get_program_health", { programId: "beta" })).json?.success).toBe(true);
     expect((await callTool(w, w.creds.wildcard, "metrics_get_program_health", {})).json?.success).toBe(true);
   });
@@ -449,7 +450,7 @@ describe("L fleet paths", () => {
   // rows 24, 26: the trace tools follow TRACE_ADMIN_PRINCIPALS (mobile, dispatcher). A bare "*" key named legacy no longer passes.
   probe("L.trace_names_rebound", async () => {
     const w = world();
-    const legacy = await mint(w, "legacy", "probe-l-trace-legacy", ["*"]);
+    const legacy = await mint(w, "legacy", "probe-l-trace-legacy", FULL());
     const one = await callTool(w, legacy, "trace_query_trace", { traceId: "l-trace" });
     expect(denialNames(one, "legacy")).toBe(true);
     const many = await callTool(w, legacy, "trace_query_traces", {});
@@ -457,7 +458,7 @@ describe("L fleet paths", () => {
   });
   test("L.trace_names_rebound control: a minted dispatcher key reads both", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-trace-dispatcher", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-trace-dispatcher", FULL());
     expect((await callTool(w, dispatcher, "trace_query_trace", { traceId: "l-trace" })).json?.success).toBe(true);
     expect((await callTool(w, dispatcher, "trace_query_traces", {})).json?.success).toBe(true);
   });
@@ -465,13 +466,13 @@ describe("L fleet paths", () => {
   // row 30 (K-D3): dead letters follow RELAY_ADMIN_PRINCIPALS (mobile, dispatcher). A bare "*" key named legacy no longer passes.
   probe("L.dead_letters_names_rebound", async () => {
     const w = world();
-    const legacy = await mint(w, "legacy", "probe-l-dead-legacy", ["*"]);
+    const legacy = await mint(w, "legacy", "probe-l-dead-legacy", FULL());
     const r = await callTool(w, legacy, "relay_get_dead_letters", {});
     expect(denialNames(r, "legacy")).toBe(true);
   });
   test("L.dead_letters_names_rebound control: a minted dispatcher key reads the queue", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-l-dead-dispatcher", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-l-dead-dispatcher", FULL());
     expect((await callTool(w, dispatcher, "relay_get_dead_letters", {})).json?.success).toBe(true);
   });
 
@@ -483,15 +484,15 @@ describe("L fleet paths", () => {
   };
   probe("L.signal_response_foreign_denied", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-ask-alpha", ["*"]);
-    const beta = await mint(w, "beta", "probe-l-ask-beta", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-ask-alpha", FULL());
+    const beta = await mint(w, "beta", "probe-l-ask-beta", FULL());
     const questionId = await ask(w, alpha);
     const r = await callTool(w, beta, "signal_get_response", { questionId });
     expect(denialNames(r, "beta")).toBe(true);
   });
   test("L.signal_response_foreign_denied control: the asker and mobile read it", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-ask-alpha2", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-ask-alpha2", FULL());
     const questionId = await ask(w, alpha);
     expect((await callTool(w, alpha, "signal_get_response", { questionId })).json?.success).toBe(true);
     expect((await callTool(w, w.stateSeeders.A, "signal_get_response", { questionId })).json?.success).toBe(true);
@@ -508,14 +509,14 @@ describe("L fleet paths", () => {
   probe("L.signal_unattributed_fail_closed", async () => {
     const w = world();
     const questionId = await unattributed(w, "beta");
-    const beta = await mint(w, "beta", "probe-l-unattr-beta", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-unattr-beta", FULL());
     const r = await callTool(w, beta, "signal_get_response", { questionId });
     expect(denialNames(r, "beta")).toBe(true);
   });
   test("L.signal_unattributed_fail_closed control: mobile and iso read it", async () => {
     const w = world();
     const questionId = await unattributed(w, "beta");
-    const iso = await mint(w, "iso", "probe-l-unattr-iso", ["*"]);
+    const iso = await mint(w, "iso", "probe-l-unattr-iso", FULL());
     expect((await callTool(w, w.stateSeeders.A, "signal_get_response", { questionId })).json?.success).toBe(true);
     expect((await callTool(w, iso, "signal_get_response", { questionId })).json?.success).toBe(true);
   });
@@ -530,7 +531,7 @@ describe("L fleet paths", () => {
     expect(applied.counts.written).toBeGreaterThanOrEqual(1);
     expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${questionId}`).get()).data()?.askedBy).toBe("beta");
     expect((await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${skipped}`).get()).data()?.askedBy).toBeUndefined();
-    const beta = await mint(w, "beta", "probe-l-backfill-beta", ["*"]);
+    const beta = await mint(w, "beta", "probe-l-backfill-beta", FULL());
     expect((await callTool(w, beta, "signal_get_response", { questionId })).json?.success).toBe(true);
   });
   test("L.signal_backfill_sets_asked_by control: a dry run reports and writes nothing", async () => {
@@ -550,8 +551,8 @@ describe("L fleet paths", () => {
   };
   probe("L.sprint_write_foreign_denied", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha", ["*"]);
-    const beta = await mint(w, "beta", "probe-l-sprint-beta", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha", FULL());
+    const beta = await mint(w, "beta", "probe-l-sprint-beta", FULL());
     const sprintId = await newSprint(w, alpha);
     const add = await callTool(w, beta, "sprint_add_story_to_sprint", { sprintId, story: { id: "s2", title: "l-foreign" } });
     expect(denialNames(add, "beta")).toBe(true);
@@ -564,10 +565,10 @@ describe("L fleet paths", () => {
   });
   test("L.sprint_write_foreign_denied control: the creator writes, and an observer reads", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha2", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-sprint-alpha2", FULL());
     const sprintId = await newSprint(w, alpha);
     expect((await callTool(w, alpha, "sprint_add_story_to_sprint", { sprintId, story: { id: "s2", title: "l-own" } })).json?.success).toBe(true);
-    const obs = await mint(w, "vector", "probe-l-sprint-observer", ["*", "fleet.observe"]);
+    const obs = await mint(w, "vector", "probe-l-sprint-observer", [...FULL(), "fleet.observe"]);
     expect((await callTool(w, obs, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
   });
 
@@ -581,7 +582,7 @@ describe("L fleet paths", () => {
   probe("L.sprint_unattributed_fail_closed", async () => {
     const w = world();
     const sprintId = await unattributedSprint(w);
-    const alpha = await mint(w, "alpha", "probe-l-sprint-unattr", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-sprint-unattr", FULL());
     const r = await callTool(w, alpha, "sprint_get_sprint", { sprintId });
     expect(denialNames(r, "alpha")).toBe(true);
     const w2 = await callTool(w, alpha, "sprint_complete_sprint", { sprintId });
@@ -590,7 +591,7 @@ describe("L fleet paths", () => {
   test("L.sprint_unattributed_fail_closed control: mobile and iso act on it", async () => {
     const w = world();
     const sprintId = await unattributedSprint(w);
-    const iso = await mint(w, "iso", "probe-l-sprint-iso", ["*"]);
+    const iso = await mint(w, "iso", "probe-l-sprint-iso", FULL());
     expect((await callTool(w, w.stateSeeders.A, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
     expect((await callTool(w, iso, "sprint_get_sprint", { sprintId })).json?.success).toBe(true);
   });
@@ -610,7 +611,7 @@ describe("L fleet paths", () => {
   });
   test("L.policy_write_needs_admin control: a fleet.admin key creates and deletes, and any key reads", async () => {
     const w = world();
-    const admin = await mint(w, "beta", "probe-l-policy-admin", ["*", "fleet.admin"]);
+    const admin = await mint(w, "beta", "probe-l-policy-admin", [...FULL(), "fleet.admin"]);
     const id = `l-pol-ok-${nextN()}`;
     const made = await callTool(w, admin, "policy_create", policyArgs(id));
     expect(made.json?.success).toBe(true);
@@ -627,8 +628,8 @@ describe("L fleet paths", () => {
   };
   probe("L.webhook_delete_foreign_denied", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-hook-alpha", ["*"]);
-    const beta = await mint(w, "beta", "probe-l-hook-beta", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-l-hook-alpha", FULL());
+    const beta = await mint(w, "beta", "probe-l-hook-beta", FULL());
     const webhookId = await registerHook(w, alpha);
     const r = await callTool(w, beta, "webhook_delete", { webhookId });
     expect(denialNames(r, "beta")).toBe(true);
@@ -637,8 +638,8 @@ describe("L fleet paths", () => {
   });
   test("L.webhook_delete_foreign_denied control: the registrant deletes its own, and fleet.admin deletes a foreign one", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-l-hook-alpha2", ["*"]);
-    const admin = await mint(w, "beta", "probe-l-hook-admin", ["*", "fleet.admin"]);
+    const alpha = await mint(w, "alpha", "probe-l-hook-alpha2", FULL());
+    const admin = await mint(w, "beta", "probe-l-hook-admin", [...FULL(), "fleet.admin"]);
     expect((await callTool(w, alpha, "webhook_delete", { webhookId: await registerHook(w, alpha) })).json?.success).toBe(true);
     expect((await callTool(w, admin, "webhook_delete", { webhookId: await registerHook(w, alpha) })).json?.success).toBe(true);
   });

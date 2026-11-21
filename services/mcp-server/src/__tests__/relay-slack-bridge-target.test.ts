@@ -82,7 +82,6 @@ function ownerAuth(): AuthContext {
     userId: "u-owner",
     apiKeyHash: "firebase:uid-owner",
     encryptionKey: Buffer.from("abc"),
-    programId: "owner" as any,
     keyProgramId: "owner" as any,
     capabilities: ["relay:write"],
     rateLimitTier: "standard",

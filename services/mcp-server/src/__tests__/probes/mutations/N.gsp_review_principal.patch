@@ -1,0 +1,12 @@
+# mutation for probe N.gsp_review_principal: any resolver may approve or reject a proposal
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1674,7 +1674,7 @@
+       }
+     } else {
+       // approved or rejected - only reviewers can resolve
+-      if (!proposal.reviewers.includes(resolver)) {
++      if (false && !proposal.reviewers.includes(resolver)) {
+         logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: null, code: "NOT_GRANTED" });
+         return jsonResult({
+           success: false,

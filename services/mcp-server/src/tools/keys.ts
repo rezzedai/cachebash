@@ -25,7 +25,7 @@ export const definitions = [
         capabilities: {
           type: "array",
           items: { type: "string" },
-          description: 'Optional capability scopes. Defaults to program defaults or ["*"] if unknown.',
+          description: 'Optional capability scopes. Defaults to the default capability set of the program.',
         },
         ttlDays: {
           type: "number",

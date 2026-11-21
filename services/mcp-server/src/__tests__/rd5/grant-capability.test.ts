@@ -1,4 +1,4 @@
-import { planGrant, runGrant } from "../../auth/rd5/grantCapability";
+import { planGrant, runGrant, runRemoveWildcard } from "../../auth/rd5/grantCapability";
 import { ALL_CAPABILITIES, LITERAL_ONLY_CAPABILITIES, DEFAULT_CAPABILITIES, TOOL_CAPABILITIES, type Capability } from "../../middleware/capabilities";
 
 const HASH = "a".repeat(64);
@@ -50,7 +50,7 @@ describe("grant-capability refusals", () => {
     const { r, updates } = await run({ capabilities: [], active: true });
     expect(r.ok).toBe(false);
     expect(r.lines.join()).toMatch(/empty array/);
-    expect(r.lines.join()).toContain("authValidator.ts:83-85");
+    expect(r.lines.join()).toContain("program default set");
     expect(r.lines.join()).toContain("getDefaultCapabilities");
     expect(updates).toHaveLength(0);
   });
@@ -115,7 +115,7 @@ describe("grant-capability --add is restricted to the Capability union", () => {
     const used: Capability[] = [...Object.values(TOOL_CAPABILITIES), ...Object.values(DEFAULT_CAPABILITIES).flat()];
     for (const c of used) expect(ALL_CAPABILITIES).toContain(c);
     for (const c of LITERAL_ONLY_CAPABILITIES) expect(ALL_CAPABILITIES).toContain(c);
-    for (const c of ALL_CAPABILITIES) expect(planGrant({ capabilities: ["x"] }, c).ok).toBe(c !== "*");
+    for (const c of ALL_CAPABILITIES) expect(planGrant({ capabilities: ["x"] }, c).ok).toBe(true);
   });
 });
 
@@ -147,8 +147,55 @@ describe("grant-capability behaviour", () => {
     expect(updates).toHaveLength(0);
   });
 
-  it("exposes no remove, rotate or revoke mode", () => {
+  it("exposes no rotate or revoke mode, and one removal: the wildcard", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "../../auth/rd5/grantCapability.ts"), "utf8");
-    expect(src).not.toMatch(/arrayRemove|\.delete\(|rotatedTo\s*:|revokedAt\s*:|\.set\(/);
+    expect(src).not.toMatch(/\.delete\(|rotatedTo\s*:|revokedAt\s*:|\.set\(/);
+    expect(src.match(/arrayRemove\(/g)).toHaveLength(1);
+    expect(src).toContain("arrayRemove(WILDCARD)");
+  });
+});
+
+describe("grant-capability --remove-wildcard (RD-5 PR-N N-D9)", () => {
+  const REMOVE = (...v: string[]) => ({ __arrayRemove: v });
+  const rm = (data: Record<string, unknown> | undefined, over: object = {}) => {
+    const f = fakeDb(data);
+    return runRemoveWildcard(f.db, { keyHash: HASH, expect: ["dispatch.read"], apply: false, arrayRemove: REMOVE, ...over }).then((r) => ({ r, ...f }));
+  };
+  const key = { capabilities: ["*", "dispatch.read", "relay.read"] };
+
+  it("is a dry run by default and writes nothing", async () => {
+    const { r, updates } = await rm(key);
+    expect(r.ok).toBe(true);
+    expect(r.applied).toBe(false);
+    expect(updates).toHaveLength(0);
+    expect(r.lines.join("\n")).toContain('after:  ["dispatch.read","relay.read"]');
+  });
+
+  it("--apply removes exactly the wildcard with one arrayRemove", async () => {
+    const { r, updates } = await rm(key, { apply: true });
+    expect(r.applied).toBe(true);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].data).toEqual({ capabilities: { __arrayRemove: ["*"] } });
+  });
+
+  it("refuses when the list would be empty", async () => {
+    const { r, updates } = await rm({ capabilities: ["*"] }, { expect: [], apply: true });
+    expect(r.ok).toBe(false);
+    expect(r.lines[0]).toContain("empty list");
+    expect(updates).toHaveLength(0);
+  });
+
+  it("refuses when the list lacks a capability given in --expect", async () => {
+    const { r, updates } = await rm(key, { expect: ["dispatch.read", "gsp.write"], apply: true });
+    expect(r.ok).toBe(false);
+    expect(r.lines[0]).toContain("gsp.write");
+    expect(updates).toHaveLength(0);
+  });
+
+  it("changes nothing when the wildcard is not held", async () => {
+    const { r, updates } = await rm({ capabilities: ["dispatch.read"] }, { apply: true });
+    expect(r.ok).toBe(true);
+    expect(r.applied).toBe(false);
+    expect(updates).toHaveLength(0);
   });
 });

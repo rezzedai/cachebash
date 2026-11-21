@@ -51,7 +51,6 @@ beforeEach(async () => {
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
-    programId: "vector" as any,
     keyProgramId: "vector" as any,
     encryptionKey: testUser.encryptionKey,
     capabilities: ["*", "fleet.observe"],
@@ -147,7 +146,7 @@ describe("Propose → Resolve(approve) → Verify state", () => {
     expect(subData.success).toBe(true);
 
     // Step 3: Propose change (as basher)
-    const basherAuth: AuthContext = { ...auth, programId: "basher" as any };
+    const basherAuth: AuthContext = { ...auth, keyProgramId: "basher" as any };
     const proposeResult = await gsp.gspProposeHandler(basherAuth, {
       namespace: "constitution",
       key: "test-rule",
@@ -171,7 +170,7 @@ describe("Propose → Resolve(approve) → Verify state", () => {
     const reviewer = proposalData.reviewers[0]; // "owner"
 
     // Auth as reviewer (owner is not a standard program, but we can set it directly)
-    const reviewerAuth: AuthContext = { ...auth, programId: reviewer as any };
+    const reviewerAuth: AuthContext = { ...auth, keyProgramId: reviewer as any };
 
     const resolveResult = await gsp.gspResolveHandler(reviewerAuth, {
       proposalId,
@@ -375,7 +374,7 @@ describe("Bootstrap depth tiers", () => {
 describe("Subscription notification delivery", () => {
   it("write triggers subscriber notification", async () => {
     // Step 1: Subscribe "basher" to runtime namespace
-    const basherAuth: AuthContext = { ...auth, programId: "basher" as any };
+    const basherAuth: AuthContext = { ...auth, keyProgramId: "basher" as any };
     const subResult = await gsp.gspSubscribeHandler(basherAuth, {
       namespace: "runtime",
     });

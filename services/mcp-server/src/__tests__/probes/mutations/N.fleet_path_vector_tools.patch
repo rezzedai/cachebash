@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_vector_tools: a tool vector calls requires a capability its table B set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -78,7 +78,7 @@
+   dispatch_escalate_task: "dispatch.write",
+   dispatch_replay_task: "dispatch.write",
+   dispatch_approve_task: "dispatch.write",
+-  dispatch_export_tasks: "dispatch.read",
++  dispatch_export_tasks: "fleet.control",
+   dispatch_suggest_target: "dispatch.read",
+   dispatch_get_task_lineage: "dispatch.read",
+   // Fleet control — hard-deny for wingman tier

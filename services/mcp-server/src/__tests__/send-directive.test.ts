@@ -78,7 +78,6 @@ function auth(): AuthContext {
     userId: "u1",
     apiKeyHash: "k1",
     encryptionKey: Buffer.from("abc"),
-    programId: "vector" as any,
     keyProgramId: "vector" as any,
     capabilities: ["*"],
     rateLimitTier: "internal",

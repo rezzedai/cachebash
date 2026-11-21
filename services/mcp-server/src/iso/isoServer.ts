@@ -28,6 +28,7 @@ import { resolveToolAlias } from "../tools/tool-aliases.js";
 import { incrementUsage, incrementSeatUsage } from "../middleware/usage.js";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 const ISO_TOOL_HANDLERS: Record<string, (auth: AuthContext, args: any) => Promise<any>> = {
   dispatch_get_tasks: getTasksHandler,
   relay_get_messages: getMessagesHandler,
@@ -100,9 +101,9 @@ export async function createIsoServer(): Promise<{
     // main /v1/mcp CallToolRequestSchema handler. Always uses authContext.capabilities
     // from the validated key only.
     const { checkToolCapability } = await import("../middleware/capabilities.js");
-    const capCheck = checkToolCapability(name, authContext.capabilities, denialPrincipal(authContext));
+    const capCheck = checkToolCapability(name, authContext.capabilities);
     if (!capCheck.allowed) {
-      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.keyProgramId, source: authContext.keyProgramId, endpoint: "admin" });
       logDenial({ principal: denialPrincipal(authContext), tool: name, subject: null, code: "MISSING_CAPABILITY" });
       return {
         content: [{ type: "text", text: `Insufficient capability: ${name} requires "${capCheck.required}" but key has [${authContext.capabilities.join(", ")}]` }],
@@ -114,7 +115,7 @@ export async function createIsoServer(): Promise<{
     // No-op (and no Firestore read) for read-only tools; only mutating calls pay this cost.
     const breakerResult = await checkCircuitBreaker(authContext, name);
     if (!breakerResult.allowed) {
-      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      audit.error(name, `${breakerResult.code}: ${breakerResult.message}`, { tool: name, programId: authContext.keyProgramId, source: authContext.keyProgramId, endpoint: "admin" });
       return {
         content: [{
           type: "text",
@@ -153,18 +154,18 @@ export async function createIsoServer(): Promise<{
       if (canonicalName === "relay_send_message") bumpUsage("messages_sent");
       if (canonicalName === "pulse_create_session") bumpUsage("sessions_started");
 
-      logToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, durationMs, true);
-      traceToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, args,
+      logToolCall(authContext.userId, name, credentialPrincipal(authContext), "admin", sessionId, durationMs, true);
+      traceToolCall(authContext.userId, name, credentialPrincipal(authContext), "admin", sessionId, args,
         JSON.stringify(result).substring(0, 500), durationMs, true);
-      audit.log(name, { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      audit.log(name, { tool: name, programId: authContext.keyProgramId, source: authContext.keyProgramId, endpoint: "admin" });
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      logToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, durationMs, false,
+      logToolCall(authContext.userId, name, credentialPrincipal(authContext), "admin", sessionId, durationMs, false,
         error instanceof Error ? error.message : String(error));
-      traceToolCall(authContext.userId, name, authContext.programId, "admin", sessionId, args,
+      traceToolCall(authContext.userId, name, credentialPrincipal(authContext), "admin", sessionId, args,
         "", durationMs, false, error instanceof Error ? error.message : String(error));
-      audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.programId, source: authContext.programId, endpoint: "admin" });
+      audit.error(name, error instanceof Error ? error.message : String(error), { tool: name, programId: authContext.keyProgramId, source: authContext.keyProgramId, endpoint: "admin" });
       return {
         content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,

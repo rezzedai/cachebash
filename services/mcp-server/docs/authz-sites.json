@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 319,
-    "a_lines": 295,
+    "a_occurrences": 318,
+    "a_lines": 294,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -73,7 +73,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "middleware/gate.ts:153"
+        "middleware/gate.ts:145"
       ],
       "guards": [
         "relay_send_message",
@@ -296,7 +296,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/gsp.ts:1220"
+        "modules/gsp.ts:1219"
       ],
       "guards": [
         "gsp_seed"
@@ -362,7 +362,7 @@
       "layer": "routing",
       "guard_sites": [
         "modules/gsp.ts:617",
-        "modules/gsp.ts:1411"
+        "modules/gsp.ts:1410"
       ],
       "guards": [
         "gsp_propose"
@@ -1180,7 +1180,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1230"
+        "modules/gsp.ts:1229"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1207,8 +1207,8 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1341",
-        "modules/gsp.ts:1379"
+        "modules/gsp.ts:1340",
+        "modules/gsp.ts:1378"
       ],
       "bundle_ruling": {
         "by": "ISO",
@@ -1263,7 +1263,7 @@
       "stores_caller_keyed_tenant_data": true,
       "bundle_basis": "Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a document inside tenants/{auth.userId}; the tenant segment derives from the credential and no argument selects it, so R6 property holds even under the literal reading. Ruled by ISO 2026-11-20 (HpgeGWU8), upheld by VECTOR (kCAh8BiR).",
       "tenant_partition_cites": [
-        "modules/gsp.ts:1619",
+        "modules/gsp.ts:1618",
         "modules/gsp.ts:1696"
       ],
       "bundle_ruling": {
@@ -3190,11 +3190,12 @@
       "binding_today": "authorizeGspBootstrapRead: credentialPrincipal, then literal fleet.observe for foreign reads (gsp.ts:648-661); memory omitted cross-program (:679)",
       "disposition": "FOREIGN-READ",
       "disposition_by": "C-4",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-I",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status."
+      "evidence": "Shipped in PR-3 of the predecessor plan. Operational state is served to a literal fleet.observe holder; memory is omitted when the subject is foreign. PR-I adds memory.status.",
+      "closed_by_sha": "f7f88d6"
     },
     {
       "id": "keys.createKeyHandler:programId",
@@ -4391,12 +4392,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_get_program_state; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_get_program_state record."
+      "recommendation": "Disposition follows the state_get_program_state record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route PATCH /v1/program-state/:programId:p.programId",
@@ -4414,12 +4416,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_update_program_state; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_update_program_state record."
+      "recommendation": "Disposition follows the state_update_program_state record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route GET /v1/program-state/:programId/context-history:p.programId",
@@ -4437,12 +4440,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_get_context_history; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_get_context_history record."
+      "recommendation": "Disposition follows the state_get_context_history record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route POST /v1/memory/:programId/patterns:p.programId",
@@ -4460,12 +4464,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_store_memory; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_store_memory record."
+      "recommendation": "Disposition follows the state_store_memory record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route GET /v1/memory/:programId/patterns:p.programId",
@@ -4483,12 +4488,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_recall_memory; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_recall_memory record."
+      "recommendation": "Disposition follows the state_recall_memory record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId",
@@ -4506,12 +4512,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_delete_memory; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_delete_memory record."
+      "recommendation": "Disposition follows the state_delete_memory record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId",
@@ -4529,12 +4536,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_reinforce_memory record."
+      "recommendation": "Disposition follows the state_reinforce_memory record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route GET /v1/memory/:programId/health:p.programId",
@@ -4552,12 +4560,13 @@
       "binding_today": "delegates to the handler's canRead or canWrite",
       "disposition": "ESCALATE",
       "disposition_by": "C-5",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-J",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "The path segment becomes args.programId for state_memory_health; the gate is in the handler.",
-      "recommendation": "Disposition follows the state_memory_health record."
+      "recommendation": "Disposition follows the state_memory_health record.",
+      "closed_by_sha": "cef1500"
     },
     {
       "id": "rest.route GET /v1/interrupts/peek:query.sessionId",
@@ -4583,28 +4592,6 @@
       ],
       "evidence": "rest.ts:861 passes sessionId (default \"peek\").",
       "recommendation": "Disposition follows the relay_get_messages records."
-    },
-    {
-      "id": "rest.route POST /admin/reset-program-cache:body.programId",
-      "file": "transport/rest.ts",
-      "handler": "route POST /admin/reset-program-cache",
-      "expr": "body.programId",
-      "regex": "a",
-      "occurrences": 1,
-      "line_at_base": 946,
-      "tool": null,
-      "transports": [
-        "rest"
-      ],
-      "effect": "write",
-      "binding_today": "capabilities.includes(\"*\") (rest.ts:944)",
-      "disposition": "ATTRIBUTION",
-      "disposition_by": "ISO",
-      "status": "pending",
-      "closes_in": "n/a",
-      "serves_bundle_data": false,
-      "name_lists": [],
-      "evidence": "rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
     },
     {
       "id": "rest.route GET /v1/tasks/stats:getFirestore()",
@@ -5383,12 +5370,13 @@
       "binding_today": "auth.programId is compared with the stored proposedBy before a withdrawal (gsp.ts, gspResolveHandler); not bound to credentialPrincipal",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-N",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "H5 (plan 20): the withdraw check reads auth.programId. Amendment 3 says GSP-REVIEWERS gates nothing, and this comparison had no site record or closing PR. PR-L logs the refusal (logDenial, tool gsp_resolve) and does not rebind it.",
-      "recommendation": "SELF-ONLY on proposedBy, bound to credentialPrincipal. Closes in PR-N with the literal per-tool gates."
+      "recommendation": "SELF-ONLY on proposedBy, bound to credentialPrincipal. Closes in PR-N with the literal per-tool gates.",
+      "closed_by_sha": "7d11f1a"
     },
     {
       "id": "gsp.gspResolveHandler:proposal.reviewers",
@@ -5409,228 +5397,63 @@
       "binding_today": "approve and reject are gated on proposal.reviewers.includes(auth.programId) (gsp.ts, gspResolveHandler); not bound to credentialPrincipal",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
-      "status": "pending",
+      "status": "done",
       "closes_in": "PR-N",
       "serves_bundle_data": false,
       "name_lists": [],
       "evidence": "H5 (plan 20): the reviewer-list gate on approve and reject. Amendment 3 ruled GSP-REVIEWERS NOT-IDENTITY, but the site reads auth.programId and gates a write. PR-L logs the refusal and does not rebind it.",
-      "recommendation": "Rebind to credentialPrincipal or move the gate to a literal capability. Closes in PR-N."
+      "recommendation": "Rebind to credentialPrincipal or move the gate to a literal capability. Closes in PR-N.",
+      "closed_by_sha": "7d11f1a"
     }
   ],
-  "ast_baseline": [
-    {
-      "rule": "S1",
-      "file": "index.ts",
-      "handler": "main",
-      "expr": "auth.programId",
-      "occurrences": 17,
-      "line_at_base": 182,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "iso/isoServer.ts",
-      "handler": "createIsoServer",
-      "expr": "authContext.programId",
-      "occurrences": 12,
-      "line_at_base": 105,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "middleware/sessionCompliance.ts",
-      "handler": "checkSessionCompliance",
-      "expr": "auth.programId",
-      "occurrences": 11,
-      "line_at_base": 109,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/claims.ts",
-      "handler": "claimTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 5,
-      "line_at_base": 90,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/claims.ts",
-      "handler": "unclaimTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 198,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/claims.ts",
-      "handler": "batchClaimTasksHandler",
-      "expr": "auth.programId",
-      "occurrences": 3,
-      "line_at_base": 297,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/completion.ts",
-      "handler": "completeTaskHandler",
-      "expr": "auth.programId",
-      "occurrences": 9,
-      "line_at_base": 511,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/dispatch/completion.ts",
-      "handler": "batchCompleteTasksHandler",
-      "expr": "auth.programId",
-      "occurrences": 6,
-      "line_at_base": 845,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/gsp.ts",
-      "handler": "gspSeedHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 1265,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/gsp.ts",
-      "handler": "gspProposeHandler",
-      "expr": "auth.programId",
-      "occurrences": 7,
-      "line_at_base": 1381,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/gsp.ts",
-      "handler": "gspSubscribeHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 1504,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/gsp.ts",
-      "handler": "gspResolveHandler",
-      "expr": "auth.programId",
-      "occurrences": 8,
-      "line_at_base": 1666,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/keys.ts",
-      "handler": "createKeyHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 106,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/programRegistry.ts",
-      "handler": "updateProgramHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 417,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "modules/relay.ts",
-      "handler": "sendMessageHandler",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 119,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
-      "handler": "callTool",
-      "expr": "auth.programId",
-      "occurrences": 11,
-      "line_at_base": 180,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
-      "handler": "enforceBreaker",
-      "expr": "auth.programId",
-      "occurrences": 2,
-      "line_at_base": 302,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
-      "handler": "route POST /admin/reset-program-cache",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 957,
-      "status": "pending"
-    },
-    {
-      "rule": "S2",
-      "file": "oauth/serviceAccounts.ts",
-      "handler": "revokeServiceAccount",
-      "expr": "auth.userId",
-      "occurrences": 1,
-      "line_at_base": 100,
-      "status": "pending"
-    },
-    {
-      "rule": "S3",
-      "file": "modules/programRegistry.ts",
-      "handler": "updateProgramHandler",
-      "expr": "args.programId",
-      "occurrences": 1,
-      "line_at_base": 405,
-      "status": "pending"
-    },
-    {
-      "rule": "S3",
-      "file": "modules/relay.ts",
-      "handler": "queryMessageHistoryHandler",
-      "expr": "args.source",
-      "occurrences": 1,
-      "line_at_base": 835,
-      "status": "pending"
-    },
-    {
-      "rule": "S3",
-      "file": "modules/relay.ts",
-      "handler": "queryMessageHistoryHandler",
-      "expr": "args.target",
-      "occurrences": 1,
-      "line_at_base": 842,
-      "status": "pending"
-    },
-    {
-      "rule": "S3",
-      "file": "modules/schedule.ts",
-      "handler": "paginateAndFilter",
-      "expr": "args.target",
-      "occurrences": 1,
-      "line_at_base": 209,
-      "status": "pending"
-    }
-  ],
+  "ast_baseline": [],
   "c5_usage_source": {
     "file": "grid/specs/EVIDENCE-rd5-c5-usage.md",
     "repo": "rezzedai/grid",
     "merged": "f98406ff",
     "measured": "2026-11-20T06:19Z",
     "caveat": "The ledger records only calls through callTool. The dispatcher, legacy and mobile show 0 rows because the direct REST routes write no ledger row, so a zero does not show a principal never calls the path. programId is auth.programId, mutable while the override path exists (PR-H). Counts are even, so compare ratios. VECTOR rules per identity in grid plan amendment 3; no name list changes here."
-  }
+  },
+  "ast_reviewed": [
+    {
+      "rule": "S2",
+      "file": "oauth/serviceAccounts.ts",
+      "handler": "revokeServiceAccount",
+      "expr": "auth.userId",
+      "pr": "ISO ruling STOP 3 (RD-5 PR-N)",
+      "reason": "tenant check only; canManageServiceAccounts (serviceAccounts.ts:25) admits any API key; missing principal gate predates RD-5, follow-up filed by ISO"
+    },
+    {
+      "rule": "S3",
+      "file": "modules/programRegistry.ts",
+      "handler": "updateProgramHandler",
+      "expr": "args.programId",
+      "pr": "PR-L",
+      "reason": "row 21: self or REGISTRY_ADMIN_PRINCIPALS, bound to credentialPrincipal before use"
+    },
+    {
+      "rule": "S3",
+      "file": "modules/relay.ts",
+      "handler": "queryMessageHistoryHandler",
+      "expr": "args.source",
+      "pr": "PR-K",
+      "reason": "K-D3: non-admin callers coerced to credentialPrincipal"
+    },
+    {
+      "rule": "S3",
+      "file": "modules/relay.ts",
+      "handler": "queryMessageHistoryHandler",
+      "expr": "args.target",
+      "pr": "PR-K",
+      "reason": "K-D3: same participant scoping bound to credentialPrincipal"
+    },
+    {
+      "rule": "S3",
+      "file": "modules/schedule.ts",
+      "handler": "paginateAndFilter",
+      "expr": "args.target",
+      "pr": "PR-L",
+      "reason": "mayListFor(auth, principal, args.target) runs before the helper"
+    }
+  ]
 }

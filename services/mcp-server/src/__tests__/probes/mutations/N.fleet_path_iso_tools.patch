@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_iso_tools: a tool iso calls requires a capability its table B set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -71,7 +71,7 @@
+   dispatch_batch_claim_tasks: "dispatch.write",
+   dispatch_batch_complete_tasks: "dispatch.write",
+   dispatch_get_contention_metrics: "dispatch.read",
+-  dispatch_dispatch: "dispatch.write",
++  dispatch_dispatch: "fleet.control",
+   dispatch_retry_task: "dispatch.write",
+   dispatch_abort_task: "dispatch.write",
+   dispatch_reassign_task: "dispatch.write",

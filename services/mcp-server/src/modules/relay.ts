@@ -116,7 +116,7 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
         error: "idempotency_key is required for send_message to prevent duplicate messages.",
       });
     } else if (complianceConfigIdempotency.idempotencyKey.enforcement === "recommended") {
-      console.warn(`[W1.2.4] send_message called without idempotency_key by ${auth.programId}. This may result in duplicate messages on retry.`);
+      console.warn(`[W1.2.4] send_message called without idempotency_key by ${auth.keyProgramId}. This may result in duplicate messages on retry.`);
     }
   }
 

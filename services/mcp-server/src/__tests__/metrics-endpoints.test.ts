@@ -5,6 +5,7 @@
 import { getCostSummaryHandler, getCommsMetricsHandler, getOperationalMetricsHandler } from "../modules/metrics.js";
 import { getFleetHealthHandler } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 // Mock Firestore with chainable query methods
 const mockQuery = {
@@ -28,17 +29,15 @@ describe("Metrics Endpoints - Capability Gates", () => {
 
   const adminAuth: AuthContext = {
     userId: "test-user",
-    programId: "orchestrator",
     keyProgramId: "orchestrator",
     apiKeyHash: "test-hash",
     encryptionKey: mockEncryptionKey,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "standard",
   };
 
   const vectorAuth: AuthContext = {
     userId: "test-user",
-    programId: "vector",
     keyProgramId: "vector",
     apiKeyHash: "test-hash-vector",
     encryptionKey: mockEncryptionKey,
@@ -48,7 +47,6 @@ describe("Metrics Endpoints - Capability Gates", () => {
 
   const restrictedAuth: AuthContext = {
     userId: "test-user",
-    programId: "builder",
     keyProgramId: "builder",
     apiKeyHash: "test-hash-builder",
     encryptionKey: mockEncryptionKey,

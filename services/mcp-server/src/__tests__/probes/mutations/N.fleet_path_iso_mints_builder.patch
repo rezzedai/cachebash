@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_iso_mints_builder: the builder default holds a capability outside iso's set
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:12
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:12
+@@ -229,7 +229,7 @@
+     "webhooks.read", "webhooks.write",
+   ],
+   // Builder programs — standard operational set
+-  builder: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
++  builder: ["fleet.control", "dispatch.read", "dispatch.write", "relay.read", "relay.write",
+     "pulse.read", "pulse.write", "signal.read", "signal.write",
+     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+     "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],

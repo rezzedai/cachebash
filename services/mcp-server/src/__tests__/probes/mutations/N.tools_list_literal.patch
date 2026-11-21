@@ -1,0 +1,11 @@
+# mutation for probe N.tools_list_literal: tools/list shows every tool to a bare wildcard credential
+--- a/src/middleware/capabilities.ts	2026-11-20 16:53:45
++++ b/src/middleware/capabilities.ts	2026-11-20 16:53:45
+@@ -381,6 +381,7 @@
+   toolDefs: T[],
+   capabilities: string[]
+ ): T[] {
++  if (capabilities.includes("*")) return toolDefs;
+   return toolDefs.filter(tool => {
+     const required = TOOL_CAPABILITIES[tool.name];
+     if (!required) return false; // unmapped tool: hidden from every key

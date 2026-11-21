@@ -11,6 +11,7 @@ import * as crypto from "crypto";
 import { Readable } from "stream";
 import http from "http";
 import { enrollHandler } from "../modules/enrollment.js";
+import { WILDCARD_EQUIVALENT } from "../middleware/capabilities";
 
 // --- Firestore mock ---
 const mockDocData: Record<string, any> = {};
@@ -235,7 +236,7 @@ describe("POST /enroll — SARK G-4 controls", () => {
     expect(caps).toContain("trace.read");
   });
 
-  it("F-368-3: dedicated tier — capabilities include wildcard (*)", async () => {
+  it("F-368-3: dedicated tier — capabilities are WILDCARD_EQUIVALENT, named (RD-5 PR-N N-D3)", async () => {
     const token = crypto.randomBytes(32).toString("hex");
     seedEnrollment(token, { tier: "dedicated" });
 
@@ -243,7 +244,8 @@ describe("POST /enroll — SARK G-4 controls", () => {
 
     expect(status).toBe(200);
     const keyDoc = Object.values(mockTxSets)[0] as any;
-    expect(keyDoc.capabilities).toEqual(["*"]);
+    expect(keyDoc.capabilities).toEqual(WILDCARD_EQUIVALENT);
+    expect(keyDoc.capabilities).not.toContain("*");
   });
 
   it("G-4-7: response contains no topology, no internal IDs beyond lite_url+cb_key", async () => {

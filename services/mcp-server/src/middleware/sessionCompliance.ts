@@ -2,6 +2,7 @@ import type { AuthContext } from "../auth/authValidator.js";
 import { getFirestore } from "../firebase/client.js";
 import { emitEvent } from "../modules/events.js";
 import type { ComplianceState } from "../types/session.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
 type ComplianceResult =
   | { allowed: true; warning?: string }
@@ -106,7 +107,7 @@ export async function checkSessionCompliance(
   context: ComplianceContext
 ): Promise<ComplianceResult> {
   try {
-    if (EXEMPT_PROGRAMS.has(auth.programId) || COMPLIANCE_EXEMPT_TOOLS.has(toolName)) {
+    if (EXEMPT_PROGRAMS.has(credentialPrincipal(auth)) || COMPLIANCE_EXEMPT_TOOLS.has(toolName)) {
       return { allowed: true };
     }
 
@@ -130,7 +131,7 @@ export async function checkSessionCompliance(
       transitionState(state, "DEREZED", "post_derez_tool_call");
       emitEvent(auth.userId, {
         event_type: "COMPLIANCE_DEREZ_COMPLETED",
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         session_id: context.sessionId,
         endpoint: context.endpoint,
       });
@@ -147,7 +148,7 @@ export async function checkSessionCompliance(
       transitionState(state, "BOOTING", "boot_started");
       emitEvent(auth.userId, {
         event_type: "COMPLIANCE_BOOT_STARTED",
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         session_id: context.sessionId,
         endpoint: context.endpoint,
       });
@@ -174,7 +175,7 @@ export async function checkSessionCompliance(
         state.boot.bootCompletedAt = new Date().toISOString();
         emitEvent(auth.userId, {
           event_type: "COMPLIANCE_BOOT_COMPLETED",
-          program_id: auth.programId,
+          program_id: credentialPrincipal(auth),
           session_id: context.sessionId,
           endpoint: context.endpoint,
         });
@@ -182,7 +183,7 @@ export async function checkSessionCompliance(
       } else if (BOOT_TOOLS.has(toolName) && state.state === "BOOTING") {
         emitEvent(auth.userId, {
           event_type: "COMPLIANCE_BOOT_INCOMPLETE",
-          program_id: auth.programId,
+          program_id: credentialPrincipal(auth),
           session_id: context.sessionId,
           endpoint: context.endpoint,
           gotProgramState: state.boot.gotProgramState,
@@ -210,7 +211,7 @@ export async function checkSessionCompliance(
         transitionState(state, "COMPLIANT", "journal_updated");
         emitEvent(auth.userId, {
           event_type: "COMPLIANCE_JOURNAL_RESTORED",
-          program_id: auth.programId,
+          program_id: credentialPrincipal(auth),
           session_id: context.sessionId,
           endpoint: context.endpoint,
         });
@@ -226,7 +227,7 @@ export async function checkSessionCompliance(
         transitionState(state, "DEREZZING", "update_session_complete");
         emitEvent(auth.userId, {
           event_type: "COMPLIANCE_DEREZ_STARTED",
-          program_id: auth.programId,
+          program_id: credentialPrincipal(auth),
           session_id: context.sessionId,
           endpoint: context.endpoint,
         });
@@ -235,7 +236,7 @@ export async function checkSessionCompliance(
     }
 
     if (state.journal.journalActivated && state.state !== "DEREZZING") {
-      const thresholds = getThresholds(auth.programId);
+      const thresholds = getThresholds(credentialPrincipal(auth));
       const calls = state.journal.toolCallsSinceLastJournal;
 
       if (calls > thresholds.degrade) {
@@ -243,7 +244,7 @@ export async function checkSessionCompliance(
           transitionState(state, "DEGRADED", "journal_degraded");
           emitEvent(auth.userId, {
             event_type: "COMPLIANCE_JOURNAL_DEGRADED",
-            program_id: auth.programId,
+            program_id: credentialPrincipal(auth),
             session_id: context.sessionId,
             endpoint: context.endpoint,
             toolCallsSinceLastJournal: calls,
@@ -257,7 +258,7 @@ export async function checkSessionCompliance(
           transitionState(state, "WARNED", "journal_warning");
           emitEvent(auth.userId, {
             event_type: "COMPLIANCE_JOURNAL_WARNING",
-            program_id: auth.programId,
+            program_id: credentialPrincipal(auth),
             session_id: context.sessionId,
             endpoint: context.endpoint,
             toolCallsSinceLastJournal: calls,
@@ -278,7 +279,7 @@ export async function checkSessionCompliance(
     console.error("[Compliance] Check failed, failing open:", err);
     emitEvent(auth.userId, {
       event_type: "COMPLIANCE_CHECK_FAILED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       session_id: context.sessionId,
       tool: toolName,
       error: err instanceof Error ? err.message : String(err),

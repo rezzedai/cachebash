@@ -13,6 +13,7 @@ import type { AuthContext } from "../auth/authValidator";
 import { createRestRouter } from "../transport/rest";
 import { updateSessionHandler } from "../modules/pulse.js";
 import { validateAuth } from "../auth/authValidator.js";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 type Write = { path: string; data: Record<string, unknown>; opts?: Record<string, unknown> };
 
@@ -55,7 +56,7 @@ jest.mock("../firebase/client.js", () => ({
 jest.mock("../modules/events.js", () => ({ emitEvent: jest.fn() }));
 jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
 jest.mock("../middleware/gate.js", () => ({
-  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.programId),
+  verifySource: jest.fn((_c: string, auth: AuthContext) => auth.keyProgramId),
   isAdmin: jest.fn(() => false),
   logAudit: jest.fn(),
   generateCorrelationId: jest.fn(() => "mock-corr-id"),
@@ -97,7 +98,7 @@ function auth(programId = "basher"): AuthContext {
     encryptionKey: Buffer.from("abc"),
     programId,
     keyProgramId: programId,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   } as unknown as AuthContext;
 }

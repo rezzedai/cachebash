@@ -120,6 +120,10 @@ export const DISPATCH_PAUSE_EXEMPT: ReadonlySet<string> = new Set([
   "dispatch_escalate_task",
   "dispatch_quarantine_program",
   "dispatch_unquarantine_program",
+  // RD-5 PR-N N-D2 mapped these two to dispatch.write, which makes them mutating. Both repair or wind down
+  // existing tasks and start no work, so they keep passing under dispatchPaused as they did while unmapped.
+  "dispatch_backfill_task_expires_at",
+  "dispatch_reap_expired_tasks",
 ]);
 
 /**

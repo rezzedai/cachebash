@@ -4,6 +4,7 @@ import { emulatorDb } from "./harness/emulator";
 import { probe } from "./harness/registry";
 import { writeKey } from "./harness/seed";
 import type { WorldCredential } from "./harness/world";
+import { FULL } from "./harness/seed";
 
 const keyDoc = async (hash: string) => (await emulatorDb().doc(`keyIndex/${hash}`).get()).data();
 
@@ -36,8 +37,8 @@ describe("T1 key list and revoke are bound to the calling program", () => {
   // (the shape vector and sark hold live) under program beta.
   const fleetAdmin = async (): Promise<WorldCredential> => {
     const w = world();
-    const k = await writeKey(w.tenants.A, "beta", "probe-fleet-admin", ["*", "fleet.admin"]);
-    return { ...w.creds.admin, ...k, capabilities: ["*", "fleet.admin"] };
+    const k = await writeKey(w.tenants.A, "beta", "probe-fleet-admin", [...FULL(), "fleet.admin"]);
+    return { ...w.creds.admin, ...k, capabilities: [...FULL(), "fleet.admin"] };
   };
 
   probe("T1.list_admin", async () => {

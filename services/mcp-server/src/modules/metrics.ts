@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getFirestore } from "../firebase/client.js";
 import * as admin from "firebase-admin";
 import { AuthContext } from "../auth/authValidator.js";
-import { hasCapability } from "../middleware/gate.js";
+import { holdsCapability } from "../middleware/capabilities.js";
 import { resolveReadScope } from "../auth/readScope.js";
 import { Timestamp, Query } from "firebase-admin/firestore";
 
@@ -62,7 +62,7 @@ const CommsMetricsSchema = z.object({
 
 export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_comms_metrics")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_comms_metrics", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
@@ -132,7 +132,7 @@ export async function getCommsMetricsHandler(auth: AuthContext, rawArgs: unknown
 
 export async function getCostSummaryHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_cost_summary")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_cost_summary", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,
@@ -220,7 +220,7 @@ const OperationalMetricsSchema = z.object({
 
 export async function getOperationalMetricsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_operational_metrics")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_operational_metrics", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({ success: false, error: `get_operational_metrics requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
@@ -625,7 +625,7 @@ const CostForecastSchema = z.object({
 
 export async function getCostForecastHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_cost_forecast")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_cost_forecast", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({ success: false, error: `get_cost_forecast requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
@@ -727,7 +727,7 @@ const SLA_TARGETS: Record<string, number> = {
 
 export async function getSlaComplianceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_sla_compliance")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_sla_compliance", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({ success: false, error: `get_sla_compliance requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }
@@ -846,7 +846,7 @@ function generateRecommendation(components: {
 
 export async function getProgramHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: metrics.read OR admin
-  if (!hasCapability(auth, "metrics.read", "metrics_get_program_health")) {
+  if (!holdsCapability(auth.capabilities, "metrics.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_program_health", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({ success: false, error: `get_program_health requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
   }

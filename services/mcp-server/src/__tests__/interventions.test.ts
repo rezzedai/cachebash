@@ -29,7 +29,6 @@ const TEST_USER_ID = "test-interventions-user";
 
 const mockAuth: AuthContext = {
   userId: TEST_USER_ID,
-  programId: "iso",
   keyProgramId: "iso",
   apiKeyHash: "test-hash",
   capabilities: ["dispatch.write", "pulse.write"],

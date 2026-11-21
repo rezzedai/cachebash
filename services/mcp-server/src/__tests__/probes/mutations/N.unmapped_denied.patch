@@ -1,0 +1,12 @@
+# mutation for probe N.unmapped_denied: a tool with no TOOL_CAPABILITIES entry passes for every key
+--- a/src/middleware/capabilities.ts	2026-11-20 16:53:45
++++ b/src/middleware/capabilities.ts	2026-11-20 16:53:45
+@@ -365,7 +365,7 @@
+   const canonical = resolveToolAlias(toolName);
+   const required = TOOL_CAPABILITIES[canonical];
+   // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+-  if (!required) return { allowed: false, required: "unmapped", held: capabilities };
++  if (!required) return { allowed: true };
+   if (holdsCapability(capabilities, required)) return { allowed: true };
+   return { allowed: false, required, held: capabilities };
+ }

@@ -1,0 +1,12 @@
+# mutation for probe W.02: a bare wildcard credential passes the per-tool gate on /v1/iso/mcp
+--- a/src/iso/isoServer.ts
++++ b/src/iso/isoServer.ts
+@@ -102,7 +102,7 @@
+     // from the validated key only.
+     const { checkToolCapability } = await import("../middleware/capabilities.js");
+     const capCheck = checkToolCapability(name, authContext.capabilities);
+-    if (!capCheck.allowed) {
++    if (!capCheck.allowed && !authContext.capabilities.includes("*")) {
+       audit.error(name, `Insufficient capability: requires "${capCheck.required}"`, { tool: name, programId: authContext.keyProgramId, source: authContext.keyProgramId, endpoint: "admin" });
+       logDenial({ principal: denialPrincipal(authContext), tool: name, subject: null, code: "MISSING_CAPABILITY" });
+       return {

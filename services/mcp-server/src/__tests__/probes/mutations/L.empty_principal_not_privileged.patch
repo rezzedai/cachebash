@@ -1,5 +1,4 @@
-# mutation for probe L.empty_principal_not_privileged: an empty principal is privileged again: the auth layer admits a key document with no programId and update_session treats a missing programId as privileged
-diff --git a/src/auth/authValidator.ts b/src/auth/authValidator.ts
+# mutation for probe L.empty_principal_not_privileged: an empty principal is privileged again: the auth layer admits a key document with no programId, credentialPrincipal no longer throws on it, and update_session treats a missing programId as privileged
 --- a/src/auth/authValidator.ts
 +++ b/src/auth/authValidator.ts
 @@ -59,7 +59,7 @@
@@ -11,7 +10,17 @@ diff --git a/src/auth/authValidator.ts b/src/auth/authValidator.ts
        console.warn("[Auth] keyIndex document has no programId; denying");
        return null;
      }
-diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
+--- a/src/auth/ownerAuthz.ts
++++ b/src/auth/ownerAuthz.ts
+@@ -101,7 +101,7 @@
+  * it is empty, so a missing identity never reads as a principal.
+  */
+ export function credentialPrincipal(auth: AuthContext): string {
+-  if (!auth.keyProgramId) {
++  if (false) {
+     throw new Error("AuthContext.keyProgramId is empty: the credential carries no program identity");
+   }
+   return auth.keyProgramId as string;
 --- a/src/modules/pulse.ts
 +++ b/src/modules/pulse.ts
 @@ -246,8 +246,8 @@
@@ -20,7 +29,7 @@ diff --git a/src/modules/pulse.ts b/src/modules/pulse.ts
    // Admin keys (legacy/mobile/dispatcher) retain full access for supervision.
 -  const callerProgramId = credentialPrincipal(auth);
 -  if (!inList(PULSE_PRIV, callerProgramId)) {
-+  const callerProgramId = auth.programId;
++  const callerProgramId = auth.keyProgramId;
 +  if (callerProgramId && !inList(PULSE_PRIV, callerProgramId)) {
      const sessionPrefix = sessionOwnerProgramId(sessionId);
      if (sessionPrefix !== callerProgramId) {

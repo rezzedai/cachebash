@@ -1,0 +1,12 @@
+# mutation for probe N.gsp_expired_no_denial: an expired proposal writes a NOT_OWNER authz_denial line
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1649,7 +1649,7 @@
+         version: proposal.version + 1,
+       });
+ 
+-      // RD-5 PR-N N-D6: an expired proposal is not an authorization refusal, so it writes no authz_denial line.
++      logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
+       return jsonResult({
+         success: false,
+         error: "PROPOSAL_EXPIRED",

@@ -8,6 +8,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { denialNames, sees } from "./harness/judge";
 import { marker, sentMarker } from "./harness/data";
 import type { World, WorldCredential } from "./harness/world";
+import { FULL } from "./harness/seed";
 
 /**
  * K (RD-5 PR-K, plan section 19 as revised by 19.1): the relay and dispatch families are bound to credentialPrincipal.
@@ -26,8 +27,8 @@ describe("K relay and dispatch", () => {
   // 19.1: the dispatcher claims for a builder (claimedBy "dispatcher", sessionId = the builder's program), and the builder completes.
   probe("K.dispatcher_claimed_task_completes_by_target", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher", ["*"]);
-    const beta = await mint(w, "beta", "probe-k-beta", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher", FULL());
+    const beta = await mint(w, "beta", "probe-k-beta", FULL());
     const taskId = await taskFor(w, "beta", nextN());
     const claim = await callTool(w, dispatcher, "dispatch_claim_task", { taskId, sessionId: "beta" });
     expect(claim.json?.success).toBe(true);
@@ -40,8 +41,8 @@ describe("K relay and dispatch", () => {
   // K-D1: sessionId is attribution. A caller never owns another program's active task by naming or omitting a session.
   probe("K.claim_session_not_ownership", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-k-alpha-own", ["*"]);
-    const beta = await mint(w, "beta", "probe-k-beta-own", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-k-alpha-own", FULL());
+    const beta = await mint(w, "beta", "probe-k-beta-own", FULL());
     const n = nextN();
     const taskId = await taskFor(w, "alpha", n);
     const mine = await callTool(w, alpha, "dispatch_claim_task", { taskId, sessionId: "alpha-s9" });
@@ -60,8 +61,8 @@ describe("K relay and dispatch", () => {
   // K-D1: the generic session-owns-task rule is gone. Only the dispatcher's delegated claim names a session as owner.
   probe("K.session_cannot_complete", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-k-alpha-sc", ["*"]);
-    const beta = await mint(w, "beta", "probe-k-beta-sc", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-k-alpha-sc", FULL());
+    const beta = await mint(w, "beta", "probe-k-beta-sc", FULL());
     const own = await taskFor(w, "alpha", nextN());
     expect((await callTool(w, alpha, "dispatch_claim_task", { taskId: own, sessionId: "beta" })).json?.success).toBe(true);
     expect((await complete(w, alpha, own)).json?.success).toBe(true); // control: the claiming owner completes
@@ -77,8 +78,8 @@ describe("K relay and dispatch", () => {
   // VECTOR wT2tk4EA: the delegated branch of isTaskOwner is safe only while claimedBy comes from the credential (claims.ts claimedBy: principal).
   probe("K.claimed_by_unforgeable", async () => {
     const w = world();
-    const alpha = await mint(w, "alpha", "probe-k-alpha-forge", ["*"]);
-    const beta = await mint(w, "beta", "probe-k-beta-forge", ["*"]);
+    const alpha = await mint(w, "alpha", "probe-k-alpha-forge", FULL());
+    const beta = await mint(w, "beta", "probe-k-beta-forge", FULL());
     const stored = async (taskId: string) => (await emulatorDb().doc(`tenants/${w.tenants.A}/tasks/${taskId}`).get()).data()?.claimedBy;
     const t1 = await taskFor(w, "alpha", nextN());
     const t2 = await taskFor(w, "alpha", nextN());
@@ -121,7 +122,7 @@ describe("K relay and dispatch", () => {
     const n = nextN();
     await taskFor(w, "alpha", `a${n}`);
     await taskFor(w, "beta", `b${n}`);
-    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher-list", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher-list", FULL());
     const both = await callTool(w, dispatcher, "dispatch_get_tasks", TASKS);
     expect(both.text).toContain(`k-a${n}`);
     expect(both.text).toContain(`k-b${n}`); // control: the dispatcher key sees every target
@@ -150,7 +151,7 @@ describe("K relay and dispatch", () => {
 
   probe("K.relay_dispatcher_exemption", async () => {
     const w = world();
-    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher-read", ["*"]);
+    const dispatcher = await mint(w, "dispatcher", "probe-k-dispatcher-read", FULL());
     const r = await callTool(w, dispatcher, "relay_get_messages", { sessionId: "dispatcher-s1", target: "beta", markAsRead: false });
     expect(sees(r, marker("A", "beta"))).toBe(true);
     const denied = await callTool(w, w.creds.scoped, "relay_get_messages", { sessionId: "alpha-s1", target: "beta", markAsRead: false });
@@ -174,8 +175,8 @@ describe("K relay and dispatch", () => {
       createdAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 3600_000),
     });
     const bc = await db.collection(`tenants/${w.tenants.A}/relay`).add(relayDoc("all", `bc-${n}`));
-    const r1 = await mint(w, p1, "probe-k-bc1", ["*"]);
-    const r2 = await mint(w, p2, "probe-k-bc2", ["*"]);
+    const r1 = await mint(w, p1, "probe-k-bc1", FULL());
+    const r2 = await mint(w, p2, "probe-k-bc2", FULL());
     for (const reader of [r1, r2]) {
       const r = await callTool(w, reader, "relay_get_messages", { sessionId: `${reader.programId}-s1`, markAsRead: true });
       expect(r.text).toContain(`bc-${n}`);
@@ -203,7 +204,7 @@ describe("K relay and dispatch", () => {
   // VERIFYSOURCE-ADMIN: `legacy` no longer sends as another source; `mobile` still may.
   probe("K.source_pinned_for_legacy", async () => {
     const w = world();
-    const legacy = await mint(w, "legacy", "probe-k-legacy", ["*"]);
+    const legacy = await mint(w, "legacy", "probe-k-legacy", FULL());
     const send = (cred: WorldCredential) =>
       callTool(w, cred, "relay_send_message", { message: `kp-${nextN()}`, source: "beta", target: "alpha", message_type: "STATUS" });
     const ok = await send(w.stateSeeders.A);
@@ -215,7 +216,7 @@ describe("K relay and dispatch", () => {
 
   test("K.dispatcher_claimed_task_completes_by_target control: an unclaimed task is refused to the same key", async () => {
     const w = world();
-    const beta = await mint(w, "beta", "probe-k-beta-ctl", ["*"]);
+    const beta = await mint(w, "beta", "probe-k-beta-ctl", FULL());
     const taskId = await taskFor(w, "beta", nextN());
     const r = await complete(w, beta, taskId);
     expect(r.json?.success).toBe(false);
