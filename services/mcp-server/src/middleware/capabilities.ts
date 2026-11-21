@@ -7,6 +7,7 @@
  */
 
 import { resolveToolAlias } from "../tools/tool-aliases.js";
+import { logWouldDeny } from "../auth/denialLog.js";
 
 /**
  * Every valid capability string. The Capability type derives from this list,
@@ -308,13 +309,28 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "webhooks.read", "webhooks.write"],
 };
 
+/** RD-5 PR-N1: who and where, for the `authz_would_deny` line. Absent means no line. */
+export interface WouldDenyContext {
+  principal: string;
+  tool: string;
+  site: string;
+}
+
 /**
  * Check if a set of capabilities includes the required capability.
  * Supports wildcard: ["*"] grants access to everything.
  */
-export function hasCapability(capabilities: string[], required: Capability): boolean {
-  if (capabilities.includes("*")) return true;
-  return capabilities.includes(required);
+export function hasCapability(
+  capabilities: string[],
+  required: Capability,
+  wouldDeny?: WouldDenyContext,
+): boolean {
+  if (capabilities.includes(required)) return true;
+  if (capabilities.includes("*")) {
+    if (wouldDeny) logWouldDeny({ principal: wouldDeny.principal, tool: wouldDeny.tool, capability: required, site: wouldDeny.site });
+    return true;
+  }
+  return false;
 }
 
 /** Thrown by transports when a key lacks the capability a tool requires; REST maps it to 403. */
@@ -332,7 +348,8 @@ export class CapabilityError extends Error {
  */
 export function checkToolCapability(
   toolName: string,
-  capabilities: string[]
+  capabilities: string[],
+  principal?: string,
 ): { allowed: true } | { allowed: false; required: string; held: string[] } {
   // Resolve alias to canonical name before lookup
   const canonical = resolveToolAlias(toolName);
@@ -340,10 +357,13 @@ export function checkToolCapability(
   if (!required) {
     // Unknown/unmapped tool — fail-CLOSED for restricted profiles; wildcard holders pass through.
     // This prevents a future unmapped tool from silently granting access to wingman-tier callers.
-    if (capabilities.includes("*")) return { allowed: true };
+    if (capabilities.includes("*")) {
+      logWouldDeny({ principal: principal ?? "(none)", tool: toolName, capability: "unmapped", site: "capabilities.checkToolCapability:unmapped" });
+      return { allowed: true };
+    }
     return { allowed: false, required: "unmapped", held: capabilities };
   }
-  if (hasCapability(capabilities, required)) {
+  if (hasCapability(capabilities, required, { principal: principal ?? "(none)", tool: toolName, site: "capabilities.checkToolCapability:per_tool" })) {
     return { allowed: true };
   }
   return { allowed: false, required, held: capabilities };

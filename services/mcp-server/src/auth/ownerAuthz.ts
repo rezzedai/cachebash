@@ -72,9 +72,11 @@ export function isKeyProvisioner(auth: AuthContext): boolean {
 export function disallowedMintCapabilities(
   callerCaps: string[] | undefined,
   requestedCaps: string[],
+  wouldDeny?: { principal: string; tool: string },
 ): string[] {
   if (!Array.isArray(callerCaps)) return [...requestedCaps];
-  return requestedCaps.filter((cap) => !hasCapability(callerCaps, cap as Capability));
+  const ctx = wouldDeny ? { ...wouldDeny, site: "ownerAuthz.disallowedMintCapabilities" } : undefined;
+  return requestedCaps.filter((cap) => !hasCapability(callerCaps, cap as Capability, ctx));
 }
 
 /**

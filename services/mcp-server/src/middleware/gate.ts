@@ -13,7 +13,7 @@ import { emitEvent } from "../modules/events.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { credentialPrincipal } from "../auth/ownerAuthz.js";
 
-import { logDenial, denialPrincipal } from "../auth/denialLog.js";
+import { logDenial, denialPrincipal, logWouldDeny } from "../auth/denialLog.js";
 export interface AuditEntry {
   timestamp: string;
   correlationId: string;
@@ -130,8 +130,13 @@ export function createAuditLogger(correlationId: string, userId: string) {
  * Check if AuthContext has a specific capability.
  * Returns true if the key has the exact capability or wildcard "*".
  */
-export function hasCapability(auth: AuthContext, capability: string): boolean {
-  return auth.capabilities.includes(capability) || auth.capabilities.includes("*");
+export function hasCapability(auth: AuthContext, capability: string, tool?: string): boolean {
+  if (auth.capabilities.includes(capability)) return true;
+  if (auth.capabilities.includes("*")) {
+    logWouldDeny({ principal: denialPrincipal(auth), tool: tool ?? "(unknown)", capability, site: "gate.hasCapability" });
+    return true;
+  }
+  return false;
 }
 
 /** Principals that may send as any source (RD-5 PR-K, amendment 3 VERIFYSOURCE-ADMIN: `legacy` is dropped). */
