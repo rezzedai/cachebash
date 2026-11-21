@@ -67,9 +67,10 @@ describe("isKeyProvisioner", () => {
 });
 
 describe("disallowedMintCapabilities (SARK #341 capability ceiling)", () => {
-  it("lets an owner '*' key grant anything", () => {
-    expect(disallowedMintCapabilities(["*"], ["dispatch.read", "relay.write", "*"])).toEqual([]);
-    expect(disallowedMintCapabilities(["*", "keys.provision"], ["*"])).toEqual([]);
+  it("a '*' key grants nothing (RD-5 PR-N): the wildcard holds no capability by name", () => {
+    expect(disallowedMintCapabilities(["*"], ["dispatch.read", "relay.write"])).toEqual(["dispatch.read", "relay.write"]);
+    expect(disallowedMintCapabilities(["*", "keys.provision"], ["*"])).toEqual([]); // it names the wildcard itself; N-D3 stops issuing it
+    expect(disallowedMintCapabilities(["*", "keys.provision"], ["fleet.observe"])).toEqual(["fleet.observe"]);
   });
 
   it("clamps a bounded provisioner to caps it literally holds", () => {

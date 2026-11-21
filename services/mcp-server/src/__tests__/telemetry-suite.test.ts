@@ -5,6 +5,7 @@
 import { getOperationalMetricsHandler, getCostForecastHandler, getSlaComplianceHandler, getProgramHealthHandler } from "../modules/metrics.js";
 import type { AuthContext } from "../auth/authValidator.js";
 import { Timestamp } from "firebase-admin/firestore";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 // Mock Firestore with chainable query methods
 const mockDocs: any[] = [];
@@ -38,7 +39,7 @@ describe("Telemetry Suite", () => {
     keyProgramId: "orchestrator",
     apiKeyHash: "test-hash",
     encryptionKey: mockEncryptionKey,
-    capabilities: ["*", "fleet.observe"], // PR-L: a foreign programId in program health needs literal fleet.observe
+    capabilities: [...ALL_MAPPED_CAPABILITIES, "fleet.observe"], // PR-L: a foreign programId in program health needs literal fleet.observe
     rateLimitTier: "standard",
   };
 

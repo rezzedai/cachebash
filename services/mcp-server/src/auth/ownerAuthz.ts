@@ -26,7 +26,7 @@
  * `disallowedMintCapabilities`) additionally clamps minted caps to the caller's
  * own grant, so `keys.provision` can never be used to launder wildcards.
  */
-import { hasCapability, type Capability } from "../middleware/capabilities.js";
+import { holdsCapability, type Capability } from "../middleware/capabilities.js";
 import type { AuthContext } from "./authValidator.js";
 
 /**
@@ -58,25 +58,19 @@ export function isKeyProvisioner(auth: AuthContext): boolean {
  * else `keys.provision` launders wildcards). Returns the requested capabilities
  * the caller is NOT entitled to grant.
  *
- * A caller "holds" a capability via standard `hasCapability` semantics — it has
- * "*" or the literal cap. Consequences:
- *   • An owner key holding "*" (e.g. ["*", "keys.provision"]) may mint anything
- *     — "*" covers every requested cap. This is the deliberate owner principal.
- *   • A BOUNDED provisioner (e.g. ["dispatch.read", "keys.provision"]) may mint
- *     ONLY caps it literally holds. A request for "*" is rejected, because a
- *     bounded caller does not literally hold "*" — this is what stops
- *     keys.provision from laundering a wildcard into a freshly minted key.
+ * RD-5 PR-N: a caller holds a capability only by naming it (`holdsCapability`). A wildcard
+ * key holds nothing, so it may mint nothing. A bounded provisioner (e.g. ["dispatch.read",
+ * "keys.provision"]) may mint ONLY caps it literally holds, so keys.provision cannot launder a
+ * capability the caller lacks into a freshly minted key.
  *
  * Empty array ⇒ every requested cap is within the caller's ceiling.
  */
 export function disallowedMintCapabilities(
   callerCaps: string[] | undefined,
   requestedCaps: string[],
-  wouldDeny?: { principal: string; tool: string },
 ): string[] {
   if (!Array.isArray(callerCaps)) return [...requestedCaps];
-  const ctx = wouldDeny ? { ...wouldDeny, site: "ownerAuthz.disallowedMintCapabilities" } : undefined;
-  return requestedCaps.filter((cap) => !hasCapability(callerCaps, cap as Capability, ctx));
+  return requestedCaps.filter((cap) => !holdsCapability(callerCaps, cap as Capability));
 }
 
 /**

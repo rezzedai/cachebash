@@ -7,7 +7,6 @@
  */
 
 import { resolveToolAlias } from "../tools/tool-aliases.js";
-import { logWouldDeny } from "../auth/denialLog.js";
 
 /**
  * Every valid capability string. The Capability type derives from this list,
@@ -318,30 +317,6 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
  */
 export function holdsCapability(capabilities: readonly string[], cap: Capability): boolean {
   return capabilities.includes(cap);
-}
-
-/** RD-5 PR-N1: who and where, for the `authz_would_deny` line. Absent means no line. */
-export interface WouldDenyContext {
-  principal: string;
-  tool: string;
-  site: string;
-}
-
-/**
- * Check if a set of capabilities includes the required capability.
- * Supports wildcard: ["*"] grants access to everything.
- */
-export function hasCapability(
-  capabilities: string[],
-  required: Capability,
-  wouldDeny?: WouldDenyContext,
-): boolean {
-  if (capabilities.includes(required)) return true;
-  if (capabilities.includes("*")) {
-    if (wouldDeny) logWouldDeny({ principal: wouldDeny.principal, tool: wouldDeny.tool, capability: required, site: wouldDeny.site });
-    return true;
-  }
-  return false;
 }
 
 /** Thrown by transports when a key lacks the capability a tool requires; REST maps it to 403. */

@@ -2,28 +2,28 @@
  * Capability-Based Access Control Tests
  */
 
-import { hasCapability, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
+import { holdsCapability, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
 
 describe('Capability System', () => {
-  describe('hasCapability', () => {
-    it('wildcard grants all access', () => {
-      expect(hasCapability(['*'], 'dispatch.read')).toBe(true);
-      expect(hasCapability(['*'], 'keys.write')).toBe(true);
-      expect(hasCapability(['*'], 'audit.read')).toBe(true);
+  describe('holdsCapability', () => {
+    it('wildcard grants nothing (RD-5 PR-N)', () => {
+      expect(holdsCapability(['*'], 'dispatch.read')).toBe(false);
+      expect(holdsCapability(['*'], 'keys.write')).toBe(false);
+      expect(holdsCapability(['*'], 'audit.read')).toBe(false);
     });
 
     it('exact match grants access', () => {
-      expect(hasCapability(['dispatch.read', 'relay.write'], 'dispatch.read')).toBe(true);
-      expect(hasCapability(['dispatch.read', 'relay.write'], 'relay.write')).toBe(true);
+      expect(holdsCapability(['dispatch.read', 'relay.write'], 'dispatch.read')).toBe(true);
+      expect(holdsCapability(['dispatch.read', 'relay.write'], 'relay.write')).toBe(true);
     });
 
     it('missing capability denies access', () => {
-      expect(hasCapability(['dispatch.read'], 'keys.write')).toBe(false);
-      expect(hasCapability(['relay.read'], 'relay.write')).toBe(false);
+      expect(holdsCapability(['dispatch.read'], 'keys.write')).toBe(false);
+      expect(holdsCapability(['relay.read'], 'relay.write')).toBe(false);
     });
 
     it('empty capabilities deny everything', () => {
-      expect(hasCapability([], 'dispatch.read')).toBe(false);
+      expect(holdsCapability([], 'dispatch.read')).toBe(false);
     });
   });
 

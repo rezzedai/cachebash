@@ -13,6 +13,7 @@
 
 import { getOperationalMetricsHandler } from "../modules/metrics.js";
 import type { AuthContext } from "../auth/authValidator.js";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 type FakeDoc = { data: () => Record<string, unknown> };
 
@@ -46,7 +47,7 @@ const adminAuth: AuthContext = {
   keyProgramId: "orchestrator",
   apiKeyHash: "test-hash",
   encryptionKey: Buffer.from("test-encryption-key-32-bytes-long!!!"),
-  capabilities: ["*"],
+  capabilities: ALL_MAPPED_CAPABILITIES,
   rateLimitTier: "standard",
 };
 

@@ -82,7 +82,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   // nothing. An owner key holding "*" passes everything; a bounded
   // keys.provision holder cannot mint "*" or caps beyond its own grant, so
   // keys.provision can never launder a wildcard into a freshly minted key.
-  const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities, { principal: denialPrincipal(auth), tool: "keys_create_key" });
+  const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities);
   if (disallowed.length > 0) {
     logDenial({ principal: denialPrincipal(auth), tool: "keys_create_key", subject: null, code: "NOT_GRANTED" });
     return {

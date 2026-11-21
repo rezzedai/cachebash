@@ -1,8 +1,4 @@
 {
-  "W.06": {
-    "closes_in": "PR-N",
-    "hole": "a bare [\"*\"] credential passes: ownerAuthz.ts:77 mint ceiling lets a [*] provisioner mint literal-only capabilities"
-  },
   "W.17": {
     "closes_in": "PR-N",
     "hole": "a bare [\"*\"] credential passes: dispatch/backfillExpiresAt.ts:61"

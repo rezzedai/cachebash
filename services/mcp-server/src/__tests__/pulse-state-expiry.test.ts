@@ -46,8 +46,9 @@ jest.mock("../modules/analytics.js", () => ({ emitAnalyticsEvent: jest.fn() }));
 
 import { listSessionsHandler, getFleetHealthHandler } from "../modules/pulse.js";
 import type { AuthContext } from "../auth/authValidator.js";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
-const AUTH = { userId: "u1", programId: "basher", keyProgramId: "basher", capabilities: ["*"] } as unknown as AuthContext;
+const AUTH = { userId: "u1", programId: "basher", keyProgramId: "basher", capabilities: ALL_MAPPED_CAPABILITIES } as unknown as AuthContext;
 
 const ts = (ageSeconds: number) => {
   const d = new Date(Date.now() - ageSeconds * 1000);
