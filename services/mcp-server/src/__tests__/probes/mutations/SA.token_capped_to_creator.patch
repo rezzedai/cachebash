@@ -1,0 +1,14 @@
+# mutation for probe SA.token_capped_to_creator: token carries the full oauth-service set
+diff --git a/src/oauth/token.ts b/src/oauth/token.ts
+index 4513df0..a7daabf 100644
+--- a/src/oauth/token.ts
++++ b/src/oauth/token.ts
+@@ -350,7 +350,7 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
+     // A client with no stored creator list gets an empty set (fail closed).
+     const serviceCaps = getDefaultCapabilities("oauth-service");
+     const creatorCaps: string[] = Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : [];
+-    const capabilities = creatorCaps.includes("*") ? serviceCaps : serviceCaps.filter((c) => creatorCaps.includes(c));
++    const capabilities = serviceCaps;
+ 
+     // Generate access token only (no refresh token for client_credentials)
+     const accessToken = generateToken("cbo_");

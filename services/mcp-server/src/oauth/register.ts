@@ -11,6 +11,9 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { CONSTANTS } from "../config/constants.js";
+import type { AuthContext } from "../auth/authValidator.js";
+import { hasFleetAdminCapability } from "../auth/ownerAuthz.js";
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 
 // In-memory sliding window rate limit for DCR
 const DCR_LIMIT = CONSTANTS.oauth.dcrLimit;
@@ -55,7 +58,8 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-export async function handleOAuthRegister(req: http.IncomingMessage, res: http.ServerResponse, authenticatedUserId?: string): Promise<void> {
+export async function handleOAuthRegister(req: http.IncomingMessage, res: http.ServerResponse, authenticated?: AuthContext | null): Promise<void> {
+  const authenticatedUserId = authenticated?.userId;
   const clientIp = req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 
   if (!checkDcrRateLimit(clientIp)) {
@@ -107,6 +111,13 @@ export async function handleOAuthRegister(req: http.IncomingMessage, res: http.S
     return sendJson(res, 401, { error: "unauthorized", error_description: "Bearer token required to register service accounts" });
   }
 
+  // A service account mints tokens with the oauth-service capability set. Only a credential that
+  // literally holds fleet.admin may create one ("*" does not satisfy it).
+  if (isServiceAccount && authenticated && !hasFleetAdminCapability(authenticated)) {
+    logDenial({ principal: denialPrincipal(authenticated), tool: "oauth_register_service_account", subject: null, code: "MISSING_CAPABILITY" });
+    return sendJson(res, 403, { error: "insufficient_scope", error_description: "fleet.admin capability required to register service accounts" });
+  }
+
   // Service accounts (client_credentials) don't need redirect_uris
   if (isPublicClient && (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0)) {
     return sendJson(res, 400, { error: "invalid_redirect_uri", error_description: "redirect_uris required for authorization_code grant" });
@@ -138,6 +149,8 @@ export async function handleOAuthRegister(req: http.IncomingMessage, res: http.S
     clientDoc.clientSecretHash = secretHash;
     clientDoc.isServiceAccount = true;
     clientDoc.userId = authenticatedUserId;
+    // Ceiling: tokens minted for this client never carry more than its creator held.
+    clientDoc.creatorCapabilities = authenticated!.capabilities;
   }
 
   await db.collection("oauthClients").doc(clientId).set(clientDoc);

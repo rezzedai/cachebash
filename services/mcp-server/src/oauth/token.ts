@@ -9,6 +9,7 @@ import type http from "http";
 import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { Timestamp } from "firebase-admin/firestore";
+import { getDefaultCapabilities } from "../middleware/capabilities.js";
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
@@ -345,6 +346,12 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
 
     const grantedScopes = scope.split(" ").filter(Boolean);
 
+    // Ceiling: the token carries the oauth-service set intersected with the creator's list.
+    // A client with no stored creator list gets an empty set (fail closed).
+    const serviceCaps = getDefaultCapabilities("oauth-service");
+    const creatorCaps: string[] = Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : [];
+    const capabilities = creatorCaps.includes("*") ? serviceCaps : serviceCaps.filter((c) => creatorCaps.includes(c));
+
     // Generate access token only (no refresh token for client_credentials)
     const accessToken = generateToken("cbo_");
     const accessHash = hashToken(accessToken);
@@ -360,6 +367,7 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
       scope,
       grantedScopes,
       programId: "oauth-service",
+      capabilities,
       familyId: null,
       createdAt: Timestamp.fromDate(now),
       expiresAt: Timestamp.fromDate(accessExpiresAt),

@@ -12,6 +12,8 @@ import { getFirestore } from "../firebase/client.js";
 import { Timestamp } from "firebase-admin/firestore";
 import type { AuthContext } from "../auth/authValidator.js";
 import { hasScope } from "./scopes.js";
+import { hasFleetAdminCapability } from "../auth/ownerAuthz.js";
+import { logDenial, denialPrincipal } from "../auth/denialLog.js";
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -20,11 +22,11 @@ function sendJson(res: http.ServerResponse, status: number, data: object): void 
 
 /**
  * Check if auth context has permission to manage service accounts.
- * Requires mcp:admin scope (OAuth) or any API key auth.
+ * Requires mcp:admin scope (OAuth) or an API key that literally holds fleet.admin.
  */
 function canManageServiceAccounts(auth: AuthContext): boolean {
-  // API key auth always allowed (admin context)
-  if (!auth.oauthScopes) return true;
+  // API key auth: literal fleet.admin only ("*" does not satisfy it)
+  if (!auth.oauthScopes) return hasFleetAdminCapability(auth);
   // OAuth tokens need mcp:admin
   return hasScope(auth.oauthScopes, "mcp:admin");
 }
@@ -35,9 +37,10 @@ export async function handleServiceAccounts(
   auth: AuthContext
 ): Promise<void> {
   if (!canManageServiceAccounts(auth)) {
+    logDenial({ principal: denialPrincipal(auth), tool: "oauth_manage_service_accounts", subject: null, code: "MISSING_CAPABILITY" });
     return sendJson(res, 403, {
       error: "insufficient_scope",
-      error_description: "mcp:admin scope required to manage service accounts",
+      error_description: "mcp:admin scope or fleet.admin capability required to manage service accounts",
     });
   }
 

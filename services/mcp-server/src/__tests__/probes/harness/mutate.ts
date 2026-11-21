@@ -6,7 +6,7 @@ import { MCP_SERVER_DIR } from "./server";
 export const MUTATIONS_DIR = path.resolve(__dirname, "../mutations");
 
 /** Probe id -> the probe file that declares it (the nested run only loads that file). */
-export const PROBE_FILE: Record<string, string> = { T1: "t1.probe", T2: "t2(rest)?.probe", T6: "t6.probe", B: "b.probe", M: "m.probe", H: "h.probe", T7: "t7.probe", J: "j.probe", K: "k.probe", L: "l.probe", N: "n.probe", N1: "n1.probe" };
+export const PROBE_FILE: Record<string, string> = { T1: "t1.probe", T2: "t2(rest)?.probe", T6: "t6.probe", B: "b.probe", M: "m.probe", H: "h.probe", T7: "t7.probe", J: "j.probe", K: "k.probe", L: "l.probe", N: "n.probe", N1: "n1.probe", SA: "sa.probe" };
 
 export function patchFiles(): string[] {
   return fs.existsSync(MUTATIONS_DIR) ? fs.readdirSync(MUTATIONS_DIR).filter((f) => f.endsWith(".patch")).sort() : [];
