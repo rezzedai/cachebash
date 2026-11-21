@@ -5,6 +5,8 @@ import { denialNames, denied } from "./harness/judge";
 import { knownOpen, probe } from "./harness/registry";
 import { mint } from "./harness/mint";
 import { MCP_SERVER_DIR } from "./harness/server";
+import { FULL } from "./harness/seed";
+import { emulatorDb } from "./harness/emulator";
 import type { ToolResult } from "./harness/client";
 import type { World, WorldCredential } from "./harness/world";
 import * as fs from "fs";
@@ -194,5 +196,83 @@ describe("N literal gates", () => {
     const r = await callTool(w, all, "dispatch_get_tasks", { requires_action: null });
     expect(capabilityText(r)).toBe(false);
     expect(r.isError).toBe(false);
+  });
+});
+
+/** The `authz_denial` lines the server wrote after byte offset `from`. */
+const denialLinesSince = (w: World, from: number): any[] =>
+  fs.readFileSync(w.serverLog).subarray(from).toString("utf8").split("\n")
+    .filter((l) => l.includes('"event":"authz_denial"'))
+    .map((l) => { try { return JSON.parse(l.slice(l.indexOf("{"))); } catch { return null; } }).filter(Boolean);
+
+describe("N gsp_resolve binds to the credential principal (PR-N N-D6)", () => {
+  /** A pending proposal written straight into the tenant (gsp_propose caps a program at 5 pending, and needs a seeded namespace). */
+  const seedProposal = async (w: World, proposedBy: string, expired = false): Promise<string> => {
+    const id = `n-prop-${nextN()}`;
+    await emulatorDb().doc(`tenants/${w.tenants.A}/gsp_proposals/${id}`).set({
+      id, namespace: `n-gsp-${id}`, key: "k", currentValue: null, proposedValue: { v: 1 }, rationale: "n probe", evidence: null,
+      proposedBy, status: "pending", reviewers: ["vector"], createdAt: new Date(Date.now() - 2 * 86400_000).toISOString(),
+      expiresAt: new Date(Date.now() + (expired ? -1 : 30) * 86400_000).toISOString(), version: 1,
+    });
+    return id;
+  };
+  const propose = (w: World, who: WorldCredential): Promise<string> => seedProposal(w, who.programId);
+
+  probe("N.gsp_withdraw_principal", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-n-gsp-w-alpha", FULL());
+    const beta = await mint(w, "beta", "probe-n-gsp-w-beta", FULL());
+    const id = await propose(w, alpha);
+    const r = await callTool(w, beta, "gsp_resolve", { proposalId: id, decision: "withdrawn" });
+    expect(r.json?.success).toBe(false);
+    expect(r.json?.error).toBe("UNAUTHORIZED");
+  });
+  test("N.gsp_withdraw_principal control: the proposer withdraws", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-n-gsp-w-alpha-ctl", FULL());
+    const id = await propose(w, alpha);
+    const r = await callTool(w, alpha, "gsp_resolve", { proposalId: id, decision: "withdrawn" });
+    expect(r.json?.success).toBe(true);
+  });
+
+  probe("N.gsp_review_principal", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-n-gsp-r-alpha", FULL());
+    const id = await propose(w, alpha);
+    const r = await callTool(w, alpha, "gsp_resolve", { proposalId: id, decision: "approved" });
+    expect(r.json?.success).toBe(false);
+    expect(r.json?.error).toBe("UNAUTHORIZED");
+  });
+  test("N.gsp_review_principal control: vector approves a non-constitutional proposal", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-n-gsp-r-alpha-ctl", FULL());
+    const vector = await mint(w, "vector", "probe-n-gsp-r-vector", FULL());
+    const id = await propose(w, alpha);
+    const r = await callTool(w, vector, "gsp_resolve", { proposalId: id, decision: "approved" });
+    expect(r.json?.success).toBe(true);
+  });
+
+  probe("N.gsp_expired_no_denial", async () => {
+    const w = world();
+    const beta = await mint(w, "beta", "probe-n-gsp-x-beta", FULL());
+    const id = await seedProposal(w, "alpha", true);
+    const from = fs.statSync(w.serverLog).size;
+    const r = await callTool(w, beta, "gsp_resolve", { proposalId: id, decision: "withdrawn" });
+    expect(r.json?.error).toBe("PROPOSAL_EXPIRED");
+    await new Promise((res) => setTimeout(res, 300));
+    expect(denialLinesSince(w, from).filter((l) => l.tool === "gsp_resolve")).toEqual([]);
+  });
+  test("N.gsp_expired_no_denial control: a real withdraw denial writes 1 authz_denial line", async () => {
+    const w = world();
+    const alpha = await mint(w, "alpha", "probe-n-gsp-x-alpha", FULL());
+    const beta = await mint(w, "beta", "probe-n-gsp-x-beta-ctl", FULL());
+    const id = await propose(w, alpha);
+    const from = fs.statSync(w.serverLog).size;
+    const r = await callTool(w, beta, "gsp_resolve", { proposalId: id, decision: "withdrawn" });
+    expect(r.json?.error).toBe("UNAUTHORIZED");
+    await new Promise((res) => setTimeout(res, 300));
+    const lines = denialLinesSince(w, from).filter((l) => l.tool === "gsp_resolve");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].principal).toBe("beta");
   });
 });

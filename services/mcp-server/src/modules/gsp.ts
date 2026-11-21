@@ -1649,7 +1649,7 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
         version: proposal.version + 1,
       });
 
-      logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
+      // RD-5 PR-N N-D6: an expired proposal is not an authorization refusal, so it writes no authz_denial line.
       return jsonResult({
         success: false,
         error: "PROPOSAL_EXPIRED",
@@ -1659,28 +1659,29 @@ export async function gspResolveHandler(auth: AuthContext, rawArgs: unknown): Pr
       });
     }
 
-    // Step 4: Validate resolver authorization
+    // Step 4: Validate resolver authorization, against the principal bound to the credential (RD-5 PR-N N-D6)
+    const resolver = credentialPrincipal(auth);
     if (args.decision === "withdrawn") {
       // Only the proposer can withdraw
-      if (auth.programId !== proposal.proposedBy) {
+      if (resolver !== proposal.proposedBy) {
         logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",
           proposalId: args.proposalId,
-          message: `Only the proposer (${proposal.proposedBy}) can withdraw this proposal. You are: ${auth.programId}`,
+          message: `Only the proposer (${proposal.proposedBy}) can withdraw this proposal. You are: ${resolver}`,
         });
       }
     } else {
       // approved or rejected - only reviewers can resolve
-      if (!proposal.reviewers.includes(auth.programId)) {
+      if (!proposal.reviewers.includes(resolver)) {
         logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: null, code: "NOT_GRANTED" });
         return jsonResult({
           success: false,
           error: "UNAUTHORIZED",
           proposalId: args.proposalId,
           reviewers: proposal.reviewers,
-          message: `Only assigned reviewers can approve/reject. Reviewers: ${proposal.reviewers.join(", ")}. You are: ${auth.programId}`,
+          message: `Only assigned reviewers can approve/reject. Reviewers: ${proposal.reviewers.join(", ")}. You are: ${resolver}`,
         });
       }
     }
