@@ -68,6 +68,9 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   dispatch_unclaim_task: "dispatch.write",
   dispatch_complete_task: "dispatch.write",
   dispatch_record_task_telemetry: "dispatch.write",
+  // RD-5 PR-N N-D2: mapped so a literal gate admits them; the handler's ["iso"] program list stays the real gate.
+  dispatch_backfill_task_expires_at: "dispatch.write",
+  dispatch_reap_expired_tasks: "dispatch.write",
   dispatch_batch_claim_tasks: "dispatch.write",
   dispatch_batch_complete_tasks: "dispatch.write",
   dispatch_get_contention_metrics: "dispatch.read",

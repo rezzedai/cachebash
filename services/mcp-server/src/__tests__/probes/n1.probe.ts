@@ -42,12 +42,12 @@ describe("N1 authz_would_deny", () => {
       { severity: "WARNING", event: "authz_would_deny", principal: "alpha", tool: "audit_get_audit", capability: "audit.read", site: "gate.hasCapability" },
     ]);
 
-    // unmapped tool (capabilities.ts): no TOOL_CAPABILITIES entry, passes only through "*"
+    // PR-N N-D2 mapped this tool to dispatch.write, so it now logs at the per-tool gate
     from = logSize(w);
     r = await callTool(w, wild, "dispatch_reap_expired_tasks", { dryRun: true });
     expect(denied(r)).toBe(false);
     expect(wouldDenyLines(w, from)).toEqual([
-      { severity: "WARNING", event: "authz_would_deny", principal: "alpha", tool: "dispatch_reap_expired_tasks", capability: "unmapped", site: "capabilities.checkToolCapability:unmapped" },
+      { severity: "WARNING", event: "authz_would_deny", principal: "alpha", tool: "dispatch_reap_expired_tasks", capability: "dispatch.write", site: "capabilities.checkToolCapability:per_tool" },
     ]);
   });
 
