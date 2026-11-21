@@ -296,6 +296,14 @@ describe('G-2 — full/lite tiers unaffected (c)', () => {
     expect(filterToolsByCapabilities(ALL_TOOLS, ['*'])).toHaveLength(0);
   });
 
+  it('full Grid programs (orchestrator, admin, legacy) see all tools by named capabilities', () => {
+    for (const program of ['orchestrator', 'admin', 'legacy']) {
+      const caps = DEFAULT_CAPABILITIES[program];
+      expect(caps).not.toContain('*');
+      expect(filterToolsByCapabilities(ALL_TOOLS, caps)).toHaveLength(ALL_TOOLS.length);
+    }
+  });
+
   it('a key holding every mapped capability by name sees all tools', () => {
     expect(filterToolsByCapabilities(ALL_TOOLS, EVERY_MAPPED_CAPABILITY)).toHaveLength(ALL_TOOLS.length);
   });

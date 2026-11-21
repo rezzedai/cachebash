@@ -4,8 +4,8 @@
  *
  * createKey mints a NEW key under the caller's tenant with caller-chosen
  * capabilities. The capability middleware gates `keys_create_key` on
- * `keys.write` — but every "*" wildcard key satisfies that check, and every
- * Grid program defaults to ["*"]. So a leaked builder/wildcard key could mint
+ * `keys.write` — but every wildcard wildcard key satisfies that check, and every
+ * Grid program defaults to [wildcard]. So a leaked builder/wildcard key could mint
  * fresh admin keys for any program, turning a transient leak into durable
  * persistence (escalation).
  *
@@ -20,7 +20,7 @@
  *
  * The fix: drop the uid/owner branch entirely. The SOLE gate on the mint path
  * is a LITERAL `keys.provision` capability, matched by literal membership
- * (never the wildcard-expanding matcher), so "*" does NOT satisfy it and no
+ * (never the wildcard-expanding matcher), so wildcard does NOT satisfy it and no
  * program key can self-provision. The owner's provisioning principal is granted
  * `keys.provision` by name. A capability ceiling (see
  * `disallowedMintCapabilities`) additionally clamps minted caps to the caller's
@@ -32,9 +32,9 @@ import type { AuthContext } from "./authValidator.js";
 /**
  * Explicit, separate key-provisioning capability. It is checked by LITERAL
  * membership below — NOT via the wildcard-expanding `hasCapability` matcher —
- * so that a "*" key does NOT satisfy it. That independence from the wildcard is
+ * so that a wildcard key does NOT satisfy it. That independence from the wildcard is
  * the entire point: it lets a principal provision keys ONLY when granted this
- * capability by name, and never as a side effect of holding "*". It is not in
+ * capability by name, and never as a side effect of holding wildcard. It is not in
  * any DEFAULT_CAPABILITIES role — it must be granted explicitly.
  */
 export const KEY_PROVISION_CAPABILITY = "keys.provision";
@@ -45,7 +45,7 @@ export const KEY_PROVISION_CAPABILITY = "keys.provision";
  * The SOLE gate is a LITERAL `keys.provision` grant. uid is deliberately NOT
  * consulted: for cb_ keys it is the shared tenant uid (not the principal), so
  * any uid/owner allowlist check is a no-op that passes the entire fleet — the
- * exact prod no-op SARK rejected in #341. A "*" wildcard key fails the literal
+ * exact prod no-op SARK rejected in #341. A wildcard wildcard key fails the literal
  * `.includes` and therefore CANNOT mint.
  */
 export function isKeyProvisioner(auth: AuthContext): boolean {
@@ -87,7 +87,7 @@ export function disallowedMintCapabilities(
  * switch reachable from the lowest-privilege key, needing no escalation.
  *
  * WHY NOT `hasCapability(auth, "fleet.read")`: it wildcard-expands, and 10 of
- * the 32 live keys hold ["*"] — including `radia`, the key the exploit was
+ * the 32 live keys hold [wildcard] — including `radia`, the key the exploit was
  * proven with. Gating on it would authorize the very caller it must stop. A
  * capability check here must be LITERAL, exactly as KEY_PROVISION_CAPABILITY is.
  *
@@ -109,7 +109,7 @@ export function credentialPrincipal(auth: AuthContext): string {
 
 /**
  * True iff `auth` may list or revoke keys belonging to OTHER programs. The only
- * source is a literal `fleet.admin` on the credential (RD-5 OD-2, C-5): "*" never
+ * source is a literal `fleet.admin` on the credential (RD-5 OD-2, C-5): wildcard never
  * satisfies it, and no program name confers it.
  */
 export function isKeyAdmin(auth: AuthContext): boolean {
@@ -123,7 +123,7 @@ export function isKeyAdmin(auth: AuthContext): boolean {
  * Deliberately NOT `fleet.read`: `fleet.read` sits in the standard
  * provisioning preset (middleware/capabilities.ts:28,206,250) and 15 of 32
  * live keys hold it explicitly. Combined with the 11 of 32 keys holding
- * `["*"]` — which `hasCapability` wildcard-expands unconditionally — 26 of 32
+ * a bare wildcard list — which `hasCapability` wildcard-expands unconditionally — 26 of 32
  * keys would pass a `fleet.read` gate routed through `hasCapability`,
  * including `radia`, the key both BUG-005 and BUG-009 were proven with (plan
  * §1.1). Reusing `fleet.read`, or checking it via `hasCapability`, would
@@ -132,20 +132,20 @@ export function isKeyAdmin(auth: AuthContext): boolean {
  *
  * Minted 2026-09-02 (grid/plans/ISO-plan-authz-chokepoint.md, commit
  * `b4521fe6`), verified held by nobody before minting. Granted to exactly two
- * principals as an ADDITION to their existing `"*"` (never a replacement):
+ * principals as an ADDITION to their existing wildcard (never a replacement):
  * `vector` (fleet auditor; its documented boot depends on cross-program
  * reads) and `sark` (security auditor). `iso` is deliberately NOT granted —
  * consistent with its exclusion from key admin in PR-1, it authored this
  * change. Read-back across all 137 key documents at grant time confirmed
- * exactly 2 holders, with 80 bare `["*"]` and 31 legacy `fleet.read` holders
+ * exactly 2 holders, with 80 bare a bare wildcard list and 31 legacy `fleet.read` holders
  * as the control group that must NOT pass a literal check.
  */
 export const FLEET_OBSERVE_CAPABILITY = "fleet.observe";
 
 /**
  * True iff `auth`'s own capabilities literally include `fleet.observe`.
- * NEVER routed through `hasCapability` — that wildcard-expands `"*"`, which
- * would re-admit all 80 `"*"`-holding keys and the 31 legacy `fleet.read`
+ * NEVER routed through `hasCapability` — that wildcard-expands wildcard, which
+ * would re-admit all 80 wildcard-holding keys and the 31 legacy `fleet.read`
  * holders, reproducing the exact defect this capability exists to close.
  * Same discipline as `isKeyProvisioner` / `KEY_PROVISION_CAPABILITY` above.
  *
@@ -171,7 +171,7 @@ export const FLEET_ADMIN_CAPABILITY = "fleet.admin";
 
 /**
  * True iff `auth`'s own capabilities literally include `fleet.admin`.
- * Never routed through `hasCapability`: a `["*"]` credential must fail it.
+ * Never routed through `hasCapability`: a a bare wildcard list credential must fail it.
  * Checks capabilities only; the caller binds identity via `credentialPrincipal`.
  */
 export function hasFleetAdminCapability(auth: AuthContext): boolean {

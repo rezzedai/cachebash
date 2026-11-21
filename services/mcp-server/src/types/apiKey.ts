@@ -10,7 +10,7 @@ export interface ApiKeyDoc {
   userId: string;
   programId: ValidProgramId;
   label: string;
-  capabilities: string[];   // Phase 2: ["*"]. Phase 4: scoped.
+  capabilities: string[];   // Phase 2: [wildcard]. Phase 4: scoped.
   createdAt: Timestamp;
   lastUsedAt?: Timestamp;
   revokedAt?: Timestamp;

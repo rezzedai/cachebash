@@ -7,13 +7,15 @@
  * revoke mode.
  *
  * It refuses a key whose `capabilities` field is missing, not an array, or an
- * empty array. The server reads a missing field as ["*"] (keys.ts:220, :283) and
- * an empty array as role defaults (authValidator.ts:83-85, key_identity), so an
- * arrayUnion would write a one-element list and silently strip the implicit
- * wildcard or defaults.
+ * empty array. The server reads a missing field or an empty array as the program's
+ * default set (authValidator, keys rotate and list), so an arrayUnion would write a
+ * one-element list and silently replace those defaults.
  */
 
 import { ALL_CAPABILITIES } from "../../middleware/capabilities.js";
+
+/** The one wildcard literal in non-test src (a static test allows exactly this line): what a grant refuses and the narrow removes. */
+export const WILDCARD = "*";
 
 export type GrantPlan =
   | { ok: true; before: string[]; after: string[]; alreadyHeld: boolean }
@@ -28,11 +30,11 @@ export function planGrant(
   if (typeof capability !== "string" || capability.trim() === "") {
     return { ok: false, reason: "--add requires a non-empty capability" };
   }
-  if (capability === "*") {
-    return { ok: false, reason: "refusing to add the wildcard \"*\"" };
+  if (capability === WILDCARD) {
+    return { ok: false, reason: `refusing to add the wildcard ${WILDCARD}` };
   }
   if (!(ALL_CAPABILITIES as readonly string[]).includes(capability)) {
-    const valid = ALL_CAPABILITIES.filter((c) => c !== "*").join(", ");
+    const valid = ALL_CAPABILITIES.join(", ");
     return { ok: false, reason: `unknown capability ${capability}; valid: ${valid}` };
   }
   if (!data) return { ok: false, reason: "key document not found" };
@@ -42,7 +44,7 @@ export function planGrant(
     return {
       ok: false,
       reason:
-        "capabilities field is missing: the server reads it as [\"*\"], and an arrayUnion would strip that wildcard. STOP and report to ISO",
+        "capabilities field is missing: the server reads it as the program default set, and an arrayUnion would replace that set with one capability. STOP and report to ISO",
     };
   }
   if (!Array.isArray(caps)) {

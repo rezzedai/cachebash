@@ -115,7 +115,7 @@ describe("grant-capability --add is restricted to the Capability union", () => {
     const used: Capability[] = [...Object.values(TOOL_CAPABILITIES), ...Object.values(DEFAULT_CAPABILITIES).flat()];
     for (const c of used) expect(ALL_CAPABILITIES).toContain(c);
     for (const c of LITERAL_ONLY_CAPABILITIES) expect(ALL_CAPABILITIES).toContain(c);
-    for (const c of ALL_CAPABILITIES) expect(planGrant({ capabilities: ["x"] }, c).ok).toBe(c !== "*");
+    for (const c of ALL_CAPABILITIES) expect(planGrant({ capabilities: ["x"] }, c).ok).toBe(true);
   });
 });
 

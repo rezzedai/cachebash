@@ -2,7 +2,7 @@
  * Capability-Based Access Control Tests
  */
 
-import { holdsCapability, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
+import { holdsCapability, WILDCARD_EQUIVALENT, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
 
 describe('Capability System', () => {
   describe('holdsCapability', () => {
@@ -97,7 +97,6 @@ describe('Capability System', () => {
         'admin', 'policy', 'webhooks',
       ];
       for (const [tool, cap] of Object.entries(TOOL_CAPABILITIES)) {
-        if (cap === '*') continue;
         const [prefix] = cap.split('.');
         expect(validPrefixes).toContain(prefix);
       }
@@ -127,12 +126,23 @@ describe('Capability System', () => {
   });
 
   describe('DEFAULT_CAPABILITIES', () => {
-    it('orchestrator has wildcard', () => {
-      expect(DEFAULT_CAPABILITIES['orchestrator']).toEqual(['*']);
+    it('orchestrator, admin and legacy hold WILDCARD_EQUIVALENT, named (RD-5 PR-N N-D3)', () => {
+      for (const role of ['orchestrator', 'admin', 'legacy']) expect(DEFAULT_CAPABILITIES[role]).toEqual(WILDCARD_EQUIVALENT);
+      expect(WILDCARD_EQUIVALENT).toHaveLength(30);
     });
 
-    it('legacy has wildcard', () => {
-      expect(DEFAULT_CAPABILITIES['legacy']).toEqual(['*']);
+    it('the named programs hold their table B sets (plan 22.1 item 6)', () => {
+      expect(DEFAULT_CAPABILITIES['dispatcher']).toHaveLength(8);
+      expect(DEFAULT_CAPABILITIES['iso']).toHaveLength(23);
+      expect(DEFAULT_CAPABILITIES['vector']).toHaveLength(16);
+      expect(DEFAULT_CAPABILITIES['vector']).not.toContain('keys.write');
+      expect(DEFAULT_CAPABILITIES['basher']).toHaveLength(13);
+      for (const p of ['alan', 'casp', 'quorra', 'radia']) expect(DEFAULT_CAPABILITIES[p]).toEqual(DEFAULT_CAPABILITIES['architect']);
+      expect(DEFAULT_CAPABILITIES['sark']).toEqual([...DEFAULT_CAPABILITIES['architect'], 'keys.write']);
+    });
+
+    it("iso's set covers every builder default, so iso can mint a builder key (plan 22.1 item 1)", () => {
+      for (const c of DEFAULT_CAPABILITIES['builder']) expect(DEFAULT_CAPABILITIES['iso']).toContain(c);
     });
 
     it('builder programs can read and write dispatch', () => {
@@ -162,7 +172,7 @@ describe('Capability System', () => {
     it('C-1: oauth fallback carries zero .write capabilities', () => {
       const oauthCaps = DEFAULT_CAPABILITIES['oauth'];
       expect(oauthCaps).toBeDefined();
-      const writeCaps = oauthCaps.filter(c => c.endsWith('.write') || c === '*');
+      const writeCaps = oauthCaps.filter(c => c.endsWith('.write'));
       expect(writeCaps).toHaveLength(0);
       expect(oauthCaps).toContain('dispatch.read');
       expect(oauthCaps).toContain('relay.read');
@@ -174,7 +184,7 @@ describe('Capability System', () => {
 
   describe('getDefaultCapabilities', () => {
     it('returns defaults for known programs', () => {
-      expect(getDefaultCapabilities('orchestrator')).toEqual(['*']);
+      expect(getDefaultCapabilities('orchestrator')).toEqual(WILDCARD_EQUIVALENT);
       expect(getDefaultCapabilities('builder')).toContain('dispatch.read');
     });
 

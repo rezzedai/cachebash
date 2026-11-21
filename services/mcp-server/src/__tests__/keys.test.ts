@@ -26,7 +26,8 @@ jest.mock("../modules/programRegistry", () => ({
 }));
 
 jest.mock("../middleware/capabilities", () => ({
-  getDefaultCapabilities: jest.fn(() => ["*"]),
+  getDefaultCapabilities: jest.fn(() => ["dispatch.read", "dispatch.write"]),
+  WILDCARD_EQUIVALENT: ["dispatch.read", "dispatch.write", "keys.write"],
 }));
 
 // Owner-authz gate: default-allow so the existing create tests exercise the
@@ -236,7 +237,7 @@ describe("Keys Module Unit Tests", () => {
       expect(data.capabilities).toEqual(["dispatch.read"]);
     });
 
-    it("falls back to ['*'] when no defaults and no capabilities provided", async () => {
+    it("falls back to WILDCARD_EQUIVALENT (named, no wildcard) when no defaults and no capabilities provided", async () => {
       const { getDefaultCapabilities } = require("../middleware/capabilities");
       (getDefaultCapabilities as jest.Mock).mockReturnValueOnce([]);
 
@@ -247,7 +248,8 @@ describe("Keys Module Unit Tests", () => {
 
       const data = JSON.parse(result.content[0].text);
       expect(data.success).toBe(true);
-      expect(data.capabilities).toEqual(["*"]);
+      expect(data.capabilities).toEqual(["dispatch.read", "dispatch.write", "keys.write"]);
+      expect(data.capabilities).not.toContain("*");
     });
 
     it("rejects missing programId", async () => {

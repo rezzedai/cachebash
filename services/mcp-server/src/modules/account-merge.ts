@@ -25,7 +25,7 @@ function jsonResult(data: unknown): ToolResult {
 const mayMergeInto = (tenantUid: string, canonicalUid: string): boolean => canonicalUid === tenantUid;
 
 export async function mergeAccountsHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  // Admin gate (RD-5 PR-L row 28): the literal fleet.admin capability. No program name confers it, and "*" does not satisfy it.
+  // Admin gate (RD-5 PR-L row 28): the literal fleet.admin capability. No program name confers it, and wildcard does not satisfy it.
   if (!hasFleetAdminCapability(auth)) {
     const caller = denialPrincipal(auth);
     logDenial({ principal: caller, tool: "admin_merge_accounts", subject: null, code: "MISSING_CAPABILITY" });

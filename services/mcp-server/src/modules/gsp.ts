@@ -656,7 +656,7 @@ function authorizeGspBootstrapRead(
     return { allowed: true, principal, isSelf: true, foreignReadViaFleetObserve: false };
   }
   // Not self — the ONLY widening path is a LITERAL fleet.observe grant. Never
-  // routed through hasCapability (wildcard-expands "*"; see ownerAuthz.ts).
+  // routed through hasCapability (wildcard-expands wildcard; see ownerAuthz.ts).
   const widened = hasFleetObserveCapability(auth);
   return { allowed: widened, principal, isSelf: false, foreignReadViaFleetObserve: widened };
 }
@@ -1210,7 +1210,7 @@ export async function gspSeedHandler(auth: AuthContext, rawArgs: unknown): Promi
   // `gsp-sync` is the CI identity for the repo's GSP State Sync workflow. It is
   // deliberately NOT an orchestrator: its key carries only [gsp.read, gsp.write],
   // so the capability gate still denies it dispatch/state/keys/etc. Listing it
-  // here rather than widening its capabilities to "*" keeps a CI-resident
+  // here rather than widening its capabilities to wildcard keeps a CI-resident
   // credential scoped to governance-state writes and nothing else.
   // RD-5 PR-L row 37 (L-D11): `admin` is dropped, and the list is compared with credentialPrincipal. RD-5 PR-N: no wildcard branch.
   const authorizedPrograms = ["vector", "iso", "dispatcher", "gsp-sync"];

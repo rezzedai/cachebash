@@ -3,7 +3,7 @@
  *
  * Maps tools to required capabilities and enforces access.
  * Capabilities use module.action pattern (e.g., "dispatch.read").
- * Wildcard "*" grants unrestricted access.
+ * Wildcard wildcard grants unrestricted access.
  */
 
 import { resolveToolAlias } from "../tools/tool-aliases.js";
@@ -13,7 +13,6 @@ import { resolveToolAlias } from "../tools/tool-aliases.js";
  * so the type and the runtime list cannot drift.
  */
 export const ALL_CAPABILITIES = [
-  "*",
   "dispatch.read", "dispatch.write",
   "relay.read", "relay.write",
   "pulse.read", "pulse.write",
@@ -22,11 +21,11 @@ export const ALL_CAPABILITIES = [
   "sprint.read", "sprint.write",
   "keys.read", "keys.write",
   // keys.provision: explicit, owner-equivalent grant to CREATE keys. Checked by
-  // literal membership in auth/ownerAuthz (never implied by "*"); not in any
+  // literal membership in auth/ownerAuthz (never implied by wildcard); not in any
   // DEFAULT_CAPABILITIES role — must be granted by name.
   "keys.provision",
   // RD-5 PR-D: literal-only names. Checked by literal membership in
-  // auth/ownerAuthz (never implied by "*"); in no role default or preset.
+  // auth/ownerAuthz (never implied by wildcard); in no role default or preset.
   "fleet.observe", "fleet.admin",
   "audit.read",
   "state.read", "state.write",
@@ -50,7 +49,7 @@ export type Capability = (typeof ALL_CAPABILITIES)[number];
 
 /**
  * Capabilities satisfied only by literal membership in a key's capability
- * list. "*" never grants them. Granted by name through grant-capability.ts.
+ * list. wildcard never grants them. Granted by name through grant-capability.ts.
  */
 export const LITERAL_ONLY_CAPABILITIES: readonly Capability[] = [
   "fleet.observe",
@@ -215,11 +214,49 @@ export const WINGMAN_TIER_CAPABILITIES: Capability[] = [
   "programs.read",
 ];
 
+/**
+ * RD-5 PR-N N-D3: what the wildcard granted at the per-tool gate before PR-N, named: the sorted distinct values of
+ * TOOL_CAPABILITIES. Keys that held the wildcard and keys minted from a role that defaulted to it get this list.
+ * Narrowing issuance below it is a later VECTOR decision.
+ */
+export const WILDCARD_EQUIVALENT: Capability[] = [...new Set(Object.values(TOOL_CAPABILITIES))].sort();
+
+/** RD-5 PR-N N-D3, plan 22.1 item 6 (table B as ruled): the default set for the named Grid programs. */
+const ARCHITECT_CAPABILITIES: Capability[] = ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+  "pulse.read", "pulse.write", "signal.read", "signal.write",
+  "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+  "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"];
+
+const TABLE_B: Record<"dispatcher" | "iso" | "basher" | "vector" | "architect" | "sark", Capability[]> = {
+  dispatcher: [
+    "dispatch.read", "dispatch.write", "pulse.read", "pulse.write", "relay.read", "relay.write",
+    "signal.write", "state.read"
+  ],
+  iso: [
+    "audit.read", "dispatch.read", "dispatch.write", "fleet.read", "gsp.read", "gsp.write", "keys.read",
+    "keys.write", "metrics.read", "programs.read", "programs.write", "pulse.read", "pulse.write",
+    "relay.read", "relay.write", "signal.read", "signal.write", "sprint.read", "sprint.write", "state.read",
+    "state.write", "webhooks.read", "webhooks.write"
+  ],
+  basher: [
+    "dispatch.read", "dispatch.write", "fleet.read", "gsp.read", "gsp.write", "keys.read", "metrics.read",
+    "pulse.read", "pulse.write", "relay.read", "relay.write", "state.read", "state.write"
+  ],
+  vector: [
+    "dispatch.read", "dispatch.write", "fleet.read", "gsp.write", "keys.read", "pulse.read", "pulse.write",
+    "relay.read", "relay.write", "state.read", "state.write", "gsp.read", "audit.read", "metrics.read",
+    "signal.write", "programs.read"
+  ],
+  // alan, casp, quorra, radia: the architect set. sark adds keys.write (revoke duty).
+  architect: ARCHITECT_CAPABILITIES,
+  sark: [...ARCHITECT_CAPABILITIES, "keys.write"],
+};
+
 /** Default capabilities for each program role */
 export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
-  orchestrator: ["*"],
-  admin: ["*"],
-  legacy: ["*"],
+  orchestrator: WILDCARD_EQUIVALENT,
+  admin: WILDCARD_EQUIVALENT,
+  legacy: WILDCARD_EQUIVALENT,
   mobile: [
     "dispatch.read", "dispatch.write",
     "relay.read", "relay.write",
@@ -235,10 +272,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
     "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],
-  architect: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
-    "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
-    "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],
+  architect: ARCHITECT_CAPABILITIES,
   auditor: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "audit.read", "programs.read", "programs.write",
@@ -285,18 +319,18 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "sprint.read", "metrics.read", "fleet.read", "programs.read",
     "webhooks.read", "webhooks.write"],
   // Grid programs — full operational access
-  iso: ["*"],
-  basher: ["*"],
-  alan: ["*"],
-  sark: ["*"],
-  quorra: ["*"],
-  casp: ["*"],
-  ram: ["*"],
-  radia: ["*"],
-  castor: ["*"],
-  vector: ["*"],
-  bit: ["*"],
-  dispatcher: ["*"],
+  iso: TABLE_B.iso,
+  basher: TABLE_B.basher,
+  alan: TABLE_B.architect,
+  sark: TABLE_B.sark,
+  quorra: TABLE_B.architect,
+  casp: TABLE_B.architect,
+  ram: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  radia: TABLE_B.architect,
+  castor: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  vector: TABLE_B.vector,
+  bit: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  dispatcher: TABLE_B.dispatcher,
   // Wingman tier — least-privilege identity spine for restricted agents.
   // ALLOWED: dispatch + relay + signal (orchestrate + coordinate) + result reads.
   // HARD-DENY (absent, not just execution-denied): keys.*, admin.write, fleet.control,

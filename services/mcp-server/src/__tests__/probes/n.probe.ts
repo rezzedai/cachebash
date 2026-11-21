@@ -276,3 +276,21 @@ describe("N gsp_resolve binds to the credential principal (PR-N N-D6)", () => {
     expect(lines[0].principal).toBe("beta");
   });
 });
+
+describe("N issuance writes no wildcard (PR-N N-D3)", () => {
+  // create_key with no capabilities stores the program's default set; for an orchestrator role that is WILDCARD_EQUIVALENT, named.
+  // (The enrollment "dedicated" tier is covered by enrollment.test.ts: the probe harness has no enrollment token path.)
+  probe("N.issuance_no_wildcard", async () => {
+    const w = world();
+    const owner = await mint(w, "alpha", "probe-n-issue-owner", [...FULL(), "keys.provision"]);
+    const r = await callTool(w, owner, "keys_create_key", { programId: "orchestrator", label: `n-issue-${nextN()}` });
+    expect(r.json?.success).toBe(true);
+    const stored = (await emulatorDb().doc(`keyIndex/${r.json.keyHash}`).get()).data()?.capabilities as string[];
+    expect(stored).not.toContain("*");
+    expect(r.json.capabilities).not.toContain("*");
+    // control: what is stored is exactly the named equivalent of the old wildcard
+    const equivalent = [...new Set(Object.values(TOOL_CAPABILITIES))].sort();
+    expect([...stored].sort()).toEqual(equivalent);
+    expect(equivalent).toHaveLength(30);
+  });
+});
