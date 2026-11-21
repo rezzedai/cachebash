@@ -12,7 +12,7 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-116 site records, 111 handler entries, 23 AST baseline rows.
+115 site records, 111 handler entries, 22 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -20,12 +20,12 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | FOREIGN-READ | 6 |
 | FOREIGN-WRITE | 1 |
 | ADDRESSED | 5 |
-| ATTRIBUTION | 9 |
+| ATTRIBUTION | 8 |
 | NOT-IDENTITY | 11 |
 | ESCALATE | 72 |
-| **Total** | **116** |
+| **Total** | **115** |
 
-Status: pending 30, done 86.
+Status: pending 29, done 86.
 
 ## Method
 
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 319 |
-| (a) lines | 295 |
+| (a) occurrences | 318 |
+| (a) lines | 294 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
@@ -681,7 +681,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191) | The argument names the recipient. The sender is bound by verifySource at relay.ts:141. |
 | relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
-## ATTRIBUTION (9)
+## ATTRIBUTION (8)
 
 Each label claims no gate is needed, so ISO reviews each one individually.
 
@@ -695,7 +695,6 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
-| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:944) | rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
 ## NOT-IDENTITY (11)
 
@@ -892,7 +891,6 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
 | rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 827 | ESCALATE | C-5 | PR-J | false |
 | rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 861 | ESCALATE | C-5 | PR-K | false |
-| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 946 | ATTRIBUTION | ISO | n/a | false |
 | rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 324 | FOREIGN-READ | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 421 | SELF-ONLY | ISO | PR-M | false |
 | rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 439 | SELF-ONLY | ISO | PR-M | false |
@@ -1144,7 +1142,7 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 18 | 100 |
+| S1 | 17 | 99 |
 | S2 | 1 | 1 |
 | S3 | 4 | 4 |
 
@@ -1169,7 +1167,6 @@ The test fails on a violation with no row and on a row that no longer matches. T
 | S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
 | S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 180 |
 | S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 302 |
-| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 957 |
 | S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
 | S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
 | S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 835 |

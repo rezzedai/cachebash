@@ -935,36 +935,6 @@ const routes: Route[] = [
     const data = await callTool(auth, req, "set_budget", body);
     restResponse(res, true, data);
   }),
-
-  // Admin
-  route("POST", "/admin/reset-program-cache", async (auth, req, res) => {
-    if (!auth.capabilities.includes("*")) {
-      logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
-      return restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
-    }
-    const body = await readBody(req);
-    const programId = body.programId as string | undefined;
-    if (!programId || typeof programId !== "string") {
-      return restResponse(res, false, { code: "VALIDATION_ERROR", message: "programId is required" }, 400);
-    }
-
-    // No-op: in-memory compliance cache removed (BUG-005 stateless sweep).
-    // Compliance state is read from Firestore on every request.
-    const correlationId = generateCorrelationId();
-    const audit = createAuditLogger(correlationId, auth.userId);
-    audit.log("admin.reset_program_cache", {
-      programId,
-      source: auth.programId,
-      endpoint: "rest",
-    });
-
-    restResponse(res, true, {
-      success: true,
-      programId,
-      cacheEntryFound: false,
-      message: "No in-memory cache (stateless architecture)",
-    });
-  }),
 ];
 
 // OpenAPI spec cache (1 hour TTL)

@@ -11,10 +11,6 @@ import { nextN } from "./harness/cases";
 import { marker } from "./harness/data";
 import { Timestamp } from "firebase-admin/firestore";
 import * as fs from "fs";
-import * as path from "path";
-import { spawnSync } from "child_process";
-import { assertEmulatorOnly } from "./harness/guard";
-import { MCP_SERVER_DIR } from "./harness/server";
 import type { World, WorldCredential } from "./harness/world";
 import { FULL } from "./harness/seed";
 
@@ -220,52 +216,11 @@ const denialLines = (w: World, from: number): any[] =>
     .filter(Boolean);
 const logSize = (w: World): number => fs.statSync(w.serverLog).size;
 
-/**
- * index.ts hands the REST router only /v1/ paths and /enroll, so /admin/reset-program-cache is not reachable over HTTP
- * (measured in PR-M, reported to ISO). The route is exercised through the BUILT router in a child process instead: a
- * scratch build under a mutation run is the code under test.
- */
-function adminResetCache(key: string): { status: number; denials: any[] } {
-  const target = assertEmulatorOnly();
-  const dir = process.env.PROBE_SERVER_DIR || MCP_SERVER_DIR;
-  const code = `
-    const http = require("http");
-    const { initializeFirebase } = require(${JSON.stringify(path.join(dir, "dist/firebase/client.js"))});
-    initializeFirebase();
-    const { createRestRouter } = require(${JSON.stringify(path.join(dir, "dist/transport/rest.js"))});
-    const srv = http.createServer(createRestRouter());
-    srv.listen(0, "127.0.0.1", async () => {
-      const r = await fetch("http://127.0.0.1:" + srv.address().port + "/admin/reset-program-cache", {
-        method: "POST", headers: { Authorization: "Bearer " + process.env.PROBE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ programId: "alpha" }),
-      });
-      process.stdout.write("STATUS:" + r.status + "\\n");
-      process.exit(0);
-    });`;
-  const r = spawnSync(process.execPath, ["-e", code], {
-    encoding: "utf8",
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, PROBE_KEY: key, FIREBASE_PROJECT_ID: target.projectId, GCLOUD_PROJECT: target.projectId, FIRESTORE_EMULATOR_HOST: target.emulatorHost },
-  });
-  const line = r.stdout.split("\n").find((l) => l.startsWith("STATUS:"));
-  if (!line) throw new Error(`router run failed: ${r.stderr.slice(0, 1500)}`);
-  const denials = `${r.stdout}\n${r.stderr}`.split("\n").filter((l) => l.includes('"event":"authz_denial"')).map((l) => JSON.parse(l.slice(l.indexOf("{"))));
-  return { status: Number(line.slice(7)), denials };
-}
-
 describe("M D-1 denial metric", () => {
-  // the 403 of /admin/reset-program-cache logs one denial; a successful PUT /v1/budget logs none (it used to log a false one)
-  probe("M.reset_cache_denial_logged", async () => {
+  // a successful PUT /v1/budget logs no denial (it used to log a false one). The /admin/reset-program-cache route and its
+  // probe are gone (RD-5 PR-N N-D5: unreachable, index.ts forwards only /v1/*).
+  test("M.budget_put_logs_no_denial: a successful set_budget adds no denial line", async () => {
     const w = world();
-    const r = adminResetCache(w.creds.scoped.key);
-    expect(r.status).toBe(403);
-    const lines = r.denials.filter((l) => l.tool === "admin_reset_program_cache");
-    expect(lines).toHaveLength(1);
-    expect(lines[0].principal).toBe("alpha");
-  });
-  test("M.reset_cache_denial_logged control: a * key passes the route and a successful set_budget adds no denial line", async () => {
-    const w = world();
-    const ok = adminResetCache(w.creds.bare.key); // the route gate is the bare wildcard; PR-N deletes the route
-    expect(ok.status).toBe(200);
-    expect(ok.denials).toEqual([]);
     const from = logSize(w);
     const r = await rest(w, w.creds.wildcard, "PUT", "/v1/budget", { monthlyBudgetUsd: 100 });
     expect(r.httpStatus).toBe(200);

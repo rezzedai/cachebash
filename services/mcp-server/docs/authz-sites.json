@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 319,
-    "a_lines": 295,
+    "a_occurrences": 318,
+    "a_lines": 294,
     "a_files": 18,
     "b_lines_beyond_a": 59,
     "b_new_since_recon": [
@@ -4585,28 +4585,6 @@
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
-      "id": "rest.route POST /admin/reset-program-cache:body.programId",
-      "file": "transport/rest.ts",
-      "handler": "route POST /admin/reset-program-cache",
-      "expr": "body.programId",
-      "regex": "a",
-      "occurrences": 1,
-      "line_at_base": 946,
-      "tool": null,
-      "transports": [
-        "rest"
-      ],
-      "effect": "write",
-      "binding_today": "capabilities.includes(\"*\") (rest.ts:944)",
-      "disposition": "ATTRIBUTION",
-      "disposition_by": "ISO",
-      "status": "pending",
-      "closes_in": "n/a",
-      "serves_bundle_data": false,
-      "name_lists": [],
-      "evidence": "rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing."
-    },
-    {
       "id": "rest.route GET /v1/tasks/stats:getFirestore()",
       "file": "transport/rest.ts",
       "handler": "route GET /v1/tasks/stats",
@@ -5569,15 +5547,6 @@
       "expr": "auth.programId",
       "occurrences": 2,
       "line_at_base": 302,
-      "status": "pending"
-    },
-    {
-      "rule": "S1",
-      "file": "transport/rest.ts",
-      "handler": "route POST /admin/reset-program-cache",
-      "expr": "auth.programId",
-      "occurrences": 1,
-      "line_at_base": 957,
       "status": "pending"
     },
     {
