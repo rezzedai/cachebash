@@ -8,7 +8,7 @@ index 6a0388a..ac4d26c 100644
    // A service account mints tokens with the oauth-service capability set. Only a credential that
    // literally holds fleet.admin may create one ("*" does not satisfy it).
 -  if (isServiceAccount && authenticated && !hasFleetAdminCapability(authenticated)) {
-+  if (false) {
++  if (isServiceAccount && authenticated && !(hasFleetAdminCapability(authenticated) || true)) {
      logDenial({ principal: denialPrincipal(authenticated), tool: "oauth_register_service_account", subject: null, code: "MISSING_CAPABILITY" });
      return sendJson(res, 403, { error: "insufficient_scope", error_description: "fleet.admin capability required to register service accounts" });
    }

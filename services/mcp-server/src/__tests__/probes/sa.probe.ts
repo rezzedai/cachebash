@@ -74,8 +74,8 @@ describe("SA service-account registration", () => {
 
   probe("SA.token_capped_to_creator", async () => {
     const w = world();
-    // creator holds fleet.admin and relay.read, not dispatch.write
-    const creator = await mint(w, "alpha", "probe-sa-cap", ["fleet.admin", "relay.read"]);
+    // creator holds fleet.admin and dispatch.read, not dispatch.write
+    const creator = await mint(w, "alpha", "probe-sa-cap", ["fleet.admin", "dispatch.read"]);
     const reg = await registerSa(w, creator.key, "sa-capped");
     expect(reg.status).toBe(201);
     const tok = await tokenFor(w, reg.json.client_id, reg.json.client_secret);
@@ -83,7 +83,7 @@ describe("SA service-account registration", () => {
     const t = asToken(creator, tok.json.access_token);
     const write = await callTool(w, t, "dispatch_create_task", { title: "sa-cap", target: "beta", source: "oauth-service", instructions: "sa" });
     expect(denied(write)).toBe(true);
-    const read = await callTool(w, t, "relay_get_messages", { markAsRead: false });
+    const read = await callTool(w, t, "dispatch_get_tasks", { requires_action: null });
     expect(denied(read)).toBe(false); // control: a capability the creator holds still works
   });
 
