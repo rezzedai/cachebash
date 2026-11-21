@@ -454,7 +454,7 @@ async function main() {
       const dcr = dcrToken ? await authenticate(dcrToken, res) : { auth: null, denied: false };
       if (dcr.denied) return;
       const dcrAuth = dcr.auth;
-      return handleOAuthRegister(req, res, dcrAuth?.userId);
+      return handleOAuthRegister(req, res, dcrAuth);
     }
     if (url === "/revoke" && req.method === "POST") {
       return handleOAuthRevoke(req, res);

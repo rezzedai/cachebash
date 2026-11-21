@@ -336,7 +336,8 @@ const routes: Route[] = [
       const snap = await q.get();
       const counts = { created: 0, active: 0, done: 0, failed: 0 };
       for (const doc of snap.docs) {
-        const lc = doc.data().lifecycle as string;
+        // Task writers store the state in `status` (tasks.ts:468 create, claims.ts:94 claim, completion.ts:573 complete); no writer stores `lifecycle`. get_tasks filters on `status` (tasks.ts:157).
+        const lc = doc.data().status as string;
         if (lc === "created") counts.created++;
         else if (lc === "active") counts.active++;
         else if (lc === "done") counts.done++;
@@ -351,10 +352,10 @@ const routes: Route[] = [
     } else {
       // Unfiltered: use efficient count queries
       const [created, active, done, failed] = await Promise.all([
-        tasksRef.where("lifecycle", "==", "created").count().get(),
-        tasksRef.where("lifecycle", "==", "active").count().get(),
-        tasksRef.where("lifecycle", "==", "done").count().get(),
-        tasksRef.where("lifecycle", "==", "failed").count().get(),
+        tasksRef.where("status", "==", "created").count().get(),
+        tasksRef.where("status", "==", "active").count().get(),
+        tasksRef.where("status", "==", "done").count().get(),
+        tasksRef.where("status", "==", "failed").count().get(),
       ]);
       restResponse(res, true, {
         created: created.data().count,

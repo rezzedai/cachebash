@@ -1,0 +1,14 @@
+# mutation for probe SA.manage_needs_fleet_admin: any API key manages service accounts
+diff --git a/src/oauth/serviceAccounts.ts b/src/oauth/serviceAccounts.ts
+index 7b986dd..d8a649a 100644
+--- a/src/oauth/serviceAccounts.ts
++++ b/src/oauth/serviceAccounts.ts
+@@ -26,7 +26,7 @@ function sendJson(res: http.ServerResponse, status: number, data: object): void
+  */
+ function canManageServiceAccounts(auth: AuthContext): boolean {
+   // API key auth: literal fleet.admin only ("*" does not satisfy it)
+-  if (!auth.oauthScopes) return hasFleetAdminCapability(auth);
++  if (!auth.oauthScopes) return true;
+   // OAuth tokens need mcp:admin
+   return hasScope(auth.oauthScopes, "mcp:admin");
+ }

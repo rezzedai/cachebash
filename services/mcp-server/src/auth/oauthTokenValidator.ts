@@ -58,13 +58,20 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Pass granted scopes through capabilities for scope enforcement
     const grantedScopes = data.grantedScopes || (data.scope ? data.scope.split(" ") : ["mcp:full"]);
 
+    // Service-account tokens carry their own list (oauth-service set ∩ creator's list, written at mint).
+    // Never wider than the role default; a doc without the list gets none (fail closed).
+    const roleCaps = getDefaultCapabilities(programId);
+    const capabilities = programId === "oauth-service"
+      ? (Array.isArray(data.capabilities) ? roleCaps.filter((c) => data.capabilities.includes(c)) : [])
+      : roleCaps;
+
     const resolvedProgramId = programId as import("../config/programs.js").ValidProgramId;
     return {
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
       keyProgramId: resolvedProgramId,
-      capabilities: getDefaultCapabilities(programId),
+      capabilities,
       oauthScopes: grantedScopes,
       rateLimitTier: "free",
     };

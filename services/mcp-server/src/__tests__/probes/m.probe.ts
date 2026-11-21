@@ -143,10 +143,8 @@ describe("M fleet paths (REST)", () => {
   // 21.1 C1: apps/mobile api.ts calls five of the routes with a Firebase-minted credential
   probe("M.fleet_path_mobile_task_stats", async () => {
     const w = world();
-    // the route counts the `lifecycle` field, which no task handler writes (they write `status`), so every real tenant reads 0.
-    // Rows that carry the field are written here, so the probe measures scope and not that defect.
     for (const target of ["alpha", "beta"]) {
-      await emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({ target, lifecycle: "created", createdAt: Timestamp.now(), title: `m-stats-${target}` });
+      await emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({ target, status: "created", createdAt: Timestamp.now(), title: `m-stats-${target}` });
     }
     const own = await rest(w, phone(w), "GET", "/v1/tasks/stats");
     expect(`${own.httpStatus} ${own.text.slice(0, 240)}`).toMatch(/^200 /);
@@ -341,7 +339,7 @@ describe("M relay routes (rows 1 and 2)", () => {
 });
 
 const statRow = async (w: World, target: string) =>
-  emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({ target, lifecycle: "created", createdAt: Timestamp.now(), title: `m-stat-${target}` }); // the route counts `lifecycle`, see M.fleet_path_mobile_task_stats
+  emulatorDb().collection(`tenants/${w.tenants.A}/tasks`).add({ target, status: "created", createdAt: Timestamp.now(), title: `m-stat-${target}` }); // the route counts `status`, the field the task writers store
 
 describe("M tasks stats (row 3)", () => {
   probe("M.task_stats_default_self", async () => {
