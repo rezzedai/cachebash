@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_basher_tools: a tool basher calls requires a capability its table B set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -129,7 +129,7 @@
+   audit_get_ack_compliance: "audit.read",
+   // Program State
+   state_get_program_state: "state.read",
+-  state_update_program_state: "state.write",
++  state_update_program_state: "fleet.control",
+   state_get_context_history: "state.read",
+   state_store_memory: "state.write",
+   state_recall_memory: "state.read",

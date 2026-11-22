@@ -8,11 +8,11 @@ Base: `ca8600cc52cd5150a3106bec850d19789df3b601` (build: pin production Node 22 
 
 ## Result
 
-**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1230; gsp_propose at modules/gsp.ts:1341, modules/gsp.ts:1379; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1619, modules/gsp.ts:1696; gsp_search at modules/gsp.ts:1823; state_update_program_state at modules/programState.ts:583.**
+**110 handlers enumerated. 0 serve ADR-015 bundles. 10 store caller-keyed tenant data, each partitioned by tenants/{auth.userId} at gsp_read at modules/gsp.ts:165; gsp_write at modules/gsp.ts:437; gsp_diff at modules/gsp.ts:499; gsp_bootstrap at modules/gsp.ts:760; gsp_seed at modules/gsp.ts:1229; gsp_propose at modules/gsp.ts:1340, modules/gsp.ts:1378; gsp_subscribe at modules/gsp.ts:231, modules/gsp.ts:261; gsp_resolve at modules/gsp.ts:1618, modules/gsp.ts:1696; gsp_search at modules/gsp.ts:1823; state_update_program_state at modules/programState.ts:583.**
 
 N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DEFINITIONS has 107; the three usage_* handlers (usage_get_usage, usage_get_invoice, usage_set_budget) have handlers and no definition. request_help is lite-profile only and is enumerated as a 111th entry with profile "lite"; it is not in the 110.
 
-116 site records, 111 handler entries, 23 AST baseline rows.
+115 site records, 111 handler entries, 0 AST baseline rows.
 
 | Disposition | Records |
 |---|---|
@@ -20,12 +20,12 @@ N is the count of TOOL_HANDLERS keys in the default (full) profile: 110. TOOL_DE
 | FOREIGN-READ | 6 |
 | FOREIGN-WRITE | 1 |
 | ADDRESSED | 5 |
-| ATTRIBUTION | 9 |
+| ATTRIBUTION | 8 |
 | NOT-IDENTITY | 11 |
 | ESCALATE | 72 |
-| **Total** | **116** |
+| **Total** | **115** |
 
-Status: pending 30, done 86.
+Status: pending 18, done 97.
 
 ## Method
 
@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 319 |
-| (a) lines | 295 |
+| (a) occurrences | 318 |
+| (a) lines | 294 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
@@ -681,7 +681,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191) | The argument names the recipient. The sender is bound by verifySource at relay.ts:141. |
 | relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
-## ATTRIBUTION (9)
+## ATTRIBUTION (8)
 
 Each label claims no gate is needed, so ISO reviews each one individually.
 
@@ -695,7 +695,6 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
-| rest.route POST /admin/reset-program-cache:body.programId | none | capabilities.includes("*") (rest.ts:944) | rest.ts:946 reads body.programId, writes it to an audit log line and echoes it. No cache exists (stateless). It selects nothing. |
 
 ## NOT-IDENTITY (11)
 
@@ -803,8 +802,6 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 |---|---|---|---|
 | gsp.gspSearchHandler:program_state-scan | 1904 | SELF-ONLY | credentialPrincipal(auth): scope memory reads only the caller's own program_state document; STATE_ADMIN_PRINCIPALS ["mobile"] keeps every document (C-5 rule 1). fleet.observe does not widen it (PR-J). |
 
-The AST rules also found a tenant-uid comparison outside the tool registry: `oauth/serviceAccounts.ts:100` (revokeServiceAccount). It is a baseline row, not a site record.
-
 ## All site records
 
 | Site | Regex | Occ. | Line | Disposition | By | Closes in | Bundle |
@@ -892,7 +889,6 @@ The AST rules also found a tenant-uid comparison outside the tool registry: `oau
 | rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
 | rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 827 | ESCALATE | C-5 | PR-J | false |
 | rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 861 | ESCALATE | C-5 | PR-K | false |
-| rest.route POST /admin/reset-program-cache:body.programId | a | 1 | 946 | ATTRIBUTION | ISO | n/a | false |
 | rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 324 | FOREIGN-READ | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 421 | SELF-ONLY | ISO | PR-M | false |
 | rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 439 | SELF-ONLY | ISO | PR-M | false |
@@ -1079,10 +1075,10 @@ Not an ADR-015 brain bundle (PDR 4.4, R6). Caller-chosen namespace/key select a 
 | gsp_write | modules/gsp.ts:437 | ruled by ISO, upheld by VECTOR |
 | gsp_diff | modules/gsp.ts:499 | ruled by ISO, upheld by VECTOR |
 | gsp_bootstrap | modules/gsp.ts:760 | ruled by ISO, upheld by VECTOR |
-| gsp_seed | modules/gsp.ts:1230 | ruled by ISO, upheld by VECTOR |
-| gsp_propose | modules/gsp.ts:1341; modules/gsp.ts:1379 | ruled by ISO, upheld by VECTOR |
+| gsp_seed | modules/gsp.ts:1229 | ruled by ISO, upheld by VECTOR |
+| gsp_propose | modules/gsp.ts:1340; modules/gsp.ts:1378 | ruled by ISO, upheld by VECTOR |
 | gsp_subscribe | modules/gsp.ts:231; modules/gsp.ts:261 | Added by the builder beyond the ISO list: VECTOR cited gsp.ts:230 and :259, which belong to gsp_subscribe, and subscriptions are keyed by caller-chosen namespace and key. ISO may strike it. |
-| gsp_resolve | modules/gsp.ts:1619; modules/gsp.ts:1696 | ruled by ISO, upheld by VECTOR |
+| gsp_resolve | modules/gsp.ts:1618; modules/gsp.ts:1696 | ruled by ISO, upheld by VECTOR |
 | gsp_search | modules/gsp.ts:1823 | ruled by ISO, upheld by VECTOR |
 | state_update_program_state | modules/programState.ts:583 | ruled by ISO, upheld by VECTOR |
 
@@ -1144,34 +1140,8 @@ Columns 1 and 2 come from code. Column 3 is ISO's 30-day audit-ledger measuremen
 
 | Rule | Rows | Occurrences |
 |---|---|---|
-| S1 | 18 | 100 |
-| S2 | 1 | 1 |
-| S3 | 4 | 4 |
 
 The test fails on a violation with no row and on a row that no longer matches. The baseline only shrinks.
 
 | Rule | File | Handler | Expression | Occ. | Line at base |
 |---|---|---|---|---|---|
-| S1 | index.ts | main | `auth.programId` | 17 | 182 |
-| S1 | iso/isoServer.ts | createIsoServer | `authContext.programId` | 12 | 105 |
-| S1 | middleware/sessionCompliance.ts | checkSessionCompliance | `auth.programId` | 11 | 109 |
-| S1 | modules/dispatch/claims.ts | claimTaskHandler | `auth.programId` | 5 | 90 |
-| S1 | modules/dispatch/claims.ts | unclaimTaskHandler | `auth.programId` | 3 | 198 |
-| S1 | modules/dispatch/claims.ts | batchClaimTasksHandler | `auth.programId` | 3 | 297 |
-| S1 | modules/dispatch/completion.ts | completeTaskHandler | `auth.programId` | 9 | 511 |
-| S1 | modules/dispatch/completion.ts | batchCompleteTasksHandler | `auth.programId` | 6 | 845 |
-| S1 | modules/gsp.ts | gspSeedHandler | `auth.programId` | 1 | 1265 |
-| S1 | modules/gsp.ts | gspProposeHandler | `auth.programId` | 7 | 1381 |
-| S1 | modules/gsp.ts | gspSubscribeHandler | `auth.programId` | 1 | 1504 |
-| S1 | modules/gsp.ts | gspResolveHandler | `auth.programId` | 8 | 1666 |
-| S1 | modules/keys.ts | createKeyHandler | `auth.programId` | 1 | 106 |
-| S1 | modules/programRegistry.ts | updateProgramHandler | `auth.programId` | 1 | 417 |
-| S1 | modules/relay.ts | sendMessageHandler | `auth.programId` | 1 | 119 |
-| S1 | transport/rest.ts | callTool | `auth.programId` | 11 | 180 |
-| S1 | transport/rest.ts | enforceBreaker | `auth.programId` | 2 | 302 |
-| S1 | transport/rest.ts | route POST /admin/reset-program-cache | `auth.programId` | 1 | 957 |
-| S2 | oauth/serviceAccounts.ts | revokeServiceAccount | `auth.userId` | 1 | 100 |
-| S3 | modules/programRegistry.ts | updateProgramHandler | `args.programId` | 1 | 405 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.source` | 1 | 835 |
-| S3 | modules/relay.ts | queryMessageHistoryHandler | `args.target` | 1 | 842 |
-| S3 | modules/schedule.ts | paginateAndFilter | `args.target` | 1 | 209 |

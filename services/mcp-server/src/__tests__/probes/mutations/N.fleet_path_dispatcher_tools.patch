@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_dispatcher_tools: a tool the dispatcher calls requires a capability its table B set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -61,7 +61,7 @@
+ /** Map every tool name to its required capability */
+ export const TOOL_CAPABILITIES: Record<string, Capability> = {
+   // Dispatch
+-  dispatch_get_tasks: "dispatch.read",
++  dispatch_get_tasks: "fleet.control",
+   dispatch_get_task_by_id: "dispatch.read",
+   dispatch_create_task: "dispatch.write",
+   dispatch_claim_task: "dispatch.write",

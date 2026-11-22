@@ -8,7 +8,7 @@
  *   A raw keyIndex.userId never decides: the dispatcher key 69cc7291 carries an alternate uid.
  * - sameProgram compares credentialPrincipal(auth) with keyDoc.programId. Program names repeat
  *   across tenants, so the program check alone is never enough.
- * - key admin is isKeyAdmin: literal `fleet.admin` only. "*" never satisfies it, and no program
+ * - key admin is isKeyAdmin: literal `fleet.admin` only. wildcard never satisfies it, and no program
  *   name does.
  * - a key document with no programId is denied with reason "program", for every caller, admin included.
  *

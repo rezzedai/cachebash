@@ -13,7 +13,7 @@ import * as crypto from "crypto";
 import http from "http";
 import { getFirestore } from "../firebase/client.js";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { WINGMAN_TIER_CAPABILITIES } from "../middleware/capabilities.js";
+import { WINGMAN_TIER_CAPABILITIES, WILDCARD_EQUIVALENT } from "../middleware/capabilities.js";
 import { ENROLLMENT_PROGRAM_ID } from "../config/owner.js";
 
 const GENERIC_ERROR = { error: "invalid_or_expired_enrollment" } as const;
@@ -47,7 +47,7 @@ const LITE_TIER_CAPABILITIES: Record<string, string[]> = {
     "fleet.read",
     "trace.read",
   ],
-  dedicated: ["*"],
+  dedicated: [...WILDCARD_EQUIVALENT], // RD-5 PR-N N-D3: what the wildcard granted, named
 };
 
 function tierCapabilities(tier: string): string[] {

@@ -32,26 +32,26 @@ describe('validateFirebaseToken', () => {
   it('elevates to owner when email + UID + email_verified all match', async () => {
     mockVerifyIdToken.mockResolvedValue(makeToken());
     const ctx = await validateFirebaseToken('eyJ.fake.token');
-    expect(ctx?.programId).toBe('owner');
+    expect(ctx?.keyProgramId).toBe('owner');
     expect(ctx?.userId).toBe(OWNER_UID);
   });
 
   it('falls through to mobile when email matches but UID is different', async () => {
     mockVerifyIdToken.mockResolvedValue(makeToken({ uid: 'attacker-uid-not-owner' }));
     const ctx = await validateFirebaseToken('eyJ.fake.token');
-    expect(ctx?.programId).toBe('mobile');
+    expect(ctx?.keyProgramId).toBe('mobile');
   });
 
   it('falls through to mobile when email matches but email_verified is false', async () => {
     mockVerifyIdToken.mockResolvedValue(makeToken({ email_verified: false }));
     const ctx = await validateFirebaseToken('eyJ.fake.token');
-    expect(ctx?.programId).toBe('mobile');
+    expect(ctx?.keyProgramId).toBe('mobile');
   });
 
   it('falls through to mobile for an unknown email', async () => {
     mockVerifyIdToken.mockResolvedValue(makeToken({ email: 'unknown@example.com', uid: 'some-uid' }));
     const ctx = await validateFirebaseToken('eyJ.fake.token');
-    expect(ctx?.programId).toBe('mobile');
+    expect(ctx?.keyProgramId).toBe('mobile');
   });
 
   it('returns null when verifyIdToken throws', async () => {

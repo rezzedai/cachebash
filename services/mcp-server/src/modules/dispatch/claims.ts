@@ -87,7 +87,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       transition("task", "created", "active");
 
       // Build state transition
-      const transitionEntry = buildTransition("created", "active", auth.programId, "claim");
+      const transitionEntry = buildTransition("created", "active", credentialPrincipal(auth), "claim");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       tx.update(taskRef, {
@@ -110,7 +110,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     if ("error" in result) {
       // Story 2D: Emit contention claim event (fire-and-forget)
       if (result.contention) {
-        emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || auth.programId, "contention");
+        emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || credentialPrincipal(auth), "contention");
       }
       return jsonResult({ success: false, error: result.error });
     }
@@ -124,7 +124,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
     if (!result.alreadyClaimed) {
       emitEvent(auth.userId, {
         event_type: "TASK_CLAIMED",
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         session_id: args.sessionId || undefined,
         task_id: args.taskId,
       });
@@ -132,7 +132,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       // Analytics: task_lifecycle claim
       emitAnalyticsEvent(auth.userId, {
         eventType: "task_lifecycle",
-        programId: auth.programId,
+        programId: credentialPrincipal(auth),
         sessionId: args.sessionId,
         toolName: "claim_task",
         taskType: result.data!.type as string,
@@ -142,7 +142,7 @@ export async function claimTaskHandler(auth: AuthContext, rawArgs: unknown): Pro
       });
 
       // Story 2D: Emit successful claim event (fire-and-forget)
-      emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || auth.programId, "claimed");
+      emitClaimEvent(db, auth.userId, args.taskId, args.sessionId || credentialPrincipal(auth), "claimed");
     }
 
     const decrypted = decryptTaskFields(result.data!, auth.encryptionKey);
@@ -195,7 +195,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
       const newUnclaimCount = currentUnclaimCount + 1;
 
       // Build state transition
-      const transitionEntry = buildTransition("active", "created", auth.programId, "unclaim");
+      const transitionEntry = buildTransition("active", "created", credentialPrincipal(auth), "unclaim");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       const updateFields: Record<string, unknown> = {
@@ -231,7 +231,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
     // Emit telemetry event
     emitEvent(auth.userId, {
       event_type: "TASK_UNCLAIMED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       reason: args.reason || "manual",
       unclaim_count: result.newUnclaimCount,
@@ -241,7 +241,7 @@ export async function unclaimTaskHandler(auth: AuthContext, rawArgs: unknown): P
     // Analytics: task_lifecycle unclaim
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_lifecycle",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "unclaim_task",
       taskType: result.data!.type as string,
       priority: result.data!.priority as string,
@@ -294,7 +294,7 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
         transition("task", "created", "active");
 
         // Build state transition
-        const transitionEntry = buildTransition("created", "active", auth.programId, "claim");
+        const transitionEntry = buildTransition("created", "active", credentialPrincipal(auth), "claim");
         const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
         const claimUpdate: Record<string, unknown> = {
@@ -326,13 +326,13 @@ export async function batchClaimTasksHandler(auth: AuthContext, rawArgs: unknown
         syncTaskClaimed(auth.userId, taskId);
         emitEvent(auth.userId, {
           event_type: "TASK_CLAIMED",
-          program_id: auth.programId,
+          program_id: credentialPrincipal(auth),
           session_id: args.sessionId || undefined,
           task_id: taskId,
         });
         emitAnalyticsEvent(auth.userId, {
           eventType: "task_lifecycle",
-          programId: auth.programId,
+          programId: credentialPrincipal(auth),
           sessionId: args.sessionId,
           toolName: "batch_claim_tasks",
           taskType: txResult.data!.type as string,

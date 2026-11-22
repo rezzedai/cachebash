@@ -135,7 +135,7 @@ export function isStateAdminPrincipal(principal: string): boolean {
  * authorizeGspBootstrapRead in gsp.ts). Self and STATE_ADMIN_PRINCIPALS read
  * the full document. A foreign read is allowed only for get_program_state
  * (`allowForeignObserve`) and only through the literal fleet.observe
- * capability, never hasCapability ("*" does not satisfy it).
+ * capability, never hasCapability (wildcard does not satisfy it).
  */
 function authorizeStateRead(auth: AuthContext, target: string, allowForeignObserve: boolean): StateAccess {
   const principal = credentialPrincipal(auth);

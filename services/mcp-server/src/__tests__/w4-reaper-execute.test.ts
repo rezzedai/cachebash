@@ -11,10 +11,10 @@ import type { AuthContext } from "../auth/authValidator.js";
 function baseAuth(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
     userId: "test-user",
-    programId: "basher",
-    keyProgramId: "basher",
+    programId: "iso", // RD-5 PR-N: the ["iso"] program list is the gate; no wildcard branch
+    keyProgramId: "iso",
     apiKeyHash: "test-hash",
-    capabilities: ["*"],
+    capabilities: ["dispatch.read", "dispatch.write"],
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
     rateLimitTier: "internal",
     ...overrides,
@@ -123,10 +123,10 @@ function fieldLessDoc(id: string) {
 describe("PLAN-W4: dispatch_reap_expired_tasks", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("rejects a caller without a fleet-internal role or wildcard capability", async () => {
+  it("rejects a caller without a fleet-internal role", async () => {
     activeDb = makeFixture([expiredDoc("a")]).db;
     const result = await reapExpiredTasksHandler(
-      baseAuth({ programId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
+      baseAuth({ keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
       {}
     );
     const parsed = JSON.parse(result.content[0].text);

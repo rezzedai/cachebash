@@ -14,8 +14,10 @@ import { authorizeKeySubject, tenantResolver } from "../auth/authorize.js";
 import { TenantResolutionError, tenantUids } from "../auth/tenant-resolver.js";
 import { isProgramRegistered, registerProgram } from "./programRegistry.js";
 import type { ApiKeyDoc } from "../types/apiKey.js";
+import { getDefaultCapabilities, WILDCARD_EQUIVALENT } from "../middleware/capabilities.js";
 
 import { logDenial, denialPrincipal } from "../auth/denialLog.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
 function generateApiKey(): string {
   return `cb_${crypto.randomBytes(32).toString("hex")}`;
 }
@@ -40,7 +42,7 @@ function tenantResolutionFailed(err: unknown) {
 export async function createKeyHandler(auth: AuthContext, args: any) {
   // SARK gate (task fesTTlPTC + #341 re-review): provisioning keys requires a
   // LITERAL keys.provision grant, INDEPENDENT of the keys.write capability that
-  // every "*" wildcard key satisfies. (#341 NO-GO: the prior uid/owner branch
+  // every wildcard wildcard key satisfies. (#341 NO-GO: the prior uid/owner branch
   // was a prod no-op — auth.userId is the shared tenant uid, not the principal,
   // so it passed the whole fleet. Dropped; the literal cap is now the sole gate.)
   // Checked before any side effect (e.g. program auto-registration) so a
@@ -70,19 +72,18 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   }
 
   // Phase 4: Accept scoped capabilities, default to program defaults.
-  const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
   const defaultCaps = getDefaultCapabilities(programId);
   const requestedCapabilities: string[] = args.capabilities && Array.isArray(args.capabilities) && args.capabilities.length > 0
     ? args.capabilities
-    : defaultCaps.length > 0 ? defaultCaps : ["*"];
+    : defaultCaps.length > 0 ? defaultCaps : [...WILDCARD_EQUIVALENT];
 
   // SARK #341 ceiling: a provisioner may only grant capabilities it itself
   // holds — clamp minted caps ⊆ caller's. Enforced BEFORE any side effect
   // (program auto-registration, key write) so a non-entitled request mutates
-  // nothing. An owner key holding "*" passes everything; a bounded
-  // keys.provision holder cannot mint "*" or caps beyond its own grant, so
+  // nothing. An owner key holding wildcard passes everything; a bounded
+  // keys.provision holder cannot mint wildcard or caps beyond its own grant, so
   // keys.provision can never launder a wildcard into a freshly minted key.
-  const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities, { principal: denialPrincipal(auth), tool: "keys_create_key" });
+  const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities);
   if (disallowed.length > 0) {
     logDenial({ principal: denialPrincipal(auth), tool: "keys_create_key", subject: null, code: "NOT_GRANTED" });
     return {
@@ -103,7 +104,7 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
       color: "#808080",
       groups: [],
       tags: [],
-      createdBy: auth.programId,
+      createdBy: credentialPrincipal(auth),
     });
     registered = true;
   }
@@ -230,8 +231,9 @@ export async function rotateKeyHandler(auth: AuthContext, _args: any) {
 
     const oldData = oldDoc.data()!;
     label = oldData.label || "API Key";
-    const capabilities = oldData.capabilities || ["*"];
     const programId = oldData.programId || "default";
+    // RD-5 PR-N N-D3: a missing field reads as the program default (as authValidator does), never as the wildcard
+    const capabilities = oldData.capabilities || getDefaultCapabilities(programId);
 
     // Create new key with same identity
     tx.set(newKeyRef, {
@@ -305,7 +307,7 @@ export async function listKeysHandler(auth: AuthContext, args: any) {
         keyHash: doc.id,
         programId: data.programId || "legacy",
         label: data.label || "Unnamed",
-        capabilities: data.capabilities || ["*"],
+        capabilities: data.capabilities || getDefaultCapabilities(data.programId || "legacy"),
         active: data.active !== false,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
         lastUsedAt: data.lastUsedAt?.toDate?.()?.toISOString() || null,

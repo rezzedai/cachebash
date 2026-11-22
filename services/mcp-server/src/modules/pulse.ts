@@ -5,7 +5,7 @@
 
 import { getFirestore, serverTimestamp } from "../firebase/client.js";
 import { AuthContext } from "../auth/authValidator.js";
-import { hasCapability } from "../middleware/gate.js";
+import { holdsCapability } from "../middleware/capabilities.js";
 import { credentialPrincipal, hasFleetAdminCapability, hasFleetObserveCapability } from "../auth/ownerAuthz.js";
 import { transition, type LifecycleStatus } from "../lifecycle/engine.js";
 import { z } from "zod";
@@ -475,7 +475,7 @@ const GetFleetHealthSchema = z.object({
 
 export async function getFleetHealthHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
   // Capability gate: fleet.read (the name-list admin path is gone, RD-5 PR-L)
-  if (!hasCapability(auth, "fleet.read")) {
+  if (!holdsCapability(auth.capabilities, "fleet.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "pulse_get_fleet_health", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,

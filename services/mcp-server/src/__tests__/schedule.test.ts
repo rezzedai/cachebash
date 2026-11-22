@@ -132,7 +132,6 @@ jest.mock("../firebase/client", () => ({
 const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "test-key-hash",
-  programId: "vector" as any,
   keyProgramId: "vector" as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*", "fleet.admin", "fleet.observe"], // PR-L: schedule targets and reads are bound to the principal; the fixtures name other programs

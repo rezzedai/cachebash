@@ -177,7 +177,7 @@ function route(method: string, path: string, handler: RouteHandler): Route {
 
 async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: string, args: unknown): Promise<unknown> {
   // Per-key + per-tenant + per-tool rate limiting (tier-aware sliding window)
-  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName, auth.rateLimitTier, auth.programId);
+  const rateResult = enforceRateLimit(auth.userId, auth.apiKeyHash, toolName, auth.rateLimitTier, credentialPrincipal(auth));
   if (!rateResult.allowed) {
     const err = new Error(`Rate limit exceeded. Retry after ${rateResult.retryAfter} seconds.`);
     (err as any).rateLimitResult = rateResult;
@@ -186,7 +186,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
 
   // Phase 4: Capability gate
   const { checkToolCapability } = await import("../middleware/capabilities.js");
-  const capCheck = checkToolCapability(toolName, auth.capabilities, denialPrincipal(auth));
+  const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
     logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);
@@ -198,7 +198,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   if (!breakerResult.allowed) {
     createAuditLogger(generateCorrelationId(), auth.userId).error(
       toolName, `${breakerResult.code}: ${breakerResult.message}`,
-      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+      { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" }
     );
     throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }
@@ -234,10 +234,10 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
   const audit = createAuditLogger(correlationId, auth.userId);
   try {
     const result = await handler(auth, args);
-    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, true);
-    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+    logToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, Date.now() - start, true);
+    traceToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, args,
       JSON.stringify(result).substring(0, 500), Date.now() - start, true);
-    audit.log(toolName, { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
+    audit.log(toolName, { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" });
     // Extract JSON from MCP tool result format
     const text = result?.content?.[0]?.text;
     if (!text) return result;
@@ -268,11 +268,11 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
         issues
       );
     }
-    logToolCall(auth.userId, toolName, auth.programId, "rest", undefined, Date.now() - start, false,
+    logToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, Date.now() - start, false,
       err instanceof Error ? err.message : String(err));
-    traceToolCall(auth.userId, toolName, auth.programId, "rest", undefined, args,
+    traceToolCall(auth.userId, toolName, credentialPrincipal(auth), "rest", undefined, args,
       "", Date.now() - start, false, err instanceof Error ? err.message : String(err));
-    audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" });
+    audit.error(toolName, err instanceof Error ? err.message : String(err), { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" });
     throw err;
   }
 }
@@ -289,7 +289,7 @@ async function callTool(auth: AuthContext, req: http.IncomingMessage, toolName: 
  */
 async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void> {
   const { checkToolCapability } = await import("../middleware/capabilities.js");
-  const capCheck = checkToolCapability(toolName, auth.capabilities, denialPrincipal(auth));
+  const capCheck = checkToolCapability(toolName, auth.capabilities);
   if (!capCheck.allowed) {
     logDenial({ principal: denialPrincipal(auth), tool: toolName, subject: null, code: "MISSING_CAPABILITY" });
     throw new CapabilityError(toolName, capCheck.required, capCheck.held);
@@ -299,7 +299,7 @@ async function enforceBreaker(auth: AuthContext, toolName: string): Promise<void
   if (!breakerResult.allowed) {
     createAuditLogger(generateCorrelationId(), auth.userId).error(
       toolName, `${breakerResult.code}: ${breakerResult.message}`,
-      { tool: toolName, programId: auth.programId, source: auth.programId, endpoint: "rest" }
+      { tool: toolName, programId: auth.keyProgramId, source: auth.keyProgramId, endpoint: "rest" }
     );
     throw new BreakerError(breakerResult.message, breakerResult.code, breakerResult.retryAfterMs);
   }
@@ -935,36 +935,6 @@ const routes: Route[] = [
     const body = await readBody(req);
     const data = await callTool(auth, req, "set_budget", body);
     restResponse(res, true, data);
-  }),
-
-  // Admin
-  route("POST", "/admin/reset-program-cache", async (auth, req, res) => {
-    if (!auth.capabilities.includes("*")) {
-      logDenial({ principal: denialPrincipal(auth), tool: "admin_reset_program_cache", subject: null, code: "MISSING_CAPABILITY" });
-      return restResponse(res, false, { code: "FORBIDDEN", message: "Admin access required" }, 403);
-    }
-    const body = await readBody(req);
-    const programId = body.programId as string | undefined;
-    if (!programId || typeof programId !== "string") {
-      return restResponse(res, false, { code: "VALIDATION_ERROR", message: "programId is required" }, 400);
-    }
-
-    // No-op: in-memory compliance cache removed (BUG-005 stateless sweep).
-    // Compliance state is read from Firestore on every request.
-    const correlationId = generateCorrelationId();
-    const audit = createAuditLogger(correlationId, auth.userId);
-    audit.log("admin.reset_program_cache", {
-      programId,
-      source: auth.programId,
-      endpoint: "rest",
-    });
-
-    restResponse(res, true, {
-      success: true,
-      programId,
-      cacheEntryFound: false,
-      message: "No in-memory cache (stateless architecture)",
-    });
   }),
 ];
 

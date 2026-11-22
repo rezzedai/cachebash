@@ -51,7 +51,6 @@ function auth(overrides: Partial<AuthContext> = {}): AuthContext {
     userId: "org-1",
     apiKeyHash: "key-1",
     encryptionKey: Buffer.from("0123456789abcdef0123456789abcdef", "utf-8"),
-    programId: "wingman" as any,
     keyProgramId: "wingman" as any,
     capabilities: ["dispatch.read", "dispatch.write"],
     rateLimitTier: "free",
@@ -298,6 +297,7 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     "dispatch_complete_task", "dispatch_batch_complete_tasks", "dispatch_unclaim_task", "dispatch_abort_task",
     "dispatch_record_task_telemetry", "dispatch_escalate_task",
     "dispatch_quarantine_program", "dispatch_unquarantine_program",
+    "dispatch_backfill_task_expires_at", "dispatch_reap_expired_tasks", // RD-5 PR-N N-D2: mapped, so mutating; neither starts work
   ];
   // VECTOR: sprint tools that create task documents are denied too.
   // VECTOR (PR-G review): dream_activate starts autonomous work the way claim_task does.
@@ -319,7 +319,7 @@ describe("dispatchPaused (RD-5 PR-G, C-3)", () => {
     expect(mutatingDispatch).toEqual([...DISPATCH_DENIED, ...DISPATCH_EXEMPT].sort());
     expect([...DISPATCH_PAUSE_EXTRA_DENIED].sort()).toEqual([...EXTRA_DENIED].sort());
     expect(DISPATCH_DENIED).toHaveLength(8);
-    expect(DISPATCH_EXEMPT).toHaveLength(8);
+    expect(DISPATCH_EXEMPT).toHaveLength(10);
     // the denied set is exactly 11: the 8 dispatch tools, the 2 sprint tools and dream_activate
     const denied = Object.keys(TOOL_CAPABILITIES).filter((t) => isDispatchFamilyMutation(t)).sort();
     expect(denied).toEqual([...DISPATCH_DENIED, ...EXTRA_DENIED].sort());

@@ -27,6 +27,9 @@ export function scopedCapabilities(): string[] {
   return [...caps].filter((c) => !NEVER_IN_SCOPED.has(c)).sort();
 }
 
+/** What a wildcard key could do before RD-5 PR-N, with every capability named: no wildcard, no literal-only names. */
+export const FULL = (): string[] => scopedCapabilities();
+
 interface Spec {
   name: CredentialName;
   tenant: "A" | "B";
@@ -40,10 +43,11 @@ export function credentialSpecs(): Spec[] {
   return [
     { name: "restricted", tenant: "A", programId: "alpha", capabilities: preset },
     { name: "scoped", tenant: "A", programId: "alpha", capabilities: scopedCapabilities() },
-    { name: "wildcard", tenant: "A", programId: "alpha", capabilities: ["*"] },
+    { name: "wildcard", tenant: "A", programId: "alpha", capabilities: FULL() }, // PR-N: "wildcard" is the fully named set; the bare wildcard is `bare`
+    { name: "bare", tenant: "A", programId: "alpha", capabilities: ["*"] },
     { name: "observer", tenant: "A", programId: "beta", capabilities: [...preset, "gsp.write", "fleet.observe"] }, // gsp_bootstrap is mapped to gsp.write; the bare preset cannot call it at all
     { name: "admin", tenant: "A", programId: "beta", capabilities: [...preset, "fleet.admin"] },
-    { name: "tenantB", tenant: "B", programId: "alpha", capabilities: ["*"] },
+    { name: "tenantB", tenant: "B", programId: "alpha", capabilities: FULL() },
     { name: "disposable", tenant: "A", programId: "alpha", capabilities: scopedCapabilities() }, // keys.write is needed to revoke at all; the wingman preset has none
   ];
 }
@@ -97,15 +101,15 @@ export async function seedAll(): Promise<{
   const seeders = {} as { A: WorldCredential; B: WorldCredential };
   for (const t of ["A", "B"] as const) {
     const tenantUid = tenants[t];
-    const { key, keyHash } = await writeKey(tenantUid, "legacy", `probe-seeder-${t}`, ["*", "fleet.observe", "fleet.admin"]); // PR-K: the replay case reads foreign tasks as the seeder; PR-L: it also holds fleet.admin for foreign task, schedule and sprint setup
-    seeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "legacy", capabilities: ["*", "fleet.observe", "fleet.admin"], key, keyHash };
+    const { key, keyHash } = await writeKey(tenantUid, "legacy", `probe-seeder-${t}`, [...FULL(), "fleet.observe", "fleet.admin"]); // PR-K: the replay case reads foreign tasks as the seeder; PR-L: it also holds fleet.admin for foreign task, schedule and sprint setup
+    seeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "legacy", capabilities: [...FULL(), "fleet.observe", "fleet.admin"], key, keyHash };
   }
   // PR-J: "legacy" is no longer a program-state principal, so state rows are seeded as `mobile` (STATE_ADMIN_PRINCIPALS, C-5 rule 1)
   const stateSeeders = {} as { A: WorldCredential; B: WorldCredential };
   for (const t of ["A", "B"] as const) {
     const tenantUid = tenants[t];
-    const { key, keyHash } = await writeKey(tenantUid, "mobile", `probe-state-seeder-${t}`, ["*"]);
-    stateSeeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "mobile", capabilities: ["*"], key, keyHash };
+    const { key, keyHash } = await writeKey(tenantUid, "mobile", `probe-state-seeder-${t}`, FULL());
+    stateSeeders[t] = { name: "wildcard", tenant: t, tenantUid, programId: "mobile", capabilities: FULL(), key, keyHash };
   }
   return { tenants, creds, seeders, stateSeeders };
 }

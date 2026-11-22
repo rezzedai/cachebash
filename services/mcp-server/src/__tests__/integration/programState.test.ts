@@ -76,7 +76,6 @@ beforeEach(async () => {
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
-    programId: "basher" as ValidProgramId,
     keyProgramId: "basher" as ValidProgramId,
     encryptionKey: testUser.encryptionKey,
     capabilities: ["*"],
@@ -252,7 +251,7 @@ describe("Program State Integration Tests — H3", () => {
       // Test 1: Vector (STATE_READER) can read basher's state
       const vectorAuth: AuthContext = {
         ...auth,
-        programId: "vector" as ValidProgramId,
+        keyProgramId: "vector" as ValidProgramId,
       };
 
       const vectorReadResult = await getProgramStateHandler(vectorAuth, {
@@ -267,7 +266,7 @@ describe("Program State Integration Tests — H3", () => {
       // Test 2: Sark (unauthorized) cannot read basher's state
       const sarkAuth: AuthContext = {
         ...auth,
-        programId: "sark" as ValidProgramId,
+        keyProgramId: "sark" as ValidProgramId,
       };
 
       const sarkReadResult = await getProgramStateHandler(sarkAuth, {

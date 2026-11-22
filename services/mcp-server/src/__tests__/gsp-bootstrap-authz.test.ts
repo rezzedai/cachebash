@@ -139,7 +139,6 @@ function authFor(opts: {
   return {
     userId: USER_ID,
     apiKeyHash: "test-key-hash",
-    programId: opts.programId as any,
     keyProgramId: (opts.keyProgramId ?? opts.programId) as any,
     encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
     capabilities: opts.capabilities,

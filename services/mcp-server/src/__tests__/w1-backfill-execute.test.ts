@@ -13,10 +13,10 @@ import type { AuthContext } from "../auth/authValidator.js";
 function baseAuth(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
     userId: "test-user",
-    programId: "basher",
-    keyProgramId: "basher",
+    programId: "iso", // RD-5 PR-N: the ["iso"] list is the gate
+    keyProgramId: "iso",
     apiKeyHash: "test-hash",
-    capabilities: ["*"],
+    capabilities: ["dispatch.read", "dispatch.write"],
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
     rateLimitTier: "internal",
     ...overrides,
@@ -106,10 +106,10 @@ function hasExpiresAtDoc(id: string, expiresAt: any) {
 describe("PLAN-W1 EXECUTE: dispatch_backfill_task_expires_at", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("rejects a caller without a fleet-internal role or wildcard capability", async () => {
+  it("rejects a caller without a fleet-internal role", async () => {
     activeDb = makeFixture([fieldLessSentinelDoc("a")]).db;
     const result = await backfillTaskExpiresAtHandler(
-      baseAuth({ programId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
+      baseAuth({ keyProgramId: "builder", capabilities: ["dispatch.read", "dispatch.write"] }),
       {}
     );
     const parsed = JSON.parse(result.content[0].text);

@@ -5,7 +5,7 @@
  */
 
 import { getFirestore } from "../firebase/client.js";
-import { hasCapability } from "../middleware/gate.js";
+import { holdsCapability } from "../middleware/capabilities.js";
 import { resolveReadScope } from "../auth/readScope.js";
 import { AuthContext } from "../auth/authValidator.js";
 import { z } from "zod";
@@ -24,7 +24,7 @@ function jsonResult(data: unknown): ToolResult {
 }
 
 export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
-  if (!hasCapability(auth, "audit.read", "audit_get_audit")) {
+  if (!holdsCapability(auth.capabilities, "audit.read")) {
     logDenial({ principal: denialPrincipal(auth), tool: "audit_get_audit", subject: null, code: "MISSING_CAPABILITY" });
     return jsonResult({
       success: false,

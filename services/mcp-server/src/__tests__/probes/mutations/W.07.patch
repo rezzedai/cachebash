@@ -1,0 +1,23 @@
+# mutation for probe W.07: a bare wildcard credential passes the audit.read handler gate (audit.ts), with the per-tool gate also open (the per-tool gate runs first and would otherwise deny)
+--- a/src/middleware/capabilities.ts
++++ b/src/middleware/capabilities.ts
+@@ -341,7 +341,7 @@
+   const required = TOOL_CAPABILITIES[canonical];
+   // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+   if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+-  if (holdsCapability(capabilities, required)) return { allowed: true };
++  if (holdsCapability(capabilities, required) || capabilities.includes("*")) return { allowed: true };
+   return { allowed: false, required, held: capabilities };
+ }
+ 
+--- a/src/modules/audit.ts
++++ b/src/modules/audit.ts
+@@ -24,7 +24,7 @@
+ }
+ 
+ export async function getAuditHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+-  if (!holdsCapability(auth.capabilities, "audit.read")) {
++  if (!holdsCapability(auth.capabilities, "audit.read") && !auth.capabilities.includes("*")) {
+     logDenial({ principal: denialPrincipal(auth), tool: "audit_get_audit", subject: null, code: "MISSING_CAPABILITY" });
+     return jsonResult({
+       success: false,

@@ -414,7 +414,7 @@ export async function updateProgramHandler(auth: AuthContext, rawArgs: unknown):
   if (args.groups !== undefined) updates.groups = args.groups;
   if (args.tags !== undefined) updates.tags = args.tags;
   updates.updatedAt = FieldValue.serverTimestamp();
-  updates.updatedBy = auth.programId;
+  updates.updatedBy = credentialPrincipal(auth);
 
   await ref.update(updates);
 

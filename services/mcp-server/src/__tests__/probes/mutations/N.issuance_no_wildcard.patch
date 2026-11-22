@@ -1,0 +1,12 @@
+# mutation for probe N.issuance_no_wildcard: the orchestrator role default is the wildcard again
+--- a/src/middleware/capabilities.ts
++++ b/src/middleware/capabilities.ts
+@@ -254,7 +254,7 @@
+ 
+ /** Default capabilities for each program role */
+ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
+-  orchestrator: WILDCARD_EQUIVALENT,
++  orchestrator: ["*"] as unknown as Capability[],
+   admin: WILDCARD_EQUIVALENT,
+   legacy: WILDCARD_EQUIVALENT,
+   mobile: [

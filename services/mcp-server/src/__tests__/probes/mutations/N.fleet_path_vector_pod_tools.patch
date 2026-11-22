@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_vector_pod_tools: a tool the vector pod set maps requires a capability the set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -109,7 +109,7 @@
+   // Signal
+   signal_ask_question: "signal.write",
+   signal_get_response: "signal.read",
+-  signal_send_alert: "signal.write",
++  signal_send_alert: "fleet.control",
+   // Dream
+   dream_peek: "dream.read",
+   dream_activate: "dream.write",

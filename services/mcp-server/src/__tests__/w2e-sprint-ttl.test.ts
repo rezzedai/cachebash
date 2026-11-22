@@ -84,7 +84,6 @@ beforeEach(() => {
 
 const mockAuth: AuthContext = {
   userId: "test-user",
-  programId: "iso",
   keyProgramId: "iso",
   apiKeyHash: "test-hash",
   capabilities: ["dispatch.write"],

@@ -1,0 +1,12 @@
+# mutation for probe N.fleet_path_architect_tools: a tool the architect set maps requires a capability the set lacks
+--- a/src/middleware/capabilities.ts	2026-11-20 16:49:11
++++ b/src/middleware/capabilities.ts	2026-11-20 16:49:11
+@@ -85,7 +85,7 @@
+   dispatch_quarantine_program: "fleet.control",
+   dispatch_unquarantine_program: "fleet.control",
+   // Relay
+-  relay_send_message: "relay.write",
++  relay_send_message: "fleet.control",
+   relay_get_messages: "relay.read",
+   relay_get_dead_letters: "relay.read",
+   relay_list_groups: "relay.read",

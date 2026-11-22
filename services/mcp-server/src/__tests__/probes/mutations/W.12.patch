@@ -1,0 +1,23 @@
+# mutation for probe W.12: a bare wildcard credential passes the metrics.read handler gate, with the per-tool gate also open (the per-tool gate runs first and would otherwise deny)
+--- a/src/middleware/capabilities.ts
++++ b/src/middleware/capabilities.ts
+@@ -341,7 +341,7 @@
+   const required = TOOL_CAPABILITIES[canonical];
+   // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+   if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+-  if (holdsCapability(capabilities, required)) return { allowed: true };
++  if (holdsCapability(capabilities, required) || capabilities.includes("*")) return { allowed: true };
+   return { allowed: false, required, held: capabilities };
+ }
+ 
+--- a/src/modules/metrics.ts
++++ b/src/modules/metrics.ts
+@@ -727,7 +727,7 @@
+ 
+ export async function getSlaComplianceHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   // Capability gate: metrics.read OR admin
+-  if (!holdsCapability(auth.capabilities, "metrics.read")) {
++  if (!holdsCapability(auth.capabilities, "metrics.read") && !auth.capabilities.includes("*")) {
+     logDenial({ principal: denialPrincipal(auth), tool: "metrics_get_sla_compliance", subject: null, code: "MISSING_CAPABILITY" });
+     return jsonResult({ success: false, error: `get_sla_compliance requires metrics.read capability (caller "${denialPrincipal(auth)}").` });
+   }

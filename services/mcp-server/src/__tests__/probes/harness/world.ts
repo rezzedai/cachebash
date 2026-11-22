@@ -1,5 +1,5 @@
 /** Shape of the JSON the globalSetup writes and every probe file reads. Contains per-run keys: never committed. */
-export type CredentialName = "restricted" | "scoped" | "wildcard" | "observer" | "admin" | "tenantB" | "disposable";
+export type CredentialName = "restricted" | "scoped" | "wildcard" | "bare" | "observer" | "admin" | "tenantB" | "disposable";
 
 export interface WorldCredential {
   name: CredentialName;
@@ -23,9 +23,9 @@ export interface World {
   emulatorHost: string;
   tenants: { A: string; B: string };
   creds: Record<CredentialName, WorldCredential>;
-  /** setup-only credentials, one per tenant, program "legacy" with ["*"]; used to seed through the real handlers */
+  /** setup-only credentials, one per tenant, program "legacy" with every mapped capability named (no wildcard) plus fleet.observe and fleet.admin; used to seed through the real handlers */
   seeders: { A: WorldCredential; B: WorldCredential };
-  /** setup-only credentials, program "mobile" with ["*"]: the only seeders that may write program state (PR-J) */
+  /** setup-only credentials, program "mobile" with every mapped capability named: the only seeders that may write program state (PR-J) */
   stateSeeders: { A: WorldCredential; B: WorldCredential };
   /** ids of the rows seeded through the real handlers, per tenant and program */
   seed: SeedData;

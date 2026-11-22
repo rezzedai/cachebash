@@ -1,0 +1,23 @@
+# mutation for probe W.17: a bare wildcard credential passes the program-list gate (backfillExpiresAt.ts), with the per-tool gate also open (the per-tool gate runs first and would otherwise deny)
+--- a/src/middleware/capabilities.ts
++++ b/src/middleware/capabilities.ts
+@@ -341,7 +341,7 @@
+   const required = TOOL_CAPABILITIES[canonical];
+   // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+   if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+-  if (holdsCapability(capabilities, required)) return { allowed: true };
++  if (holdsCapability(capabilities, required) || capabilities.includes("*")) return { allowed: true };
+   return { allowed: false, required, held: capabilities };
+ }
+ 
+--- a/src/modules/dispatch/backfillExpiresAt.ts
++++ b/src/modules/dispatch/backfillExpiresAt.ts
+@@ -61,7 +61,7 @@
+ 
+ export async function backfillTaskExpiresAtHandler(auth: AuthContext, rawArgs: unknown): Promise<ToolResult> {
+   const principal = credentialPrincipal(auth);
+-  if (!AUTHORIZED_PROGRAMS.includes(principal)) {
++  if (!AUTHORIZED_PROGRAMS.includes(principal) && !auth.capabilities.includes("*")) {
+     logDenial({ principal, tool: "dispatch_backfill_task_expires_at", subject: null, code: "NOT_GRANTED" });
+     return jsonResult({
+       success: false,

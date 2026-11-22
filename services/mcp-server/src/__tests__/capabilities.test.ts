@@ -2,28 +2,28 @@
  * Capability-Based Access Control Tests
  */
 
-import { hasCapability, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
+import { holdsCapability, WILDCARD_EQUIVALENT, checkToolCapability, getDefaultCapabilities, TOOL_CAPABILITIES, DEFAULT_CAPABILITIES } from '../middleware/capabilities';
 
 describe('Capability System', () => {
-  describe('hasCapability', () => {
-    it('wildcard grants all access', () => {
-      expect(hasCapability(['*'], 'dispatch.read')).toBe(true);
-      expect(hasCapability(['*'], 'keys.write')).toBe(true);
-      expect(hasCapability(['*'], 'audit.read')).toBe(true);
+  describe('holdsCapability', () => {
+    it('wildcard grants nothing (RD-5 PR-N)', () => {
+      expect(holdsCapability(['*'], 'dispatch.read')).toBe(false);
+      expect(holdsCapability(['*'], 'keys.write')).toBe(false);
+      expect(holdsCapability(['*'], 'audit.read')).toBe(false);
     });
 
     it('exact match grants access', () => {
-      expect(hasCapability(['dispatch.read', 'relay.write'], 'dispatch.read')).toBe(true);
-      expect(hasCapability(['dispatch.read', 'relay.write'], 'relay.write')).toBe(true);
+      expect(holdsCapability(['dispatch.read', 'relay.write'], 'dispatch.read')).toBe(true);
+      expect(holdsCapability(['dispatch.read', 'relay.write'], 'relay.write')).toBe(true);
     });
 
     it('missing capability denies access', () => {
-      expect(hasCapability(['dispatch.read'], 'keys.write')).toBe(false);
-      expect(hasCapability(['relay.read'], 'relay.write')).toBe(false);
+      expect(holdsCapability(['dispatch.read'], 'keys.write')).toBe(false);
+      expect(holdsCapability(['relay.read'], 'relay.write')).toBe(false);
     });
 
     it('empty capabilities deny everything', () => {
-      expect(hasCapability([], 'dispatch.read')).toBe(false);
+      expect(holdsCapability([], 'dispatch.read')).toBe(false);
     });
   });
 
@@ -48,15 +48,14 @@ describe('Capability System', () => {
       if (!result.allowed) expect(result.required).toBe('unmapped');
     });
 
-    it('allows unknown tools for wildcard callers (fail-closed exception)', () => {
-      const result = checkToolCapability('nonexistent_tool', ['*']);
-      expect(result.allowed).toBe(true);
+    it('denies unknown tools for wildcard callers (RD-5 PR-N N-D2)', () => {
+      expect(checkToolCapability('nonexistent_tool', ['*']).allowed).toBe(false);
     });
 
-    it('wildcard allows all tools', () => {
-      expect(checkToolCapability('get_tasks', ['*']).allowed).toBe(true);
-      expect(checkToolCapability('create_key', ['*']).allowed).toBe(true);
-      expect(checkToolCapability('get_audit', ['*']).allowed).toBe(true);
+    it('wildcard allows no tool (RD-5 PR-N N-D1)', () => {
+      expect(checkToolCapability('get_tasks', ['*']).allowed).toBe(false);
+      expect(checkToolCapability('create_key', ['*']).allowed).toBe(false);
+      expect(checkToolCapability('get_audit', ['*']).allowed).toBe(false);
     });
   });
 
@@ -98,7 +97,6 @@ describe('Capability System', () => {
         'admin', 'policy', 'webhooks',
       ];
       for (const [tool, cap] of Object.entries(TOOL_CAPABILITIES)) {
-        if (cap === '*') continue;
         const [prefix] = cap.split('.');
         expect(validPrefixes).toContain(prefix);
       }
@@ -128,12 +126,23 @@ describe('Capability System', () => {
   });
 
   describe('DEFAULT_CAPABILITIES', () => {
-    it('orchestrator has wildcard', () => {
-      expect(DEFAULT_CAPABILITIES['orchestrator']).toEqual(['*']);
+    it('orchestrator, admin and legacy hold WILDCARD_EQUIVALENT, named (RD-5 PR-N N-D3)', () => {
+      for (const role of ['orchestrator', 'admin', 'legacy']) expect(DEFAULT_CAPABILITIES[role]).toEqual(WILDCARD_EQUIVALENT);
+      expect(WILDCARD_EQUIVALENT).toHaveLength(30);
     });
 
-    it('legacy has wildcard', () => {
-      expect(DEFAULT_CAPABILITIES['legacy']).toEqual(['*']);
+    it('the named programs hold their table B sets (plan 22.1 item 6)', () => {
+      expect(DEFAULT_CAPABILITIES['dispatcher']).toHaveLength(8);
+      expect(DEFAULT_CAPABILITIES['iso']).toHaveLength(23);
+      expect(DEFAULT_CAPABILITIES['vector']).toHaveLength(16);
+      expect(DEFAULT_CAPABILITIES['vector']).not.toContain('keys.write');
+      expect(DEFAULT_CAPABILITIES['basher']).toHaveLength(13);
+      for (const p of ['alan', 'casp', 'quorra', 'radia']) expect(DEFAULT_CAPABILITIES[p]).toEqual(DEFAULT_CAPABILITIES['architect']);
+      expect(DEFAULT_CAPABILITIES['sark']).toEqual([...DEFAULT_CAPABILITIES['architect'], 'keys.write']);
+    });
+
+    it("iso's set covers every builder default, so iso can mint a builder key (plan 22.1 item 1)", () => {
+      for (const c of DEFAULT_CAPABILITIES['builder']) expect(DEFAULT_CAPABILITIES['iso']).toContain(c);
     });
 
     it('builder programs can read and write dispatch', () => {
@@ -163,7 +172,7 @@ describe('Capability System', () => {
     it('C-1: oauth fallback carries zero .write capabilities', () => {
       const oauthCaps = DEFAULT_CAPABILITIES['oauth'];
       expect(oauthCaps).toBeDefined();
-      const writeCaps = oauthCaps.filter(c => c.endsWith('.write') || c === '*');
+      const writeCaps = oauthCaps.filter(c => c.endsWith('.write'));
       expect(writeCaps).toHaveLength(0);
       expect(oauthCaps).toContain('dispatch.read');
       expect(oauthCaps).toContain('relay.read');
@@ -175,7 +184,7 @@ describe('Capability System', () => {
 
   describe('getDefaultCapabilities', () => {
     it('returns defaults for known programs', () => {
-      expect(getDefaultCapabilities('orchestrator')).toEqual(['*']);
+      expect(getDefaultCapabilities('orchestrator')).toEqual(WILDCARD_EQUIVALENT);
       expect(getDefaultCapabilities('builder')).toContain('dispatch.read');
     });
 

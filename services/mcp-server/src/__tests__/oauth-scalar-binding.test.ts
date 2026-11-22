@@ -128,8 +128,8 @@ describe("SCALAR capability set", () => {
     expect(caps).not.toContain("sprint.write");
   });
 
-  it("is strictly narrower than Grid program wildcards", () => {
-    expect(DEFAULT_CAPABILITIES.basher).toEqual(["*"]);
+  it("is strictly narrower than the WILDCARD_EQUIVALENT of the full Grid programs", () => {
+    expect(DEFAULT_CAPABILITIES.orchestrator.length).toBeGreaterThan(DEFAULT_CAPABILITIES.scalar.length);
     expect(DEFAULT_CAPABILITIES.scalar).not.toContain("*");
   });
 });

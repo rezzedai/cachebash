@@ -3,18 +3,16 @@
  *
  * Maps tools to required capabilities and enforces access.
  * Capabilities use module.action pattern (e.g., "dispatch.read").
- * Wildcard "*" grants unrestricted access.
+ * Wildcard wildcard grants unrestricted access.
  */
 
 import { resolveToolAlias } from "../tools/tool-aliases.js";
-import { logWouldDeny } from "../auth/denialLog.js";
 
 /**
  * Every valid capability string. The Capability type derives from this list,
  * so the type and the runtime list cannot drift.
  */
 export const ALL_CAPABILITIES = [
-  "*",
   "dispatch.read", "dispatch.write",
   "relay.read", "relay.write",
   "pulse.read", "pulse.write",
@@ -23,11 +21,11 @@ export const ALL_CAPABILITIES = [
   "sprint.read", "sprint.write",
   "keys.read", "keys.write",
   // keys.provision: explicit, owner-equivalent grant to CREATE keys. Checked by
-  // literal membership in auth/ownerAuthz (never implied by "*"); not in any
+  // literal membership in auth/ownerAuthz (never implied by wildcard); not in any
   // DEFAULT_CAPABILITIES role — must be granted by name.
   "keys.provision",
   // RD-5 PR-D: literal-only names. Checked by literal membership in
-  // auth/ownerAuthz (never implied by "*"); in no role default or preset.
+  // auth/ownerAuthz (never implied by wildcard); in no role default or preset.
   "fleet.observe", "fleet.admin",
   "audit.read",
   "state.read", "state.write",
@@ -51,7 +49,7 @@ export type Capability = (typeof ALL_CAPABILITIES)[number];
 
 /**
  * Capabilities satisfied only by literal membership in a key's capability
- * list. "*" never grants them. Granted by name through grant-capability.ts.
+ * list. wildcard never grants them. Granted by name through grant-capability.ts.
  */
 export const LITERAL_ONLY_CAPABILITIES: readonly Capability[] = [
   "fleet.observe",
@@ -68,6 +66,9 @@ export const TOOL_CAPABILITIES: Record<string, Capability> = {
   dispatch_unclaim_task: "dispatch.write",
   dispatch_complete_task: "dispatch.write",
   dispatch_record_task_telemetry: "dispatch.write",
+  // RD-5 PR-N N-D2: mapped so a literal gate admits them; the handler's ["iso"] program list stays the real gate.
+  dispatch_backfill_task_expires_at: "dispatch.write",
+  dispatch_reap_expired_tasks: "dispatch.write",
   dispatch_batch_claim_tasks: "dispatch.write",
   dispatch_batch_complete_tasks: "dispatch.write",
   dispatch_get_contention_metrics: "dispatch.read",
@@ -213,11 +214,49 @@ export const WINGMAN_TIER_CAPABILITIES: Capability[] = [
   "programs.read",
 ];
 
+/**
+ * RD-5 PR-N N-D3: what the wildcard granted at the per-tool gate before PR-N, named: the sorted distinct values of
+ * TOOL_CAPABILITIES. Keys that held the wildcard and keys minted from a role that defaulted to it get this list.
+ * Narrowing issuance below it is a later VECTOR decision.
+ */
+export const WILDCARD_EQUIVALENT: Capability[] = [...new Set(Object.values(TOOL_CAPABILITIES))].sort();
+
+/** RD-5 PR-N N-D3, plan 22.1 item 6 (table B as ruled): the default set for the named Grid programs. */
+const ARCHITECT_CAPABILITIES: Capability[] = ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
+  "pulse.read", "pulse.write", "signal.read", "signal.write",
+  "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
+  "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"];
+
+const TABLE_B: Record<"dispatcher" | "iso" | "basher" | "vector" | "architect" | "sark", Capability[]> = {
+  dispatcher: [
+    "dispatch.read", "dispatch.write", "pulse.read", "pulse.write", "relay.read", "relay.write",
+    "signal.write", "state.read"
+  ],
+  iso: [
+    "audit.read", "dispatch.read", "dispatch.write", "fleet.read", "gsp.read", "gsp.write", "keys.read",
+    "keys.write", "metrics.read", "programs.read", "programs.write", "pulse.read", "pulse.write",
+    "relay.read", "relay.write", "signal.read", "signal.write", "sprint.read", "sprint.write", "state.read",
+    "state.write", "webhooks.read", "webhooks.write"
+  ],
+  basher: [
+    "dispatch.read", "dispatch.write", "fleet.read", "gsp.read", "gsp.write", "keys.read", "metrics.read",
+    "pulse.read", "pulse.write", "relay.read", "relay.write", "state.read", "state.write"
+  ],
+  vector: [
+    "dispatch.read", "dispatch.write", "fleet.read", "gsp.write", "keys.read", "pulse.read", "pulse.write",
+    "relay.read", "relay.write", "state.read", "state.write", "gsp.read", "audit.read", "metrics.read",
+    "signal.write", "programs.read"
+  ],
+  // alan, casp, quorra, radia: the architect set. sark adds keys.write (revoke duty).
+  architect: ARCHITECT_CAPABILITIES,
+  sark: [...ARCHITECT_CAPABILITIES, "keys.write"],
+};
+
 /** Default capabilities for each program role */
 export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
-  orchestrator: ["*"],
-  admin: ["*"],
-  legacy: ["*"],
+  orchestrator: WILDCARD_EQUIVALENT,
+  admin: WILDCARD_EQUIVALENT,
+  legacy: WILDCARD_EQUIVALENT,
   mobile: [
     "dispatch.read", "dispatch.write",
     "relay.read", "relay.write",
@@ -233,10 +272,7 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
     "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],
-  architect: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
-    "pulse.read", "pulse.write", "signal.read", "signal.write",
-    "state.read", "state.write", "sprint.read", "programs.read", "programs.write",
-    "gsp.read", "gsp.write", "webhooks.read", "webhooks.write"],
+  architect: ARCHITECT_CAPABILITIES,
   auditor: ["dispatch.read", "dispatch.write", "relay.read", "relay.write",
     "pulse.read", "pulse.write", "signal.read", "signal.write",
     "state.read", "state.write", "sprint.read", "audit.read", "programs.read", "programs.write",
@@ -283,18 +319,18 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "sprint.read", "metrics.read", "fleet.read", "programs.read",
     "webhooks.read", "webhooks.write"],
   // Grid programs — full operational access
-  iso: ["*"],
-  basher: ["*"],
-  alan: ["*"],
-  sark: ["*"],
-  quorra: ["*"],
-  casp: ["*"],
-  ram: ["*"],
-  radia: ["*"],
-  castor: ["*"],
-  vector: ["*"],
-  bit: ["*"],
-  dispatcher: ["*"],
+  iso: TABLE_B.iso,
+  basher: TABLE_B.basher,
+  alan: TABLE_B.architect,
+  sark: TABLE_B.sark,
+  quorra: TABLE_B.architect,
+  casp: TABLE_B.architect,
+  ram: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  radia: TABLE_B.architect,
+  castor: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  vector: TABLE_B.vector,
+  bit: WILDCARD_EQUIVALENT, // no table B row: keeps what the wildcard granted (N-D3)
+  dispatcher: TABLE_B.dispatcher,
   // Wingman tier — least-privilege identity spine for restricted agents.
   // ALLOWED: dispatch + relay + signal (orchestrate + coordinate) + result reads.
   // HARD-DENY (absent, not just execution-denied): keys.*, admin.write, fleet.control,
@@ -309,28 +345,12 @@ export const DEFAULT_CAPABILITIES: Record<string, Capability[]> = {
     "webhooks.read", "webhooks.write"],
 };
 
-/** RD-5 PR-N1: who and where, for the `authz_would_deny` line. Absent means no line. */
-export interface WouldDenyContext {
-  principal: string;
-  tool: string;
-  site: string;
-}
-
 /**
- * Check if a set of capabilities includes the required capability.
- * Supports wildcard: ["*"] grants access to everything.
+ * RD-5 PR-N N-D1: literal membership. A key holds a capability only if the list names it.
+ * The wildcard string grants nothing here, so a key holding only the wildcard fails every gate that calls this.
  */
-export function hasCapability(
-  capabilities: string[],
-  required: Capability,
-  wouldDeny?: WouldDenyContext,
-): boolean {
-  if (capabilities.includes(required)) return true;
-  if (capabilities.includes("*")) {
-    if (wouldDeny) logWouldDeny({ principal: wouldDeny.principal, tool: wouldDeny.tool, capability: required, site: wouldDeny.site });
-    return true;
-  }
-  return false;
+export function holdsCapability(capabilities: readonly string[], cap: Capability): boolean {
+  return capabilities.includes(cap);
 }
 
 /** Thrown by transports when a key lacks the capability a tool requires; REST maps it to 403. */
@@ -349,30 +369,20 @@ export class CapabilityError extends Error {
 export function checkToolCapability(
   toolName: string,
   capabilities: string[],
-  principal?: string,
 ): { allowed: true } | { allowed: false; required: string; held: string[] } {
   // Resolve alias to canonical name before lookup
   const canonical = resolveToolAlias(toolName);
   const required = TOOL_CAPABILITIES[canonical];
-  if (!required) {
-    // Unknown/unmapped tool — fail-CLOSED for restricted profiles; wildcard holders pass through.
-    // This prevents a future unmapped tool from silently granting access to wingman-tier callers.
-    if (capabilities.includes("*")) {
-      logWouldDeny({ principal: principal ?? "(none)", tool: toolName, capability: "unmapped", site: "capabilities.checkToolCapability:unmapped" });
-      return { allowed: true };
-    }
-    return { allowed: false, required: "unmapped", held: capabilities };
-  }
-  if (hasCapability(capabilities, required, { principal: principal ?? "(none)", tool: toolName, site: "capabilities.checkToolCapability:per_tool" })) {
-    return { allowed: true };
-  }
+  // RD-5 PR-N N-D2: an unmapped tool is denied for every key. A static test keeps every defined tool mapped.
+  if (!required) return { allowed: false, required: "unmapped", held: capabilities };
+  if (holdsCapability(capabilities, required)) return { allowed: true };
   return { allowed: false, required, held: capabilities };
 }
 
 /**
  * G-2: Filter tool definitions to only those the caller's capabilities entitle them to see.
  * Tools in TOOL_CAPABILITIES are filtered by their required capability.
- * Wildcard ["*"] holders see all tools unfiltered.
+ * RD-5 PR-N: literal membership only; a key holding only the wildcard sees no tools.
  * Tools NOT mapped in TOOL_CAPABILITIES are HIDDEN from restricted callers (fail-CLOSED)
  * so a future unmapped tool cannot silently appear in a wingman-tier tools/list.
  */
@@ -380,11 +390,10 @@ export function filterToolsByCapabilities<T extends { name: string }>(
   toolDefs: T[],
   capabilities: string[]
 ): T[] {
-  if (capabilities.includes("*")) return toolDefs;
   return toolDefs.filter(tool => {
     const required = TOOL_CAPABILITIES[tool.name];
-    if (!required) return false; // unmapped tool — fail-closed for restricted profiles
-    return capabilities.includes(required);
+    if (!required) return false; // unmapped tool: hidden from every key
+    return holdsCapability(capabilities, required);
   });
 }
 

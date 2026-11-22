@@ -46,7 +46,6 @@ beforeEach(async () => {
   auth = {
     userId: testUser.userId,
     apiKeyHash: testUser.apiKeyHash,
-    programId: "orchestrator",
     keyProgramId: "orchestrator",
     encryptionKey: testUser.encryptionKey,
     capabilities: ["*", "keys.provision"],

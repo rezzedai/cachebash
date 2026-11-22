@@ -350,7 +350,7 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
     // A client with no stored creator list gets an empty set (fail closed).
     const serviceCaps = getDefaultCapabilities("oauth-service");
     const creatorCaps: string[] = Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : [];
-    const capabilities = creatorCaps.includes("*") ? serviceCaps : serviceCaps.filter((c) => creatorCaps.includes(c));
+    const capabilities = serviceCaps.filter((c) => creatorCaps.includes(c));
 
     // Generate access token only (no refresh token for client_credentials)
     const accessToken = generateToken("cbo_");

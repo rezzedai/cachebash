@@ -27,10 +27,10 @@ const mockEmitEvent = emitEvent as jest.Mock;
 function baseAuth(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
     userId: "test-user",
-    programId: "basher",
-    keyProgramId: "basher",
+    programId: "iso", // RD-5 PR-N: the ["iso"] list is the gate
+    keyProgramId: "iso",
     apiKeyHash: "test-hash",
-    capabilities: ["*"],
+    capabilities: ["dispatch.read", "dispatch.write"],
     encryptionKey: Buffer.from("test-encryption-key-32-bytes!!!"),
     rateLimitTier: "internal",
     ...overrides,

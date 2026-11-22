@@ -43,7 +43,7 @@ describe("keyIndex document programId is required", () => {
   it("control: a key document with a programId authenticates, principal is that programId", async () => {
     mockKeyDoc("cb_has_program", { userId: "tenant-org", programId: "basher", active: true });
     const auth = await validateApiKey("cb_has_program");
-    expect(auth?.programId).toBe("basher");
+    expect(auth?.keyProgramId).toBe("basher");
     expect(auth?.keyProgramId).toBe("basher");
   });
 

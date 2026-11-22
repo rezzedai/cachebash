@@ -254,7 +254,6 @@ jest.mock("../modules/events", () => ({
 const mockAuth: AuthContext = {
   userId: "test-user-123",
   apiKeyHash: "test-key-hash",
-  programId: "vector" as any,
   keyProgramId: "vector" as any,
   encryptionKey: Buffer.from("test-key-32-bytes-long-padding!!", "utf-8"),
   capabilities: ["*", "fleet.observe"],
@@ -889,7 +888,6 @@ describe("gspSeedHandler", () => {
   it("rejects unauthorized programs", async () => {
     const restrictedAuth: AuthContext = {
       ...mockAuth,
-      programId: "basher" as any,
       keyProgramId: "basher" as any,
       capabilities: ["dispatch.read"],
     };
@@ -1184,7 +1182,7 @@ describe("gspResolveHandler", () => {
   // #36
   it("approves proposal and applies state atomically", async () => {
     seedPendingProposal();
-    const ownerAuth: AuthContext = { ...mockAuth, programId: "iso" as any };
+    const ownerAuth: AuthContext = { ...mockAuth, keyProgramId: "iso" as any };
     // Actually the reviewer is "owner", but owner isn't a ValidProgramId in the type system.
     // The module checks proposal.reviewers.includes(auth.programId), so we need to match.
     // Override reviewers to include our programId for this test.

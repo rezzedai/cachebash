@@ -50,7 +50,7 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
     // Resolve the program identity bound at consent time (e.g. "scalar").
     // Token docs are server-written only, but enforce an allowlist anyway —
     // anything unexpected degrades to the generic "oauth" identity.
-    // Capabilities come from DEFAULT_CAPABILITIES for that identity, never "*"-roles.
+    // Capabilities come from DEFAULT_CAPABILITIES for that identity, never wildcard-roles.
     const OAUTH_BINDABLE_PROGRAMS = new Set(["scalar", "oauth", "oauth-service"]);
     const { getDefaultCapabilities } = await import("../middleware/capabilities.js");
     const programId = OAUTH_BINDABLE_PROGRAMS.has(data.programId) ? data.programId : "oauth";
@@ -70,7 +70,6 @@ export async function validateOAuthToken(token: string): Promise<AuthContext | n
       userId: data.userId,
       apiKeyHash: `oauth:${tokenHash}`,
       encryptionKey,
-      programId: resolvedProgramId,
       keyProgramId: resolvedProgramId,
       capabilities,
       oauthScopes: grantedScopes,

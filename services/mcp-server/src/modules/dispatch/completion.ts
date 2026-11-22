@@ -508,7 +508,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
   if (missingFields.length > 0) {
     db.collection(`tenants/${auth.userId}/telemetryGaps`).add({
       taskId: args.taskId,
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       missingFields,
       createdAt: FieldValue.serverTimestamp(),
     }).catch((err) => console.error("[Telemetry] Failed to log gap:", err));
@@ -566,7 +566,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
       transition("task", current, lifecycleTarget);
 
       // Build state transition
-      const transitionEntry = buildTransition(current, lifecycleTarget, auth.programId, "complete");
+      const transitionEntry = buildTransition(current, lifecycleTarget, credentialPrincipal(auth), "complete");
       const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
       const updateFields: Record<string, unknown> = {
@@ -636,7 +636,7 @@ export async function completeTaskHandler(auth: AuthContext, rawArgs: unknown): 
             // Emit BUDGET_EXCEEDED event
             emitEvent(auth.userId, {
               event_type: "BUDGET_EXCEEDED",
-              program_id: auth.programId,
+              program_id: credentialPrincipal(auth),
               task_id: dreamId,
               consumed: budgetCheck.consumed,
               cap: budgetCheck.cap,
@@ -681,7 +681,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     // Emit telemetry event with cryptographic provenance
     emitEvent(auth.userId, {
       event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
-      program_id: auth.programId,
+      program_id: credentialPrincipal(auth),
       task_id: args.taskId,
       completed_status: args.completed_status,
       successorTaskId: args.successorTaskId,
@@ -700,7 +700,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     if (supervisedModeActive) {
       emitEvent(auth.userId, {
         event_type: "TASK_AWAITING_APPROVAL",
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         task_id: args.taskId,
       });
     }
@@ -716,7 +716,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
     // additive-only event_type handling elsewhere in this file.
     emitAnalyticsEvent(auth.userId, {
       eventType: "task_lifecycle",
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       toolName: "complete_task",
       success: args.completed_status !== "FAILED",
       completed_status: args.completed_status,
@@ -745,7 +745,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
           tokens_out: args.tokens_out || 0,
           cost_usd: args.cost_usd || 0,
           completedAt: FieldValue.serverTimestamp(),
-          programId: auth.programId,
+          programId: credentialPrincipal(auth),
           taskType: taskData.source || "unknown",
           completed_status: args.completed_status,
           // Agent Trace L2
@@ -760,7 +760,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
 
     // W1.3.6: Check alert thresholds and emit alerts
     if (args.cost_usd && args.cost_usd > 0) {
-      checkBudgetThresholdsAndAlert(db, auth.userId, auth.programId).catch((err) =>
+      checkBudgetThresholdsAndAlert(db, auth.userId, credentialPrincipal(auth)).catch((err) =>
         console.error("[Budget] Failed to check thresholds:", err)
       );
     }
@@ -771,7 +771,7 @@ Overage: $${(budgetCheck.consumed - budgetCheck.cap).toFixed(4)}`;
       const taskTitle = taskDoc.data()?.title as string;
       if (taskTitle && (taskTitle.includes("[RECYCLE]") || taskTitle.toLowerCase().includes("recycle"))) {
         try {
-          await handleSelfRecycle(db, auth.userId, auth.programId);
+          await handleSelfRecycle(db, auth.userId, credentialPrincipal(auth));
         } catch (err) {
           console.error("[SelfRecycle] Failed:", err);
         }
@@ -842,7 +842,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
   if (missingFields.length > 0) {
     db.collection(`tenants/${auth.userId}/telemetryGaps`).add({
       taskIds: args.taskIds,
-      programId: auth.programId,
+      programId: credentialPrincipal(auth),
       missingFields,
       createdAt: FieldValue.serverTimestamp(),
     }).catch((err: unknown) => console.error("[Telemetry] Failed to log gap:", err));
@@ -874,7 +874,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
         transition("task", current, lifecycleTarget as LifecycleStatus);
 
         // Build state transition
-        const transitionEntry = buildTransition(current, lifecycleTarget, auth.programId, "complete");
+        const transitionEntry = buildTransition(current, lifecycleTarget, credentialPrincipal(auth), "complete");
         const updatedTransitions = appendTransition(data.stateTransitions, transitionEntry);
 
         const updateFields: Record<string, unknown> = {
@@ -902,7 +902,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
 
       emitEvent(auth.userId, {
         event_type: args.completed_status === "FAILED" ? "TASK_FAILED" : "TASK_SUCCEEDED",
-        program_id: auth.programId,
+        program_id: credentialPrincipal(auth),
         task_id: taskId,
         // R1.4/batch-event-gaps: the single-completion path has always carried
         // completed_status (it's the authoritative discriminator between
@@ -917,7 +917,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
 
       emitAnalyticsEvent(auth.userId, {
         eventType: "task_lifecycle",
-        programId: auth.programId,
+        programId: credentialPrincipal(auth),
         toolName: "batch_complete_tasks",
         success: args.completed_status !== "FAILED",
         completed_status: args.completed_status,
@@ -947,7 +947,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
           tokens_out: 0,
           cost_usd: 0,
           completedAt: FieldValue.serverTimestamp(),
-          programId: auth.programId,
+          programId: credentialPrincipal(auth),
           taskType: taskData.source || "unknown",
           completed_status: args.completed_status,
           // Agent Trace L2
@@ -966,7 +966,7 @@ export async function batchCompleteTasksHandler(auth: AuthContext, rawArgs: unkn
           if (!budgetCheck.withinBudget) {
             emitEvent(auth.userId, {
               event_type: "BUDGET_EXCEEDED",
-              program_id: auth.programId,
+              program_id: credentialPrincipal(auth),
               task_id: taskId,
             });
           }

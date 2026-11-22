@@ -12,6 +12,7 @@ import type { AuthContext } from "../auth/authValidator";
 import { sendMessageHandler } from "../modules/relay";
 import * as http from "http";
 import { createRestRouter } from "../transport/rest";
+import { ALL_MAPPED_CAPABILITIES } from "./allCapabilities";
 
 // --- Module mocks ---
 
@@ -40,7 +41,7 @@ jest.mock("../firebase/client.js", () => ({
 }));
 
 jest.mock("../middleware/gate.js", () => ({
-  verifySource: jest.fn((_claimed: string, auth: AuthContext) => auth.programId),
+  verifySource: jest.fn((_claimed: string, auth: AuthContext) => auth.keyProgramId),
   isAdmin: jest.fn(() => false),
   logAudit: jest.fn(),
   generateCorrelationId: jest.fn(() => "mock-corr-id"),
@@ -153,9 +154,8 @@ function ownerAuth(): AuthContext {
     userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
     apiKeyHash: "firebase:7viFKVtl5lgzguhFoZlnYYrqeDG2",
     encryptionKey: Buffer.from("abc"),
-    programId: "owner" as any,
     keyProgramId: "owner" as any,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   };
 }
@@ -165,7 +165,6 @@ function mobileAuth(): AuthContext {
     userId: "unknown-uid",
     apiKeyHash: "firebase:unknown-uid",
     encryptionKey: Buffer.from("abc"),
-    programId: "mobile" as any,
     keyProgramId: "mobile" as any,
     capabilities: [],
     rateLimitTier: "free",
@@ -177,9 +176,8 @@ function apiKeyAuth(): AuthContext {
     userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
     apiKeyHash: "cb_abc123",
     encryptionKey: Buffer.from("abc"),
-    programId: "owner" as any,
     keyProgramId: "owner" as any,
-    capabilities: ["*"],
+    capabilities: ALL_MAPPED_CAPABILITIES,
     rateLimitTier: "paid",
   };
 }
@@ -192,13 +190,13 @@ describe("portal owner send-message — handler level", () => {
     jest.clearAllMocks();
     // Restore default verifySource mock (returns programId — no mismatch)
     const { verifySource } = require("../middleware/gate.js");
-    verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.programId);
+    verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.keyProgramId);
   });
 
   it("writes relay doc with source=owner when owner sends a message", async () => {
     const auth = ownerAuth();
     const result = await sendMessageHandler(auth, {
-      source: auth.programId,
+      source: auth.keyProgramId,
       target: "iso",
       message: "Test message from portal owner",
       message_type: "DIRECTIVE",
@@ -224,9 +222,8 @@ describe("portal owner send-message — handler level", () => {
       userId: "7viFKVtl5lgzguhFoZlnYYrqeDG2",
       apiKeyHash: "firebase:7viFKVtl5lgzguhFoZlnYYrqeDG2",
       encryptionKey: Buffer.from("abc"),
-      programId: "basher" as any,
       keyProgramId: "basher" as any,
-      capabilities: ["*"],
+      capabilities: ALL_MAPPED_CAPABILITIES,
       rateLimitTier: "paid",
     };
 
@@ -267,7 +264,7 @@ describe("POST /v1/relay/messages — route-level guards (HTTP)", () => {
     capturedRelayDoc = {};
     // Restore default verifySource mock
     const { verifySource } = require("../middleware/gate.js");
-    verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.programId);
+    verifySource.mockImplementation((_claimed: string, auth: AuthContext) => auth.keyProgramId);
   });
 
   function makeRequest(auth: AuthContext, body: object = {}): Promise<{ status: number; data: Record<string, unknown> }> {

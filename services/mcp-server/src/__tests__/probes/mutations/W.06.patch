@@ -1,0 +1,12 @@
+# mutation for probe W.06: a wildcard-holding provisioner holds every capability it requests, so it can mint a capability it does not name
+--- a/src/auth/ownerAuthz.ts
++++ b/src/auth/ownerAuthz.ts
+@@ -70,7 +70,7 @@
+   requestedCaps: string[],
+ ): string[] {
+   if (!Array.isArray(callerCaps)) return [...requestedCaps];
+-  return requestedCaps.filter((cap) => !holdsCapability(callerCaps, cap as Capability));
++  return requestedCaps.filter((cap) => !holdsCapability(callerCaps, cap as Capability) && !callerCaps.includes("*"));
+ }
+ 
+ /**

@@ -1,0 +1,12 @@
+# mutation for probe N.gsp_withdraw_principal: any resolver may withdraw a proposal
+--- a/src/modules/gsp.ts
++++ b/src/modules/gsp.ts
+@@ -1663,7 +1663,7 @@
+     const resolver = credentialPrincipal(auth);
+     if (args.decision === "withdrawn") {
+       // Only the proposer can withdraw
+-      if (resolver !== proposal.proposedBy) {
++      if (false && resolver !== proposal.proposedBy) {
+         logDenial({ principal: denialPrincipal(auth), tool: "gsp_resolve", subject: proposal.proposedBy, code: "NOT_OWNER" });
+         return jsonResult({
+           success: false,
