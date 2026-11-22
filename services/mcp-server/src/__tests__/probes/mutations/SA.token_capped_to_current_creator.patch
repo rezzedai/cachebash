@@ -1,0 +1,14 @@
+# mutation for probe SA.token_capped_to_current_creator: ceiling reverts to the registration snapshot instead of the creator key's current capabilities
+diff --git a/src/oauth/token.ts b/src/oauth/token.ts
+index 4d17a10..6f4a41d 100644
+--- a/src/oauth/token.ts
++++ b/src/oauth/token.ts
+@@ -374,7 +374,7 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
+       logDenial({ principal: `oauth-client:${clientId}`, tool: "oauth_token_client_credentials", subject: null, code: "MISSING_CAPABILITY" });
+       return sendJson(res, 403, { error: "invalid_grant", error_description: "Service account creator is no longer valid" });
+     }
+-    const capabilities = getDefaultCapabilities("oauth-service").filter((c) => creatorCaps.includes(c));
++    const capabilities = getDefaultCapabilities("oauth-service").filter((c) => (Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : []).includes(c));
+ 
+     // Generate access token only (no refresh token for client_credentials)
+     const accessToken = generateToken("cbo_");

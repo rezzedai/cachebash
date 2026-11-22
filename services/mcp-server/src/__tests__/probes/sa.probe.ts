@@ -13,7 +13,8 @@ import type { World, WorldCredential } from "./harness/world";
  *  - POST /register with client_credentials needs a Bearer that literally holds fleet.admin ("*" does not count)
  *  - GET/DELETE /oauth/service-accounts need literal fleet.admin for API keys
  *  - the token carries the oauth-service set intersected with its creator's capabilities
- * Registrations per server are capped at 10/hour/IP (DCR rate limit): this file makes 7.
+ *  - each mint re-reads the creator key: a narrowed creator narrows the token, a revoked or hash-less creator refuses the mint
+ * Registrations per server are capped at 10/hour/IP (DCR rate limit): this file makes 9.
  */
 
 const post = (w: World, path: string, bearer: string | null, body: unknown, form = false) =>
@@ -98,6 +99,49 @@ describe("SA service-account registration", () => {
     });
     const r = await callTool(w, asToken(w.creds.admin, token), "dispatch_create_task", { title: "sa-nolist", target: "beta", source: "oauth-service", instructions: "sa" });
     expect(denied(r)).toBe(true);
+  });
+
+  probe("SA.token_capped_to_current_creator", async () => {
+    const w = world();
+    // creator registers while holding fleet.admin + dispatch.write + dispatch.read, then loses dispatch.write
+    const creator = await mint(w, "alpha", "probe-sa-narrow", ["fleet.admin", "dispatch.write", "dispatch.read"]);
+    const reg = await registerSa(w, creator.key, "sa-narrowed");
+    expect(reg.status).toBe(201);
+    await emulatorDb().doc(`keyIndex/${creator.keyHash}`).update({ capabilities: ["fleet.admin", "dispatch.read"] });
+    const tok = await tokenFor(w, reg.json.client_id, reg.json.client_secret);
+    expect(tok.status).toBe(200);
+    const t = asToken(creator, tok.json.access_token);
+    const write = await callTool(w, t, "dispatch_create_task", { title: "sa-narrow", target: "beta", source: "oauth-service", instructions: "sa" });
+    expect(denied(write)).toBe(true);
+    const read = await callTool(w, t, "dispatch_get_tasks", { requires_action: null });
+    expect(denied(read)).toBe(false); // control: a capability the creator still holds works
+  });
+
+  probe("SA.revoked_creator_mint_refused", async () => {
+    const w = world();
+    const creator = await mint(w, "alpha", "probe-sa-revoked", ["fleet.admin", "dispatch.write"]);
+    const reg = await registerSa(w, creator.key, "sa-revoked-creator");
+    expect(reg.status).toBe(201);
+    await emulatorDb().doc(`keyIndex/${creator.keyHash}`).update({ active: false, revokedAt: new Date() });
+    const tok = await tokenFor(w, reg.json.client_id, reg.json.client_secret);
+    expect(tok.status).toBeGreaterThanOrEqual(400);
+    expect(tok.status).toBeLessThan(500);
+    expect(tok.json.access_token).toBeUndefined();
+  });
+
+  probe("SA.client_without_creator_hash_mint_refused", async () => {
+    const w = world();
+    // a client doc from before the fix: creatorCapabilities snapshot present, no creator key hash
+    const clientId = "sa-nohash-" + crypto.randomBytes(4).toString("hex");
+    const secret = "cbs_" + crypto.randomBytes(32).toString("hex");
+    await emulatorDb().doc(`oauthClients/${clientId}`).set({
+      clientId, clientName: "sa-nohash", grantTypes: ["client_credentials"], isServiceAccount: true,
+      clientSecretHash: sha256(secret), userId: w.tenants.A, creatorCapabilities: ["fleet.admin", "dispatch.write"],
+    });
+    const tok = await tokenFor(w, clientId, secret);
+    expect(tok.status).toBeGreaterThanOrEqual(400);
+    expect(tok.status).toBeLessThan(500);
+    expect(tok.json.access_token).toBeUndefined();
   });
 
   test("SA.register_needs_fleet_admin control: a fleet.admin key registers a service account and its token works", async () => {
