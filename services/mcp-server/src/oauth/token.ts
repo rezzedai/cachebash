@@ -10,6 +10,7 @@ import * as crypto from "crypto";
 import { getFirestore } from "../firebase/client.js";
 import { Timestamp } from "firebase-admin/firestore";
 import { getDefaultCapabilities } from "../middleware/capabilities.js";
+import { logDenial } from "../auth/denialLog.js";
 
 function sendJson(res: http.ServerResponse, status: number, data: object): void {
   res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
@@ -295,6 +296,24 @@ function checkCcRateLimit(clientId: string): boolean {
   return true;
 }
 
+/**
+ * The creator key's current literal capability list, or null when the key cannot back a mint.
+ * An empty or absent list is literal: it yields no capabilities (no program defaults are applied).
+ */
+async function readCreatorCapabilities(db: FirebaseFirestore.Firestore, creatorKeyHash: unknown, userId: string): Promise<string[] | null> {
+  if (typeof creatorKeyHash !== "string" || !/^[0-9a-f]{64}$/.test(creatorKeyHash)) return null;
+  const keyDoc = await db.doc(`keyIndex/${creatorKeyHash}`).get();
+  if (!keyDoc.exists) return null;
+  const key = keyDoc.data();
+  if (!key || key.userId !== userId) return null;
+  if (key.active === false || key.revokedAt) return null;
+  if (key.expiresAt) {
+    const expiresAt = key.expiresAt.toDate ? key.expiresAt.toDate() : new Date(key.expiresAt);
+    if (expiresAt < new Date()) return null;
+  }
+  return Array.isArray(key.capabilities) ? key.capabilities.filter((c: unknown): c is string => typeof c === "string") : [];
+}
+
 async function handleClientCredentialsGrant(params: URLSearchParams, res: http.ServerResponse): Promise<void> {
   const clientId = params.get("client_id");
   const clientSecret = params.get("client_secret");
@@ -346,11 +365,16 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
 
     const grantedScopes = scope.split(" ").filter(Boolean);
 
-    // Ceiling: the token carries the oauth-service set intersected with the creator's list.
-    // A client with no stored creator list gets an empty set (fail closed).
-    const serviceCaps = getDefaultCapabilities("oauth-service");
-    const creatorCaps: string[] = Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : [];
-    const capabilities = serviceCaps.filter((c) => creatorCaps.includes(c));
+    // Ceiling: the token carries the oauth-service set intersected with the creator key's CURRENT literal
+    // capabilities, read from keyIndex at this mint. clientData.creatorCapabilities is an audit snapshot.
+    // A missing hash, or a creator key that is missing, inactive, revoked, expired or in another tenant,
+    // refuses the mint (fail closed).
+    const creatorCaps = await readCreatorCapabilities(db, clientData.creatorKeyHash, userId);
+    if (creatorCaps === null) {
+      logDenial({ principal: `oauth-client:${clientId}`, tool: "oauth_token_client_credentials", subject: null, code: "MISSING_CAPABILITY" });
+      return sendJson(res, 403, { error: "invalid_grant", error_description: "Service account creator is no longer valid" });
+    }
+    const capabilities = getDefaultCapabilities("oauth-service").filter((c) => creatorCaps.includes(c));
 
     // Generate access token only (no refresh token for client_credentials)
     const accessToken = generateToken("cbo_");

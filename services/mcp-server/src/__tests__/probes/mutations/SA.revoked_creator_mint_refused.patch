@@ -1,0 +1,13 @@
+# mutation for probe SA.revoked_creator_mint_refused: a revoked or inactive creator key still backs a mint
+diff --git a/src/oauth/token.ts b/src/oauth/token.ts
+index 4d17a10..607744b 100644
+--- a/src/oauth/token.ts
++++ b/src/oauth/token.ts
+@@ -306,7 +306,6 @@ async function readCreatorCapabilities(db: FirebaseFirestore.Firestore, creatorK
+   if (!keyDoc.exists) return null;
+   const key = keyDoc.data();
+   if (!key || key.userId !== userId) return null;
+-  if (key.active === false || key.revokedAt) return null;
+   if (key.expiresAt) {
+     const expiresAt = key.expiresAt.toDate ? key.expiresAt.toDate() : new Date(key.expiresAt);
+     if (expiresAt < new Date()) return null;

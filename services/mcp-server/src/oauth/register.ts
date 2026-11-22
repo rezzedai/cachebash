@@ -149,8 +149,14 @@ export async function handleOAuthRegister(req: http.IncomingMessage, res: http.S
     clientDoc.clientSecretHash = secretHash;
     clientDoc.isServiceAccount = true;
     clientDoc.userId = authenticatedUserId;
-    // Ceiling: tokens minted for this client never carry more than its creator held.
+    // Audit snapshot only: it is not the ceiling. Each token mint re-reads the creator key (creatorKeyHash).
     clientDoc.creatorCapabilities = authenticated!.capabilities;
+    // keyIndex document id of the creating API key. A creator that is not a keyIndex key (OAuth or
+    // Firebase credential) stores none, and that client's mints are refused.
+    const creatorKeyHash = authenticated!.apiKeyHash;
+    if (typeof creatorKeyHash === "string" && /^[0-9a-f]{64}$/.test(creatorKeyHash)) {
+      clientDoc.creatorKeyHash = creatorKeyHash;
+    }
   }
 
   await db.collection("oauthClients").doc(clientId).set(clientDoc);

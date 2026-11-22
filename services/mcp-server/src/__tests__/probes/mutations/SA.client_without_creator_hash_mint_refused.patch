@@ -1,0 +1,14 @@
+# mutation for probe SA.client_without_creator_hash_mint_refused: a client with no creator key hash falls back to the registration snapshot
+diff --git a/src/oauth/token.ts b/src/oauth/token.ts
+index 4d17a10..80303fe 100644
+--- a/src/oauth/token.ts
++++ b/src/oauth/token.ts
+@@ -369,7 +369,7 @@ async function handleClientCredentialsGrant(params: URLSearchParams, res: http.S
+     // capabilities, read from keyIndex at this mint. clientData.creatorCapabilities is an audit snapshot.
+     // A missing hash, or a creator key that is missing, inactive, revoked, expired or in another tenant,
+     // refuses the mint (fail closed).
+-    const creatorCaps = await readCreatorCapabilities(db, clientData.creatorKeyHash, userId);
++    const creatorCaps = clientData.creatorKeyHash ? await readCreatorCapabilities(db, clientData.creatorKeyHash, userId) : (Array.isArray(clientData.creatorCapabilities) ? clientData.creatorCapabilities : []);
+     if (creatorCaps === null) {
+       logDenial({ principal: `oauth-client:${clientId}`, tool: "oauth_token_client_credentials", subject: null, code: "MISSING_CAPABILITY" });
+       return sendJson(res, 403, { error: "invalid_grant", error_description: "Service account creator is no longer valid" });
