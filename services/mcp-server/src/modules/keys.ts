@@ -80,9 +80,9 @@ export async function createKeyHandler(auth: AuthContext, args: any) {
   // SARK #341 ceiling: a provisioner may only grant capabilities it itself
   // holds — clamp minted caps ⊆ caller's. Enforced BEFORE any side effect
   // (program auto-registration, key write) so a non-entitled request mutates
-  // nothing. An owner key holding wildcard passes everything; a bounded
-  // keys.provision holder cannot mint wildcard or caps beyond its own grant, so
-  // keys.provision can never launder a wildcard into a freshly minted key.
+  // nothing. The check is literal (holdsCapability): a caller holding only "*"
+  // holds no capability and can mint none, and a keys.provision holder cannot
+  // mint "*" or any capability beyond its own literal grant.
   const disallowed = disallowedMintCapabilities(auth.capabilities, requestedCapabilities);
   if (disallowed.length > 0) {
     logDenial({ principal: denialPrincipal(auth), tool: "keys_create_key", subject: null, code: "NOT_GRANTED" });
