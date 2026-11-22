@@ -103,6 +103,18 @@ export function checkProgram(
           if (inEq || inIncludes) push("S2", node);
         }
       }
+      // S1 (cast form): `(x as any).programId` / `(<any>x).programId` hides the read from the type check.
+      // Flag when x is typed AuthContext or is named like an auth context.
+      if (ts.isPropertyAccessExpression(node) && node.name.text === "programId" && !inAuthDir) {
+        let inner: ts.Expression = node.expression;
+        while (ts.isParenthesizedExpression(inner)) inner = inner.expression;
+        if ((ts.isAsExpression(inner) || ts.isTypeAssertionExpression(inner)) && inner.type.kind === ts.SyntaxKind.AnyKeyword) {
+          let operand: ts.Expression = inner.expression;
+          while (ts.isParenthesizedExpression(operand) || ts.isNonNullExpression(operand)) operand = operand.expression;
+          const text = operand.getText(sf);
+          if (isAuthContextType(checker, operand) || /auth/i.test(text)) push("S1", node);
+        }
+      }
       // S3: identifier-argument expressions in comparisons
       if (!isAuthorize) {
         if (ts.isBinaryExpression(node) && EQ_OPS.has(node.operatorToken.kind)) {

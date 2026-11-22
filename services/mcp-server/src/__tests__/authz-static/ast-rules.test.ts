@@ -21,6 +21,13 @@ describe("authz-static (c): AST rules", () => {
     expect(got).toEqual(["s1.fixture.ts:S1", "s2.fixture.ts:S2", "s3.fixture.ts:S3"]);
   });
 
+  test("(c) S1 flags an `as any` cast reading programId off an auth context", () => {
+    const f = path.join(__dirname, "fixtures", "s1-as-any.fixture.ts");
+    const { program: p2 } = buildSrcProgram(SRC_ROOT, [f]);
+    const vs = checkProgram(p2, [f], (abs) => path.basename(abs));
+    expect(vs.map((v) => `${v.file}:${v.rule}`)).toEqual(["s1-as-any.fixture.ts:S1"]);
+  });
+
   const current = groupViolations(checkProgram(program, files, rel));
   const key = (r: { rule: string; file: string; handler: string; expr: string }): string => [r.rule, r.file, r.handler, r.expr].join("|");
 
