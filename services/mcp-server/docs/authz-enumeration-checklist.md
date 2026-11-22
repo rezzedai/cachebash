@@ -54,7 +54,7 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 | (a) occurrences | 318 |
 | (a) lines | 294 |
 | (a) files | 18 |
-| (b) lines beyond (a) | 59 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
+| (b) lines beyond (a) | 60 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
 
 Expected at the base: 271 occurrences, 255 lines, 18 files; 59; 3. Differs from expected: no.
@@ -220,7 +220,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `keys.revokeKeyHandler:keyHash`
 
-- Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 153 at base, 1 occurrence(s).
+- Where: `modules/keys.ts`, handler `revokeKeyHandler`, expression `keyHash`, line 154 at base, 1 occurrence(s).
 - Tool: keys_revoke_key; transports mcp, rest; effect write; decided by C-5; closes in PR-F.
 - Binding today: auth/authorize.ts authorizeKeySubject: sameTenant (both sides through resolveTenant) AND (sameProgram OR isKeyAdmin); a tenant mismatch answers "Key not found" (PR-E). isKeyAdmin is literal fleet.admin only; a key document with no programId is denied with reason "program" (PR-F)..
 - Evidence: The tenant check is satisfied by every key (one tenant). Key administration comes from a literal fleet.admin on the credential: the KEY_ADMIN_PRINCIPALS list and keys.admin were deleted in PR-F. C-2 ruled the principal (tenant, program) with fleet.admin as the widening.
@@ -421,15 +421,15 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `CustomHTTPTransport.(module):parsed.sessionId`
 
-- Where: `transport/CustomHTTPTransport.ts`, handler `(module)`, expression `parsed.sessionId`, line 130 at base, 9 occurrence(s).
+- Where: `transport/CustomHTTPTransport.ts`, handler `(module)`, expression `parsed.sessionId`, line 165 at base, 10 occurrence(s).
 - Tool: none; transports none; effect read; decided by ISO; closes in ISO-assign.
-- Binding today: none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:147-150).
+- Binding today: none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:184-187).
 - Evidence: parsed.sessionId comes from a caller-chosen header. An invalid id proceeds under Bearer auth (:147-150). A heartbeat updates sessions/{header}.lastHeartbeat for any program in the tenant (:159). DELETE removes any mcp_sessions document in the tenant (:230). It is an identity-selecting argument, not protocol framing alone.
 - Recommendation: Bind the header id to the principal that created the MCP session (SELF-ONLY on session ownership) before the heartbeat write and the DELETE. ISO to assign the PR.
 
 ### `rest.route GET /v1/messages:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 452 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/messages`, expression `query.sessionId`, line 453 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
@@ -438,7 +438,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 792 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId`, expression `p.programId`, line 793 at base, 1 occurrence(s).
 - Tool: state_get_program_state; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_program_state; the gate is in the handler.
@@ -446,7 +446,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/program-state/:programId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 797 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/program-state/:programId`, expression `p.programId`, line 798 at base, 1 occurrence(s).
 - Tool: state_update_program_state; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_update_program_state; the gate is in the handler.
@@ -454,7 +454,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/program-state/:programId/context-history:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 802 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/program-state/:programId/context-history`, expression `p.programId`, line 803 at base, 1 occurrence(s).
 - Tool: state_get_context_history; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_get_context_history; the gate is in the handler.
@@ -462,7 +462,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route POST /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 809 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route POST /v1/memory/:programId/patterns`, expression `p.programId`, line 810 at base, 1 occurrence(s).
 - Tool: state_store_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_store_memory; the gate is in the handler.
@@ -470,7 +470,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/patterns:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 814 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/patterns`, expression `p.programId`, line 815 at base, 1 occurrence(s).
 - Tool: state_recall_memory; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_recall_memory; the gate is in the handler.
@@ -478,7 +478,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId`
 
-- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 818 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route DELETE /v1/memory/:programId/patterns/:patternId`, expression `p.programId`, line 819 at base, 1 occurrence(s).
 - Tool: state_delete_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_delete_memory; the gate is in the handler.
@@ -486,7 +486,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId`
 
-- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 823 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route PATCH /v1/memory/:programId/patterns/:patternId/reinforce`, expression `p.programId`, line 824 at base, 1 occurrence(s).
 - Tool: state_reinforce_memory; transports rest; effect write; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_reinforce_memory; the gate is in the handler.
@@ -494,7 +494,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/memory/:programId/health:p.programId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 827 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/memory/:programId/health`, expression `p.programId`, line 828 at base, 1 occurrence(s).
 - Tool: state_memory_health; transports rest; effect read; decided by C-5; closes in PR-J.
 - Binding today: delegates to the handler's canRead or canWrite.
 - Evidence: The path segment becomes args.programId for state_memory_health; the gate is in the handler.
@@ -502,7 +502,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 
 ### `rest.route GET /v1/interrupts/peek:query.sessionId`
 
-- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 861 at base, 1 occurrence(s).
+- Where: `transport/rest.ts`, handler `route GET /v1/interrupts/peek`, expression `query.sessionId`, line 862 at base, 1 occurrence(s).
 - Tool: relay_get_messages; transports rest; effect read; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages with markAsRead false (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
@@ -831,8 +831,8 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | tasks.createTaskHandler:args.target | a | 10 | 431 | ADDRESSED | ISO | PR-K | false |
 | gsp.gspWriteHandler:args.source | a | 1 | 434 | ESCALATE | C-5 | PR-L | false |
 | gsp.gspBootstrapHandler:args.agentId | a | 12 | 670 | FOREIGN-READ | C-4 | PR-I | false |
-| keys.createKeyHandler:programId | c | 1 | 58 | FOREIGN-WRITE | ISO | n/a | false |
-| keys.revokeKeyHandler:keyHash | c | 1 | 153 | ESCALATE | C-5 | PR-F | false |
+| keys.createKeyHandler:programId | c | 1 | 60 | FOREIGN-WRITE | ISO | n/a | false |
+| keys.revokeKeyHandler:keyHash | c | 1 | 154 | ESCALATE | C-5 | PR-F | false |
 | metrics.getProgramHealthHandler:args.programId | a | 4 | 859 | ESCALATE | C-5 | PR-L | false |
 | patternConsolidation.consolidatePatternsHandler:p.programId | b | 2 | 238 | NOT-IDENTITY | ISO | n/a | false |
 | programRegistry.listProgramsHandler:p.programId | b | 1 | 376 | NOT-IDENTITY | ISO | n/a | false |
@@ -876,19 +876,19 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | trace.queryTracesHandler:args.programId | a | 2 | 223 | ESCALATE | C-5 | PR-L | false |
 | onDemandWake.wakeTarget:userId,target,callerSource | c | 1 | 208 | ESCALATE | ISO | ISO-assign | false |
 | callback.isAllowedPrincipal:p.uid | b | 1 | 48 | NOT-IDENTITY | ISO | n/a | false |
-| CustomHTTPTransport.(module):parsed.sessionId | b | 9 | 130 | ESCALATE | ISO | ISO-assign | false |
+| CustomHTTPTransport.(module):parsed.sessionId | b | 10 | 165 | ESCALATE | ISO | ISO-assign | false |
 | rest.route GET /v1/tasks/stats:query.target | a | 1 | 316 | FOREIGN-READ | C-5 | PR-M | false |
-| rest.route GET /v1/messages/unread:query.sessionId | a | 1 | 423 | SELF-ONLY | ISO | PR-M | false |
-| rest.route GET /v1/messages:query.sessionId | a | 1 | 452 | ESCALATE | C-5 | PR-K | false |
-| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 792 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 797 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 802 | ESCALATE | C-5 | PR-J | false |
-| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 809 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 814 | ESCALATE | C-5 | PR-J | false |
-| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 818 | ESCALATE | C-5 | PR-J | false |
-| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 823 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 827 | ESCALATE | C-5 | PR-J | false |
-| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 861 | ESCALATE | C-5 | PR-K | false |
+| rest.route GET /v1/messages/unread:query.sessionId | a | 1 | 424 | SELF-ONLY | ISO | PR-M | false |
+| rest.route GET /v1/messages:query.sessionId | a | 1 | 453 | ESCALATE | C-5 | PR-K | false |
+| rest.route GET /v1/program-state/:programId:p.programId | b | 1 | 793 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/program-state/:programId:p.programId | b | 1 | 798 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/program-state/:programId/context-history:p.programId | b | 1 | 803 | ESCALATE | C-5 | PR-J | false |
+| rest.route POST /v1/memory/:programId/patterns:p.programId | b | 1 | 810 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/patterns:p.programId | b | 1 | 815 | ESCALATE | C-5 | PR-J | false |
+| rest.route DELETE /v1/memory/:programId/patterns/:patternId:p.programId | b | 1 | 819 | ESCALATE | C-5 | PR-J | false |
+| rest.route PATCH /v1/memory/:programId/patterns/:patternId/reinforce:p.programId | b | 1 | 824 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/memory/:programId/health:p.programId | b | 1 | 828 | ESCALATE | C-5 | PR-J | false |
+| rest.route GET /v1/interrupts/peek:query.sessionId | a | 1 | 862 | ESCALATE | C-5 | PR-K | false |
 | rest.route GET /v1/tasks/stats:getFirestore() | none | 1 | 324 | FOREIGN-READ | C-5 | PR-M | false |
 | rest.route GET /v1/messages/unread:getFirestore() | none | 1 | 421 | SELF-ONLY | ISO | PR-M | false |
 | rest.route POST /v1/messages/mark_read:getFirestore() | none | 1 | 439 | SELF-ONLY | ISO | PR-M | false |

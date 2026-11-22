@@ -17,7 +17,7 @@
     "a_occurrences": 318,
     "a_lines": 294,
     "a_files": 18,
-    "b_lines_beyond_a": 59,
+    "b_lines_beyond_a": 60,
     "b_new_since_recon": [
       "modules/signal.ts:235",
       "modules/signal.ts:241",
@@ -3204,7 +3204,7 @@
       "expr": "programId",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 58,
+      "line_at_base": 60,
       "tool": "keys_create_key",
       "transports": [
         "mcp",
@@ -3227,7 +3227,7 @@
       "expr": "keyHash",
       "regex": "c",
       "occurrences": 1,
-      "line_at_base": 153,
+      "line_at_base": 154,
       "tool": "keys_revoke_key",
       "transports": [
         "mcp",
@@ -4290,12 +4290,12 @@
       "handler": "(module)",
       "expr": "parsed.sessionId",
       "regex": "b",
-      "occurrences": 9,
-      "line_at_base": 130,
+      "occurrences": 10,
+      "line_at_base": 165,
       "tool": null,
       "transports": [],
       "effect": "read",
-      "binding_today": "none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:147-150)",
+      "binding_today": "none; caller-chosen header, an invalid id still proceeds (CustomHTTPTransport.ts:184-187)",
       "disposition": "ESCALATE",
       "disposition_by": "ISO",
       "status": "pending",
@@ -4335,7 +4335,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 423,
+      "line_at_base": 424,
       "tool": null,
       "transports": [
         "rest"
@@ -4358,7 +4358,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 452,
+      "line_at_base": 453,
       "tool": "relay_get_messages",
       "transports": [
         "rest"
@@ -4383,7 +4383,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 792,
+      "line_at_base": 793,
       "tool": "state_get_program_state",
       "transports": [
         "rest"
@@ -4407,7 +4407,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 797,
+      "line_at_base": 798,
       "tool": "state_update_program_state",
       "transports": [
         "rest"
@@ -4431,7 +4431,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 802,
+      "line_at_base": 803,
       "tool": "state_get_context_history",
       "transports": [
         "rest"
@@ -4455,7 +4455,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 809,
+      "line_at_base": 810,
       "tool": "state_store_memory",
       "transports": [
         "rest"
@@ -4479,7 +4479,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 814,
+      "line_at_base": 815,
       "tool": "state_recall_memory",
       "transports": [
         "rest"
@@ -4503,7 +4503,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 818,
+      "line_at_base": 819,
       "tool": "state_delete_memory",
       "transports": [
         "rest"
@@ -4527,7 +4527,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 823,
+      "line_at_base": 824,
       "tool": "state_reinforce_memory",
       "transports": [
         "rest"
@@ -4551,7 +4551,7 @@
       "expr": "p.programId",
       "regex": "b",
       "occurrences": 1,
-      "line_at_base": 827,
+      "line_at_base": 828,
       "tool": "state_memory_health",
       "transports": [
         "rest"
@@ -4575,7 +4575,7 @@
       "expr": "query.sessionId",
       "regex": "a",
       "occurrences": 1,
-      "line_at_base": 861,
+      "line_at_base": 862,
       "tool": "relay_get_messages",
       "transports": [
         "rest"

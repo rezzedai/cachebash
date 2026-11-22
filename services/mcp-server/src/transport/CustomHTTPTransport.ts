@@ -12,6 +12,41 @@ import {
 } from "./ResponseBuilder.js";
 import { validateRequestHeaders } from "../security/dns-rebinding.js";
 import { FieldValue } from "firebase-admin/firestore";
+import type { AuthContext } from "../auth/authValidator.js";
+import { credentialPrincipal } from "../auth/ownerAuthz.js";
+
+/** SESSION_DEATH dedupe: one event per invalid session id per process per hour, so the metric counts sessions, not requests. */
+const SESSION_DEATH_TTL_MS = 60 * 60 * 1000;
+const SESSION_DEATH_MAX_ENTRIES = 10_000;
+const sessionDeathSeen = new Map<string, number>();
+
+function shouldEmitSessionDeath(userId: string, sessionId: string, now = Date.now()): boolean {
+  const key = `${userId}:${sessionId}`;
+  const seenAt = sessionDeathSeen.get(key);
+  if (seenAt !== undefined && now - seenAt < SESSION_DEATH_TTL_MS) return false;
+  if (sessionDeathSeen.size >= SESSION_DEATH_MAX_ENTRIES) {
+    for (const [k, t] of sessionDeathSeen) {
+      if (now - t >= SESSION_DEATH_TTL_MS) sessionDeathSeen.delete(k);
+    }
+    // Still full of live entries: drop the oldest (Map iterates in insertion order).
+    if (sessionDeathSeen.size >= SESSION_DEATH_MAX_ENTRIES) {
+      const oldest = sessionDeathSeen.keys().next().value;
+      if (oldest !== undefined) sessionDeathSeen.delete(oldest);
+    }
+  }
+  sessionDeathSeen.delete(key);
+  sessionDeathSeen.set(key, now);
+  return true;
+}
+
+/** Telemetry must not throw: an empty keyProgramId reads as "unknown" here. */
+function telemetryPrincipal(auth: AuthContext): string {
+  try {
+    return credentialPrincipal(auth);
+  } catch {
+    return "unknown";
+  }
+}
 
 export class CustomHTTPTransport implements Transport {
   private config: TransportConfig;
@@ -51,7 +86,7 @@ export class CustomHTTPTransport implements Transport {
 
   async handleRequest(
     request: Request,
-    authContext?: { userId: string; encryptionKey?: Buffer }
+    authContext?: AuthContext
   ): Promise<Response> {
     try {
       const parsed = await this.parseRequest(request);
@@ -113,7 +148,7 @@ export class CustomHTTPTransport implements Transport {
 
   private async handlePost(
     parsed: ParsedRequest,
-    authContext?: { userId: string; encryptionKey?: Buffer }
+    authContext?: AuthContext
   ): Promise<Response> {
     if (!authContext) return this.toResponse(unauthorizedResponse("Missing authentication"));
 
@@ -139,11 +174,13 @@ export class CustomHTTPTransport implements Transport {
       const validation = await this.sessionManager.validateSession(parsed.sessionId, authContext.userId);
       if (!validation.valid) {
         // Emit session death telemetry (keep for monitoring)
-        emitEvent(authContext.userId, {
-          event_type: "SESSION_DEATH",
-          session_id: parsed.sessionId,
-          program_id: (authContext as any).programId || "unknown",
-        });
+        if (shouldEmitSessionDeath(authContext.userId, parsed.sessionId)) {
+          emitEvent(authContext.userId, {
+            event_type: "SESSION_DEATH",
+            session_id: parsed.sessionId,
+            program_id: telemetryPrincipal(authContext),
+          });
+        }
         console.warn(`[Transport] Session ${parsed.sessionId} invalid but proceeding with Bearer auth`);
         // DO NOT return error — auth comes from Bearer token, not session state
       }
@@ -215,7 +252,7 @@ export class CustomHTTPTransport implements Transport {
 
   private async handleDelete(
     parsed: ParsedRequest,
-    authContext?: { userId: string; encryptionKey?: Buffer }
+    authContext?: AuthContext
   ): Promise<Response> {
     if (!authContext) return this.toResponse(unauthorizedResponse("Missing authentication"));
     if (!parsed.sessionId) {
@@ -225,7 +262,7 @@ export class CustomHTTPTransport implements Transport {
     emitEvent(authContext.userId, {
       event_type: "SESSION_ENDED",
       session_id: parsed.sessionId,
-      program_id: (authContext as any).programId || "unknown",
+      program_id: telemetryPrincipal(authContext),
     });
     await this.sessionManager.deleteSession(parsed.sessionId, authContext.userId);
     return new Response(null, { status: 200, headers: { "Content-Type": "application/json" } });
