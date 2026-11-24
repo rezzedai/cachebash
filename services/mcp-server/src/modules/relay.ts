@@ -274,35 +274,6 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
       refs.push(ref.id);
     }
 
-    // Single task doc for mobile visibility (summary, not fan-out).
-    // ADR-014: RESULT mirrors are claimable (requires_action:true); all other
-    // types are informational (auto_archived, invisible to default task polls).
-    const isResultMirror = args.message_type === "RESULT";
-    const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
-    const taskRef = db.collection(`tenants/${auth.userId}/tasks`).doc();
-    batch.set(taskRef, {
-      schemaVersion: '2.2' as const,
-      type: "task",
-      title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
-      instructions: args.message,
-      preview,
-      source: verifiedSource,
-      target: args.target,
-      message_type: args.message_type,
-      priority: args.priority,
-      action: args.action,
-      status: "created",
-      requires_action: isResultMirror,
-      ...(isResultMirror ? {} : { auto_archived: true }),
-      relay_mirror: true,
-      created_via: { tool: "relay_mirror" },
-      ttl,
-      expiresAt,
-      createdAt: serverTimestamp(),
-      encrypted: false,
-      archived: false,
-    });
-
     await batch.commit();
 
     // Wake tenant owner after delivery (fire-and-forget — don't block the send response)
@@ -397,33 +368,11 @@ export async function sendMessageHandler(auth: AuthContext, rawArgs: unknown): P
     is_multicast: false,
   });
 
-  // Also write to tasks collection for mobile app visibility.
-  // ADR-014: RESULT mirrors are claimable (requires_action:true); all other
-  // types are informational (auto_archived, invisible to default task polls).
-  const isResultMirror = args.message_type === "RESULT";
-  const preview = args.message.length > 50 ? args.message.substring(0, 47) + "..." : args.message;
-  await db.collection(`tenants/${auth.userId}/tasks`).doc(relayRef.id).set({
-    schemaVersion: '2.2' as const,
-    type: "task",
-    title: `[${verifiedSource}→${args.target}] ${args.message_type}`,
-    instructions: args.message,
-    preview,
-    source: verifiedSource,
-    target: args.target,
-    message_type: args.message_type,
-    priority: args.priority,
-    action: args.action,
-    status: "created",
-    requires_action: isResultMirror,
-    ...(isResultMirror ? {} : { auto_archived: true }),
-    relay_mirror: true,
-    created_via: { tool: "relay_mirror" },
-    ttl,
-    expiresAt,
-    createdAt: serverTimestamp(),
-    encrypted: false,
-    archived: false,
-  });
+  // D2: no mirror row in tenants/<owner>/tasks. A mirror was a status:"created"
+  // task that nothing closed after delivery: it tripped GRIDBOT's
+  // stale_task_count, fed the dispatcher spawn poll, and grew the get_tasks
+  // scan (tasks.ts R3.6). The relay doc is the record; mobile reads it through
+  // get_messages.
 
   // Record idempotency key
   if (args.idempotency_key) {

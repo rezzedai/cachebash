@@ -12,10 +12,14 @@ import { sendMessageHandler } from "../modules/relay";
 import { verifySource } from "../middleware/gate";
 
 let lastRelayDoc: Record<string, unknown> = {};
+// D2: every write to tenants/<uid>/tasks/<id>, via doc().set() or batch.set().
+let taskWrites: Array<Record<string, unknown>> = [];
 
 const mockDocRef = {
   id: "msg-id-1",
-  set: jest.fn(async () => {}),
+  set: jest.fn(async (data: Record<string, unknown>) => {
+    if (data && (data as any).relay_mirror === true) taskWrites.push(data);
+  }),
   get: jest.fn(async () => ({ exists: false })),
 };
 
@@ -28,6 +32,12 @@ const mockDb = {
     }),
   })),
   doc: jest.fn(() => mockDocRef),
+  batch: jest.fn(() => ({
+    set: jest.fn((_ref: unknown, data: Record<string, unknown>) => {
+      if (data && (data as any).relay_mirror === true) taskWrites.push(data);
+    }),
+    commit: jest.fn(async () => {}),
+  })),
 };
 
 jest.mock("../firebase/client.js", () => ({
@@ -92,6 +102,37 @@ describe("relay owner send-message — identity sovereignty", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     lastRelayDoc = {};
+    taskWrites = [];
+  });
+
+  // D2: relay mirrors were status:"created" tasks that nothing closed. They
+  // tripped GRIDBOT stale_task_count and fed dispatcher spawns. A relay send
+  // must leave no task row at all (the relay doc is the only record).
+  it.each(["STATUS", "DIRECTIVE", "QUERY", "RESULT", "ACK", "PING"])(
+    "D2: unicast %s send writes no mirror task",
+    async (message_type) => {
+      await sendMessageHandler(ownerAuth(), {
+        source: "owner",
+        target: "basher",
+        message_type,
+        message: "body",
+      });
+      expect(taskWrites).toHaveLength(0);
+    }
+  );
+
+  it("D2: multicast send writes no mirror task", async () => {
+    const { resolveTargetsAsync } = jest.requireMock("../../src/modules/programRegistry.js");
+    resolveTargetsAsync.mockResolvedValueOnce(["iso", "vector"]);
+    const { isGroupTarget } = jest.requireMock("../config/programs.js");
+    isGroupTarget.mockReturnValueOnce(true);
+    await sendMessageHandler(ownerAuth(), {
+      source: "owner",
+      target: "council",
+      message_type: "STATUS",
+      message: "body",
+    });
+    expect(taskWrites).toHaveLength(0);
   });
 
   it("succeeds when source matches auth.programId (owner)", async () => {

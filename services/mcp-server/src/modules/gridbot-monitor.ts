@@ -82,13 +82,29 @@ export async function runHealthCheck(
   const oneDayAgo = Timestamp.fromDate(
     new Date(now.toDate().getTime() - 24 * 60 * 60 * 1000)
   );
-  const staleCount = (await firestore
+  const staleBase = firestore
     .collection(`tenants/${userId}/tasks`)
     .where("status", "==", "created")
     .where("createdAt", ">=", oneDayAgo)
-    .where("createdAt", "<=", thirtyMinAgo)
-    .count()
-    .get()).data().count;
+    .where("createdAt", "<=", thirtyMinAgo);
+  const staleTotal = (await staleBase.count().get()).data().count;
+
+  // D2: legacy relay mirrors (relay_mirror:true, written before relay.ts
+  // stopped creating them) are delivered messages, not open work. Counted
+  // separately and subtracted: `relay_mirror != true` would also drop the docs
+  // that lack the field, which is every real task. Needs the
+  // status+relay_mirror+createdAt index (infra/firestore.indexes.json); a
+  // missing index logs a warning and leaves the count unfiltered.
+  let legacyMirrorCount = 0;
+  try {
+    legacyMirrorCount = (await staleBase
+      .where("relay_mirror", "==", true)
+      .count()
+      .get()).data().count;
+  } catch (err) {
+    console.warn("[gridbot-monitor] legacy relay_mirror count failed; stale_task_count unfiltered", err);
+  }
+  const staleCount = Math.max(0, staleTotal - legacyMirrorCount);
 
   indicators.push({
     name: "stale_task_count",

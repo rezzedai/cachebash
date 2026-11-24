@@ -127,6 +127,43 @@ describe("Health Monitor", () => {
     expect(staleIndicator?.status).toBe("warning");
   });
 
+  it("stale_task_count ignores relay-mirror tasks (D2)", async () => {
+    // 27 legacy mirror docs (relay_mirror:true, status created) + 2 real stale tasks.
+    // Call 3 counts every stale task (29); call 4 counts the legacy mirrors (27).
+    let callCount = 0;
+    mockCollection.get.mockImplementation(() => {
+      callCount++;
+      if (callCount === 3) return Promise.resolve({ size: 29, docs: [] });
+      if (callCount === 4) return Promise.resolve({ size: 27, docs: [] });
+      return Promise.resolve({ size: 0, docs: [] });
+    });
+
+    const result = await runHealthCheck(testUserId);
+
+    const staleIndicator = result.indicators.find((i) => i.name === "stale_task_count");
+    expect(staleIndicator?.value).toBe(2);
+    expect(staleIndicator?.status).toBe("ok");
+    expect(mockCollection.where).toHaveBeenCalledWith("relay_mirror", "==", true);
+    expect(result.alerts_sent).toHaveLength(0);
+  });
+
+  it("stale_task_count stays unfiltered when the mirror count fails (missing index)", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    let callCount = 0;
+    mockCollection.get.mockImplementation(() => {
+      callCount++;
+      if (callCount === 3) return Promise.resolve({ size: 12, docs: [] });
+      if (callCount === 4) return Promise.reject(new Error("FAILED_PRECONDITION: index"));
+      return Promise.resolve({ size: 0, docs: [] });
+    });
+
+    const result = await runHealthCheck(testUserId);
+
+    expect(result.indicators.find((i) => i.name === "stale_task_count")?.value).toBe(12);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("should route critical alerts to admin mobile", async () => {
     // Create critical relay queue depth
     const mockPendingRelay = Array(60).fill({ data: () => ({ status: "pending" }) });
@@ -134,7 +171,7 @@ describe("Health Monitor", () => {
     let callCount = 0;
     mockCollection.get.mockImplementation(() => {
       callCount++;
-      if (callCount === 4) {
+      if (callCount === 5) {
         // Relay queue depth query
         return Promise.resolve({ size: 60, docs: mockPendingRelay });
       }
@@ -163,7 +200,7 @@ describe("Health Monitor", () => {
     let callCount = 0;
     mockCollection.get.mockImplementation(() => {
       callCount++;
-      if (callCount === 5) {
+      if (callCount === 6) {
         // Wake events query
         return Promise.resolve({ size: 3, docs: mockWakeEvents });
       }
@@ -231,7 +268,7 @@ describe("Health Monitor", () => {
 
     await runHealthCheck(testUserId);
 
-    expect(mockCollection.count).toHaveBeenCalledTimes(4);
+    expect(mockCollection.count).toHaveBeenCalledTimes(5);
   });
 
   // W5 F2: stale_task_count is bounded below at 24h, so its cost follows

@@ -44,9 +44,9 @@ const CANDIDATE_PAGE_SIZE = 200;
 
 // R3.6: the R3.2 exhaustion scan (below) had no bound. Proving "no work"
 // (R3.4) walks the entire raw candidate stream, and that population grows
-// monotonically and is never deleted -- relay.ts mirrors every non-RESULT
-// message with auto_archived:true, which the default read always rejects,
-// plus every expired-TTL carry-forward. The idle-program boot read is the
+// monotonically and is never deleted -- legacy relay mirrors (relay.ts wrote
+// one per non-RESULT message with auto_archived:true until D2 stopped it; the
+// default read always rejects them) plus every expired-TTL carry-forward. The idle-program boot read is the
 // fleet's most frequent call, so this is the pathological case, and it was
 // getting slower every day. Measured live 2026-08-12 (post-R3.2 deploy):
 // totalCandidates:1402 for target:"iso" alone -- exhausting that today costs
