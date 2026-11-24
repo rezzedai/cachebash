@@ -691,14 +691,12 @@ describe("ADR-013 Participant-Scoped Durable Relay Reads", () => {
 });
 
 /**
- * E-1/ADR-014: relay-mirror classification at creation (folded from cachebash#346).
- *
- * Relay messages must not create claimable task records by default.
- * STATUS/ACK/PING/PONG mirrors → informational (auto_archived + requires_action:false + TTL).
- * RESULT mirrors → claimable (requires_action:true, status:created).
- * Replaces SARK's sweeper-skip regex stopgap for new writes; stopgap stays for legacy.
+ * D2: relay sends create no mirror task. A mirror was a status:"created" task
+ * nothing closed after delivery: false GRIDBOT stale_task_count criticals and
+ * dispatcher spawns for already-delivered messages. Supersedes the E-1/ADR-014
+ * mirror classification (cachebash#346).
  */
-describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
+describe("D2 Relay sends create no mirror task", () => {
   let db: Firestore;
   let userId: string;
 
@@ -713,99 +711,51 @@ describe("E-1/ADR-014 Relay-Mirror Classification at Creation", () => {
     userId = testUser.userId;
   });
 
-  it("unicast STATUS mirror is informational: auto_archived, requires_action false, TTL set", async () => {
-    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
-      message: "structural fix proof",
-      source: "basher",
-      target: "iso",
-      message_type: "QUERY",
-      idempotency_key: "mirror-test-unicast-1",
-    }) as never);
-    expect(res.success).toBe(true);
+  const TYPES = ["STATUS", "DIRECTIVE", "QUERY", "RESULT", "ACK", "PING"] as const;
 
-    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
-    expect(mirror.requires_action).toBe(false);
-    expect(mirror.auto_archived).toBe(true);
-    expect(mirror.relay_mirror).toBe(true);
-    expect(mirror.message_type).toBe("QUERY");
-    expect(mirror.expiresAt).toBeDefined();
-    expect(mirror.ttl).toBeGreaterThan(0);
-  });
-
-  it("mirror is invisible to default task polls but recoverable via include_archived", async () => {
+  it.each(TYPES)("unicast %s leaves no task doc, before or after delivery", async (message_type) => {
     const send = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
-      message: "phantom work check",
+      message: "no mirror",
       source: "basher",
       target: "iso",
-      message_type: "DIRECTIVE",
-      idempotency_key: "mirror-test-poll-1",
+      message_type,
+      idempotency_key: `d2-unicast-${message_type}`,
     }) as never);
     expect(send.success).toBe(true);
 
-    // Default poll (what dispatcher task-poll sees): no mirror
-    const poll = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created" }) as never);
-    expect(poll.tasks.map((t: any) => t.id)).not.toContain(send.messageId);
+    expect((await db.doc(`tenants/${userId}/tasks/${send.messageId}`).get()).exists).toBe(false);
 
-    // Forensic/mobile read with include_archived: mirror visible
-    const archived = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created", include_archived: true }) as never);
-    expect(archived.tasks.map((t: any) => t.id)).toContain(send.messageId);
+    // Deliver it (claim), then re-check.
+    await getMessagesHandler(mirrorAuth(userId, "iso"), { target: "iso", markAsRead: true });
+    const tasks = await db.collection(`tenants/${userId}/tasks`).get();
+    expect(tasks.size).toBe(0);
   });
 
-  it("multicast mirror is informational too", async () => {
+  it("dispatcher poll (get_tasks status=created) never sees a relay message", async () => {
+    for (const message_type of TYPES) {
+      await sendMessageHandler(mirrorAuth(userId, "basher"), {
+        message: "poll check",
+        source: "basher",
+        target: "iso",
+        message_type,
+        idempotency_key: `d2-poll-${message_type}`,
+      } as never);
+    }
+    const poll = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created", include_archived: true, requires_action: null }) as never);
+    expect(poll.tasks).toHaveLength(0);
+  });
+
+  it("multicast leaves no task doc", async () => {
     const res = parse(await sendMessageHandler(mirrorAuth(userId, "iso"), {
-      message: "multicast mirror check",
+      message: "multicast no mirror",
       source: "iso",
       target: "council",
       message_type: "STATUS",
-      idempotency_key: "mirror-test-multi-1",
+      idempotency_key: "d2-multi-1",
     }) as never);
     expect(res.success).toBe(true);
     expect(res.recipients).toBeGreaterThan(1);
-
-    const snap = await db.collection(`tenants/${userId}/tasks`).where("target", "==", "council").get();
-    expect(snap.size).toBe(1);
-    const mirror = snap.docs[0].data();
-    expect(mirror.requires_action).toBe(false);
-    expect(mirror.auto_archived).toBe(true);
-    expect(mirror.relay_mirror).toBe(true);
-    expect(mirror.expiresAt).toBeDefined();
-  });
-
-  it("E-1: RESULT mirror is claimable (requires_action true, status created)", async () => {
-    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
-      message: "task result body",
-      source: "basher",
-      target: "iso",
-      message_type: "RESULT",
-      idempotency_key: "mirror-test-result-1",
-    }) as never);
-    expect(res.success).toBe(true);
-
-    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
-    expect(mirror.requires_action).toBe(true);
-    expect(mirror.auto_archived).toBeFalsy();
-    expect(mirror.status).toBe("created");
-    expect(mirror.relay_mirror).toBe(true);
-
-    // RESULT mirrors ARE visible to default get_tasks (claimable work)
-    const poll = parse(await getTasksHandler(mirrorAuth(userId, "iso"), { target: "iso", status: "created" }) as never);
-    expect(poll.tasks.map((t: any) => t.id)).toContain(res.messageId);
-  });
-
-  it("E-1: created_via is a typed object on mirror docs", async () => {
-    const res = parse(await sendMessageHandler(mirrorAuth(userId, "basher"), {
-      message: "created_via check",
-      source: "basher",
-      target: "iso",
-      message_type: "STATUS",
-      idempotency_key: "mirror-test-created-via-1",
-    }) as never);
-    expect(res.success).toBe(true);
-
-    const mirror = (await db.doc(`tenants/${userId}/tasks/${res.messageId}`).get()).data()!;
-    expect(mirror.created_via).toBeDefined();
-    expect(typeof mirror.created_via).toBe("object");
-    expect(mirror.created_via.tool).toBeDefined();
+    expect((await db.collection(`tenants/${userId}/tasks`).get()).size).toBe(0);
   });
 });
 

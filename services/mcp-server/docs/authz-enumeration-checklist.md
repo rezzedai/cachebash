@@ -51,8 +51,8 @@ git grep -n -P 'const \{[^}]*\b(agentId|target|targetProgram|sessionId|programId
 
 | Measure | Count at base |
 |---|---|
-| (a) occurrences | 318 |
-| (a) lines | 294 |
+| (a) occurrences | 314 |
+| (a) lines | 290 |
 | (a) files | 18 |
 | (b) lines beyond (a) | 60 (new since the recon: modules/signal.ts:235, modules/signal.ts:241, modules/signal.ts:262) |
 | (c) lines | 3 |
@@ -324,8 +324,8 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: authorizeRelayRead (relay.ts): a sessionId that names another registered program is a subject (K-D2 option 2); a restricted key reading another subject is denied before query.get().
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: args.sessionId is the fallback requestedTarget (relay.ts:475). Reads and, by default, marks messages delivered.
-- Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:478): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows.
+- Evidence: args.sessionId is the fallback requestedTarget (relay.ts:424). Reads and, by default, marks messages delivered.
+- Recommendation: SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:427): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows.
 
 ### `relay.getMessagesHandler:args.target`
 
@@ -333,8 +333,8 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Tool: relay_get_messages; transports mcp, rest, iso; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: authorizeRelayRead (relay.ts): self and "all" allowed; RELAY_READ_ALL_PRINCIPALS (mobile, dispatcher) read any inbox; every other foreign target is denied naming credentialPrincipal.
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: relay.ts:475, same filter. For the three named credentials the filter honours the requested target.
-- Recommendation: Same as the args.sessionId record, including the dispatcher exemption (relay.ts:478, C-5 rule 1).
+- Evidence: relay.ts:424, same filter. For the three named credentials the filter honours the requested target.
+- Recommendation: Same as the args.sessionId record, including the dispatcher exemption (relay.ts:427, C-5 rule 1).
 
 ### `relay.getSentMessagesHandler:args.source`
 
@@ -360,7 +360,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Tool: relay_query_message_history; transports mcp, rest, iso; effect read; decided by C-5; closes in PR-K.
 - Binding today: same as args.source record.
 - Name lists: NL-RELAY-ADMIN.
-- Evidence: relay.ts:794-800 same scoping.
+- Evidence: relay.ts:743-749 same scoping.
 - Recommendation: FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled.
 
 ### `schedule.createScheduleHandler:args.target`
@@ -433,7 +433,7 @@ Each record gives the evidence and a recommendation. The builder picks nothing; 
 - Tool: relay_get_messages; transports rest; effect mixed; decided by C-5; closes in PR-K.
 - Binding today: delegates to relay_get_messages (authorizeRelayRead decides).
 - Name lists: NL-RELAY-GETMSG.
-- Evidence: rest.ts:452 passes sessionId (default "rest") into the handler, which applies relay.ts:473-481.
+- Evidence: rest.ts:452 passes sessionId (default "rest") into the handler, which applies relay.ts:422-430.
 - Recommendation: Disposition follows the relay_get_messages records.
 
 ### `rest.route GET /v1/program-state/:programId:p.programId`
@@ -679,7 +679,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | dispatchHandler.dispatchHandler:args.target | dispatch_dispatch | target must be a registered program, group or @role; no caller binding | dispatchHandler.ts:783 onward validates the target and creates a task, a directive and a wake for it. The target is the recipient. It also returns target state (heartbeat) to the caller. |
 | tasks.createTaskHandler:args.target | dispatch_create_task | target must be a registered program, group or @role (tasks.ts:413-418) | The argument names the recipient of a new task. The sender is bound by verifySource. |
 | relay.sendMessageHandler:args.target | relay_send_message | none by design; target resolved to program or group, unknown targets rejected (relay.ts:173-191) | The argument names the recipient. The sender is bound by verifySource at relay.ts:141. |
-| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
+| relay.sendDirectiveHandler:parsed.target | relay_send_directive | delegates to sendMessageHandler | relay.ts:959-964 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient. |
 
 ## ATTRIBUTION (8)
 
@@ -688,11 +688,11 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | Site | Tool | Binding today | Reason |
 |---|---|---|---|
 | index.main:params.callerSource | none | none; stored as caller_source and carried on a PROGRAM_WAKE event (wake/onDemandWake.ts:263, :286) | params.callerSource is passed to wakeTarget and written to the spawn record as caller_source (onDemandWake.ts:263, :286), which feeds a PROGRAM_WAKE event. It selects no document. |
-| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
+| analytics.emitAnalyticsEvent:params.programId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:303, relay.ts:382, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity. |
 | analytics.emitAnalyticsEvent:params.sessionId | none | none; label on an analytics event | Written to the analytics event as a label; it selects no document. claims.ts:137 and :344 pass args.sessionId, and verifiedSource is chosen by the caller for the exempt keys (gate.ts:154), so the value is caller-controlled and must not be read as identity. |
 | programState.updateProgramStateHandler:args.sessionId | state_update_program_state | none; stored at programState.ts:535, :543 | args.sessionId is written onto the state document and the history row as a label. It selects no document. |
 | rate-limits.logRateLimitEventHandler:args.sessionId | metrics_log_rate_limit_event | none; programId written is auth.programId (rate-limits.ts:84) | args.sessionId is stored on the event document. The program is taken from the credential. It selects nothing. |
-| relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document. |
+| relay.sendMessageHandler:args.sessionId | relay_send_message | none; stored on the relay document (relay.ts:234) | relay.ts:234 stores sessionId on the message. relay.ts:340 passes it to logDirective. It selects no existing document. |
 | signal.writeAlertDocs:input.sessionId | signal_send_alert | none; stored on alert (signal.ts:241) | Stored as a label on the alert document; selects nothing. |
 | signal.sendAlertHandler:args.sessionId | signal_send_alert | none; stored on alert (signal.ts:301) | Passed into writeAlertDocs as a stored label; selects nothing. |
 
@@ -723,7 +723,7 @@ Each label claims no gate is needed, so ISO reviews each one individually.
 | programState.deleteMemoryHandler:args.programId | state_delete_memory | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_delete_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
 | programState.reinforceMemoryHandler:args.programId | state_reinforce_memory | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_reinforce_memory is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
 | programState.getContextHistoryHandler:args.programId | state_get_context_history | authorizeStateRead/authorizeStateWrite (programState.ts:119-159): credentialPrincipal(auth) first; STATE_ADMIN_PRINCIPALS ["mobile"] keeps full access (plan amendment 3, C-5 rule 1). Self or mobile only; literal fleet.observe never admits a foreign caller. | PR-J: state_get_context_history is self-only plus mobile, bound to credentialPrincipal. The name lists STATE_READERS and STATE_WRITERS are deleted. A denial names the true principal. |
-| relay.getSentMessagesHandler:args.target | relay_get_sent_messages | narrows a result already bound by source (relay.ts:628-629) | The filter intersects with source, which the args.source record owns. The target argument cannot widen the result. |
+| relay.getSentMessagesHandler:args.target | relay_get_sent_messages | narrows a result already bound by source (relay.ts:577-578) | The filter intersects with source, which the args.source record owns. The target argument cannot widen the result. |
 | rest.route GET /v1/messages/unread:query.sessionId | none | callTool get_messages with markAsRead:false; sessionId defaults to credentialPrincipal(auth); authorizeRelayRead decides (PR-M row 1) | PR-M row 1: the route reads through get_messages. A foreign sessionId is refused with the relay denial text; the response keeps { messages, count }, newest first, at most 50 (21.1 C2). |
 | rest.route GET /v1/messages/unread:getFirestore() | none | no direct Firestore read: callTool get_messages (PR-M row 1) | PR-M row 1: the direct relay query is gone; the route calls get_messages. |
 | rest.route POST /v1/messages/mark_read:getFirestore() | none | enforceBreaker relay_mark_read, then markReadHandler per id: target is the principal, or RELAY_READ_ALL_PRINCIPALS; broadcast ids never change state (M-D1, PR-M row 2) | PR-M row 2: the route no longer reads or writes Firestore directly. A refused id writes one logDenial; a missing id is notFound and is not a denial. |
@@ -855,7 +855,7 @@ Four classes. Each is a record with `regex: none` and an anchor the test checks 
 | pulse.resumeProgramHandler:args.programId | a | 12 | 1021 | ESCALATE | ISO | PR-L | false |
 | rate-limits.logRateLimitEventHandler:args.sessionId | a | 2 | 82 | ATTRIBUTION | ISO | n/a | false |
 | rate-limits.getRateLimitEventsHandler:args.sessionId | a | 6 | 105 | ESCALATE | ISO | PR-L | false |
-| relay.sendMessageHandler:args.target | a | 15 | 140 | ADDRESSED | ISO | PR-K | false |
+| relay.sendMessageHandler:args.target | a | 11 | 140 | ADDRESSED | ISO | PR-K | false |
 | relay.sendMessageHandler:args.source | a | 3 | 142 | ESCALATE | C-5 | PR-K | false |
 | relay.sendMessageHandler:args.sessionId | a | 2 | 241 | ATTRIBUTION | ISO | n/a | false |
 | relay.getMessagesHandler:args.sessionId | a | 2 | 481 | ESCALATE | C-5 | PR-K | false |

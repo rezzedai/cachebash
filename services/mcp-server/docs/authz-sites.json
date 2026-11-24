@@ -14,8 +14,8 @@
     "c": "git grep -n -P 'const \\{[^}]*\\b(agentId|target|targetProgram|sessionId|programId|source|keyHash|userId|callerSource)\\b[^}]*\\} = (args|req|body|query|input|parsed|params|p)\\b' -- services/mcp-server/src ':!services/mcp-server/src/__tests__'"
   },
   "regex_counts": {
-    "a_occurrences": 318,
-    "a_lines": 294,
+    "a_occurrences": 314,
+    "a_lines": 290,
     "a_files": 18,
     "b_lines_beyond_a": 60,
     "b_new_since_recon": [
@@ -223,7 +223,7 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:467"
+        "modules/relay.ts:416"
       ],
       "guards": [
         "relay_get_messages"
@@ -435,8 +435,8 @@
       ],
       "layer": "handler",
       "guard_sites": [
-        "modules/relay.ts:686",
-        "modules/relay.ts:832"
+        "modules/relay.ts:635",
+        "modules/relay.ts:781"
       ],
       "guards": [
         "relay_get_sent_messages",
@@ -2692,7 +2692,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:332, relay.ts:433, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity.",
+      "evidence": "Written to the analytics event as a label; it selects no document. Of 23 emitAnalyticsEvent call sites, 18 pass auth.programId (for example claims.ts:136, :345). 5 pass a caller-controlled value: verifiedSource at relay.ts:303, relay.ts:382, dispatch/tasks.ts:510 and dispatch/dispatchHandler.ts:373 (the exempt keys choose their source, gate.ts:154), and args.programId at pulse.ts:203. So the label is caller-controlled and must not be read as identity.",
       "recommendation": null
     },
     {
@@ -3775,7 +3775,7 @@
       "handler": "sendMessageHandler",
       "expr": "args.target",
       "regex": "a",
-      "occurrences": 15,
+      "occurrences": 11,
       "line_at_base": 140,
       "tool": "relay_send_message",
       "transports": [
@@ -3842,7 +3842,7 @@
       "closes_in": "n/a",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:234 stores sessionId on the message. relay.ts:369 passes it to logDirective. It selects no existing document."
+      "evidence": "relay.ts:234 stores sessionId on the message. relay.ts:340 passes it to logDirective. It selects no existing document."
     },
     {
       "id": "relay.getMessagesHandler:args.sessionId",
@@ -3868,8 +3868,8 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "args.sessionId is the fallback requestedTarget (relay.ts:475). Reads and, by default, marks messages delivered.",
-      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:478): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows."
+      "evidence": "args.sessionId is the fallback requestedTarget (relay.ts:424). Reads and, by default, marks messages delivered.",
+      "recommendation": "SELF-ONLY with explicit denial naming the principal (predecessor R6); broadcast reads must not transition state (R6a). Keep the dispatcher exemption (relay.ts:427): C-5 rule 1 holds the dispatcher's memberships until the REST routes write ledger rows."
     },
     {
       "id": "relay.getMessagesHandler:args.target",
@@ -3895,8 +3895,8 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "relay.ts:475, same filter. For the three named credentials the filter honours the requested target.",
-      "recommendation": "Same as the args.sessionId record, including the dispatcher exemption (relay.ts:478, C-5 rule 1)."
+      "evidence": "relay.ts:424, same filter. For the three named credentials the filter honours the requested target.",
+      "recommendation": "Same as the args.sessionId record, including the dispatcher exemption (relay.ts:427, C-5 rule 1)."
     },
     {
       "id": "relay.getSentMessagesHandler:args.source",
@@ -3940,7 +3940,7 @@
         "iso"
       ],
       "effect": "read",
-      "binding_today": "narrows a result already bound by source (relay.ts:628-629)",
+      "binding_today": "narrows a result already bound by source (relay.ts:577-578)",
       "disposition": "SELF-ONLY",
       "disposition_by": "ISO",
       "status": "pending",
@@ -4000,7 +4000,7 @@
       "name_lists": [
         "NL-RELAY-ADMIN"
       ],
-      "evidence": "relay.ts:794-800 same scoping.",
+      "evidence": "relay.ts:743-749 same scoping.",
       "recommendation": "FOREIGN-READ gated on literal fleet.observe (PDR 4.3); SELF-ONLY when unruled."
     },
     {
@@ -4023,7 +4023,7 @@
       "closes_in": "PR-K",
       "serves_bundle_data": false,
       "name_lists": [],
-      "evidence": "relay.ts:1010-1015 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
+      "evidence": "relay.ts:959-964 sends a DIRECTIVE through sendMessageHandler and reads the target's heartbeat state for a warning. The argument names the recipient."
     },
     {
       "id": "schedule.createScheduleHandler:args.target",
@@ -4373,7 +4373,7 @@
       "name_lists": [
         "NL-RELAY-GETMSG"
       ],
-      "evidence": "rest.ts:452 passes sessionId (default \"rest\") into the handler, which applies relay.ts:473-481.",
+      "evidence": "rest.ts:452 passes sessionId (default \"rest\") into the handler, which applies relay.ts:422-430.",
       "recommendation": "Disposition follows the relay_get_messages records."
     },
     {
