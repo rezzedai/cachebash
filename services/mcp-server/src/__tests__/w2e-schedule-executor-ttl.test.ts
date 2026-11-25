@@ -4,6 +4,8 @@
  * same 24h default create_task itself applies in that case (PLAN-W2b), not the
  * never-expires sentinel: a scheduled tick is ordinary actionable work for its
  * target, not open-ended state like a sprint or an unanswered question.
+ * A taskTemplate.ttl (integer seconds, >= 60) overrides that default; an
+ * invalid stored value falls back to it.
  */
 
 jest.mock("../middleware/circuitBreaker.js", () => ({ readDispatchPause: jest.fn(async () => "clear") })); // PR-G: flag read is not under test here
@@ -15,6 +17,8 @@ import { CONSTANTS } from "../config/constants.js";
 const scheduleDoc = { id: "sched-1", ref: { id: "sched-1" }, data: () => ({ name: "nightly" }) };
 const created: any[] = [];
 
+let templateOverride: Record<string, unknown> = {};
+
 const txnStub = {
   get: jest.fn(() =>
     Promise.resolve({
@@ -22,7 +26,7 @@ const txnStub = {
       data: () => ({
         enabled: true,
         nextRunAt: null,
-        taskTemplate: { title: "Nightly job" },
+        taskTemplate: { title: "Nightly job", ...templateOverride },
         cron: "0 0 * * *",
         name: "nightly",
       }),
@@ -51,6 +55,7 @@ jest.mock("../firebase/client.js", () => ({ getFirestore: jest.fn(() => mockDb) 
 
 beforeEach(() => {
   created.length = 0;
+  templateOverride = {};
   queryCall = 0;
   jest.clearAllMocks();
 });
@@ -69,4 +74,32 @@ describe("PLAN-W2e: schedule-executor.ts field-less writer", () => {
     expect(task.expiresAt.toMillis()).toBeGreaterThan(in23h);
     expect(task.expiresAt.toMillis()).toBeLessThan(in25h);
   });
+
+  it("a template ttl of 3600 gives ttl 3600 and expiresAt about now+3600s", async () => {
+    templateOverride = { ttl: 3600 };
+    const before = Date.now();
+    await executeSchedulesForUser("test-user");
+    const after = Date.now();
+
+    expect(created.length).toBe(1);
+    const task = created[0];
+    expect(task.ttl).toBe(3600);
+    expect(task.expiresAt.toMillis()).toBeGreaterThanOrEqual(before + 3600 * 1000);
+    expect(task.expiresAt.toMillis()).toBeLessThanOrEqual(after + 3600 * 1000);
+  });
+
+  it.each([[0], [30], [59], ["3600"], [3600.5], [null]])(
+    "a stored invalid template ttl (%p) falls back to the 24h default",
+    async (bad) => {
+      templateOverride = { ttl: bad };
+      await executeSchedulesForUser("test-user");
+
+      expect(created.length).toBe(1);
+      const task = created[0];
+      expect(task.ttl).toBe(CONSTANTS.ttl.defaultTaskSeconds);
+      expect(task.ttl).toBe(86400);
+      const in23h = Date.now() + 23 * 3600 * 1000;
+      expect(task.expiresAt.toMillis()).toBeGreaterThan(in23h);
+    }
+  );
 });
