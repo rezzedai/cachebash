@@ -92,6 +92,10 @@ async function fireSchedule(
     // is ordinary actionable work for `target`, not open-ended state like a sprint
     // or an unanswered question.
     const taskRef = db.collection(`tenants/${userId}/tasks`).doc();
+    // Template ttl (integer seconds, >= 60) overrides the 24h default. Anything else
+    // stored (0, <60, non-integer, string) falls back to the default.
+    const ttlSeconds =
+      Number.isInteger(template.ttl) && template.ttl >= 60 ? template.ttl : CONSTANTS.ttl.defaultTaskSeconds;
     const taskDoc = {
       type: "task",
       title: template.title || schedule.name,
@@ -104,8 +108,8 @@ async function fireSchedule(
       scheduleId: scheduleRef.id,
       scheduleName: schedule.name,
       createdAt: FieldValue.serverTimestamp(),
-      ttl: CONSTANTS.ttl.defaultTaskSeconds,
-      expiresAt: Timestamp.fromMillis(Date.now() + CONSTANTS.ttl.defaultTaskSeconds * 1000),
+      ttl: ttlSeconds,
+      expiresAt: Timestamp.fromMillis(Date.now() + ttlSeconds * 1000),
       // WP-1: scheduled work is actionable by default — a get_tasks() boot query
       // filtered on requires_action==true (WP-2) must never silently exclude a
       // fired schedule's task just because this writer bypasses the

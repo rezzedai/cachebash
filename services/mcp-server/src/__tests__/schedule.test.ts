@@ -9,7 +9,7 @@
  * rather than filtering a single capped page.
  */
 import type { AuthContext } from "../auth/authValidator";
-import { listSchedulesHandler } from "../modules/schedule";
+import { listSchedulesHandler, createScheduleHandler } from "../modules/schedule";
 // tools/index.ts's barrel transitively imports an ESM-only dependency
 // (@octokit/rest via dispatch/github-sync) that this project's ts-jest CJS
 // config cannot parse -- tools/schedule.ts is the same registration this
@@ -51,6 +51,15 @@ function buildQuery(colPath: string, state: QueryState) {
   const next = (patch: Partial<QueryState>) => buildQuery(colPath, { ...state, ...patch });
 
   return {
+    doc() {
+      const id = `new-${Object.keys(mockDocs).length}`;
+      return {
+        id,
+        async set(data: any) {
+          mockDocs[`${colPath}/${id}`] = { ...data };
+        },
+      };
+    },
     where(field: string, op: string, value: any) {
       const predicate = (data: any) => {
         const v = data[field];
@@ -268,5 +277,33 @@ describe("listSchedulesHandler -- failed-query fallback", () => {
     const result = parse(await handler(mockAuth, { enabled: true }));
     expect(result.degraded).toBe(true);
     expect(result.schedules).toHaveLength(1);
+  });
+});
+
+describe("createScheduleHandler -- taskTemplate.ttl", () => {
+  const base = { name: "hourly", target: "iso", cron: "0 * * * *" };
+
+  test("ttl 3600 round-trips into the stored schedule", async () => {
+    const result = parse(
+      await createScheduleHandler(mockAuth, {
+        ...base,
+        taskTemplate: { title: "t", action: "interrupt", ttl: 3600 },
+      })
+    );
+    expect(result.success).toBe(true);
+    expect(result.schedule.taskTemplate.ttl).toBe(3600);
+    const stored = mockDocs[`tenants/${mockAuth.userId}/schedules/${result.scheduleId}`];
+    expect(stored.taskTemplate.ttl).toBe(3600);
+  });
+
+  test("omitted ttl stays absent", async () => {
+    const result = parse(await createScheduleHandler(mockAuth, { ...base, taskTemplate: { title: "t" } }));
+    expect(result.schedule.taskTemplate.ttl).toBeUndefined();
+  });
+
+  test.each([[0], [30], [59], [31536001], [3600.5]])("ttl %p is rejected", async (bad) => {
+    await expect(
+      createScheduleHandler(mockAuth, { ...base, taskTemplate: { title: "t", ttl: bad } })
+    ).rejects.toThrow();
   });
 });

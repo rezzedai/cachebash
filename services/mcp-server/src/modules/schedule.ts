@@ -21,6 +21,8 @@ const TaskTemplateSchema = z.object({
   instructions: z.string().max(4000).optional(),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   action: z.enum(["queue", "interrupt"]).default("queue"),
+  // Seconds each fired task lives. Min 60 (a task needs time to be claimed). 0 (never expires) is not allowed.
+  ttl: z.number().int().min(60).max(31536000).optional(),
 });
 
 const CreateScheduleSchema = z.object({
